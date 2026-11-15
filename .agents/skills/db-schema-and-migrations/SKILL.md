@@ -392,7 +392,8 @@ tracker inside its own database. No foreign key or trigger crosses them; they li
 - **Setup gives every instance its control database** ([[OPS279]], [[CORE259]] P4): both front-ends derive
   `vb-control-<env>` (or take the record / `--control-d1-name`), adopt a D1 of that name, migrate control before CRM
   inside the one `migrate` step, and write the control marker after the CRM `deployment` row, also on an instance
-  bootstrapped before the control plane existed. `bootstrap --remote` writes it when the env binds `CONTROL_DB`.
+  bootstrapped before the control plane existed. `bootstrap` (local and `--remote`) writes it in every auth mode and refuses, before writing either database, an env
+  that binds no `CONTROL_DB` ([[CORE326]] P6).
 - **Setup on Better Auth** ([[OPS249]]): a new instance defaults to `better-auth`; a recorded one runs with its
   recorded `AUTH_PROVIDER` (absent = `none`), and a differing `--auth` is refused before any step. The bootstrap step
   reads the owner state first (CRM `memberships`, control `invitations`, `setup/commands.ts`) and passes `ownerEmail`

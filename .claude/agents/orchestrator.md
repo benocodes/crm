@@ -80,7 +80,9 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    `cycle_done`: stop as described there. Without the mod, just continue with the next item.
 
 Run independent agents in parallel only when they cannot touch the same files (for example, drafting
-the next spec while the current cycle is being coded). Cycles that build on each other run in order,
+the next spec while the current cycle is being coded). Never run two agents for the same stage of the same cycle (two
+reviews of one round, two gate runs of one sha): before spawning, check SPRINT.md's Position and your own pending
+agents for one already running ([[CORE326]]: two planner reviews of round 1 ran at once). Cycles that build on each other run in order,
 each from an up-to-date `main`.
 
 ## Stopping

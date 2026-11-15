@@ -199,6 +199,14 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   Worker in-process (`composeD1Worker`) and compares its answers with the builders. Every kit then uses those builders.
   The fake cannot drift, and no E2E is needed for that seam ([[OPS306]],
   `packages/server-d1/scripts/setup/better-auth-answers.test.ts`).
+- **When a mode change makes every harness need new setup, change the kit's default, not each test.** [[CORE326]] made a
+  paired control database mandatory for every Worker; instead of editing ~25 suites, `openWorkerD1()` in
+  `packages/server-d1/src/test/kit.ts` opens a migrated control database that pairs itself from the CRM deployment row,
+  and the kit's `composeD1Worker` fills `CONTROL_DB` unless the env names it (even as `undefined`, which is how a test
+  asks for the missing-binding case). The behaviour the default hides is then proven once with no auto-pairing
+  (`openWorkerPair` in `src/control-plane.test.ts`) and once on the real `wrangler.jsonc` (`better-auth-wrangler.test.ts`).
+  The instance kit does the same (`validSettings` carries `control_d1`, `noControlSettings` does not). Import from the kit;
+  composing straight from `src/compose.ts` in a test now fails closed.
 - **Docs that quote program text are checked against the program's constant.** The docs test imports the constant,
   never retypes it, so editing the constant turns the docs check red. A check that the docs "do not promise X yet" can
   only search for names (`owner-reset`, `workers.dev`). A paraphrase ("the owner recovery tools need it") passes it, so

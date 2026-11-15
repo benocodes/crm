@@ -106,9 +106,14 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     database", [[CORE261]]). A control **read** takes a port the same way (`AuditPort` over `listControlAudit`,
     `packages/api/src/audit/port.ts`; `createApp({ audit })`), and without one answers `501 provider_not_configured`
     after the scope check. An operation that must reach the control plane after its CRM unit takes a
-    narrow port composition hands in (`InvitationsPort`, `MembersPort`) in a decorated `after` stage. Under `better-auth` the Worker fails closed without the binding (`500`, log names
-    `CONTROL_DB`), refuses an untracked or behind control database (`503 migrations_pending`) and an unpaired control
-    marker (`500`, log `control database not paired`); `clerk` and unset never open it.
+    narrow port composition hands in (`InvitationsPort`, `MembersPort`) in a decorated `after` stage. In **every** auth
+    mode ([[CORE326]], reversing the earlier `better-auth`-only rule) the Worker fails closed without the binding (`500`,
+    log names `CONTROL_DB`), refuses an untracked or behind control database (`503 migrations_pending`) and an unpaired
+    control marker (`500`, log `control database not paired`); `/health` stays CRM only. The control store (and so
+    `audit.list`) exists on every D1 composition; only Better Auth's own ports (invitations, membership writes, reset
+    link) stay `501 provider_not_configured` on `clerk`/unset. The cron ticks read `CONTROL_DB` only for the
+    `better-auth` sweep (until #327). The gate reads the CRM `deployment` row once per isolate, so every cold-request
+    query count in `measured-limits.test.ts` and `gmail-send.test.ts` rose by one ([[CORE326]] D8).
   - **Better Auth tokens on the API** ([[CORE243]] D8 as pinned by [[CORE244]]; `packages/api/src/auth/better-auth.ts`):
     the adapter's `roleSource` is `'membership'` (role read live from `memberships` per request, in the principal
     lookup's read-only unit; Clerk stays `'claim'`). Kinds: header `typ: at+jwt` (+ `client_id`) = OAuth access token;
