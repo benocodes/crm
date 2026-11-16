@@ -62,7 +62,7 @@ export interface ApplyOutcome {
   agents_disabled: number
   memberships_inserted: number
 }
-const PROVIDER = 'better-auth'
+export const PROVIDER = 'better-auth'
 
 // ---- the state check (D3, P2, P5) -------------------------------------------------------------------------
 
@@ -96,7 +96,7 @@ const userLabel = (r: Row) => `users row ${r.id}`
 const agentLabel = (r: Row) => `agents row ${r.id}`
 const membershipLabel = (r: Row) => `membership ${r.id} (user ${r.user_id})`
 
-const diffsAgainst = (expected: Snapshot, fresh: Snapshot): string[] => [
+export const diffsAgainst = (expected: Snapshot, fresh: Snapshot): string[] => [
   ...diffRows(clerkLabel, (r) => r.id, expected.clerk_users, fresh.clerk_users),
   ...diffRows(userLabel, (r) => r.id as string, expected.users as unknown as Row[], fresh.users as unknown as Row[]),
   ...diffRows(agentLabel, (r) => r.id as string, expected.agents as unknown as Row[], fresh.agents as unknown as Row[]),
@@ -108,8 +108,8 @@ const diffsAgainst = (expected: Snapshot, fresh: Snapshot): string[] => [
   ),
 ]
 
-const migrating = (plan: AuthPlan): PlanPerson[] => plan.people.filter((p) => p.action === 'migrate')
-const needsMembership = (p: PlanPerson): p is PlanPerson & { role: 'owner' | 'member' } =>
+export const migrating = (plan: AuthPlan): PlanPerson[] => plan.people.filter((p) => p.action === 'migrate')
+export const needsMembership = (p: PlanPerson): p is PlanPerson & { role: 'owner' | 'member' } =>
   p.action === 'migrate' && p.role !== null && p.membership === null
 
 /** The snapshot with the plan applied, except what the plan cannot know: a disabled agent's `disabled_at` stamp and a new membership's id (both compared by shape below). */
@@ -132,7 +132,7 @@ function appliedSnapshot(plan: AuthPlan): Snapshot {
 }
 const DISABLED_MARK = '<disabled by the plan>'
 
-function appliedDiffs(plan: AuthPlan, fresh: Snapshot): string[] {
+export function appliedDiffs(plan: AuthPlan, fresh: Snapshot): string[] {
   const expected = appliedSnapshot(plan)
   const disabled = new Set(plan.agents.filter((a) => a.action === 'disable').map((a) => a.id))
   const seen: Snapshot = {
@@ -288,12 +288,12 @@ export async function applyControlBatch(control: D1Like, plan: AuthPlan, now: Da
 
 // ---- the CRM batch (D1, D4, D13, P5, P6, P7) --------------------------------------------------------------
 
-const AGENT_COLUMNS = Object.keys(agentRecord.shape)
-const MEMBERSHIP_COLUMNS = Object.keys(membershipRecord.shape)
-const agentKey = (id: string) => `agent:${id}`
+export const AGENT_COLUMNS = Object.keys(agentRecord.shape)
+export const MEMBERSHIP_COLUMNS = Object.keys(membershipRecord.shape)
+export const agentKey = (id: string) => `agent:${id}`
 
 /** `column = value`, or `column is null` for a null snapshot value: the drift guards compare against what the export saw. */
-const same = (_qc: QueryContext, column: string, value: string | null) =>
+export const same = (_qc: QueryContext, column: string, value: string | null) =>
   value === null ? sql<SqlBool>`${sql.ref(column)} is null` : sql<SqlBool>`${sql.ref(column)} = ${value}`
 
 /**

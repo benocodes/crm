@@ -218,7 +218,7 @@ async function runRevert(c: Ctx, o: RunOpts = {}) {
     })(),
     log: (l) => void out.push(l),
     error: (l) => void err.push(l),
-  } as unknown as PlanDeps
+  }
   const code = await runAuthMigrate(
     ['revert', '--env', 'hq', '--plan', c.planPath, ...(o.argv ?? [])],
     o.env ?? GOOD,
@@ -248,7 +248,12 @@ const faultCrm = (
 }
 const marker = async () => (await rows(pair.d1, 'select auth_provider from deployment'))[0]!.auth_provider as string
 const eventsNow = () => rows(pair.d1, 'select id, type, resource_type, resource_id, actor_id from events order by id')
-const restoredSnapshot = (c: Ctx) => readSnapshot(pair.d1, c.plan.snapshot.clerk_users)
+/** The fresh export, minus the tombstones revert leaves (soft-deleted memberships the snapshot does not hold): what must equal the plan's snapshot exactly. */
+async function restoredSnapshot(c: Ctx) {
+  const s = await readSnapshot(pair.d1, c.plan.snapshot.clerk_users)
+  const known = new Set(c.plan.snapshot.memberships.map((m) => m.id))
+  return { ...s, memberships: s.memberships.filter((m) => known.has(m.id) || m.deleted_at === null) }
+}
 
 // ---- group 1: refused before any write, exit 1 (P2, P3, P5): each case on the real run and on --dry-run ----
 
