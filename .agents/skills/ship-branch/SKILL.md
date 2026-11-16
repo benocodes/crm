@@ -115,6 +115,15 @@ The commands AGENTS.md's "Stack and commands" leaves out. None is in the gate.
 (AGENTS.md, "Environments"). Agents never push a release tag, publish the draft GitHub Release, run
 `changeset publish` (or `changeset version` outside a scratch copy) or merge the Version Packages PR.
 
+**Credentials for `smoked1` (#380).** The remote scripts (`setup:remote`, `db:status:remote`, `db:migrate:remote`,
+`deploy:remote`, `bootstrap --remote`, `smoke:remote --phase after`, `e2e:rail`) read `CLOUDFLARE_ACCOUNT_ID`,
+`CLOUDFLARE_API_TOKEN` and `VIBASE_SMOKED1_OPERATOR_KEY` for `--env smoked1` from the gitignored `.env.smoked1` at the
+repo root of the checkout they run in, never from the root `.env` (process variables still win; a refusal names
+`.env.smoked1`). A fresh worktree has none (the file is gitignored), so copy it from the main checkout before the first
+remote command: `cp /Users/ori/Code/crm/.env.smoked1 .env.smoked1` (run from the worktree root; the standing `smoked1`
+exception allows it; never print it). **Never copy or symlink the root `.env`** (it holds live Clerk keys). `hq` and
+`hq-staging` files are never sourced by any script, and no script reads the root `.env` for them either.
+
 ### Release packages
 
 ```bash

@@ -7,7 +7,8 @@ import {
   PLACEHOLDER_DATABASE_ID,
   RemoteRefusal,
   deployCommands,
-  loadRootEnv,
+  loadRemoteEnv,
+  remoteEnvFile,
   migrateCommands,
   parseEnvFlag,
   requireConfirm,
@@ -175,22 +176,75 @@ describe('commands (C5, C6)', () => {
   })
 })
 
-describe('loadRootEnv (C3)', () => {
-  it('refuses without credentials and leaks no value', () => {
-    delete process.env.CLOUDFLARE_API_TOKEN
-    delete process.env.CLOUDFLARE_ACCOUNT_ID
+describe('loadRemoteEnv (C3, #380)', () => {
+  const CF = ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN']
+  const repo = (files: Record<string, string>): string => {
     const dir = mkdtempSync(join(tmpdir(), 'ops4-env-'))
     dirs.push(dir)
-    const file = join(dir, '.env')
-    writeFileSync(file, 'CLOUDFLARE_ACCOUNT_ID=acct-SECRETVALUE\nOTHER=x\n')
+    for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text)
+    return `${dir}/`
+  }
+  const clear = () => {
+    for (const k of [...CF, 'VIBASE_SMOKED1_OPERATOR_KEY']) delete process.env[k]
+  }
+
+  it('refuses without credentials, names the file it looked in and leaks no value', () => {
+    clear()
+    const root = repo({ '.env.smoked1': 'CLOUDFLARE_ACCOUNT_ID=acct-SECRETVALUE\nOTHER=x\n' })
     let message = ''
     try {
-      loadRootEnv(file)
+      loadRemoteEnv('smoked1', root)
     } catch (err) {
       expect(err).toBeInstanceOf(RemoteRefusal)
       message = (err as Error).message
     }
-    expect(message).toBe('CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN must be set in .env')
+    expect(message).toBe('CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN must be set in .env.smoked1')
     expect(message).not.toContain('SECRETVALUE')
+  })
+
+  it('smoked1 reads .env.smoked1 (credentials and the operator key) and never the root .env', () => {
+    clear()
+    const root = repo({
+      '.env.smoked1':
+        'CLOUDFLARE_ACCOUNT_ID=fake-acct\nCLOUDFLARE_API_TOKEN=fake-token\nVIBASE_SMOKED1_OPERATOR_KEY=fake-op\n',
+      '.env': 'CLOUDFLARE_ACCOUNT_ID=root-acct\nCLOUDFLARE_API_TOKEN=root-token\nVIBASE_SMOKED1_OPERATOR_KEY=root-op\n',
+    })
+    loadRemoteEnv('smoked1', root)
+    expect(process.env.CLOUDFLARE_ACCOUNT_ID).toBe('fake-acct')
+    expect(process.env.CLOUDFLARE_API_TOKEN).toBe('fake-token')
+    expect(process.env.VIBASE_SMOKED1_OPERATOR_KEY).toBe('fake-op')
+  })
+
+  it('smoked1 with only a root .env refuses: the root file is not a fallback', () => {
+    clear()
+    const root = repo({ '.env': 'CLOUDFLARE_ACCOUNT_ID=root-acct\nCLOUDFLARE_API_TOKEN=root-token\n' })
+    refusal(() => loadRemoteEnv('smoked1', root), 'must be set in .env.smoked1')
+    expect(process.env.CLOUDFLARE_ACCOUNT_ID).toBeUndefined()
+  })
+
+  it('existing process variables win over the file', () => {
+    process.env.CLOUDFLARE_ACCOUNT_ID = 'proc-acct'
+    process.env.CLOUDFLARE_API_TOKEN = 'proc-token'
+    const root = repo({ '.env.smoked1': 'CLOUDFLARE_ACCOUNT_ID=fake-acct\nCLOUDFLARE_API_TOKEN=fake-token\n' })
+    loadRemoteEnv('smoked1', root)
+    expect(process.env.CLOUDFLARE_ACCOUNT_ID).toBe('proc-acct')
+  })
+
+  it.each(['hq', 'hq-staging'])('%s: its env file is never sourced, and the root .env is not read either', (name) => {
+    clear()
+    const root = repo({
+      [`.env.${name}`]: 'CLOUDFLARE_ACCOUNT_ID=hq-acct\nCLOUDFLARE_API_TOKEN=hq-token\n',
+      '.env': 'CLOUDFLARE_ACCOUNT_ID=root-acct\nCLOUDFLARE_API_TOKEN=root-token\n',
+    })
+    refusal(() => loadRemoteEnv(name, root), `.env.${name} is never sourced`)
+    expect(process.env.CLOUDFLARE_ACCOUNT_ID).toBeUndefined()
+  })
+
+  it('any other env keeps the root .env (a human operator path) and says so', () => {
+    expect(remoteEnvFile('demo', '/r/').display).toBe('.env')
+    clear()
+    const root = repo({ '.env': 'CLOUDFLARE_ACCOUNT_ID=root-acct\nCLOUDFLARE_API_TOKEN=root-token\n' })
+    loadRemoteEnv('demo', root)
+    expect(process.env.CLOUDFLARE_ACCOUNT_ID).toBe('root-acct')
   })
 })

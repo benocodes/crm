@@ -64,15 +64,33 @@ export function requireConfirm(env: NodeJS.ProcessEnv): void {
   if (env.CONFIRM_REMOTE !== '1') throw new RemoteRefusal('set CONFIRM_REMOTE=1 to run against a remote instance')
 }
 
-/** Loads the root `.env` (existing process variables win) and requires the Cloudflare credentials. Never logs a value. */
-export function loadRootEnv(path: string = ROOT_ENV_PATH): void {
-  try {
-    process.loadEnvFile(path)
-  } catch {
-    // no .env: the credentials may come from the process environment
+/** The environments whose env files are never sourced by any script (AGENTS.md "Environments"): the user copies a value into `.env.smoked1` first. */
+export const NEVER_SOURCED_ENVS: readonly string[] = ['hq', 'hq-staging']
+
+/** The env file a remote script reads for `envName`, as `[path, displayName]`: `.env.smoked1` for smoked1 ([[OPS262]] standing exception), the root `.env` for any other env (human operators; agents have no grant there). */
+export function remoteEnvFile(envName: string, repoRoot: string = REPO_ROOT): { path: string; display: string } {
+  if (envName === 'smoked1') return { path: `${repoRoot}.env.smoked1`, display: '.env.smoked1' }
+  return { path: `${repoRoot}.env`, display: '.env' }
+}
+
+/**
+ * Loads the credentials file of `envName` (existing process variables win) and requires the Cloudflare credentials. For `smoked1` that is the
+ * gitignored `.env.smoked1` at the repo root and never the root `.env` ([[CORE259]] D5 rule, #380); `hq` and `hq-staging` files are never
+ * sourced (the process environment only). Never logs a value; a refusal names the file it looked in.
+ */
+export function loadRemoteEnv(envName: string, repoRoot: string = REPO_ROOT): void {
+  const { path, display } = NEVER_SOURCED_ENVS.includes(envName)
+    ? { path: null, display: `the process environment (.env.${envName} is never sourced)` }
+    : remoteEnvFile(envName, repoRoot)
+  if (path !== null) {
+    try {
+      process.loadEnvFile(path)
+    } catch {
+      // no file: the credentials may come from the process environment
+    }
   }
   if (!process.env.CLOUDFLARE_ACCOUNT_ID || !process.env.CLOUDFLARE_API_TOKEN) {
-    throw new RemoteRefusal('CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN must be set in .env')
+    throw new RemoteRefusal(`CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN must be set in ${display}`)
   }
 }
 

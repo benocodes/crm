@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { D1Like } from '@vibase/storage-d1'
 import { appendEnvVar, remoteProxyOptions } from './bootstrap.js'
-import { CONFIG_PATH, PACKAGE_DIR, REPO_ROOT, ROOT_ENV_PATH, loadRootEnv } from './remote.js'
+import { CONFIG_PATH, PACKAGE_DIR, REPO_ROOT, ROOT_ENV_PATH, loadRemoteEnv } from './remote.js'
 import { appendEnvFileVar, probeEnvFile } from './setup/env-file.js'
 import { runSetup } from './setup/run.js'
 import type { SetupDeps } from './setup/types.js'
@@ -28,8 +28,8 @@ export const realSetupDeps: SetupDeps = {
     return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' }
   },
   fetch: (input, init) => fetch(input, init),
-  loadEnv: () => {
-    loadRootEnv()
+  loadEnv: (envName) => {
+    loadRemoteEnv(envName)
     return { accountId: process.env.CLOUDFLARE_ACCOUNT_ID!, apiToken: process.env.CLOUDFLARE_API_TOKEN! }
   },
   readConfigText: () => readFileSync(CONFIG_PATH, 'utf8'),

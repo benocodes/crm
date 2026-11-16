@@ -12,7 +12,7 @@ import {
   CONFIG_PATH,
   PACKAGE_DIR,
   RemoteRefusal,
-  loadRootEnv,
+  loadRemoteEnv,
   parseEnvFlag,
   requireConfirm,
   resolveTarget,
@@ -26,7 +26,7 @@ export const PULL_VERBS: readonly string[] = ['get']
 const INDEX_KEY = '_recordings/index.json'
 
 export interface PullDeps {
-  loadEnv(): void
+  loadEnv(envName: string): void
   readConfig(envName: string): ConfigLike
   exec(cmd: Cmd): { status: number | null }
   readFile(path: string): string
@@ -69,7 +69,7 @@ export const getCommand = (envName: string, bucket: string, key: string, file: s
 export function runPull(argv: string[], procEnv: NodeJS.ProcessEnv, deps: PullDeps): number {
   const envName = parseEnvFlag(argv)
   requireConfirm(procEnv)
-  deps.loadEnv()
+  deps.loadEnv(envName)
   const config = deps.readConfig(envName)
   const target = resolveTarget(config, envName)
   const bucket = bucketOf(config, envName)
@@ -98,7 +98,7 @@ export function runPull(argv: string[], procEnv: NodeJS.ProcessEnv, deps: PullDe
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   try {
     process.exitCode = runPull(process.argv.slice(2), process.env, {
-      loadEnv: () => loadRootEnv(),
+      loadEnv: (envName) => loadRemoteEnv(envName),
       readConfig: (envName) => unstable_readConfig({ config: CONFIG_PATH, env: envName }) as unknown as ConfigLike,
       exec: (cmd) => ({
         status: spawnSync(cmd.command, cmd.args, {

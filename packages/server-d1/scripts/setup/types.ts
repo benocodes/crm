@@ -64,8 +64,8 @@ export interface EnvFileProbe {
 export interface SetupDeps {
   exec(cmd: SetupCmd): Promise<ExecResult>
   fetch: typeof fetch
-  /** Loads the root `.env` and returns the Cloudflare credentials, or throws `RemoteRefusal`. */
-  loadEnv(): Credentials
+  /** Loads the instance's credentials file (`.env.smoked1` for smoked1) and returns the Cloudflare credentials, or throws `RemoteRefusal`. */
+  loadEnv(envName: string): Credentials
   readConfigText(): string
   writeConfigText(text: string): void
   /** The instance's remote D1 (a platform proxy in the real command). */

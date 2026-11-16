@@ -11,7 +11,7 @@ import {
   REPO_ROOT,
   RemoteRefusal,
   deployCommands,
-  loadRootEnv,
+  loadRemoteEnv,
   parseEnvFlag,
   requireConfirm,
   requireControlTarget,
@@ -23,7 +23,7 @@ const git = (args: string[]) => spawnSync('git', args, { cwd: REPO_ROOT, encodin
 
 export interface DeployDeps {
   git(args: string[]): { status: number | null; stdout: string }
-  loadEnv(): void
+  loadEnv(envName: string): void
   readConfig(envName: string): ConfigLike
   /** Runs one command; returns its exit status. */
   run(cmd: Cmd): number | null
@@ -32,7 +32,7 @@ export interface DeployDeps {
 
 const realDeps: DeployDeps = {
   git,
-  loadEnv: () => loadRootEnv(),
+  loadEnv: (envName) => loadRemoteEnv(envName),
   readConfig: (envName) => unstable_readConfig({ config: CONFIG_PATH, env: envName }) as unknown as ConfigLike,
   run: ({ command, args }) =>
     spawnSync(command, args, {
@@ -50,7 +50,7 @@ export function runDeploy(argv: string[], procEnv: NodeJS.ProcessEnv, deps: Depl
   const status = deps.git(['status', '--porcelain'])
   if (status.status !== 0 || status.stdout.trim() !== '')
     throw new RemoteRefusal('the working tree is not clean: commit or stash first')
-  deps.loadEnv()
+  deps.loadEnv(envName)
   // [[CORE326]] P4: a Worker without its control database answers 500 on every request, so the deploy is refused before the build.
   const target = requireControlTarget(deps.readConfig(envName), envName)
   const head = deps.git(['rev-parse', 'HEAD'])

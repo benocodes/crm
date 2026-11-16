@@ -24,7 +24,7 @@ import {
   REPO_ROOT,
   ROOT_ENV_PATH,
   RemoteRefusal,
-  loadRootEnv,
+  loadRemoteEnv,
   requireConfirm,
   requireControlTarget,
   type ConfigLike,
@@ -125,7 +125,7 @@ export function reportLines(r: BootstrapD1Result, mode: 'local' | 'remote', keyE
 }
 
 export interface RemoteGuardDeps {
-  loadEnv: () => void
+  loadEnv: (envName: string) => void
   readEnvText: () => string
   readConfig: () => ConfigLike
   getPlatformProxy: (
@@ -141,7 +141,7 @@ export async function runRemoteGuards(
   deps: RemoteGuardDeps,
 ): Promise<{ target: Target; proxy: Awaited<ReturnType<RemoteGuardDeps['getPlatformProxy']>> }> {
   requireConfirm(env)
-  deps.loadEnv()
+  deps.loadEnv(parsed.envName)
   if (!KEY_ENV_SHAPE.test(parsed.keyEnv)) throw new RemoteRefusal(`--key-env ${parsed.keyEnv} must be UPPER_SNAKE_CASE`)
   if (assigned(deps.readEnvText(), parsed.keyEnv))
     throw new RemoteRefusal(`${parsed.keyEnv} is already set in .env: refusing to overwrite a key`)
@@ -263,7 +263,7 @@ function usage(message: string): never {
 async function mainOwnerReset(): Promise<void> {
   const { getPlatformProxy, unstable_readConfig } = await import('wrangler')
   process.exitCode = await runOwnerResetRemote(process.argv.slice(2), process.env, {
-    loadEnv: () => loadRootEnv(),
+    loadEnv: (envName) => loadRemoteEnv(envName),
     readConfig: (envName) =>
       unstable_readConfig({ config: CONFIG_PATH, env: envName }) as unknown as ConfigLike & {
         vars?: Record<string, unknown>
@@ -317,7 +317,7 @@ async function main(): Promise<void> {
   if (parsed.mode === 'remote') {
     try {
       const guarded = await runRemoteGuards({ envName: parsed.envName!, keyEnv: parsed.keyEnv! }, process.env, {
-        loadEnv: () => loadRootEnv(),
+        loadEnv: (envName) => loadRemoteEnv(envName),
         readEnvText: () => {
           try {
             return readFileSync(ROOT_ENV_PATH, 'utf8')

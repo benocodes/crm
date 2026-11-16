@@ -12,7 +12,7 @@ import {
   PACKAGE_DIR,
   RemoteRefusal,
   formatMigrationDiff,
-  loadRootEnv,
+  loadRemoteEnv,
   parseEnvFlag,
   parseTrackerOutput,
   requireConfirm,
@@ -30,14 +30,14 @@ export const EXPECTED = MIGRATIONS.map((m) => m.name)
 export const CONTROL_EXPECTED = CONTROL_MIGRATIONS.map((m) => m.name)
 
 export interface StatusDeps {
-  loadEnv(): void
+  loadEnv(envName: string): void
   readConfig(envName: string): ConfigLike
   exec(cmd: Cmd): { status: number | null; stdout: string }
   log(line: string): void
 }
 
 export const realDeps: StatusDeps = {
-  loadEnv: () => loadRootEnv(),
+  loadEnv: (envName) => loadRemoteEnv(envName),
   readConfig: (envName) => unstable_readConfig({ config: CONFIG_PATH, env: envName }) as unknown as ConfigLike,
   exec: (cmd) => {
     const r = spawnSync(cmd.command, cmd.args, {
@@ -58,7 +58,7 @@ export function guardedTarget(
 ): ControlTarget {
   const envName = parseEnvFlag(argv)
   requireConfirm(procEnv)
-  deps.loadEnv()
+  deps.loadEnv(envName)
   return requireControlTarget(deps.readConfig(envName), envName)
 }
 
