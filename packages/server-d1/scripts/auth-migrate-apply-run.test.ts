@@ -439,7 +439,9 @@ describe('every stopping point exits 2 and a re-run ends applied', () => {
   it('the deploy is refused (a RemoteRefusal): exit 2 with its own message, the CRM untouched, and a re-run resumes', async () => {
     const c = await setup()
     const before = await crmDump()
-    const first = await runApply(c, { deployThrows: new RemoteRefusal('the working tree is not clean: commit or stash first') })
+    const first = await runApply(c, {
+      deployThrows: new RemoteRefusal('the working tree is not clean: commit or stash first'),
+    })
     expect(first.code).toBe(2)
     expect(first.err.join('\n')).toMatch(/the deploy was refused \(the working tree is not clean/)
     expect(first.crmWrites()).toBe(0)
