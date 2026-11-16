@@ -245,6 +245,11 @@ body {
 }
 
 .vb-link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
   color: var(--vb-color-fg);
   text-decoration: underline;
   cursor: pointer;

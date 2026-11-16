@@ -239,12 +239,13 @@ describe('the layout (#376)', () => {
     const sub = screen.getByRole('heading', { name: 'Create a new account' })
     const name = screen.getByLabelText('Name')
     const submit = screen.getByRole('button', { name: /^create account$/i })
-    const link = screen.getByRole('link', { name: /already have an account\? sign in to accept/i })
+    const link = screen.getByRole('button', { name: /already have an account\? sign in to accept/i })
     const h1 = screen.getByRole('heading', { level: 1 })
     const follows = (a: Node, b: Node) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
     const order = [h1, google, divider, sub, name, submit, link]
     for (let i = 0; i < order.length - 1; i++) expect(follows(order[i]!, order[i + 1]!)).toBe(true)
-    expect(screen.queryByRole('button', { name: /already have an account/i })).toBeNull()
+    expect(link.className).toContain('vb-link')
+    expect(link.className).not.toContain('vb-button')
   })
 
   it('without Google in discovery there is no OR divider', async () => {
@@ -273,7 +274,7 @@ describe('the sign-in mode (CORE302 P6)', () => {
   const MODE = /already have an account\? sign in to accept/i
   const switchToSignIn = async () => {
     const user = userEvent.setup()
-    await user.click(screen.getByRole('link', { name: MODE }))
+    await user.click(screen.getByRole('button', { name: MODE }))
     return user
   }
   const signInFields = async (
@@ -294,7 +295,7 @@ describe('the sign-in mode (CORE302 P6)', () => {
     expect(screen.getByLabelText('Email')).toBeTruthy()
     expect(screen.getByLabelText('Password').getAttribute('autocomplete')).toBe('current-password')
     expect(screen.getByRole('button', { name: /^sign in$/i })).toBeTruthy()
-    await userEvent.setup().click(screen.getByRole('link', { name: /create (an )?account/i }))
+    await userEvent.setup().click(screen.getByRole('button', { name: /create (an )?account/i }))
     expect(screen.getByLabelText('Name')).toBeTruthy()
   })
 

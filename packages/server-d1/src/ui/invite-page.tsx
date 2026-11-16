@@ -134,16 +134,9 @@ export function InvitePage({ navigate = goTo }: PageProps) {
       <Button type="submit" block busy={busy}>
         {signingIn ? 'Sign in' : 'Create account'}
       </Button>
-      <a
-        className="vb-link"
-        href="#"
-        onClick={(e) => {
-          e.preventDefault()
-          switchMode(signingIn ? 'sign-up' : 'sign-in')
-        }}
-      >
+      <button type="button" className="vb-link" onClick={() => switchMode(signingIn ? 'sign-up' : 'sign-in')}>
         {signingIn ? 'Create an account instead' : 'Already have an account? Sign in to accept'}
-      </a>
+      </button>
     </FormLayout>
   )
 }
