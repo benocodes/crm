@@ -362,6 +362,11 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `@vibase/storage-d1` (the [[CORE337]] review finding). CRM facts the control write needs (an agent's scopes, the
     newest event id) are read before the control call through `ControlEnv.read(program)`, which refuses a mutating
     program; it is the only CRM access a control operation has.
+    A control write that reads the row first and then calls a store method which re-reads it has two reads, so
+    a racer can land between them: when the store's answer contradicts the operation's own read (the store says
+    `already_revoked` but the read saw the key live), treat it as drift and plan again, never answer from the
+    stale read ([[CORE351]] review: a racing revoke answered `200` with `revoked_at: null`). Prove it with the
+    test's port interleave (wrap the port method, run the racer inside it, then call the real one).
   - `name` is dotted and lowercase (`contacts.merge`). It is the OpenAPI `operationId`, and `toolName`
     derives the CLI/MCP name from it (`contacts_merge`, at most 64 characters).
   - `surface` is required, `'api'` (records) or `'meta'` (configuration: agents, API keys, members, users, `me`,
