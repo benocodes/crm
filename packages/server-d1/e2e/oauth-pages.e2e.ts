@@ -124,7 +124,9 @@ test('0. the invited person signs up (the shared session), then signs out', asyn
   await page.getByLabel('Email').fill('owner@e2e.test')
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Create account' }).click()
-  await page.waitForURL('**/sign-in')
+  // A finished sign-up lands on /connect (the default target since #375); /sign-in then shows the signed-in view.
+  await page.waitForURL('**/connect')
+  await visit('/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
   await signOutHere()
 })

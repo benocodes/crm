@@ -282,7 +282,7 @@ body {
 }
 
 .vb-scope-list__region {
-  max-height: 10rem;
+  max-height: clamp(6rem, 18vh, 10rem);
   overflow-y: auto;
   border: 1px solid var(--vb-color-border);
   border-radius: var(--vb-radius);
