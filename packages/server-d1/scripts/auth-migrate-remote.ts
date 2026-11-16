@@ -1,18 +1,19 @@
-// `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 auth:migrate:remote -- plan --env <name> [--plan <path>] [--dry-run]` ([[OPS365]], [[OPS250]] D2, D3): the read side of moving a Clerk instance onto Better Auth.
+// `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 auth:migrate:remote -- plan --env <name> [--plan <path>] [--dry-run]` ([[OPS365]], [[OPS250]] D2, D3), and `apply --env <name> [--plan <path>] --dry-run` ([[OPS392]]): the read side of moving a Clerk instance onto Better Auth.
 // It reads the Clerk instance (Backend API, GET only) and both D1 databases (wrangler, SELECT and Time Travel info only) and writes the reviewable plan file that apply (#392) and revert (#394) consume.
 // A source script, not part of the release bin ([[OPS250]] "Tooling home"). Nothing is written but the plan file; a refusal exits 1 before any call.
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs, parseEnv } from 'node:util'
 import { unstable_readConfig } from 'wrangler'
 import { uuidv7 } from '@vibase/storage'
+import { ApplyFailure, ApplyRefusal, assessState, describePlan, exitCodeFor } from './auth-migrate/apply.js'
 import { classify } from './auth-migrate/classify.js'
 import { exportClerkUsers } from './auth-migrate/clerk-export.js'
 import { readCrmExport } from './auth-migrate/crm-export.js'
-import type { AuthPlan, PlanDatabase } from './auth-migrate/types.js'
+import type { AuthPlan, PlanDatabase, Snapshot } from './auth-migrate/types.js'
 import {
   CONFIG_PATH,
   PACKAGE_DIR,
@@ -30,7 +31,7 @@ import { probeEnvFile } from './setup/env-file.js'
 import type { EnvFileProbe } from './setup/types.js'
 
 export const USAGE =
-  'usage: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 auth:migrate:remote -- plan --env <name> [--plan <path>] [--dry-run]'
+  'usage: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 auth:migrate:remote -- plan|apply --env <name> [--plan <path>] [--dry-run] (apply needs --dry-run until #393)'
 
 export interface PlanDeps {
   /** Loads the Cloudflare credentials (and refuses when they are missing). */
@@ -44,6 +45,8 @@ export interface PlanDeps {
   exists(path: string): boolean
   /** Is the path inside the repository checkout and not ignored by git? */
   repoPathNotIgnored(path: string): boolean
+  /** The text of a file (the plan file `apply` reads); throws when it is missing or unreadable. */
+  readText(path: string): string
   /** Creates the file exclusively (never over an existing one) with the mode, and its directory when missing. */
   writeNew(path: string, text: string, mode: number): void
   now(): Date
@@ -58,8 +61,9 @@ export function defaultPlanPath(envName: string, procEnv: NodeJS.ProcessEnv, hom
   return join(root, 'vibase', 'instances', `${envName}.auth-plan.json`)
 }
 
-export const realFileDeps: Pick<PlanDeps, 'exists' | 'repoPathNotIgnored' | 'writeNew'> = {
+export const realFileDeps: Pick<PlanDeps, 'exists' | 'repoPathNotIgnored' | 'writeNew' | 'readText'> = {
   exists: (path) => existsSync(path),
+  readText: (path) => readFileSync(path, 'utf8'),
   repoPathNotIgnored(path) {
     const rel = relative(REPO_ROOT, resolve(path))
     if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return false // outside the checkout
@@ -96,6 +100,7 @@ export const realDeps: PlanDeps = {
 }
 
 interface PlanArgs {
+  sub: 'plan' | 'apply'
   env: string
   plan: string | undefined
   dryRun: boolean
@@ -118,10 +123,10 @@ function parsePlanArgs(argv: string[]): PlanArgs {
     throw new RemoteRefusal(`${e instanceof Error ? e.message : 'bad arguments'}; ${USAGE}`)
   }
   const [sub, ...rest] = parsed.positionals
-  if (sub !== 'plan' || rest.length > 0)
-    throw new RemoteRefusal(`only the plan subcommand exists so far (apply and revert are #392 and #394); ${USAGE}`)
+  if ((sub !== 'plan' && sub !== 'apply') || rest.length > 0)
+    throw new RemoteRefusal(`only the plan and apply subcommands exist so far (revert is #394); ${USAGE}`)
   if (!parsed.values.env) throw new RemoteRefusal(`--env <name> is required; ${USAGE}`)
-  return { env: parsed.values.env, plan: parsed.values.plan, dryRun: parsed.values['dry-run'] === true }
+  return { sub, env: parsed.values.env, plan: parsed.values.plan, dryRun: parsed.values['dry-run'] === true }
 }
 
 const wranglerD1 = (...args: string[]): Cmd => ({ command: 'pnpm', args: ['exec', 'wrangler', 'd1', ...args] })
@@ -141,10 +146,8 @@ function summary(plan: AuthPlan): string {
   return `plan: ${plan.people.length} people (${n(plan.people, (p) => p.action === 'migrate')} migrate, ${n(plan.people, (p) => p.action === 'none')} none), ${plan.agents.length} agents (${n(plan.agents, (a) => a.action === 'keep')} keep, ${n(plan.agents, (a) => a.action === 'relink')} relink, ${n(plan.agents, (a) => a.action === 'disable')} disable), ${plan.clerk_only.length} Clerk-only users (none)`
 }
 
-/** The plan command. Every refusal is raised before the first wrangler or Clerk call. */
-async function runPlan(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanDeps): Promise<void> {
-  requireConfirm(procEnv)
-  const envName = args.env
+/** What both commands check before any wrangler or Clerk call: the record names a control database and a Clerk instance, and the instance's own env file holds the Clerk key. */
+function resolveInstance(envName: string, deps: PlanDeps) {
   deps.loadEnv(envName)
   const config = deps.readConfig(envName)
   const target = requireControlTarget(config, envName)
@@ -154,6 +157,9 @@ async function runPlan(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanDep
     throw new RemoteRefusal(
       `env ${envName} runs AUTH_PROVIDER ${provider}: the migration plan reads a clerk instance only`,
     )
+  return target
+}
+function readSecretKey(envName: string, deps: PlanDeps): string {
   const file = deps.readInstanceEnv(envName)
   if (file.status === 'root-env')
     throw new RemoteRefusal(
@@ -167,6 +173,25 @@ async function runPlan(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanDep
     throw new RemoteRefusal(`${file.display} is not ignored by git: add it to .gitignore before it holds a secret`)
   const secretKey = parseEnv(file.text ?? '').CLERK_SECRET_KEY?.trim()
   if (!secretKey) throw new RemoteRefusal(`CLERK_SECRET_KEY is not set in ${file.display}`)
+  return secretKey
+}
+/** The normalized export, read-only: every Clerk user and the CRM's identity rows. */
+async function readSnapshot(envName: string, secretKey: string, deps: PlanDeps): Promise<Snapshot> {
+  const clerk_users = await exportClerkUsers({ secretKey, fetch: deps.fetch })
+  const rows = readCrmExport((sql) => {
+    const r = deps.exec(wranglerD1('execute', 'DB', '--remote', '--env', envName, '--json', '--command', sql))
+    if (r.status !== 0) throw new Error('wrangler d1 execute failed')
+    return r.stdout
+  })
+  return { clerk_users, ...rows }
+}
+
+/** The plan command. Every refusal is raised before the first wrangler or Clerk call. */
+async function runPlan(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanDeps): Promise<void> {
+  requireConfirm(procEnv)
+  const envName = args.env
+  const target = resolveInstance(envName, deps)
+  const secretKey = readSecretKey(envName, deps)
 
   // P3: the plan is never overwritten and never lands in the checkout unless git ignores it.
   const planPath = resolve(args.plan ?? defaultPlanPath(envName, procEnv, homedir()))
@@ -195,13 +220,7 @@ async function runPlan(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanDep
     database_id: target.control.databaseId,
     bookmark: readBookmark(deps, envName, target.control.databaseName),
   }
-  const clerk_users = await exportClerkUsers({ secretKey, fetch: deps.fetch })
-  const rows = readCrmExport((sql) => {
-    const r = deps.exec(wranglerD1('execute', 'DB', '--remote', '--env', envName, '--json', '--command', sql))
-    if (r.status !== 0) throw new Error('wrangler d1 execute failed')
-    return r.stdout
-  })
-  const snapshot = { clerk_users, ...rows }
+  const snapshot = await readSnapshot(envName, secretKey, deps)
   const plan: AuthPlan = {
     version: 1,
     env: envName,
@@ -220,14 +239,87 @@ async function runPlan(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanDep
   deps.log(`plan written to ${planPath} (mode 600)`)
 }
 
-/** Returns the exit code: 0 done, 1 refused or failed. */
+/** P3: the plan file is read and checked against the instance before any wrangler or Clerk call. */
+function readPlanFile(
+  path: string,
+  envName: string,
+  target: ReturnType<typeof requireControlTarget>,
+  deps: PlanDeps,
+): AuthPlan {
+  let text: string
+  try {
+    text = deps.readText(path)
+  } catch {
+    throw new RemoteRefusal(`the plan file ${path} is missing or unreadable (run plan first, or pass --plan <path>)`)
+  }
+  let plan: AuthPlan
+  try {
+    plan = JSON.parse(text) as AuthPlan
+  } catch {
+    throw new RemoteRefusal(`the plan file ${path} is unreadable: it is not valid JSON`)
+  }
+  if (
+    plan === null ||
+    typeof plan !== 'object' ||
+    typeof plan.crm !== 'object' ||
+    typeof plan.control !== 'object' ||
+    typeof plan.snapshot !== 'object'
+  )
+    throw new RemoteRefusal(`the plan file ${path} is unreadable: it is not a plan file`)
+  if (plan.version !== 1)
+    throw new RemoteRefusal(`the plan file has version ${String(plan.version)}; this apply reads version 1`)
+  if (plan.env !== envName)
+    throw new RemoteRefusal(`the plan file was made for env ${String(plan.env)}, not ${envName}`)
+  const expected = [
+    ['CRM', plan.crm, target.databaseName, target.databaseId],
+    ['control', plan.control, target.control.databaseName, target.control.databaseId],
+  ] as const
+  for (const [which, db, name, id] of expected)
+    if (db?.database_name !== name || db?.database_id !== id)
+      throw new RemoteRefusal(
+        `the plan file names the ${which} database ${String(db?.database_name)} (${String(db?.database_id)}), not the record's ${name} (${id}): it is another instance's plan`,
+      )
+  return plan
+}
+
+/**
+ * `apply --dry-run`: the guards, the plan file, a fresh read-only export and the state check, then what each batch would write. Nothing is written.
+ * Without `--dry-run` it refuses before any call: the batches exist ([[OPS392]]) but the provider switch they must be followed by is #393's, and batches alone would leave the instance on Clerk with re-pointed subjects.
+ */
+async function runApply(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanDeps): Promise<void> {
+  requireConfirm(procEnv)
+  if (!args.dryRun)
+    throw new RemoteRefusal(
+      'apply without --dry-run is not available yet: the provider switch is not built (#393), and the batches alone would leave the instance on Clerk with re-pointed subjects. Use --dry-run',
+    )
+  const envName = args.env
+  const target = resolveInstance(envName, deps)
+  const planPath = resolve(args.plan ?? defaultPlanPath(envName, procEnv, homedir()))
+  const plan = readPlanFile(planPath, envName, target, deps)
+  const secretKey = readSecretKey(envName, deps)
+  deps.log(
+    `target: env ${target.env}, database ${target.databaseName} (${target.databaseId}), control database ${target.control.databaseName} (${target.control.databaseId})`,
+  )
+  const fresh = await readSnapshot(envName, secretKey, deps)
+  const state = assessState(plan, fresh)
+  if (state === 'applied') {
+    deps.log('state: already applied: the instance is as the plan leaves it, nothing to write')
+    return
+  }
+  deps.log('state: not applied')
+  for (const line of describePlan(plan)) deps.log(line)
+  deps.log('dry run: nothing written')
+}
+
+/** Returns the exit code: 0 done, 1 refused or failed, 2 failed after a write began (apply, #393 wires it). */
 export async function runAuthMigrate(argv: string[], procEnv: NodeJS.ProcessEnv, deps: PlanDeps): Promise<number> {
   try {
-    await runPlan(parsePlanArgs(argv), procEnv, deps)
+    const args = parsePlanArgs(argv)
+    await (args.sub === 'apply' ? runApply : runPlan)(args, procEnv, deps)
     return 0
   } catch (e) {
     deps.error(`auth-migrate: ${e instanceof Error ? e.message : 'failed'}`)
-    return 1
+    return e instanceof ApplyRefusal || e instanceof ApplyFailure ? exitCodeFor(e) : 1
   }
 }
 
