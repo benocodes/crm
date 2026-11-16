@@ -126,6 +126,13 @@
           "database_id": "23fda5fd-1508-462a-b700-53ad047472e3",
           "migrations_dir": "../storage-d1/migrations",
           "remote": true
+        },
+        {
+          "binding": "CONTROL_DB",
+          "database_name": "vb-control-hq",
+          "database_id": "c3b621e9-0da4-4dca-acdb-5c02d82729db",
+          "migrations_dir": "../storage-d1/control-migrations",
+          "remote": true
         }
       ],
       "r2_buckets": [
