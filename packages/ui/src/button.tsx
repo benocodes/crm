@@ -10,6 +10,8 @@ export interface ButtonProps {
   /** Disables the button and sets `aria-busy` while work is in flight. */
   busy?: boolean
   disabled?: boolean
+  /** Fills the width of its container. */
+  block?: boolean
   onClick?: () => void
 }
 
@@ -19,12 +21,13 @@ export function Button({
   type = 'button',
   busy = false,
   disabled = false,
+  block = false,
   onClick,
 }: ButtonProps) {
   return (
     <button
       type={type}
-      className={`vb-button vb-button--${variant}`}
+      className={`vb-button vb-button--${variant}${block ? ' vb-button--block' : ''}`}
       disabled={busy || disabled}
       aria-busy={busy ? true : undefined}
       onClick={onClick}

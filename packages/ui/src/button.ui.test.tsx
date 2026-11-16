@@ -11,6 +11,17 @@ describe('Button', () => {
     expect(button.hasAttribute('aria-busy')).toBe(false)
   })
 
+  it('block adds the full-width modifier; it is off by default', () => {
+    render(
+      <>
+        <Button block>Wide</Button>
+        <Button>Narrow</Button>
+      </>,
+    )
+    expect(screen.getByRole('button', { name: 'Wide' }).className).toContain('vb-button--block')
+    expect(screen.getByRole('button', { name: 'Narrow' }).className).not.toContain('vb-button--block')
+  })
+
   it('is type="submit" only when asked', () => {
     render(<Button type="submit">Go</Button>)
     expect(screen.getByRole('button', { name: 'Go' }).getAttribute('type')).toBe('submit')

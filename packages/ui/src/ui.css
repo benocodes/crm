@@ -214,6 +214,52 @@ body {
   padding-right: 0;
 }
 
+.vb-button--block {
+  width: 100%;
+}
+
+.vb-card__subtitle {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.vb-providers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vb-space-2);
+}
+
+/* A rule with a word in the middle; the page marks it aria-hidden. */
+.vb-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--vb-space-3);
+  color: var(--vb-color-muted);
+}
+
+.vb-divider::before,
+.vb-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--vb-color-border);
+}
+
+.vb-link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--vb-color-fg);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.vb-link:focus-visible {
+  outline: var(--vb-focus-width) solid var(--vb-color-focus);
+  outline-offset: 2px;
+}
+
 .vb-alert {
   padding: var(--vb-space-3) var(--vb-space-4);
   border-radius: var(--vb-radius);

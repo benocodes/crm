@@ -84,17 +84,20 @@ export function InvitePage({ navigate = goTo }: PageProps) {
   }
 
   const signingIn = mode === 'sign-in'
+  // Top to bottom: providers (one button each; add the next provider beside GoogleButton), an OR divider, the form, the submit (in the body, so it stretches like the provider buttons), then the mode link.
   return (
-    <FormLayout
-      title="Accept your invitation"
-      onSubmit={onSubmit}
-      error={googleError}
-      actions={
-        <Button type="submit" busy={busy}>
-          {signingIn ? 'Sign in' : 'Create account'}
-        </Button>
-      }
-    >
+    <FormLayout title="Accept your invitation" onSubmit={onSubmit} error={googleError}>
+      {google ? (
+        <>
+          <div className="vb-providers">
+            <GoogleButton invitationToken={token} onError={setGoogleError} navigate={navigate} />
+          </div>
+          <div className="vb-divider" aria-hidden="true">
+            OR
+          </div>
+        </>
+      ) : null}
+      <h2 className="vb-card__subtitle">{signingIn ? 'Sign in' : 'Create a new account'}</h2>
       {signingIn ? null : (
         <Field
           label="Name"
@@ -128,10 +131,12 @@ export function InvitePage({ navigate = goTo }: PageProps) {
         error={errors.password}
         required
       />
-      <Button type="button" variant="secondary" onClick={() => switchMode(signingIn ? 'sign-up' : 'sign-in')}>
-        {signingIn ? 'Create an account instead' : 'Already have an account? Sign in to accept'}
+      <Button type="submit" block busy={busy}>
+        {signingIn ? 'Sign in' : 'Create account'}
       </Button>
-      {google ? <GoogleButton invitationToken={token} onError={setGoogleError} navigate={navigate} /> : null}
+      <button type="button" className="vb-link" onClick={() => switchMode(signingIn ? 'sign-up' : 'sign-in')}>
+        {signingIn ? 'Create an account instead' : 'Already have an account? Sign in to accept'}
+      </button>
     </FormLayout>
   )
 }

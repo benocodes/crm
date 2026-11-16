@@ -41,7 +41,7 @@ export function SignInPage({ navigate = goTo }: PageProps) {
     <SignInForm
       oauthQuery={oauthQuery}
       navigate={navigate}
-      onSignedIn={(user, redirect) => {
+      onSignedIn={(_user, redirect) => {
         if (redirect !== undefined) return navigate(redirect)
         navigate(target ?? DEFAULT_TARGET)
       }}
