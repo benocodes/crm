@@ -149,7 +149,6 @@ export function engineSuite(engineName: EngineName): void {
           'associations.a_id',
           'associations.b_id',
           'events.resource_id',
-          'webhook_deliveries.event_id',
         ])
         for (const r of CONTACT_NON_FK_REFERENCES) {
           const lite = (

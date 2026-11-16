@@ -3,16 +3,12 @@ import { uuidv7 } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { openEngines, type Engine, type EngineName } from '../test/engines.js'
 import { openAuthKit, type AuthKit } from '../test/auth-kit.js'
-import { API_KEY_PREFIX, authenticateApiKey, generateApiKey, hashApiKey, apiKeyAuthOperation } from './api-keys.js'
 import { AuthFailure } from './adapter.js'
 import { lookupUser, provisionUser } from './first-sight.js'
 
-// Authentication on both engines (CORE41 Step 2.2): API keys, the user lookup, first sight, D19 admission and
+// Authentication on both engines (CORE41 Step 2.2): the user lookup, first sight, D19 admission and
 // `me.get`, run through the real binding with the same assertions on Postgres and D1.
 const NOW = new Date('2026-10-22T10:00:00.000Z')
-const SEED = '2026-10-22T08:00:00.000Z'
-const iso = (s: number) => new Date(NOW.getTime() + s * 1000).toISOString()
-const internal = { kind: 'internal', organizationId: null } as const
 
 /** The suite body: one instance per engine entry file (`*.d1.test.ts`, `*.postgres.test.ts`). */
 export function engineSuite(engineName: EngineName): void {
@@ -41,110 +37,12 @@ export function engineSuite(engineName: EngineName): void {
       users: await e.rows('users'),
       memberships: await e.rows('memberships'),
       organizations: await e.rows('organizations'),
-      api_keys: await e.rows('api_keys'),
       events: await e.rows('events'),
     })
     const row = async (table: string, id: string) => (await e.rows(table)).find((r) => r.id === id)!
     const userPrincipals = async () => (await e.rows('principals')).filter((p) => p.kind === 'user')
 
-    /** A key for the seeded agent; `over` overrides columns. */
-    async function seedKey(over: Record<string, unknown> = {}) {
-      const { key, hash, prefix } = await generateApiKey(() => crypto.getRandomValues(new Uint8Array(32)))
-      const created = await e.insert('api_keys', { agent_id: e.agentId, key_hash: hash, prefix, ...over })
-      return { key, hash, id: created.id as string }
-    }
     const unitsNamed = (n: string) => kit.ran.filter((r) => r.name === n)
-
-    describe('API keys', () => {
-      it('a valid key is the agent principal, with the agent scopes', async () => {
-        await e.update('agents', e.agentId, { scopes: ['tasks:read', 'tasks:write'] })
-        const { key } = await seedKey()
-        const principal = await authenticateApiKey(kit.binding, key, kit.env())
-        expect(principal).toMatchObject({ actor: { id: e.agentId, kind: 'agent' }, organizationId: e.organizationId })
-        expect(principal!.scopes.toStrings()).toEqual(['tasks:read', 'tasks:write'])
-      })
-
-      it.each([
-        ['an unknown key', async () => ({ key: `${API_KEY_PREFIX}${'z'.repeat(43)}` })],
-        ['a revoked key', () => seedKey({ revoked_at: iso(-10) })],
-        ['a key expiring exactly now', () => seedKey({ expires_at: iso(0) })],
-        ['an expired key', () => seedKey({ expires_at: iso(-1) })],
-        [
-          'a key of a disabled agent',
-          async () => {
-            await e.update('agents', e.agentId, { disabled_at: iso(-10) })
-            return seedKey()
-          },
-        ],
-      ])('%s is refused and nothing is written', async (_n, make) => {
-        const { key } = await make()
-        const before = await state()
-        expect(await authenticateApiKey(kit.binding, key, kit.env())).toBeNull()
-        expect(await state()).toEqual(before)
-        expect(kit.ran.at(-1)!.stats!.writes).toBe(0)
-      })
-
-      it('stamps a never-used key with now: last_used_at only, no updated_at, no event, one statement', async () => {
-        const { key, id } = await seedKey()
-        await authenticateApiKey(kit.binding, key, kit.env())
-        const after = await row('api_keys', id)
-        expect(after.last_used_at).toBe(NOW.toISOString())
-        expect(after.updated_at).toBe(SEED)
-        expect(await e.rows('events')).toEqual([])
-        expect(kit.ran.at(-1)).toMatchObject({ name: 'auth.api_key', identity: internal })
-        expect(kit.ran.at(-1)!.stats).toMatchObject({ writes: 1, locks: 0 })
-      })
-
-      it('a key used 59 seconds ago is not stamped; one used 61 seconds ago is', async () => {
-        const recent = await seedKey({ last_used_at: iso(-59) })
-        const stale = await seedKey({ last_used_at: iso(-61) })
-        await authenticateApiKey(kit.binding, recent.key, kit.env())
-        expect(kit.ran.at(-1)!.stats!.writes).toBe(0)
-        expect((await row('api_keys', recent.id)).last_used_at).toBe(iso(-59))
-        await authenticateApiKey(kit.binding, stale.key, kit.env())
-        expect(kit.ran.at(-1)!.stats!.writes).toBe(1)
-        expect((await row('api_keys', stale.id)).last_used_at).toBe(NOW.toISOString())
-      })
-
-      it('authenticates a request through the app and stamps the key', async () => {
-        await e.update('agents', e.agentId, { scopes: ['tasks:read'] })
-        const { key, id } = await seedKey()
-        const res = await kit.keyCall('/api/v1/tasks', key)
-        expect(res.status).toBe(200)
-        expect((await row('api_keys', id)).last_used_at).toBe(NOW.toISOString())
-      })
-
-      it('a refused key is 401 and logs neither the key past 8 characters nor its hash', async () => {
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-        const revoked = await seedKey({ revoked_at: iso(-10) })
-        const res = await kit.keyCall('/api/v1/tasks', revoked.key)
-        expect(res.status).toBe(401)
-        const body = (await res.json()) as { error: { code: string; message: string } }
-        expect(body.error).toEqual({ code: 'unauthenticated', message: 'invalid or expired credentials' })
-        const logs = JSON.stringify(warn.mock.calls)
-        expect(logs).toContain(revoked.key.slice(0, 8))
-        expect(logs).not.toContain(revoked.key.slice(0, 9))
-        expect(logs).not.toContain(revoked.hash)
-        expect(logs).not.toContain(await hashApiKey(revoked.key))
-      })
-
-      if (name === 'd1') {
-        it('a racing stamp between plan and commit: the unit is a no-op and the first stamp stands (D1)', async () => {
-          const { key, id } = await seedKey()
-          kit.armOn('auth.api_key', async () => e.update('api_keys', id, { last_used_at: iso(-1) }))
-          const principal = await authenticateApiKey(kit.binding, key, kit.env())
-          expect(principal).not.toBeNull()
-          expect((await row('api_keys', id)).last_used_at).toBe(iso(-1))
-        })
-      }
-
-      it('the unit is the program a caller can compile: one internal unit with no organisation', async () => {
-        const { hash } = await seedKey()
-        const res = await e.runAs(internal, apiKeyAuthOperation(hash, NOW))
-        expect(res.value).toMatchObject({ actor: { id: e.agentId } })
-        expect(res.stats.writes).toBe(1)
-      })
-    })
 
     describe('lookup and first sight', () => {
       it('a known subject is a read-only unit that finds the latest membership of the linked organisation', async () => {
@@ -353,14 +251,6 @@ export function engineSuite(engineName: EngineName): void {
           expect(body.memberships.map((m: any) => m.organization_name)).toEqual(['Alpha', 'Engine org'])
         })
       }
-
-      it('an agent is refused 403 user_required', async () => {
-        await e.update('agents', e.agentId, { scopes: ['tasks:read'] })
-        const { key } = await seedKey()
-        const res = await kit.keyCall('/meta/v1/me', key)
-        expect(res.status).toBe(403)
-        expect(((await res.json()) as { error: { code: string } }).error.code).toBe('user_required')
-      })
     })
   })
 }

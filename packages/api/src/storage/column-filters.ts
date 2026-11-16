@@ -1,8 +1,8 @@
 import { sql, type Expression, type SqlBool } from 'kysely'
 import { z } from 'zod'
-import { COLUMN_KINDS, bind, codecs, jsonRows, type ColumnKind, type QueryContext } from '@vibase/storage'
+import { bind, codecs, jsonRows, type ColumnKind, type QueryContext } from '@vibase/storage'
 import { ApiError } from '../errors.js'
-import type { PreparedResource } from './definition.js'
+import { columnKindsOf, type PreparedResource } from './definition.js'
 
 // [[CORE199]] D2-D6, built by [[CORE200]]: the column filter grammar (`[not.]<operator>.<operand>`, or a bare value = eq), the operators of each
 // column kind, the operand parsers, the pattern translators and the SQL, and `withColumnFilters`, the explicit opt-in that makes every filterable
@@ -370,7 +370,7 @@ export function withColumnFilters<T extends PreparedResource>(
     {
       name: def.name,
       table: def.table,
-      columns: COLUMN_KINDS[def.table as keyof typeof COLUMN_KINDS] as Readonly<Record<string, ColumnKind>>,
+      columns: columnKindsOf(def),
       record: def.record,
       filters: def.filters,
       customFilters: def.customFilters,

@@ -10,7 +10,6 @@ import {
   type Unit,
 } from '@vibase/storage'
 import { ApiError } from '../errors.js'
-import { apiKeyAuthOperation } from './api-keys.js'
 import { firstSightOperation, firstSightRecheckOperation, lookupUserOperation } from './first-sight.js'
 import { reconcileOperation, refreshUserOperation, repairOperation } from '../directory/sync.js'
 import { bootstrapOperation } from '../bootstrap.js'
@@ -74,78 +73,6 @@ const refusal = (fn: () => unknown): ApiError => {
 const sqls = (b: Built) => b.steps.map((s) => s.sql)
 const isAssertion = (s: Built['steps'][number], dialect: Dialect) =>
   dialect === 'd1' ? /^insert into "unit_assertion"/i.test(s.sql) : s.expect === 'holds'
-
-describe('API-key authentication (C3, P6)', () => {
-  const keyRow = (dialect: Dialect, over: Record<string, unknown> = {}) => ({
-    key_id: KEY,
-    agent_id: AGENT,
-    organization_id: ORG,
-    scopes: scopes(dialect, ['tasks:read']),
-    last_used_at: null,
-    expires_at: null,
-    revoked_at: null,
-    disabled_at: null,
-    ...over,
-  })
-
-  it.each(dialects)(
-    'never used: one statement that sets last_used_at only, no event, and the principal on %s',
-    (dialect) => {
-      const found = { 'auth:key': keyRow(dialect) }
-      const b = build(apiKeyAuthOperation(HASH, NOW), dialect, found)
-      expect(b.steps).toHaveLength(1)
-      expect(b.steps[0]!.sql).toMatch(/^update "api_keys" set "last_used_at" = /i)
-      expect(b.steps[0]!.sql).not.toMatch(/updated_at/i)
-      expect(b.unit.events).toEqual([])
-      expect(decode(b, found)).toMatchObject({ actor: { id: AGENT, kind: 'agent' }, organizationId: ORG })
-      expect((decode(b, found) as { scopes: { toStrings(): string[] } }).scopes.toStrings()).toEqual(['tasks:read'])
-    },
-  )
-
-  it.each(dialects)('used 59 seconds ago: no statement, still the principal on %s', (dialect) => {
-    const found = { 'auth:key': keyRow(dialect, { last_used_at: sec(59) }) }
-    const b = build(apiKeyAuthOperation(HASH, NOW), dialect, found)
-    expect(b.steps).toHaveLength(0)
-    expect(decode(b, found)).toMatchObject({ actor: { id: AGENT } })
-  })
-
-  it.each(dialects)('used 61 seconds ago: one statement on %s', (dialect) => {
-    const b = build(apiKeyAuthOperation(HASH, NOW), dialect, { 'auth:key': keyRow(dialect, { last_used_at: sec(61) }) })
-    expect(b.steps).toHaveLength(1)
-  })
-
-  it.each(dialects)('the stamp guard compares to the cutoff and carries no expectation on %s', (dialect) => {
-    const b = build(apiKeyAuthOperation(HASH, NOW), dialect, { 'auth:key': keyRow(dialect) })
-    expect(b.steps[0]!.expect).toBeUndefined()
-    expect(b.steps[0]!.parameters).toContain(sec(60))
-    expect(b.steps[0]!.parameters).toContain(NOW.toISOString())
-  })
-
-  it.each([
-    ['revoked', { revoked_at: sec(10) }],
-    ['expiring exactly now', { expires_at: NOW.toISOString() }],
-    ['expired', { expires_at: sec(1) }],
-    ['of a disabled agent', { disabled_at: sec(10) }],
-  ])('a key %s writes nothing and is null', (_n, over) => {
-    for (const dialect of dialects) {
-      const found = { 'auth:key': keyRow(dialect, over) }
-      const b = build(apiKeyAuthOperation(HASH, NOW), dialect, found)
-      expect(b.steps).toHaveLength(0)
-      expect(decode(b, found)).toBeNull()
-    }
-  })
-
-  it('an unknown key is null with no statement', () => {
-    const b = build(apiKeyAuthOperation(HASH, NOW), 'd1', { 'auth:key': null })
-    expect(b.steps).toHaveLength(0)
-    expect(decode(b, { 'auth:key': null })).toBeNull()
-  })
-
-  it('a future expiry is valid', () => {
-    const found = { 'auth:key': keyRow('d1', { expires_at: new Date(NOW.getTime() + 1000).toISOString() }) }
-    expect(decode(build(apiKeyAuthOperation(HASH, NOW), 'd1', found), found)).not.toBeNull()
-  })
-})
 
 describe('first sight (C4, P7)', () => {
   const args = {
@@ -510,29 +437,23 @@ const BOOTSTRAP_ARGS = {
   scopes: ['tasks:read'],
   ids: { user: USER, membership: id(70), agent: AGENT, apiKey: KEY },
   secret: { key: PLAINTEXT, hash: HASH, prefix: PLAINTEXT.slice(0, 11) },
-  crmKey: true,
   now: NOW,
 }
 
 describe('bootstrap (C7, P14)', () => {
   const args = BOOTSTRAP_ARGS
 
-  // [[CORE356]] P4: the CRM key statement is the Postgres path's only; D1's key is minted on the control plane after the unit.
-  it.each(dialects)('crmKey decides whether a CRM api_keys statement is built on %s', (dialect) => {
+  // [[CORE329]] P3: the key is minted on the control plane after the unit on every engine; the unit never writes a CRM api_keys row.
+  it.each(dialects)('builds no api_keys statement on %s', (dialect) => {
     const found = { 'bs:user': null, 'bs:holder': null, 'bs:org': null }
-    const writesKey = (crmKey: boolean) =>
-      sqls(build(bootstrapOperation({ ...args, crmKey }), dialect, found)).some((q) =>
-        /insert into "api_keys"/i.test(q),
-      )
-    expect(writesKey(true)).toBe(true)
-    expect(writesKey(false)).toBe(false)
+    expect(sqls(build(bootstrapOperation(args), dialect, found)).some((q) => /"?api_keys"?/i.test(q))).toBe(false)
   })
 
   it.each(dialects)('never carries the plaintext key in a statement and writes no event on %s', (dialect) => {
     const found = { 'bs:user': null, 'bs:holder': null, 'bs:org': null }
     const b = build(bootstrapOperation(args), dialect, found)
     const params = b.steps.flatMap((s) => s.parameters)
-    expect(params).toContain(HASH)
+    expect(params).not.toContain(HASH) // the hash goes to the control plane after the unit (CORE329)
     expect(params).not.toContain(PLAINTEXT)
     expect(sqls(b).join('\n')).not.toContain(PLAINTEXT)
     expect(sqls(b).some((q) => /"events"/i.test(q))).toBe(false)
@@ -558,18 +479,6 @@ describe('no database clock anywhere (D2)', () => {
     const args = BOOTSTRAP_ARGS
     const s = (members: Array<{ subject: string; role: 'owner' | 'member' }>) => members
     const builds: Built[] = [
-      build(apiKeyAuthOperation(HASH, NOW), dialect, {
-        'auth:key': {
-          key_id: KEY,
-          agent_id: AGENT,
-          organization_id: ORG,
-          scopes: scopes(dialect, []),
-          last_used_at: null,
-          expires_at: null,
-          revoked_at: null,
-          disabled_at: null,
-        },
-      }),
       build(
         firstSightOperation({
           provider: 'clerk',

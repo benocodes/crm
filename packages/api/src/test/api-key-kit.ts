@@ -41,10 +41,8 @@ export interface ApiKeyKit {
   owner(method: string, path: string, body?: unknown, scopes?: string[]): Promise<Res>
   /** The seeded agent calling with `scopes`. */
   agent(scopes: string[], method: string, path: string, body?: unknown): Promise<Res>
-  /** A request authenticated by an API key, through the composed authenticator (control first, then CRM). */
+  /** A request authenticated by an API key, through the composed authenticator (control only, CORE329). */
   keyCall(key: string, path?: string): Promise<Res>
-  /** Seeds a key row in the CRM database only (a pre-backfill key); returns the plaintext key and the id. */
-  crmKey(over?: Record<string, unknown>): Promise<{ key: string; id: string; hash: string }>
   /** Seeds a key row in the control database directly (no audit row); `over` sets any column. Returns the plaintext key and the id. */
   ctlKey(over?: Record<string, unknown>): Promise<{ key: string; id: string }>
   /** A new agent of the organisation, in the CRM database; returns its id. */
@@ -56,7 +54,7 @@ export interface ApiKeyKit {
   /** A raw read of the CRM database. */
   crm<T = Record<string, any>>(sqlText: string, ...binds: unknown[]): Promise<T[]>
   /** `{ keys, events, audit }` row counts: what a refused operation must leave unchanged. */
-  counts(): Promise<{ crmKeys: number; ctlKeys: number; events: number; audit: number }>
+  counts(): Promise<{ ctlKeys: number; events: number; audit: number }>
   close(): Promise<void>
   reset(): Promise<void>
 }
@@ -121,11 +119,6 @@ export async function openApiKeyKit(): Promise<ApiKeyKit> {
       const text = await res.text()
       return { status: res.status, text, body: text ? JSON.parse(text) : null }
     },
-    async crmKey(over: Record<string, unknown> = {}) {
-      const { key, hash, prefix } = await generateApiKey((n) => crypto.getRandomValues(new Uint8Array(n)))
-      const row = await e.insert('api_keys', { agent_id: e.agentId, key_hash: hash, prefix, ...over })
-      return { key, id: row.id as string, hash }
-    },
     async ctlKey(over: Record<string, unknown> = {}) {
       const { key, hash, prefix } = await generateApiKey((n) => crypto.getRandomValues(new Uint8Array(n)))
       const at = NOW.toISOString()
@@ -174,7 +167,6 @@ export async function openApiKeyKit(): Promise<ApiKeyKit> {
       const n = async (db: D1Like, table: string) =>
         ((await db.prepare(`select count(*) as n from ${table}`).first()) as { n: number }).n
       return {
-        crmKeys: await n(e.d1!, 'api_keys'),
         ctlKeys: await n(control, 'api_keys'),
         events: await n(e.d1!, 'events'),
         audit: await n(control, 'control_audit'),

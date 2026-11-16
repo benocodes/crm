@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { compileOperation } from '@vibase/storage'
 import { readAgentExists } from './crm-key-reads.js'
 import { hashApiKey } from '../auth/api-keys.js'
@@ -87,27 +87,11 @@ describe('group 2: control only; a CRM-held key is not found (P2 dropped by the 
     }
   })
 
-  it('a key held only in the CRM database is 404 for get and revoke, is not listed, and nothing is written', async () => {
-    const c = await k.crmKey()
-    const before = await k.counts()
-    for (const [m, p] of [
-      ['GET', `${KEYS}/${c.id}`],
-      ['POST', `${KEYS}/${c.id}/revoke`],
-    ] as const) {
-      const r = await k.owner(m, p)
-      expect([r.status, r.body.error.code], p).toEqual([404, 'not_found'])
-    }
-    expect((await k.owner('GET', KEYS)).body).toEqual({ data: [], next_cursor: null })
-    expect(await k.counts()).toEqual(before)
-  })
-
-  it('a control key is read and revoked in control, leaving a same-id CRM row untouched', async () => {
-    const c = await k.crmKey()
-    await k.ctlKey({ id: c.id, prefix: 'vk_control00' })
+  it('a control key is read and revoked in control (the CRM database has no api_keys table, CORE329)', async () => {
+    const c = await k.ctlKey({ prefix: 'vk_control00' })
     expect((await k.owner('GET', `${KEYS}/${c.id}`)).body.prefix).toBe('vk_control00')
     await k.owner('POST', `${KEYS}/${c.id}/revoke`)
     expect((await k.ctl('select revoked_at from api_keys where id = ?', c.id))[0]!.revoked_at).not.toBeNull()
-    expect((await k.crm('select revoked_at from api_keys where id = ?', c.id))[0]!.revoked_at).toBeNull()
     expect((await auditOf(c.id)).map((a) => a.action)).toEqual(['api_key.revoked'])
   })
 })
@@ -246,7 +230,6 @@ describe('group 4: list surface (P3, P4): sort x order x filter, with cursor con
     rows = (await k.ctl(
       'select id, agent_id, prefix, created_at, updated_at, last_used_at, expires_at, revoked_at from api_keys',
     )) as Row[]
-    await k.crmKey() // a CRM-only key: never listed
   })
   async function seedSecondAgent(): Promise<string> {
     return k.seedAgent()
@@ -337,5 +320,29 @@ describe('group 5 (api half): without a store the four operations answer 501 pro
       })
       expect([res.status, ((await res.json()) as any).error.code], p).toEqual([501, 'provider_not_configured'])
     }
+  })
+})
+
+describe('key authentication at the app, control only (moved from the auth suite, CORE329)', () => {
+  it('a refused (revoked) key is 401 and logs neither the key past 8 characters nor its hash', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const revoked = await k.ctlKey({ revoked_at: new Date(NOW.getTime() - 10_000).toISOString() })
+      const res = await k.keyCall(revoked.key, '/api/v1/tasks')
+      expect(res.status).toBe(401)
+      expect(res.body.error).toEqual({ code: 'unauthenticated', message: 'invalid or expired credentials' })
+      const logs = JSON.stringify(warn.mock.calls)
+      expect(logs).toContain(revoked.key.slice(0, 8))
+      expect(logs).not.toContain(revoked.key.slice(0, 9))
+      expect(logs).not.toContain(await hashApiKey(revoked.key))
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('an agent key is refused 403 user_required on /meta/v1/me', async () => {
+    const { key } = await k.ctlKey()
+    const res = await k.keyCall(key, '/meta/v1/me')
+    expect([res.status, res.body.error.code]).toEqual([403, 'user_required'])
   })
 })

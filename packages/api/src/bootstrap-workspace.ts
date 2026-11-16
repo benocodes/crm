@@ -130,7 +130,7 @@ export async function bootstrapWorkspace(
 ): Promise<WorkspaceBootstrapResult> {
   if (storage.kind !== 'd1') throw new Error('a workspace bootstrap serves a D1 deployment only')
   if (opts.agentName !== undefined && !env.keyStore)
-    throw new Error('a D1 bootstrap mints its API key on the control plane: pass the control database (keyStore)')
+    throw new Error('a bootstrap mints its API key on the control plane: pass the control database (keyStore)')
   const declared = createVibaseRegistry().declaredScopes()
   const scopes = opts.scopes ? ScopeSet.parse(opts.scopes).toStrings() : defaultGrantScopes(declared)
   for (const s of scopes) if (!declared.includes(s)) throw new Error(`unknown scope: ${s}`)

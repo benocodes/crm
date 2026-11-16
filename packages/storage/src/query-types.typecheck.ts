@@ -24,7 +24,7 @@ declare const qc: QueryContext
 const okSelect = selectColumns(qc, 'tasks', ['id', 'title', 'status'])
 const okFilter = eq('tasks', 'status', 'open')
 const okNullable = eq('tasks', 'assignee_id', null)
-const okPublic = publicSelect(qc, 'api_keys', ['id', 'prefix'])
+const okPublic = publicSelect(qc, 'agents', ['id', 'name'])
 const okProjection = projectAs<{ id: string }>()(selectColumns(qc, 'tasks', ['id', 'title']))
 
 // The inferred output of a helper is the exact Pick of the table's row.
@@ -38,7 +38,7 @@ async function inferred() {
 type StatusValue = ValueOf<'tasks', 'status'>
 const status: StatusValue = 'done'
 const columns: ColumnOf<'tasks'> = 'completed_at'
-const publicColumns: PublicColumn<'api_keys'> = 'prefix'
+const publicColumns: PublicColumn<'agents'> = 'name'
 
 // --- negative cases ----------------------------------------------------------------------------------
 
@@ -51,8 +51,8 @@ selectColumns(qc, 'nope', ['id'])
 selectColumns(qc, 'tasks', ['nope'])
 
 // a column of another table
-// @ts-expect-error key_hash belongs to api_keys, not tasks
-selectColumns(qc, 'tasks', ['key_hash'])
+// @ts-expect-error name belongs to agents, not tasks
+selectColumns(qc, 'tasks', ['name'])
 
 // wrong value type
 // @ts-expect-error title is text
@@ -73,8 +73,8 @@ projectAs<{ id: number }>()(selectColumns(qc, 'tasks', ['id']))
 projectAs<{ id: string; title: string }>()(selectColumns(qc, 'tasks', ['id']))
 
 // secret column in a public projection
-// @ts-expect-error key_hash is a secret column
-publicSelect(qc, 'api_keys', ['id', 'key_hash'])
+// @ts-expect-error refresh_token_ciphertext is a secret column
+publicSelect(qc, 'channel_credentials', ['id', 'refresh_token_ciphertext'])
 
 // async hook where a synchronous one is required
 declare function defineHook<R extends object>(hook: SyncHook<{ title: string }, R>): void
@@ -90,8 +90,8 @@ declare function guard<T extends Table>(
 guard('tasks', (eb) => eb('tasks.title', '=', 'x'))
 // @ts-expect-error companies is not in scope of a tasks guard
 guard('tasks', (eb) => eb('companies.name', '=', 'x'))
-// @ts-expect-error a tasks guard may not read api_keys.key_hash
-guard('tasks', (eb) => eb('api_keys.key_hash', '=', 'x'))
+// @ts-expect-error a tasks guard may not read agents.name
+guard('tasks', (eb) => eb('agents.name', '=', 'x'))
 
 // --- storage identities (CORE41 C1) ---------------------------------------------------------------------
 
@@ -124,3 +124,15 @@ publicSelect(qc, 'messages', ['content_key'])
 publicSelect(qc, 'files', ['storage_key'])
 export const okHidden = selectColumns(qc, 'messages', ['id', 'content_key'])
 export const okPublicMessages = publicSelect(qc, 'messages', ['id', 'version'])
+
+// [[CORE329]]: the control-plane tables are not in the CRM `StorageDatabase`; selecting from any of them is a compile error (each directive goes unused, so the typecheck fails, if a type is restored).
+// @ts-expect-error api_keys lives in the control plane
+qc.db.selectFrom('api_keys')
+// @ts-expect-error webhook_subscriptions lives in the control plane
+qc.db.selectFrom('webhook_subscriptions')
+// @ts-expect-error webhook_secrets lives in the control plane
+qc.db.selectFrom('webhook_secrets')
+// @ts-expect-error webhook_dispatch_state lives in the control plane
+qc.db.selectFrom('webhook_dispatch_state')
+// @ts-expect-error webhook_deliveries lives in the control plane
+qc.db.selectFrom('webhook_deliveries')

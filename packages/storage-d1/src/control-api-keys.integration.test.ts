@@ -171,9 +171,8 @@ describe('group 1: schema (P1, D4)', () => {
     ).toMatch(/CHECK/i)
   })
 
-  it('the CRM database is unchanged: its api_keys keeps its foreign keys and no control table appears there', async () => {
-    const fks = await rowsOf(crm, 'select "table" as ref from pragma_foreign_key_list(\'api_keys\') order by 1')
-    expect(fks.map((r) => r.ref)).toEqual(['agents', 'organizations', 'principals'])
+  it('the CRM database has no api_keys table (dropped by 0020, [[CORE329]])', async () => {
+    expect(await rowsOf(crm, "select name from sqlite_master where type = 'table' and name = 'api_keys'")).toEqual([])
   })
 })
 
@@ -392,46 +391,26 @@ describe('group 5: list and get as the CRM resource reads them', () => {
         now: plus(NOW, i * MIN),
       })
       await insertApiKey(c(), k)
-      await run(
-        crm,
-        'insert into api_keys (id, created_at, updated_at, organization_id, agent_id, key_hash, prefix, expires_at, created_by) values (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        k.id,
-        k.now,
-        k.now,
-        k.organizationId,
-        k.agentId,
-        k.keyHash,
-        k.prefix,
-        k.expiresAt,
-        k.actorId,
-      )
       made.push(k)
     }
+    // The rows as the CRM read answered them before [[CORE329]] dropped that table: by id, optionally one agent, after a cursor, limited.
     const crmRead = async (a: { agentId?: string; after?: string; limit: number }) =>
-      (
-        await rowsOf(
-          crm,
-          `select id, organization_id, agent_id, prefix, last_used_at, revoked_at, expires_at, created_by, created_at, updated_at from api_keys
-           where organization_id = ? and (? is null or agent_id = ?) and (? is null or id > ?) order by id limit ?`,
-          ORG2,
-          a.agentId ?? null,
-          a.agentId ?? null,
-          a.after ?? null,
-          a.after ?? null,
-          a.limit,
-        )
-      ).map((r) => ({
-        id: r.id,
-        organizationId: r.organization_id,
-        agentId: r.agent_id,
-        prefix: r.prefix,
-        lastUsedAt: r.last_used_at,
-        revokedAt: r.revoked_at,
-        expiresAt: r.expires_at,
-        createdBy: r.created_by,
-        createdAt: r.created_at,
-        updatedAt: r.updated_at,
-      }))
+      made
+        .filter((k) => (a.agentId === undefined || k.agentId === a.agentId) && (a.after === undefined || k.id > a.after))
+        .sort((x, y) => (x.id < y.id ? -1 : 1))
+        .slice(0, a.limit)
+        .map((k) => ({
+          id: k.id,
+          organizationId: k.organizationId,
+          agentId: k.agentId,
+          prefix: k.prefix,
+          lastUsedAt: null,
+          revokedAt: null,
+          expiresAt: k.expiresAt,
+          createdBy: k.actorId,
+          createdAt: k.now,
+          updatedAt: k.now,
+        }))
     const byAgent = (agentId: string): { filters: ApiKeyFilter[] } => ({
       filters: [{ column: 'agent_id', not: false, op: 'eq', value: agentId }],
     })

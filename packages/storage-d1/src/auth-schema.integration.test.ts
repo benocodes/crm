@@ -117,7 +117,7 @@ const counts = async (db: D1Like) =>
 
 describe('migration 0019 drops the CRM database auth tables (D13), over data', () => {
   it('is the next migration in the manifest', () => {
-    expect(MIGRATIONS.map((m) => m.name).at(-1)).toBe('0019_drop_auth_tables.sql')
+    expect(MIGRATIONS.map((m) => m.name)).toContain('0019_drop_auth_tables.sql')
   })
 
   it('a CRM database at 0018 with a row in every auth table and vault rows applies 0019: no auth table is left, the vault rows stay, and the control database is untouched', async () => {

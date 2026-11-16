@@ -3,7 +3,7 @@ import { uuidv7 } from '@vibase/storage'
 import { apiKeyStore, openControlDb, type D1Like } from '@vibase/storage-d1'
 import { clearD1, openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
 import { seedDeployment } from '@vibase/storage-d1/test/seed'
-import { authenticateApiKey, hashApiKey } from './auth/api-keys.js'
+import { hashApiKey } from './auth/api-keys.js'
 import { createApiKeyAuthenticator } from './auth/api-key-control.js'
 import { bootstrap } from './bootstrap.js'
 import { openAuthKit, type AuthKit } from './test/auth-kit.js'
@@ -11,26 +11,24 @@ import { openEngines, type Engine, type EngineName } from './test/engines.js'
 
 // Bootstrap on both engines (CORE41 Step 2.4, C7): one internal unit, no events, the key printed once.
 const NOW = new Date('2026-10-22T10:00:00.000Z')
-const TABLES = ['organizations', 'principals', 'users', 'memberships', 'agents', 'api_keys', 'events'] as const
+const TABLES = ['organizations', 'principals', 'users', 'memberships', 'agents', 'events'] as const
 
 /** The suite body: one instance per engine entry file (`*.d1.test.ts`, `*.postgres.test.ts`). */
 export function engineSuite(engineName: EngineName): void {
   let engines: Engine[]
-  // [[CORE356]]: on D1 the key is minted on the control plane; Postgres (parked, no control plane) keeps its CRM key step.
-  let local: LocalD1 | undefined
-  let control: D1Like | undefined
-  let store: ReturnType<typeof apiKeyStore> | undefined
+  // [[CORE356]], [[CORE329]] P3: on every engine the key is minted on the control plane, a local D1 control database here (a Postgres bootstrap would reach the same store through its own composition when un-parked, [[CORE259]] D17).
+  let local: LocalD1
+  let control: D1Like
+  let store: ReturnType<typeof apiKeyStore>
   beforeAll(async () => {
     engines = await openEngines([engineName])
-    if (engineName === 'd1') {
-      local = await openLocalD1(['control'], { control: ['control'] })
-      control = local.bindings.control!
-      store = apiKeyStore(openControlDb(control))
-    }
+    local = await openLocalD1(['control'], { control: ['control'] })
+    control = local.bindings.control!
+    store = apiKeyStore(openControlDb(control))
   })
   afterAll(async () => {
     for (const e of engines) await e.close()
-    await local?.dispose()
+    await local.dispose()
   })
 
   describe.each([engineName])('bootstrap on %s', (name) => {
@@ -41,7 +39,7 @@ export function engineSuite(engineName: EngineName): void {
     })
     beforeEach(async () => {
       await e.reset()
-      if (control) await clearD1(control)
+      await clearD1(control)
       kit = await openAuthKit(e)
       // D1 bootstraps a deployment that has its marker and no organisation row yet (CORE41 P14).
       if (name === 'd1') {
@@ -52,9 +50,7 @@ export function engineSuite(engineName: EngineName): void {
     afterEach(() => vi.restoreAllMocks())
 
     const ctl = async (table: string) =>
-      control
-        ? (((await control.prepare(`select * from ${table}`).all()).results ?? []) as Array<Record<string, any>>)
-        : []
+      ((await control.prepare(`select * from ${table}`).all()).results ?? []) as Array<Record<string, any>>
     const state = async () => ({
       ...(Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, await e.rows(t)] as const))) as Record<
         (typeof TABLES)[number],
@@ -64,7 +60,7 @@ export function engineSuite(engineName: EngineName): void {
       ctl_audit: await ctl('control_audit'),
     })
     let n = 0
-    const env = (keyStore: { create: NonNullable<typeof store>['create'] } | null | undefined = store) => ({
+    const env = (keyStore: { create: typeof store.create } | null | undefined = store) => ({
       now: NOW,
       newId: () => uuidv7(NOW),
       randomBytes: (k: number) => new Uint8Array(k).fill(++n),
@@ -108,17 +104,12 @@ export function engineSuite(engineName: EngineName): void {
         created_by: r.userId,
         created_at: NOW.toISOString(),
       })
-      // D1: the key and its audit row are on the control plane and the CRM has none; Postgres: the CRM row.
-      const key = (name === 'd1' ? s.ctl_api_keys : s.api_keys).find((k) => k.id === r.apiKeyId)!
-      if (name === 'd1') {
-        expect(s.api_keys).toEqual([])
-        expect(s.ctl_audit).toMatchObject([
-          { action: 'api_key.created', actor_id: r.userId, target_type: 'api_key', target_id: r.apiKeyId },
-        ])
-        expect(s.ctl_audit).toHaveLength(1)
-      } else {
-        expect(s.ctl_api_keys).toEqual([])
-      }
+      // The key and its audit row are on the control plane; the CRM has no api_keys table.
+      const key = s.ctl_api_keys.find((k) => k.id === r.apiKeyId)!
+      expect(s.ctl_audit).toMatchObject([
+        { action: 'api_key.created', actor_id: r.userId, target_type: 'api_key', target_id: r.apiKeyId },
+      ])
+      expect(s.ctl_audit).toHaveLength(1)
       expect(key).toMatchObject({
         agent_id: r.agentId,
         organization_id: r.organizationId,
@@ -153,9 +144,7 @@ export function engineSuite(engineName: EngineName): void {
 
     it('the bootstrapped key authenticates as the agent', async () => {
       const r = await bootstrap(e.binding, OPTS, env())
-      const principal = store
-        ? await createApiKeyAuthenticator({ port: store })(kit.binding, r.key, kit.env())
-        : await authenticateApiKey(kit.binding, r.key, kit.env())
+      const principal = await createApiKeyAuthenticator({ port: store })(kit.binding, r.key, kit.env())
       expect(principal).toMatchObject({ actor: { id: r.agentId, kind: 'agent' }, organizationId: r.organizationId })
       expect(principal!.scopes.toStrings()).toEqual(['tasks:read'])
     })
@@ -231,12 +220,13 @@ export function engineSuite(engineName: EngineName): void {
       })
     })
 
+    it('no control key store is refused before either store is written (every engine, CORE356 P3, CORE329 P3)', async () => {
+      const before = await state()
+      await expect(bootstrap(e.binding, OPTS, env(null))).rejects.toThrow(/control/i)
+      expect(await state()).toEqual(before)
+    })
+
     if (name === 'd1') {
-      it('no control key store is refused before either store is written (D1, CORE356 P3)', async () => {
-        const before = await state()
-        await expect(bootstrap(e.binding, OPTS, env(null))).rejects.toThrow(/control/i)
-        expect(await state()).toEqual(before)
-      })
       it.each([
         ['throws', async () => Promise.reject(new Error('control is down'))],
         ['answers duplicate', async () => 'duplicate' as const],
@@ -250,7 +240,6 @@ export function engineSuite(engineName: EngineName): void {
           // The CRM unit committed (the organisation and the agent exist), the control plane holds nothing.
           expect(s.organizations).toHaveLength(1)
           expect(s.agents).toHaveLength(1)
-          expect(s.api_keys).toEqual([])
           expect(s.ctl_api_keys).toEqual([])
           expect(s.ctl_audit).toEqual([])
           // A re-run is refused as today and writes nothing to control.

@@ -10,11 +10,11 @@ import {
 import type { ApiKeyStorePort } from '../admin/api-key-port.js'
 import { ScopeSet } from '../scopes.js'
 import type { InternalEnv } from '../storage/internal.js'
-import { authenticateApiKey, hashApiKey, LAST_USED_THROTTLE_MS } from './api-keys.js'
+import { hashApiKey, LAST_USED_THROTTLE_MS } from './api-keys.js'
 import type { Principal } from './types.js'
 
-// API-key authentication against the control plane's `api_keys` first ([[CORE350]], [[CORE259]] D5, D11 read half). The port is the only way this package reaches control keys: the Worker composition builds it over
-// the control store and hands it in, as the audit and webhook ports. Without a port (the parked Postgres composition) keys are CRM keys, exactly as `authenticateApiKey`.
+// API-key authentication against the control plane's `api_keys` ONLY ([[CORE350]], [[CORE259]] D5, D11, D17; [[CORE329]] P2). The port is the only way this package reaches keys: the Worker composition builds it over
+// the control store and hands it in, as the audit and webhook ports. A hash control does not hold is `null`, with no CRM read; without a port (the parked Postgres composition, which has no control store, D15/D17) every key is `null`.
 
 export interface ApiKeyState {
   lastUsedAt: string | null
@@ -81,14 +81,14 @@ export function apiKeyAgentOperation(agentId: string): PreparedOperation<AgentRo
 
 /**
  * The authenticator of one composed app ([[CORE350]] P1 to P4). The cache is per authenticator (one per isolate in production): key hash to the immutable `(key id, agent id, organisation id)` only. Revocation, expiry,
- * `last_used_at`, the agent's `disabled_at` and scopes are read on every request; a miss and a CRM-fallback result are never cached.
+ * `last_used_at`, the agent's `disabled_at` and scopes are read on every request; a miss is never cached.
  */
 export function createApiKeyAuthenticator(opts: {
   port: ApiKeyControlPort | null
   maxEntries?: number
 }): ApiKeyAuthenticator {
   const { port } = opts
-  if (!port) return (storage, key, env) => authenticateApiKey(storage, key, env)
+  if (!port) return async () => null
   const max = opts.maxEntries ?? API_KEY_CACHE_MAX_ENTRIES
   const cache = new Map<string, { id: string; agentId: string; organizationId: string }>()
   const remember = (hash: string, m: { id: string; agentId: string; organizationId: string }) => {
@@ -124,7 +124,7 @@ export function createApiKeyAuthenticator(opts: {
     const hash = await hashApiKey(key)
     const cached = cache.get(hash)
     if (cached) {
-      // P3: no hash lookup; the state and the agent are read together. A vanished state row evicts the entry and the cold path answers.
+      // P3: no hash lookup; the state and the agent are read together. A vanished state row evicts the entry and the cold path answers (control only: a deleted key is `null`).
       const [state, agent] = await Promise.all([port.readState(cached.id), readAgent(storage, cached.agentId)])
       if (state) {
         remember(hash, cached)
@@ -133,7 +133,7 @@ export function createApiKeyAuthenticator(opts: {
       cache.delete(hash)
     }
     const found = await port.findByHash(hash)
-    if (!found) return authenticateApiKey(storage, key, env)
+    if (!found) return null
     const m = { id: found.id, agentId: found.agentId, organizationId: found.organizationId }
     remember(hash, m)
     return judge(m, found, await readAgent(storage, m.agentId), env.now)

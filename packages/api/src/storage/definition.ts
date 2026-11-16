@@ -1,6 +1,6 @@
 import type { Expression, ExpressionBuilder, SelectType, SqlBool } from 'kysely'
 import type { z } from 'zod'
-import { COLUMN_KINDS, checkEmbed, type EmbedSpec } from '@vibase/storage'
+import { COLUMN_KINDS, checkEmbed, type ColumnKind, type EmbedSpec } from '@vibase/storage'
 import type {
   ColumnOf,
   PreparedOperation,
@@ -155,6 +155,11 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
   readonly name: string
   readonly eventName: string
   readonly table: T
+  /**
+   * [[CORE329]] P4, set only by `defineGrammarResource`: the column kinds of a list grammar whose table is NOT in the CRM schema (the control plane's `api_keys`). Absent on every CRM definition, whose kinds are `COLUMN_KINDS[table]`.
+   * Only the list parameters, sorts, filters and shapes read it; nothing generated for such a definition may run against the CRM database.
+   */
+  readonly columnKinds?: Readonly<Record<string, ColumnKind>>
   /** The public record. Its keys are the projection; none may be a secret column. */
   readonly record: z.ZodType<R> & { shape: Record<string, unknown> }
   readonly create?: z.ZodObject
@@ -349,6 +354,34 @@ export function definePreparedResource<
   }
   return full
 }
+
+/**
+ * [[CORE329]] P4: the list grammar of a control-plane table (list parameters, sorts, filters, request and response shapes), with no binding to a CRM table type. `columnKinds` names every sortable or filterable column
+ * and its kind (never a secret column); the record's keys must be among them. The ONE cast: `table` is not a CRM table, so the definition cannot be used for anything that reads the CRM database; its callers
+ * (`api_keys.list` and `get`) are control operations that never run the generated statements.
+ */
+export function defineGrammarResource<
+  K extends Readonly<Record<string, ColumnKind>>,
+  S extends z.ZodRawShape & { [F in keyof S]: F extends keyof K ? S[F] : never } & { id: z.ZodType<string> },
+>(
+  def: Omit<
+    PreparedResource<Table, Output<S>>,
+    'record' | 'embed' | 'derived' | 'table' | 'filters' | 'columnKinds' | 'surface'
+  > & {
+    readonly surface: Surface
+    readonly table: string
+    readonly columnKinds: K
+    readonly record: z.ZodObject<S>
+    readonly filters?: { readonly [C in keyof K]?: Filter }
+  },
+): PreparedResource<Table, Output<S>> {
+  if (!/^[a-z][a-z0-9_]*$/.test(def.name)) throw new Error(`invalid resource name "${def.name}"`)
+  return { ...def } as unknown as PreparedResource<Table, Output<S>>
+}
+
+/** The column kinds of a definition's table: its own for a grammar-only definition, else the CRM's `COLUMN_KINDS` ([[CORE329]] P4). */
+export const columnKindsOf = (def: { table: Table; columnKinds?: Readonly<Record<string, ColumnKind>> }) =>
+  def.columnKinds ?? (COLUMN_KINDS[def.table] as Readonly<Record<string, ColumnKind>>)
 
 /** Whether rows of the definition's table are soft-deleted: it has a `deleted_at` column (CORE40 P4). */
 export const softDeletes = (def: { table: Table }): boolean =>

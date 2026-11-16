@@ -57,6 +57,9 @@
       },
       {
         "name": "0019_drop_auth_tables.sql"
+      },
+      {
+        "name": "0020_drop_api_key_webhook_tables.sql"
       }
     ],
     "success": true,

@@ -24,7 +24,7 @@ import { postgresBinding } from '@vibase/storage-postgres'
 import { d1Binding, type D1Like } from '@vibase/storage-d1'
 import { createOperation, updateOperation } from './crud.js'
 import { tasks } from '../resources/tasks.js'
-import { generateApiKey, apiKeyAuthOperation } from '../auth/api-keys.js'
+import { generateApiKey } from '../auth/api-keys.js'
 import { firstSightOperation } from '../auth/first-sight.js'
 import { reconcileOperation, repairOperation } from '../directory/sync.js'
 import { bootstrapOperation } from '../bootstrap.js'
@@ -304,17 +304,6 @@ export function engineSuite(engineName: EngineName): void {
       })
     })
 
-    it('the API-key stamp is atomic too: a fault after it leaves last_used_at null', async () => {
-      const { hash, prefix } = await generateApiKey(() => crypto.getRandomValues(new Uint8Array(32)))
-      await e.insert('api_keys', { agent_id: e.agentId, key_hash: hash, prefix })
-      const before = await e.rows('api_keys')
-      const err = await settle(
-        e.runAs(internal, withFault(apiKeyAuthOperation(hash, NOW), { after: 'first-mutation' })),
-      )
-      expect(err).toBeInstanceOf(StatementFailed)
-      expect(await e.rows('api_keys')).toEqual(before)
-    })
-
     it('bootstrap is atomic: a fault after the organisation leaves nothing behind', async () => {
       const secret = await generateApiKey(() => new Uint8Array(32).fill(3))
       if (name === 'd1') {
@@ -333,8 +322,6 @@ export function engineSuite(engineName: EngineName): void {
         scopes: ['tasks:read'],
         ids: { user: uuidv7(), membership: uuidv7(), agent: uuidv7(), apiKey: uuidv7() },
         secret,
-        // The unit's own atomicity, with its full statement list (the D1 `bootstrap` mints the key on control after the unit, CORE356).
-        crmKey: true,
         now: NOW,
       })
       await roll(withFault(op, { after: 'first-mutation' }), internal)
