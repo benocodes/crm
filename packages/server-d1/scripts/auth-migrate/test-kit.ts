@@ -1,8 +1,13 @@
 // Fakes for the auth migration's read side ([[OPS365]]): a Clerk Backend API served from a response recorded on the Clerk dev instance, and a wrangler that answers
 // `d1 execute` and `d1 time-travel info` from a world of rows. Both record every call, so a test can say what was (not) reached.
 import { readFileSync } from 'node:fs'
+import type { D1Like } from '@vibase/storage-d1'
+import { seedDeployment, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import type { Cmd } from '../remote.js'
-import type { AgentRow, MembershipRow, UserRow } from './types.js'
+import { classify } from './classify.js'
+import { exportClerkUsers } from './clerk-export.js'
+import { AGENTS_SQL, MEMBERSHIPS_SQL, USERS_SQL, readCrmExport } from './crm-export.js'
+import type { AgentRow, AuthPlan, ClerkUserRow, MembershipRow, Snapshot, UserRow } from './types.js'
 
 /** The recorded Clerk response (`GET /v1/users`, scrubbed): four users, one with two addresses whose primary is the second, roles owner, member, agent and none. */
 export const recordedClerkUsers = (): Array<Record<string, any>> =>
@@ -175,5 +180,81 @@ export function standardWorld(): World {
       agent(7, 'account, Clerk user gone', { auth_provider: 'clerk', auth_subject: 'user_vanished' }),
       agent(8, 'account, Clerk user is a member', { auth_provider: 'clerk', auth_subject: 'user_scrubbedf' }),
     ],
+  }
+}
+
+// ---- the apply side ([[OPS392]]): a vault seeded into a local D1 from a World, and the plan made from it ----
+
+export const ORG_ID = '0190dddd-0000-7000-8000-000000000001'
+
+/** The CRM rows of a World written into a migrated local D1: the deployment and its organisation, then principals, users, memberships and agents (the agents' every column). */
+export async function seedWorld(d1: D1Like, world: World): Promise<void> {
+  await seedDeployment(d1, { organizationId: ORG_ID, provider: 'clerk', externalId: 'org_hq' })
+  for (const u of world.users)
+    await seedPrincipal(d1, {
+      id: u.id,
+      kind: 'user',
+      email: u.email,
+      name: u.name,
+      ...(u.auth_subject ? { authProvider: u.auth_provider ?? 'clerk', authSubject: u.auth_subject } : {}),
+      emailVerified: u.email_verified,
+    })
+  const creator = world.users[0]?.id ?? U(1)
+  for (const m of world.memberships)
+    await d1
+      .prepare(
+        'INSERT INTO memberships (id, created_at, updated_at, organization_id, user_id, role, created_by, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+      .bind(m.id, SEEDED_AT, SEEDED_AT, ORG_ID, m.user_id, m.role, creator, m.deleted_at)
+      .run()
+  for (const a of world.agents)
+    await d1.batch([
+      d1.prepare("INSERT INTO principals (id, kind, created_at) VALUES (?, 'agent', ?)").bind(a.id, SEEDED_AT),
+      d1
+        .prepare(
+          'INSERT INTO agents (id, created_at, updated_at, organization_id, name, scopes, disabled_at, created_by, auth_provider, auth_subject, auth_client_id, delegated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        )
+        .bind(
+          a.id,
+          SEEDED_AT,
+          SEEDED_AT,
+          ORG_ID,
+          a.name,
+          JSON.stringify(a.scopes),
+          a.disabled_at,
+          creator,
+          a.auth_provider,
+          a.auth_subject,
+          a.auth_client_id,
+          a.delegated_by,
+        ),
+    ])
+}
+export const SEEDED_AT = '2026-10-22T08:00:00.000Z'
+
+/** Clerk bodies as the real export normalizes them. */
+export async function clerkRowsOf(bodies: Array<Record<string, any>>): Promise<ClerkUserRow[]> {
+  return exportClerkUsers({ secretKey: CLERK_SECRET, fetch: fakeClerk(bodies, 500).fetch })
+}
+
+/** The normalized export of what a local D1 holds now, through the real CRM reader (its three SELECTs answered from the database) beside the given Clerk users. */
+export async function readSnapshot(d1: D1Like, clerk_users: ClerkUserRow[]): Promise<Snapshot> {
+  const answers = new Map<string, string>()
+  for (const sql of [USERS_SQL, AGENTS_SQL, MEMBERSHIPS_SQL])
+    answers.set(sql, JSON.stringify([{ results: (await d1.prepare(sql).all()).results, success: true }]))
+  return { clerk_users: structuredClone(clerk_users), ...readCrmExport((sql) => answers.get(sql)!) }
+}
+
+/** The plan classify makes from a snapshot, with sequential new ids (`0190cccc-...`). */
+export function planOf(snapshot: Snapshot, idStart = 0): AuthPlan {
+  let n = idStart
+  return {
+    version: 1,
+    env: 'hq',
+    created_at: '2026-11-16T12:00:00.000Z',
+    crm: { database_name: 'vault-crm-hq', database_id: 'crm-id', bookmark: 'B1' },
+    control: { database_name: 'vault-control-hq', database_id: 'ctl-id', bookmark: 'B2' },
+    ...classify(snapshot, () => `0190cccc-0000-7000-8000-${String(++n).padStart(12, '0')}`),
+    snapshot,
   }
 }

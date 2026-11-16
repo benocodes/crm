@@ -2,7 +2,7 @@
 // It reads the Clerk instance (Backend API, GET only) and both D1 databases (wrangler, SELECT and Time Travel info only) and writes the reviewable plan file that apply (#392) and revert (#394) consume.
 // A source script, not part of the release bin ([[OPS250]] "Tooling home"). Nothing is written but the plan file; a refusal exits 1 before any call.
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -44,6 +44,8 @@ export interface PlanDeps {
   exists(path: string): boolean
   /** Is the path inside the repository checkout and not ignored by git? */
   repoPathNotIgnored(path: string): boolean
+  /** The text of a file (the plan file `apply` reads); throws when it is missing or unreadable. */
+  readText(path: string): string
   /** Creates the file exclusively (never over an existing one) with the mode, and its directory when missing. */
   writeNew(path: string, text: string, mode: number): void
   now(): Date
@@ -58,8 +60,9 @@ export function defaultPlanPath(envName: string, procEnv: NodeJS.ProcessEnv, hom
   return join(root, 'vibase', 'instances', `${envName}.auth-plan.json`)
 }
 
-export const realFileDeps: Pick<PlanDeps, 'exists' | 'repoPathNotIgnored' | 'writeNew'> = {
+export const realFileDeps: Pick<PlanDeps, 'exists' | 'repoPathNotIgnored' | 'writeNew' | 'readText'> = {
   exists: (path) => existsSync(path),
+  readText: (path) => readFileSync(path, 'utf8'),
   repoPathNotIgnored(path) {
     const rel = relative(REPO_ROOT, resolve(path))
     if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return false // outside the checkout
