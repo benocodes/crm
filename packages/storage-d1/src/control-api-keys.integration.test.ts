@@ -286,6 +286,18 @@ describe('group 3: revoke (P3)', () => {
     expect((await rows('select count(*) as n from control_audit where id = ?', auditId))[0]!.n).toBe(0)
   })
 
+  it('a racing revoke that sets revoked_at and updated_at to the same instant is drift: the audit row is not written either', async () => {
+    const a = await make()
+    const auditId = nextId()
+    const now = plus(NOW, HOUR)
+    const store = racing(() =>
+      control.prepare('update api_keys set revoked_at = ?, updated_at = ? where id = ?').bind(now, now, a.id).run(),
+    )
+    expect(await revokeApiKey(store, { id: a.id, organizationId: ORG, auditId, actorId: ACTOR, now })).toBe('drifted')
+    expect(await keyRow(a.id)).toMatchObject({ revoked_at: now, updated_at: now })
+    expect((await rows('select count(*) as n from control_audit where id = ?', auditId))[0]!.n).toBe(0)
+  })
+
   it('a racing revoke that keeps the stamp is caught by the revoked_at IS NULL guard: nothing written, no second audit row', async () => {
     const a = await make()
     const auditId = nextId()

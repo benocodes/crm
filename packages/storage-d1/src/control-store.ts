@@ -1161,7 +1161,6 @@ export async function recordWebhookDeliveries(
   return index.map((i) => (results[i]?.meta?.changes ?? 0) === 1)
 }
 
-/** A function of this module with its leading `ControlDb` argument bound. */
 // ---- API keys ([[CORE328]]; [[CORE259]] D3, D8, D11, D12): the `api_keys` table in the control database, dormant until CORE350/CORE351 ----
 export interface ApiKeyRecord {
   id: string
@@ -1265,7 +1264,7 @@ export async function revokeApiKey(
       .bind(a.now, a.now, a.id, a.organizationId, a.expectedUpdatedAt ?? (row.updated_at as string)),
     d1
       .prepare(
-        `${AUDIT_INSERT} select ?, ?, ?, 'api_key.revoked', 'api_key', id, json_object('agent_id', agent_id, 'prefix', prefix) from api_keys where id = ? and revoked_at = ? and updated_at = ?`,
+        `${AUDIT_INSERT} select ?, ?, ?, 'api_key.revoked', 'api_key', id, json_object('agent_id', agent_id, 'prefix', prefix) from api_keys where id = ? and revoked_at = ? and updated_at = ? and changes() = 1`,
       )
       .bind(a.auditId, a.now, a.actorId, a.id, a.now, a.now),
   ])
@@ -1348,6 +1347,7 @@ export async function listApiKeys(
   return ((res.results ?? []) as Array<Record<string, unknown>>).map(apiKeyOf)
 }
 
+/** A function of this module with its leading `ControlDb` argument bound. */
 type Bound<F> = F extends (c: ControlDb, ...a: infer A) => infer R ? (...a: A) => R : never
 /**
  * The webhook store as the port composition hands `@vibase/api` ([[CORE337]] P5): the twelve methods above bound to one control handle, so that package reaches the control plane through a plain object
