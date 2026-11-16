@@ -5,6 +5,7 @@ import { UnitDriftError, execute, uuidv7, type StorageBinding } from '@vibase/st
 import type { AuthAdapter } from '../auth/adapter.js'
 import { mcpChallenge, resourceMetadataChallenge } from '../discovery.js'
 import { authMiddleware } from '../auth/middleware.js'
+import { createApiKeyAuthenticator, type ApiKeyControlRuntime } from '../auth/api-key-control.js'
 import type { Principal, UserAuthenticator } from '../auth/types.js'
 import { createUserAuthenticator } from '../auth/user-authenticator.js'
 import { createProfileCache, createWorkspaceAuthenticator, workspaceRole } from '../auth/workspace-authenticator.js'
@@ -110,6 +111,8 @@ export interface AppOptions {
   members?: MembersRuntime | null
   /** [[CORE261]]: the audit log's read port; absent or null (the parked Postgres composition only; every D1 composition has it, [[CORE326]] P3): `audit.list` answers `501 provider_not_configured`. Ignored when `registry` is given. */
   audit?: AuditRuntime | null
+  /** [[CORE350]] P5: the control plane's API-key port; keys are looked up there first, then in the CRM database. Absent or null (the parked Postgres composition): CRM keys only, as before. */
+  apiKeys?: ApiKeyControlRuntime | null
   /** Extra operations registered before the queue's (Node tests; see `createVibaseRegistry`). Ignored when `registry` is given. */
   extraOperations?: (registry: Registry) => void
   /** The object store of operations with an object stage ([[CORE25]] D52). Absent: those operations answer `503 objects_unavailable`. */
@@ -406,6 +409,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
     userAuthenticator,
     env: () => internalEnv(options),
     declaredScopes: registry.declaredScopes(),
+    authenticateKey: createApiKeyAuthenticator({ port: options.apiKeys?.port ?? null }),
   })
   for (const op of registry.operations()) {
     documentOperation(app, op)
