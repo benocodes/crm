@@ -1161,6 +1161,192 @@ export async function recordWebhookDeliveries(
   return index.map((i) => (results[i]?.meta?.changes ?? 0) === 1)
 }
 
+// ---- API keys ([[CORE328]]; [[CORE259]] D3, D8, D11, D12): the `api_keys` table in the control database, dormant until CORE350/CORE351 ----
+export interface ApiKeyRecord {
+  id: string
+  organizationId: string
+  agentId: string
+  prefix: string
+  lastUsedAt: string | null
+  revokedAt: string | null
+  expiresAt: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+/** What authentication needs from a hash lookup: the immutable mapping and the mutable fields (D11). */
+export interface ApiKeyLookup {
+  id: string
+  agentId: string
+  organizationId: string
+  lastUsedAt: string | null
+  revokedAt: string | null
+  expiresAt: string | null
+}
+export type ApiKeyState = Pick<ApiKeyLookup, 'lastUsedAt' | 'revokedAt' | 'expiresAt'>
+export interface NewApiKey {
+  id: string
+  auditId: string
+  /** The principal acting (`created_by` and the audit `actor_id`), by value. */
+  actorId: string
+  organizationId: string
+  agentId: string
+  keyHash: string
+  prefix: string
+  expiresAt: string | null
+  now: string
+}
+/** A key used more recently than this is not stamped again: one write a minute per key at most (as the CRM stamp, [[CORE15]]). */
+export const API_KEY_STAMP_THROTTLE_MS = 60_000
+const API_KEY_COLUMNS =
+  'id, organization_id, agent_id, prefix, last_used_at, revoked_at, expires_at, created_by, created_at, updated_at'
+const apiKeyOf = (r: Record<string, unknown>): ApiKeyRecord => ({
+  id: r.id as string,
+  organizationId: r.organization_id as string,
+  agentId: r.agent_id as string,
+  prefix: r.prefix as string,
+  lastUsedAt: r.last_used_at as string | null,
+  revokedAt: r.revoked_at as string | null,
+  expiresAt: r.expires_at as string | null,
+  createdBy: r.created_by as string,
+  createdAt: r.created_at as string,
+  updatedAt: r.updated_at as string,
+})
+
+/**
+ * Inserts a key and its `api_key.created` audit row in ONE batch (D9 (c), D12). The id is the caller's, by value. The audit `detail` holds the agent, the prefix and the expiry, never the key or any part of its
+ * hash. A duplicate id or hash aborts the batch: `duplicate`, neither row written. Whether the agent exists is the caller's to judge (D8: no foreign key).
+ */
+export async function insertApiKey(c: ControlDb, a: NewApiKey): Promise<'created' | 'duplicate'> {
+  const d1 = raw(c)
+  try {
+    await d1.batch([
+      d1
+        .prepare(
+          `insert into api_keys (id, created_at, updated_at, organization_id, agent_id, key_hash, prefix, last_used_at, revoked_at, expires_at, created_by)
+           values (?, ?, ?, ?, ?, ?, ?, null, null, ?, ?)`,
+        )
+        .bind(a.id, a.now, a.now, a.organizationId, a.agentId, a.keyHash, a.prefix, a.expiresAt, a.actorId),
+      d1
+        .prepare(
+          `${AUDIT_INSERT} select ?, ?, ?, 'api_key.created', 'api_key', id, json_object('agent_id', agent_id, 'prefix', prefix, 'expires_at', expires_at) from api_keys where id = ? and key_hash = ?`,
+        )
+        .bind(a.auditId, a.now, a.actorId, a.id, a.keyHash),
+    ])
+    return 'created'
+  } catch (e) {
+    if (/UNIQUE|PRIMARY KEY/i.test((e as Error).message)) return 'duplicate'
+    throw e
+  }
+}
+
+/**
+ * Revokes a key as `api_keys.revoke` does today: an already revoked key is `already_revoked` with no statement and no audit row; otherwise ONE update guarded on `revoked_at IS NULL` and the stamp (`updated_at`: the
+ * caller's `expectedUpdatedAt`, else the one this method reads) sets `revoked_at` and `updated_at` to `now`, with `api_key.revoked` in the same batch. A guard that matches nothing writes nothing, audit
+ * included: `drifted`. `not_found` for a missing key or another organisation's.
+ */
+export async function revokeApiKey(
+  c: ControlDb,
+  a: { id: string; organizationId: string; auditId: string; actorId: string; now: string; expectedUpdatedAt?: string },
+): Promise<'revoked' | 'already_revoked' | 'not_found' | 'drifted'> {
+  const d1 = raw(c)
+  const row = await d1
+    .prepare('select updated_at, revoked_at from api_keys where id = ? and organization_id = ?')
+    .bind(a.id, a.organizationId)
+    .first()
+  if (!row) return 'not_found'
+  if (row.revoked_at !== null) return 'already_revoked'
+  const results = await d1.batch([
+    d1
+      .prepare(
+        'update api_keys set revoked_at = ?, updated_at = ? where id = ? and organization_id = ? and revoked_at is null and updated_at = ?',
+      )
+      .bind(a.now, a.now, a.id, a.organizationId, a.expectedUpdatedAt ?? (row.updated_at as string)),
+    d1
+      .prepare(
+        `${AUDIT_INSERT} select ?, ?, ?, 'api_key.revoked', 'api_key', id, json_object('agent_id', agent_id, 'prefix', prefix) from api_keys where id = ? and revoked_at = ? and updated_at = ? and changes() = 1`,
+      )
+      .bind(a.auditId, a.now, a.actorId, a.id, a.now, a.now),
+  ])
+  return (results[0]?.meta?.changes ?? 0) === 1 ? 'revoked' : 'drifted'
+}
+
+/** The key behind a hash: the immutable mapping (key, agent, organisation) and the mutable fields, so a caller may cache the first and re-read the second ([[CORE259]] D11). `null` for an unknown hash. */
+export async function findApiKeyByHash(c: ControlDb, keyHash: string): Promise<ApiKeyLookup | null> {
+  const r = await raw(c)
+    .prepare(
+      'select id, agent_id, organization_id, last_used_at, revoked_at, expires_at from api_keys where key_hash = ?',
+    )
+    .bind(keyHash)
+    .first()
+  return r
+    ? {
+        id: r.id as string,
+        agentId: r.agent_id as string,
+        organizationId: r.organization_id as string,
+        lastUsedAt: r.last_used_at as string | null,
+        revokedAt: r.revoked_at as string | null,
+        expiresAt: r.expires_at as string | null,
+      }
+    : null
+}
+
+/** The mutable fields of a key by id (the per-request half of D11, for a caller holding the cached mapping). `null` for an unknown id. */
+export async function readApiKeyState(c: ControlDb, id: string): Promise<ApiKeyState | null> {
+  const r = await raw(c)
+    .prepare('select last_used_at, revoked_at, expires_at from api_keys where id = ?')
+    .bind(id)
+    .first()
+  return r
+    ? {
+        lastUsedAt: r.last_used_at as string | null,
+        revokedAt: r.revoked_at as string | null,
+        expiresAt: r.expires_at as string | null,
+      }
+    : null
+}
+
+/** Stamps `last_used_at` (only that: never `updated_at`, no audit row) when it is null or older than a minute; `true` when it wrote. */
+export async function stampApiKeyUsed(c: ControlDb, a: { id: string; now: string }): Promise<boolean> {
+  const cutoff = new Date(new Date(a.now).getTime() - API_KEY_STAMP_THROTTLE_MS).toISOString()
+  const res = await raw(c)
+    .prepare('update api_keys set last_used_at = ? where id = ? and (last_used_at is null or last_used_at < ?)')
+    .bind(a.now, a.id, cutoff)
+    .run()
+  return (res.meta?.changes ?? 0) === 1
+}
+
+/** A key by id within an organisation, as `api_keys.get` reads it: the record's columns, never `key_hash`. */
+export async function getApiKey(c: ControlDb, a: { id: string; organizationId: string }): Promise<ApiKeyRecord | null> {
+  const r = await raw(c)
+    .prepare(`select ${API_KEY_COLUMNS} from api_keys where id = ? and organization_id = ?`)
+    .bind(a.id, a.organizationId)
+    .first()
+  return r ? apiKeyOf(r) : null
+}
+
+/** An organisation's keys in id order after the cursor, optionally one agent's, as `api_keys.list` reads them by default. The caller asks for `limit + 1` to see whether a page follows. */
+export async function listApiKeys(
+  c: ControlDb,
+  a: { organizationId: string; agentId?: string; after?: string; limit: number },
+): Promise<ApiKeyRecord[]> {
+  const where = ['organization_id = ?']
+  const binds: unknown[] = [a.organizationId]
+  if (a.agentId !== undefined) {
+    where.push('agent_id = ?')
+    binds.push(a.agentId)
+  }
+  if (a.after !== undefined) {
+    where.push('id > ?')
+    binds.push(a.after)
+  }
+  const res = await raw(c)
+    .prepare(`select ${API_KEY_COLUMNS} from api_keys where ${where.join(' and ')} order by id limit ?`)
+    .bind(...binds, a.limit)
+    .all()
+  return ((res.results ?? []) as Array<Record<string, unknown>>).map(apiKeyOf)
+}
+
 /** A function of this module with its leading `ControlDb` argument bound. */
 type Bound<F> = F extends (c: ControlDb, ...a: infer A) => infer R ? (...a: A) => R : never
 /**
