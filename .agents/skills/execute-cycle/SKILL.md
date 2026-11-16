@@ -38,6 +38,10 @@ with `ln -s ../../../.env .env` from the worktree root. Never copy it, and never
 
 ## 2. Survey before you write
 
+- **Read what was already decided, first:** `node scripts/decisions.mjs find <the cycle's issue> --related`
+  prints the planner's spec and plan decisions for this cycle, and the parent spec's and sibling cycles' rows.
+  They bind you as the spec does: don't decide again what a row settles, and a row you think is wrong is a
+  `blocked` (or, for an earlier coder's row, a new row with `--supersedes <ref>`), never a silent deviation.
 - Read the modules the cycle changes or calls, their tests, and the shared test helpers and seeds. Reuse
   helpers; find the seam to test at. Don't call a helper you haven't opened.
 - **When the cycle migrates existing behaviour, the old code is the reference** for "matches today's

@@ -16,6 +16,8 @@ brief says **what** to deliver and **what must be proven**; you work out the how
 - Work only in the worktree the brief names. Never switch branches in the main checkout.
 - Deliver the charter's **In this cycle** list, nothing from **Deferred**. Every **Must be tested**
   obligation ends with a test and its evidence, or a reason it couldn't be proven.
+- Before you write anything, read the planner's decisions for the cycle:
+  `node scripts/decisions.mjs find <n> --related` (`execute-cycle` §2). They bind you as the spec does.
 - You make the small design calls the spec and charter leave open, and record each one when you make it:
   one row in the decisions log (`node scripts/decisions.mjs add --issue <n> --by coder --stage code "<decision>"`,
   `execute-cycle` §4) and a line under Decisions in `RESULT.md`. The reviewer rules on them. A gap that changes a contract or a behaviour the spec states is a
