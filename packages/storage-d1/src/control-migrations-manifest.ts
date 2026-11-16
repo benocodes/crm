@@ -6,4 +6,5 @@ export const CONTROL_MIGRATIONS: readonly { readonly name: string; readonly sha2
   { name: '0002_invitations.sql', sha256: '6182163772f257d9487b4fe5fb19093edaf18ea691696fe088acd8677dce3a36' },
   { name: '0003_invitation_delivery.sql', sha256: '10feb53551cea58bf897c1cbfc3ec9dfe6aca252a0a0fd9892596433e6ed4d00' },
   { name: '0004_webhooks.sql', sha256: '833caef3886afe7a2068a7d1c23e96fe1a0e163fb8f870f4a4d1b9638ccb5e68' },
+  { name: '0005_api_keys.sql', sha256: '3e6143b61f4447dabd995f9016afafe678ba28ba0ebcca921cd459a8deb8fed8' },
 ]

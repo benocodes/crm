@@ -14,7 +14,8 @@ import {
   stampApiKeyUsed,
   type NewApiKey,
 } from './control-store.js'
-import { openLocalD1, seedAgent, seedDeployment, seedPrincipal, type LocalD1 } from './test/index.js'
+import { openLocalD1, type LocalD1 } from './test/index.js'
+import { seedAgent, seedDeployment, seedPrincipal } from './test/seed.js'
 
 // [[CORE328]] groups 1 to 6: the control store's API key methods on a real control-plane D1 (Miniflare), with the CRM database beside it for the parity group. `control_audit` refuses DELETE,
 // so nothing is emptied between tests: every test makes its own ids.
@@ -92,7 +93,7 @@ const racing = (before: () => Promise<unknown>) => {
 
 describe('group 1: schema (P1, D4)', () => {
   it('api_keys has the CRM table columns, STRICT, no foreign key, a unique key_hash', async () => {
-    const cols = await rows("select name, type, \"notnull\" as nn from pragma_table_info('api_keys') order by cid")
+    const cols = await rows('select name, type, "notnull" as nn from pragma_table_info(\'api_keys\') order by cid')
     expect(cols.map((r) => r.name)).toEqual([
       'id',
       'created_at',
@@ -153,7 +154,7 @@ describe('group 1: schema (P1, D4)', () => {
       )
     }
     expect(await ins({})).toBeNull()
-    for (const bad of [
+    for (const bad of <Array<Record<string, string>>>[
       { id: 'not-a-uuid' },
       { created_at: 'yesterday' },
       { updated_at: '2026-11-16' },
@@ -163,12 +164,17 @@ describe('group 1: schema (P1, D4)', () => {
     ])
       expect(await ins(bad), JSON.stringify(bad)).toMatch(/CHECK/i)
     expect(
-      await run(control, 'update api_keys set revoked_at = ? where id = ?', 'nope', (await rows('select id from api_keys limit 1'))[0]!.id),
+      await run(
+        control,
+        'update api_keys set revoked_at = ? where id = ?',
+        'nope',
+        (await rows('select id from api_keys limit 1'))[0]!.id,
+      ),
     ).toMatch(/CHECK/i)
   })
 
   it('the CRM database is unchanged: its api_keys keeps its foreign keys and no control table appears there', async () => {
-    const fks = await rowsOf(crm, "select \"table\" as ref from pragma_foreign_key_list('api_keys') order by 1")
+    const fks = await rowsOf(crm, 'select "table" as ref from pragma_foreign_key_list(\'api_keys\') order by 1')
     expect(fks.map((r) => r.ref)).toEqual(['agents', 'organizations', 'principals'])
   })
 })
@@ -198,7 +204,11 @@ describe('group 2: insert writes the key and its audit row in one batch (P2, D9 
       target_type: 'api_key',
       target_id: a.id,
     })
-    expect(JSON.parse(log[0]!.detail)).toEqual({ agent_id: a.agentId, prefix: 'vk_abcdefgh', expires_at: plus(NOW, HOUR) })
+    expect(JSON.parse(log[0]!.detail)).toEqual({
+      agent_id: a.agentId,
+      prefix: 'vk_abcdefgh',
+      expires_at: plus(NOW, HOUR),
+    })
     expect(log[0]!.detail).not.toContain(a.keyHash)
     expect(log[0]!.detail).not.toContain(a.keyHash.slice(0, 8))
   })
@@ -212,7 +222,10 @@ describe('group 2: insert writes the key and its audit row in one batch (P2, D9 
     expect(await audit(sameId.id)).toHaveLength(1) // the first key's own row only
     expect(await audit(sameHash.id)).toHaveLength(0)
     expect(await keyRow(sameHash.id)).toBeUndefined()
-    expect((await rows('select count(*) as n from control_audit where id in (?, ?)', sameId.auditId, sameHash.auditId))[0]!.n).toBe(0)
+    expect(
+      (await rows('select count(*) as n from control_audit where id in (?, ?)', sameId.auditId, sameHash.auditId))[0]!
+        .n,
+    ).toBe(0)
   })
 })
 
@@ -221,7 +234,9 @@ describe('group 3: revoke (P3)', () => {
     const a = await make()
     const later = plus(NOW, HOUR)
     const auditId = nextId()
-    expect(await revokeApiKey(c(), { id: a.id, organizationId: ORG, auditId, actorId: ACTOR, now: later })).toBe('revoked')
+    expect(await revokeApiKey(c(), { id: a.id, organizationId: ORG, auditId, actorId: ACTOR, now: later })).toBe(
+      'revoked',
+    )
     expect(await keyRow(a.id)).toMatchObject({ revoked_at: later, updated_at: later })
     const log = (await audit(a.id)).filter((r) => r.action === 'api_key.revoked')
     expect(log).toHaveLength(1)
@@ -232,19 +247,27 @@ describe('group 3: revoke (P3)', () => {
   it('an already revoked key returns unchanged: no write, no audit row', async () => {
     const a = await make()
     const t1 = plus(NOW, HOUR)
-    expect(await revokeApiKey(c(), { id: a.id, organizationId: ORG, auditId: nextId(), actorId: ACTOR, now: t1 })).toBe('revoked')
+    expect(await revokeApiKey(c(), { id: a.id, organizationId: ORG, auditId: nextId(), actorId: ACTOR, now: t1 })).toBe(
+      'revoked',
+    )
     const auditId = nextId()
-    expect(await revokeApiKey(c(), { id: a.id, organizationId: ORG, auditId, actorId: ACTOR, now: plus(t1, HOUR) })).toBe('already_revoked')
+    expect(
+      await revokeApiKey(c(), { id: a.id, organizationId: ORG, auditId, actorId: ACTOR, now: plus(t1, HOUR) }),
+    ).toBe('already_revoked')
     expect(await keyRow(a.id)).toMatchObject({ revoked_at: t1, updated_at: t1 })
     expect((await audit(a.id)).filter((r) => r.action === 'api_key.revoked')).toHaveLength(1)
     expect((await rows('select count(*) as n from control_audit where id = ?', auditId))[0]!.n).toBe(0)
   })
 
-  it('a missing key, or another organisation\'s, is not_found and writes nothing', async () => {
+  it("a missing key, or another organisation's, is not_found and writes nothing", async () => {
     const a = await make()
     const auditId = nextId()
-    expect(await revokeApiKey(c(), { id: nextId(), organizationId: ORG, auditId, actorId: ACTOR, now: NOW })).toBe('not_found')
-    expect(await revokeApiKey(c(), { id: a.id, organizationId: nextId(), auditId, actorId: ACTOR, now: NOW })).toBe('not_found')
+    expect(await revokeApiKey(c(), { id: nextId(), organizationId: ORG, auditId, actorId: ACTOR, now: NOW })).toBe(
+      'not_found',
+    )
+    expect(await revokeApiKey(c(), { id: a.id, organizationId: nextId(), auditId, actorId: ACTOR, now: NOW })).toBe(
+      'not_found',
+    )
     expect((await keyRow(a.id))!.revoked_at).toBeNull()
     expect((await rows('select count(*) as n from control_audit where id = ?', auditId))[0]!.n).toBe(0)
   })
@@ -253,8 +276,12 @@ describe('group 3: revoke (P3)', () => {
     const a = await make()
     const auditId = nextId()
     const bumped = plus(NOW, 5 * MIN)
-    const store = racing(() => control.prepare('update api_keys set updated_at = ? where id = ?').bind(bumped, a.id).run())
-    expect(await revokeApiKey(store, { id: a.id, organizationId: ORG, auditId, actorId: ACTOR, now: plus(NOW, HOUR) })).toBe('drifted')
+    const store = racing(() =>
+      control.prepare('update api_keys set updated_at = ? where id = ?').bind(bumped, a.id).run(),
+    )
+    expect(
+      await revokeApiKey(store, { id: a.id, organizationId: ORG, auditId, actorId: ACTOR, now: plus(NOW, HOUR) }),
+    ).toBe('drifted')
     expect(await keyRow(a.id)).toMatchObject({ revoked_at: null, updated_at: bumped })
     expect((await rows('select count(*) as n from control_audit where id = ?', auditId))[0]!.n).toBe(0)
   })
@@ -263,8 +290,12 @@ describe('group 3: revoke (P3)', () => {
     const a = await make()
     const auditId = nextId()
     const theirs = plus(NOW, 2 * MIN)
-    const store = racing(() => control.prepare('update api_keys set revoked_at = ? where id = ?').bind(theirs, a.id).run())
-    expect(await revokeApiKey(store, { id: a.id, organizationId: ORG, auditId, actorId: ACTOR, now: plus(NOW, HOUR) })).toBe('drifted')
+    const store = racing(() =>
+      control.prepare('update api_keys set revoked_at = ? where id = ?').bind(theirs, a.id).run(),
+    )
+    expect(
+      await revokeApiKey(store, { id: a.id, organizationId: ORG, auditId, actorId: ACTOR, now: plus(NOW, HOUR) }),
+    ).toBe('drifted')
     expect(await keyRow(a.id)).toMatchObject({ revoked_at: theirs, updated_at: NOW })
     expect((await rows('select count(*) as n from control_audit where id = ?', auditId))[0]!.n).toBe(0)
   })
@@ -272,7 +303,14 @@ describe('group 3: revoke (P3)', () => {
   it('a caller-supplied expectedUpdatedAt that is stale is drift too', async () => {
     const a = await make()
     expect(
-      await revokeApiKey(c(), { id: a.id, organizationId: ORG, auditId: nextId(), actorId: ACTOR, now: plus(NOW, HOUR), expectedUpdatedAt: plus(NOW, -HOUR) }),
+      await revokeApiKey(c(), {
+        id: a.id,
+        organizationId: ORG,
+        auditId: nextId(),
+        actorId: ACTOR,
+        now: plus(NOW, HOUR),
+        expectedUpdatedAt: plus(NOW, -HOUR),
+      }),
     ).toBe('drifted')
     expect((await keyRow(a.id))!.revoked_at).toBeNull()
   })
@@ -283,7 +321,13 @@ describe('group 4: lookup by hash and the stamp (P4, P5)', () => {
     const live = await make()
     const expired = await make({ expiresAt: plus(NOW, -HOUR) })
     const revoked = await make()
-    await revokeApiKey(c(), { id: revoked.id, organizationId: ORG, auditId: nextId(), actorId: ACTOR, now: plus(NOW, MIN) })
+    await revokeApiKey(c(), {
+      id: revoked.id,
+      organizationId: ORG,
+      auditId: nextId(),
+      actorId: ACTOR,
+      now: plus(NOW, MIN),
+    })
     expect(await findApiKeyByHash(c(), live.keyHash)).toEqual({
       id: live.id,
       agentId: live.agentId,
@@ -294,7 +338,11 @@ describe('group 4: lookup by hash and the stamp (P4, P5)', () => {
     })
     expect(await findApiKeyByHash(c(), expired.keyHash)).toMatchObject({ id: expired.id, expiresAt: plus(NOW, -HOUR) })
     expect(await findApiKeyByHash(c(), revoked.keyHash)).toMatchObject({ id: revoked.id, revokedAt: plus(NOW, MIN) })
-    expect(await readApiKeyState(c(), revoked.id)).toEqual({ lastUsedAt: null, revokedAt: plus(NOW, MIN), expiresAt: null })
+    expect(await readApiKeyState(c(), revoked.id)).toEqual({
+      lastUsedAt: null,
+      revokedAt: plus(NOW, MIN),
+      expiresAt: null,
+    })
   })
 
   it('an unknown hash and an unknown id find nothing', async () => {
@@ -326,7 +374,13 @@ describe('group 5: list and get as the CRM resource reads them', () => {
     await seedAgent(crm, { id: AG2, organizationId: ORG2, createdBy: USER })
     const made: NewApiKey[] = []
     for (const [i, agentId] of [AG1, AG2, AG1, AG2, AG1].entries()) {
-      const k = newKey({ organizationId: ORG2, agentId, actorId: USER, expiresAt: i === 3 ? plus(NOW, HOUR) : null, now: plus(NOW, i * MIN) })
+      const k = newKey({
+        organizationId: ORG2,
+        agentId,
+        actorId: USER,
+        expiresAt: i === 3 ? plus(NOW, HOUR) : null,
+        now: plus(NOW, i * MIN),
+      })
       await insertApiKey(c(), k)
       await run(
         crm,
@@ -374,12 +428,16 @@ describe('group 5: list and get as the CRM resource reads them', () => {
     const first = await listApiKeys(c(), { organizationId: ORG2, limit: 2 })
     const next = { after: first[1]!.id, limit: 10 }
     expect(await listApiKeys(c(), { organizationId: ORG2, ...next })).toEqual(await crmRead(next))
-    expect((await listApiKeys(c(), { organizationId: ORG2, limit: 10 })).map((r) => r.id)).toEqual(made.map((k) => k.id).sort())
+    expect((await listApiKeys(c(), { organizationId: ORG2, limit: 10 })).map((r) => r.id)).toEqual(
+      made.map((k) => k.id).sort(),
+    )
     expect(JSON.stringify(await listApiKeys(c(), { organizationId: ORG2, limit: 10 }))).not.toContain('keyHash')
     expect(JSON.stringify(await listApiKeys(c(), { organizationId: ORG2, limit: 10 }))).not.toContain(made[0]!.keyHash)
     // get
     const one = made[3]!
-    expect(await getApiKey(c(), { id: one.id, organizationId: ORG2 })).toEqual((await crmRead({ limit: 10 })).find((r) => r.id === one.id))
+    expect(await getApiKey(c(), { id: one.id, organizationId: ORG2 })).toEqual(
+      (await crmRead({ limit: 10 })).find((r) => r.id === one.id),
+    )
     expect(await getApiKey(c(), { id: one.id, organizationId: ORG })).toBeNull()
     expect(await getApiKey(c(), { id: nextId(), organizationId: ORG2 })).toBeNull()
     expect(JSON.stringify(await getApiKey(c(), { id: one.id, organizationId: ORG2 }))).not.toContain(one.keyHash)
@@ -391,7 +449,15 @@ describe('group 5: list and get as the CRM resource reads them', () => {
 })
 
 describe('group 6: dormant and bounded (D5, P6)', () => {
-  const NAMES = ['insertApiKey', 'revokeApiKey', 'findApiKeyByHash', 'readApiKeyState', 'stampApiKeyUsed', 'getApiKey', 'listApiKeys']
+  const NAMES = [
+    'insertApiKey',
+    'revokeApiKey',
+    'findApiKeyByHash',
+    'readApiKeyState',
+    'stampApiKeyUsed',
+    'getApiKey',
+    'listApiKeys',
+  ]
   const PACKAGES = fileURLToPath(new URL('../../', import.meta.url))
   const sources = (dir: string): string[] =>
     readdirSync(dir).flatMap((f) => {
