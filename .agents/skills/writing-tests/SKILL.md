@@ -682,6 +682,10 @@ boolean `false`, which happy-dom suites asserting the prop shape miss. Enumerate
 (`packages/ui/e2e/gallery.e2e.ts`) asserts the browser *property* (`input.spellcheck === false`). An identity
 case that tells Preact from React cannot inspect elements: `preact/compat` stamps `$$typeof` on vnodes. Check the
 `react` module's React-only exports instead (`packages/ui/src/runtime.ui.test.tsx`).
+Preact's `render(vnode, container)` keeps the container's existing children: a static placeholder in `index.html`
+(a no-JS "Loading") stays beside the rendered page, where hand-written `replaceChildren` code cleared it. Clear it
+on the first draw, and mount at least one page test into a container seeded with the shipped HTML's content, never
+only an empty `div` (the [[UI256]] E2E found the stray text; `packages/server-d1/src/connect/view.tsx` `drawView`).
 
 `packages/server-d1/e2e/*.e2e.ts` run Playwright + `@clerk/testing` against a local Worker and the Clerk dev
 instance (`.env.dev` only), outside the gate. They fail on browser and provider timing, not on vault logic, so

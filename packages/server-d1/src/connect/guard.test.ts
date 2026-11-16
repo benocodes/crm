@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 
 const DIR = fileURLToPath(new URL('.', import.meta.url))
 const sources = readdirSync(DIR)
-  .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
+  .filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f))
   .map((f) => ({
     f,
     text: readFileSync(DIR + f, 'utf8')
@@ -21,9 +21,9 @@ describe('page source guard', () => {
       expect.arrayContaining([
         'view-model.ts',
         'controller.ts',
-        'dom.ts',
+        'view.tsx',
         'api.ts',
-        'main.ts',
+        'main.tsx',
         'better-auth-session.ts',
         'seam.ts',
       ]),
@@ -36,6 +36,7 @@ describe('page source guard', () => {
     'document.write',
     'createContextualFragment',
     'DOMParser',
+    'dangerouslySetInnerHTML',
     'eval(',
     'new Function',
   ])('no page module uses %s', (sink) => {

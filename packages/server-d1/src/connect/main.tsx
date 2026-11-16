@@ -1,10 +1,10 @@
-// [[UI30]] D1-D13: the connect page's entry. Reads the instance's discovery document, builds the Clerk seam and the API client, and draws.
+// [[UI30]] D1-D13, [[UI256]]: the connect page's entry, and a page file; `view.tsx` holds the one `preact` import (the rest import `react`, aliased by the build). Reads the instance's discovery document, builds the Clerk seam and the API client, and draws.
 import { createApi } from './api.js'
 import { createPage } from './controller.js'
-import { render } from './dom.js'
 import { selectSeam } from './seam.js'
 import type { Discovery } from './types.js'
 import { buildView } from './view-model.js'
+import { drawView, type Handlers } from './view.js'
 
 async function main(): Promise<void> {
   const root = document.getElementById('app')
@@ -16,7 +16,7 @@ async function main(): Promise<void> {
     if (!res.ok) throw new Error(String(res.status))
     discovery = (await res.json()) as Discovery
   } catch {
-    render(
+    drawView(
       root,
       {
         ...buildView({ kind: 'unavailable' }, { origin }),
@@ -34,13 +34,13 @@ async function main(): Promise<void> {
     fetch: (input, init) => fetch(input, init),
   })
   const draw = (): void =>
-    render(
+    drawView(
       root,
       buildView(page.state(), { origin, mcpUrl: discovery.mcp ?? null, profileUrl: clerk?.profileUrl() ?? null }),
       handlers,
     )
   const page = createPage({ clerk, api, origin, onChange: draw })
-  const handlers = {
+  const handlers: Handlers = {
     signIn: () => void page.signIn(),
     signOut: () => void page.signOut(),
     toggle: (id: string, disabled: boolean) => void page.setDisabled(id, disabled),
