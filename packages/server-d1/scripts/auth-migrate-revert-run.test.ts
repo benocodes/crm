@@ -117,7 +117,9 @@ interface Ctx {
   bodies: Array<Record<string, any>>
 }
 /** The vault seeded, the plan, its env file, and apply already run (the starting point of a revert). */
-async function setupApplied(o: { world?: World; bodies?: Array<Record<string, any>>; pair?: boolean } = {}): Promise<Ctx> {
+async function setupApplied(
+  o: { world?: World; bodies?: Array<Record<string, any>>; pair?: boolean } = {},
+): Promise<Ctx> {
   const world = o.world ?? worldWithInsert()
   const bodies = o.bodies ?? standardClerk()
   await seedWorld(pair.d1, world)
@@ -234,7 +236,8 @@ async function runRevert(c: Ctx, o: RunOpts = {}) {
     appended: () => appended,
     crmWrites: () => writes(crmSpy),
     controlWrites: () => writes(ctlSpy),
-    everything: () => [...out, ...err, ...cmds.flatMap((x) => [x.cmd.command, ...x.cmd.args, x.input ?? ''])].join('\n'),
+    everything: () =>
+      [...out, ...err, ...cmds.flatMap((x) => [x.cmd.command, ...x.cmd.args, x.input ?? ''])].join('\n'),
   }
 }
 const faultCrm = (
@@ -389,7 +392,7 @@ describe('the round trip: plan, apply, revert', () => {
     expect(relinked.length).toBeGreaterThan(0)
     expect(disabled.length).toBeGreaterThan(0)
     expect(keep.some((a) => plan.snapshot.agents.find((x) => x.id === a.id)!.disabled_at !== null)).toBe(true)
-    const inserted = await rows(pair.d1, "select id from memberships where user_id = ? and deleted_at is null", U(6))
+    const inserted = await rows(pair.d1, 'select id from memberships where user_id = ? and deleted_at is null', U(6))
     expect(inserted).toHaveLength(1)
     const before = await eventsNow()
     const keepBefore = await Promise.all(keep.map((a) => rows(pair.d1, 'select * from agents where id = ?', a.id)))
@@ -404,18 +407,25 @@ describe('the round trip: plan, apply, revert', () => {
     const fresh = (await eventsNow()).filter((e) => !before.some((b) => b.id === e.id))
     const system = (await rows(pair.d1, "select id from principals where kind = 'system'"))[0]!.id
     expect(fresh.every((e) => e.actor_id === system)).toBe(true)
-    expect(fresh.filter((e) => e.type === 'agent.updated').map((e) => e.resource_id).sort()).toEqual(
-      [...relinked, ...disabled].map((a) => a.id).sort(),
-    )
+    expect(
+      fresh
+        .filter((e) => e.type === 'agent.updated')
+        .map((e) => e.resource_id)
+        .sort(),
+    ).toEqual([...relinked, ...disabled].map((a) => a.id).sort())
     expect(fresh.filter((e) => e.type === 'membership.deleted').map((e) => e.resource_id)).toEqual([inserted[0]!.id])
     expect(fresh).toHaveLength(relinked.length + disabled.length + 1) // nothing for users, nothing for the marker
-    expect(await Promise.all(keep.map((a) => rows(pair.d1, 'select * from agents where id = ?', a.id)))).toEqual(keepBefore)
+    expect(await Promise.all(keep.map((a) => rows(pair.d1, 'select * from agents where id = ?', a.id)))).toEqual(
+      keepBefore,
+    )
     // the inserted membership is soft-deleted, not removed
     expect(await rows(pair.d1, 'select deleted_at from memberships where id = ?', inserted[0]!.id)).toEqual([
       { deleted_at: '2026-11-18T09:00:00.000Z' },
     ])
     // the removal event carries the removed row as `before` and no `after`
-    const del = (await rows(pair.d1, "select before, after from events where type = 'membership.deleted' order by id desc"))[0]!
+    const del = (
+      await rows(pair.d1, "select before, after from events where type = 'membership.deleted' order by id desc")
+    )[0]!
     expect(JSON.parse(del.before as string)).toMatchObject({ id: inserted[0]!.id, user_id: U(6), role: 'member' })
     expect(del.after).toBeNull()
   })
@@ -439,7 +449,9 @@ describe('the round trip: plan, apply, revert', () => {
     const before = await crmDump()
     const r = await runRevert(c, { argv: ['--dry-run'] })
     expect(r.code).toBe(0)
-    expect(r.out.join('\n')).toMatch(/users restored: \d+, agents relinked back: \d+, agents re-enabled: \d+, memberships removed: 1/)
+    expect(r.out.join('\n')).toMatch(
+      /users restored: \d+, agents relinked back: \d+, agents re-enabled: \d+, memberships removed: 1/,
+    )
     expect(r.out.join('\n')).toMatch(/dry run: nothing written/)
     expect(r.crmWrites()).toBe(0)
     expect(r.marks).toEqual([])
@@ -455,17 +467,26 @@ describe('drift between the export and the batch aborts the whole unit', () => {
     [
       "a user's subject",
       /^update "users"/,
-      async () => void (await pair.d1.prepare("update users set auth_subject = 'user_changed' where id = ?").bind(U(2)).run()),
+      async () =>
+        void (await pair.d1.prepare("update users set auth_subject = 'user_changed' where id = ?").bind(U(2)).run()),
     ],
     [
       'an agent',
       /^update "agents"/,
-      async () => void (await pair.d1.prepare("update agents set auth_client_id = 'client_changed' where id = ?").bind(A(3)).run()),
+      async () =>
+        void (await pair.d1
+          .prepare("update agents set auth_client_id = 'client_changed' where id = ?")
+          .bind(A(3))
+          .run()),
     ],
     [
       'a membership',
       /^update "memberships"/,
-      async () => void (await pair.d1.prepare("update memberships set role = 'owner' where user_id = ? and deleted_at is null", ).bind(U(6)).run()),
+      async () =>
+        void (await pair.d1
+          .prepare("update memberships set role = 'owner' where user_id = ? and deleted_at is null")
+          .bind(U(6))
+          .run()),
     ],
     [
       'the marker',
@@ -555,7 +576,9 @@ describe('order: the CRM batch commits before the deploy starts', () => {
     const c = await setupApplied()
     const r = await runRevert(c, { deployThrows: new Error('the working tree is not clean') })
     expect(r.code).toBe(2)
-    expect(r.err.join('\n')).toMatch(/the deploy was refused \(the working tree is not clean\).*CRM is already restored/s)
+    expect(r.err.join('\n')).toMatch(
+      /the deploy was refused \(the working tree is not clean\).*CRM is already restored/s,
+    )
     expect(await marker()).toBe('clerk')
   })
 })
@@ -582,7 +605,10 @@ describe('P1 premise: in the window the Better Auth Worker locks the person out 
       memberships: await rows(pair.d1, 'select count(*) n from memberships'),
     })
     const before = await counts()
-    const auth = createAuth(controlAuthDatabase(openControlDb(pair.control)), { secret: AUTH_SECRET, baseURL: AUTH_BASE })
+    const auth = createAuth(controlAuthDatabase(openControlDb(pair.control)), {
+      secret: AUTH_SECRET,
+      baseURL: AUTH_BASE,
+    })
     const issued = await auth.issueResetToken('a@example.test')
     expect(issued).not.toBeNull()
     const wk = composeD1Worker({
@@ -592,9 +618,15 @@ describe('P1 premise: in the window the Better Auth Worker locks the person out 
       AUTH_SECRET,
       PUBLIC_BASE_URL: AUTH_BASE,
     })
-    const done = await post(wk, '/auth/reset-password', { token: issued!.token, newPassword: 'a brand new password 456' })
+    const done = await post(wk, '/auth/reset-password', {
+      token: issued!.token,
+      newPassword: 'a brand new password 456',
+    })
     expect(done.status).toBe(200)
-    const signIn = await post(wk, '/auth/sign-in/email', { email: 'a@example.test', password: 'a brand new password 456' })
+    const signIn = await post(wk, '/auth/sign-in/email', {
+      email: 'a@example.test',
+      password: 'a brand new password 456',
+    })
     expect(signIn.status).toBe(200)
     const cookie = signIn.headers.get('set-cookie')!.split(';')[0]!
     const tokRes = await wk.fetch(new Request(`${AUTH_BASE}/auth/token`, { headers: { cookie, origin: AUTH_BASE } }))
@@ -629,8 +661,7 @@ describe('the control database is untouched and no secret leaks', () => {
     const out = r.out.join('\n')
     expect(out).toMatch(/left inert: a@example\.test/)
     expect(out).not.toMatch(/left inert: b@example\.test/) // never claimed: nothing to say
-    for (const secret of [CLERK_SECRET, VALID_SECRET, 'hash:credential'])
-      expect(r.everything()).not.toContain(secret)
+    for (const secret of [CLERK_SECRET, VALID_SECRET, 'hash:credential']) expect(r.everything()).not.toContain(secret)
   })
 
   it('the claim lines also appear on --dry-run, and the control rows are the same', async () => {

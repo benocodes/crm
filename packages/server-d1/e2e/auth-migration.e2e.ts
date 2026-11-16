@@ -1,5 +1,5 @@
-// [[OPS397]] E2E: the whole hq auth migration, locally: plan, apply, claim, sign in, and an old event keeps its actor. One serial scenario.
-// What is real: the script's own `plan`, `apply` and `claim` code (`e2e/auth-migration-driver.ts` swaps `withDatabases`, `exec`, `deploy`, `run`, `readConfig`, `git`, `appendEnvVar` and `readInstanceEnv`, and the Worker runs on plain http://localhost; see its header), the Clerk DEVELOPMENT instance (Backend API: users, sessions, the export), the local Worker
+// [[OPS397]], [[OPS394]] E2E: the whole hq auth migration, locally: plan, apply, claim, sign in, an old event keeps its actor, and revert puts the Clerk identities back. One serial scenario.
+// What is real: the script's own `plan`, `apply`, `claim` and `revert` code (`e2e/auth-migration-driver.ts` swaps `withDatabases`, `exec`, `deploy`, `run`, `readConfig`, `git`, `appendEnvVar` and `readInstanceEnv`, and the Worker runs on plain http://localhost; see its header), the Clerk DEVELOPMENT instance (Backend API: users, sessions, the export), the local Worker
 // (first on Clerk, then, after `apply`, on Better Auth) and the browser that opens a claim link. Keys come from `.env.dev` only (`playwright.auth-migration.config.ts`); nothing reads the root `.env` or an `.env.hq*` file.
 // Prerequisites: `pnpm -C packages/server-d1 build` (the auth pages), and a free port (E2E_PORT, default 8787). No other setup: the spec migrates and bootstraps its own local state in a temp directory and removes it, and deletes its Clerk test users, even when it fails.
 // Run: E2E_DEV_ENV_FILE=<path to .env.dev> [E2E_BROWSER_CHANNEL=chrome] pnpm -C packages/server-d1 e2e:auth-migration
@@ -25,6 +25,7 @@ let planPath: string
 let contactId: string
 let contactEvent: { id: string; actor_id: string }
 const links: Record<string, string> = {}
+let betterAuthToken: string
 const URL_RE = /https?:\/\/\S+#token=[A-Za-z0-9_-]+/
 
 const bapi = async (method: string, path: string, body?: unknown) => {
@@ -159,6 +160,7 @@ test('5. the owner opens the link in the browser, sets a password and signs in a
     .poll(async () => (await page.context().request.get('/auth/token')).status(), { timeout: 30_000 })
     .toBe(200)
   const token = ((await (await page.context().request.get('/auth/token')).json()) as { token: string }).token
+  betterAuthToken = token
   const me = await get('/meta/v1/me', token)
   expect(me.status, JSON.stringify(me.json)).toBe(200)
   expect(me.json.user.id).toBe(people.owner.userId)
@@ -180,4 +182,40 @@ test('7. a second claim lists the owner as claimed and issues one fresh link, fo
   expect(linkFor(r.out, people.member.email)).toBeTruthy()
   expect(linkFor(r.out, people.owner.email)).toBeUndefined()
   expect(text).toMatch(new RegExp(`already claimed: ${people.owner.email.replace(/[+.]/g, '\\$&')}`))
+})
+
+test('8. revert: --dry-run writes nothing; revert exits 0, the Clerk token resolves to the ORIGINAL user with no duplicate, the Better Auth session is refused, a second revert runs no batch', async () => {
+  inst.record = 'clerk' // the operator's committed `git revert` of the apply-time config switch
+  const usersBefore = inst.sql('DB', 'select id, auth_provider, auth_subject from users order by id')
+  expect(usersBefore.every((u) => u.auth_provider === 'better-auth')).toBe(true)
+  const dry = await inst.run(['revert', '--env', ENV_NAME, '--plan', planPath, '--dry-run'])
+  expect(dry.code, [...dry.out, ...dry.err].join('\n')).toBe(0)
+  expect(dry.out.join('\n')).toMatch(/left inert: .*vb397-\d+-o\+clerk_test@example\.com/)
+  expect(inst.sql('DB', 'select auth_provider from deployment')).toEqual([{ auth_provider: 'better-auth' }])
+  expect(inst.sql('DB', 'select id, auth_provider, auth_subject from users order by id')).toEqual(usersBefore)
+  expect(inst.workerMode).toBe('better-auth')
+
+  const r = await inst.run(['revert', '--env', ENV_NAME, '--plan', planPath])
+  expect(r.code, [...r.out, ...r.err].join('\n')).toBe(0)
+  expect(inst.sql('DB', 'select auth_provider from deployment')).toEqual([{ auth_provider: 'clerk' }])
+  expect(inst.workerMode).toBe('clerk')
+  expect(((await (await fetch(`${inst.base}/.well-known/vibase`)).json()) as any).auth.provider).toBe('clerk')
+
+  // the Clerk token resolves to the original user (no first-sight duplicate), with the original role
+  const me = await get('/meta/v1/me', await clerkJwt(people.owner.clerkId!))
+  expect(me.status, JSON.stringify(me.json)).toBe(200)
+  expect(me.json.user.id).toBe(people.owner.userId)
+  expect(me.json.active_organization.role).toBe('owner')
+  expect(inst.sql('DB', 'select count(*) as n from users')).toEqual([{ n: 2 }])
+  expect((await get('/api/v1/contacts', inst.operatorKey!)).status).toBe(200)
+  expect((await get('/meta/v1/me', betterAuthToken)).status).toBe(401)
+  expect(inst.sql('DB', `select actor_id from events where id = '${contactEvent.id}'`)).toEqual([
+    { actor_id: people.owner.userId },
+  ])
+
+  const again = await inst.run(['revert', '--env', ENV_NAME, '--plan', planPath])
+  expect(again.code, [...again.out, ...again.err].join('\n')).toBe(0)
+  expect(again.out.join('\n')).toMatch(/already matches the plan/)
+  expect(again.out.join('\n')).not.toMatch(/CRM batch committed/)
+  expect(inst.sql('DB', 'select auth_provider from deployment')).toEqual([{ auth_provider: 'clerk' }])
 })

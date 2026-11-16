@@ -1,8 +1,8 @@
-// The test-only driver of the auth migration E2E ([[OPS397]]): the REAL `plan`, `apply` and `claim` code (`runAuthMigrate`) driven against a local Worker and a local D1 pair. It swaps EVERY dependency that only exists remotely or on the operator's machine:
+// The test-only driver of the auth migration E2E ([[OPS397]], [[OPS394]]): the REAL `plan`, `apply`, `claim` and `revert` code (`runAuthMigrate`) driven against a local Worker and a local D1 pair. It swaps EVERY dependency that only exists remotely or on the operator's machine:
 //  - `withDatabases` opens the local Worker's persisted D1 pair (`getPlatformProxy` over the persist directory);
 //  - `exec` answers `time-travel info` with a fixed bookmark and runs the export's SELECTs with `wrangler d1 execute --local`;
-//  - `deploy` and `run` (`wrangler secret put AUTH_SECRET` is captured, not run) switch the local Worker from Clerk to Better Auth: it is started again, on the new variables, once the command has closed its databases;
-//  - `readConfig` returns an in-memory record (a `clerk` block for `plan`, a `better-auth` one for `apply` and `claim`) instead of reading the committed env block of `wrangler.jsonc`;
+//  - `deploy` and `run` (`wrangler secret put AUTH_SECRET` is captured, not run) switch the local Worker to the provider the committed record names (Clerk to Better Auth for `apply`, back to Clerk for `revert`): it is started again, on the new variables, once the command has closed its databases. `deploy` is the faked seam of both directions; its real counterpart (the guarded `deploy:remote`) is the operator's check on `hq`, and `revert` makes no `secret put`, so `run` stays refused for it;
+//  - `readConfig` returns an in-memory record (a `clerk` block for `plan` and `revert`, a `better-auth` one for `apply` and `claim`) instead of reading the committed env block of `wrangler.jsonc`: the operator's committed `git revert` of the config switch is `record = 'clerk'` here, and the real Clerk-config parse of `revert` runs on that block;
 //  - `git` answers a clean tree, so apply's clean-tree check never sees a real tree;
 //  - `appendEnvVar` and `readInstanceEnv` use a temp env file (`.env.e2e`), not the instance's `.env.<env>`.
 // `loadEnv`, `fetch` (the real Clerk Backend API), `now`, `newId` and the file deps are the real ones. The Worker runs on plain `http://localhost:<port>` (Better Auth accepts `http://localhost`; no CLI login is run here, so the HTTPS recipe of `writing-tests` section 7 is not needed), started with `--env-file`.
@@ -39,7 +39,7 @@ export class LocalInstance {
   private readonly persist: string
   private readonly envFile: string
   private worker: ChildProcess | undefined
-  /** What the committed record says: `plan` reads a `clerk` record, `apply` and `claim` a `better-auth` one (the operator's commit). */
+  /** What the committed record says: `plan` and `revert` read a `clerk` record, `apply` and `claim` a `better-auth` one (the operator's commits). */
   record: 'clerk' | 'better-auth' = 'clerk'
   /** What the running Worker is configured for; `deploy` moves it. */
   workerMode: 'clerk' | 'better-auth' = 'clerk'
@@ -258,7 +258,7 @@ export class LocalInstance {
       appendEnvVar: (envName, name, value) =>
         appendInstanceVar(this.envFile, envName, name, value, this.dir, join(this.dir, 'root.env')),
       deploy: () => {
-        this.workerMode = 'better-auth'
+        this.workerMode = this.record // the committed record is what the guarded deploy ships
         return 0
       },
       now: () => new Date(),

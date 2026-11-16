@@ -22,7 +22,14 @@ import {
 import { uuidv7 } from '@vibase/storage'
 import { ApplyFailure, ApplyRefusal, applyBatches, assessRun, describePlan, exitCodeFor } from './auth-migrate/apply.js'
 import { ClaimRefusal, claim } from './auth-migrate/claim.js'
-import { assessRevert, claimedAccounts, describeRevert, insertedMemberships, revertCrm, revertLine } from './auth-migrate/revert.js'
+import {
+  assessRevert,
+  claimedAccounts,
+  describeRevert,
+  insertedMemberships,
+  revertCrm,
+  revertLine,
+} from './auth-migrate/revert.js'
 import { classify } from './auth-migrate/classify.js'
 import { exportClerkUsers } from './auth-migrate/clerk-export.js'
 import { AGENTS_SQL, MEMBERSHIPS_SQL, USERS_SQL, readCrmExport } from './auth-migrate/crm-export.js'
@@ -500,7 +507,10 @@ async function runRevert(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanD
   requireConfirm(procEnv)
   const envName = args.env
   const target = resolveInstance(envName, deps, 'revert')
-  requireCleanTree(deps.git, 'commit the revert of the provider switch (and anything else) in wrangler.jsonc, then run revert again')
+  requireCleanTree(
+    deps.git,
+    'commit the revert of the provider switch (and anything else) in wrangler.jsonc, then run revert again',
+  )
   const planPath = resolve(args.plan ?? defaultPlanPath(envName, procEnv, homedir()))
   const plan = readPlanFile(planPath, envName, target, deps)
   const secretKey = readSecretKey(envName, deps)
