@@ -160,7 +160,8 @@ scripts.
 **`smoked1`.** Agents may, without stopping:
 
 - deploy and migrate it, through the guarded `deploy:remote` / `db:migrate:remote` scripts, and run the other
-  remote commands against it (`db:status:remote`, `setup:remote`, `owner-reset`, `vibase-server status`);
+  remote commands against it (`db:status:remote`, `setup:remote`, `owner-reset`, `vibase-server status`), including the
+  release commands `vibase-server upgrade` and `setup` with the same guards;
 - create its resources under the `vb-` naming (databases `vb-crm-smoked1` and `vb-control-smoked1`, the Worker
   `vb-smoked1`, and its queues, workflows and buckets named `vb-<kind>-smoked1`), apply the control-plane
   migrations to them, and move `smoked1` onto them (the rename and the Better Auth cutover, [[OPS250]]);
@@ -175,7 +176,7 @@ the user copies a value into `.env.smoked1` first.
 Still hard stops on `smoked1`, until the user confirms each: deleting the old `vault-smoked1` resources, DNS
 and custom-domain changes, and creating any resource not listed above.
 
-(User rulings: 2026-10-28, 2026-11-13, 2026-11-14; [[OPS250]], [[CORE259]], [[OPS262]], [[CORE294]].)
+(User rulings: 2026-10-28, 2026-11-13, 2026-11-14, 2026-11-16; [[OPS250]], [[CORE259]], [[OPS262]], [[CORE294]], [[OPS210]].)
 
 **Clerk dev instance.** It is the agents' own for tests and E2E: they may configure it (session-token claims
 such as `vibase_role`, OAuth applications, device grant, dynamic client registration) and create and delete
