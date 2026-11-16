@@ -4,6 +4,7 @@ const NAME = 'next_cycle'
 const TOOL = 'mcp__sprint-relay__next_cycle'
 
 const DESCRIPTION = [
+  'For the sprint orchestrator (the main session) only: subagents must never call it, and their calls are refused.',
   'Call this as the LAST action of a sprint cycle, after the PR is merged and SPRINT.md is checkpointed and committed.',
   'With outcome "cycle_done" the session ends this turn, the context is cleared, and a fresh orchestrator starts the next cycle.',
   'Put in `handoff` only what the next orchestrator needs that SPRINT.md does not already say (short; omit if nothing).',
@@ -31,8 +32,18 @@ export const register: Register = (on) => {
   })
 
   on('tool.call', { tool: TOOL }, async ($, e, next) => {
+    // Only the orchestrator, the main loop, may end a cycle. The tool is in the
+    // session-wide pool, so subagents (planner, coder, gate-tester, e2e-tester)
+    // see it too; their calls carry an agentId and are refused without effect.
+    if (e.agentId) {
+      return {
+        result:
+          'Refused: next_cycle is the orchestrator\'s alone and nothing was scheduled. Do not call it again; finish your task and report back.',
+      }
+    }
     const input = e as unknown as Input
     if (input.outcome !== 'cycle_done') {
+      pending = undefined
       return { result: `Not restarting (${input.outcome}). Stop here and tell the user.` }
     }
     pending = { handoff: (input.handoff ?? '').trim() }
