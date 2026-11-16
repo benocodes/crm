@@ -1,7 +1,7 @@
 // TEST-ONLY Worker entry (never deployed): the REAL Worker module with one addition, `/auth/*` answered by the test composition (open admission) when `OPEN_ADMISSION=1`, so a test can mint
 // real Better Auth tokens inside workerd and present them to the real composition on the same CONTROL_DB ([[CORE244]]). Every other path is `src/worker.ts` untouched.
 import { createAuthHandler } from '@vibase/auth'
-import { createVibaseRegistry, grantableScopes } from '@vibase/api'
+import { createVibaseRegistry, defaultGrantScopes, grantableScopes } from '@vibase/api'
 import worker from '../worker.js'
 import type { D1WorkerEnv } from '../compose.js'
 
@@ -21,6 +21,8 @@ export default {
           baseURL: env.PUBLIC_BASE_URL!,
           vaultScopes: createVibaseRegistry().declaredScopes(),
           grantableScopes: grantableScopes(createVibaseRegistry().declaredScopes()),
+          // As compose.ts does ([[CORE330]]): the registration default list is what a scope-less authorize is filled with.
+          defaultScopes: defaultGrantScopes(createVibaseRegistry().declaredScopes()),
         },
         { unsafeOpenAdmissionForTests: true },
       )

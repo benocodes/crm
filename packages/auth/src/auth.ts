@@ -322,8 +322,20 @@ const endpointGate = (
   open: boolean,
   captures: ResetCaptures | undefined,
   selfService: boolean,
+  defaultScopes: readonly string[],
 ) =>
   createAuthMiddleware(async (ctx) => {
+    // [[CORE330]]: an authorize request that names no scope (absent, empty or blank) asks for the registration default list, never the client's stored ceiling (the library's own fallback is `client.scopes`, the
+    // default plus the allowed list). Filled here, before the library reads it, so the signed `oauth_query` that rides to /sign-in and /consent already carries it; a named scope is never touched.
+    if (ctx.path === '/oauth2/authorize') {
+      const post = ctx.method === 'POST'
+      const source = (post ? ctx.body : ctx.query) as Record<string, unknown> | undefined
+      const named = source?.scope
+      if (named === undefined || (typeof named === 'string' && named.trim() === '')) {
+        const filled = { ...source, scope: defaultScopes.join(' ') }
+        return { context: post ? { body: filled } : { query: filled } }
+      }
+    }
     if (ctx.path === '/sign-up/email' && !open) await requireInvitation(admission, ctx.body)
     // [[CORE288]] P7: with email off there is no self-service reset. The request is refused for every HTTP request (it never creates a verification row, never captures, returns or logs a token); the one
     // in-process call (`issueResetToken`) has no `request` and a waiter registered for its address.
@@ -432,7 +444,15 @@ export function authOptions(
       config.grantableScopes,
       config.defaultScopes,
     ),
-    hooks: { before: endpointGate(admission, open, opts.resetCaptures, opts.deliverResetToken !== undefined) },
+    hooks: {
+      before: endpointGate(
+        admission,
+        open,
+        opts.resetCaptures,
+        opts.deliverResetToken !== undefined,
+        registrationScopes(config.vaultScopes ?? [], config.grantableScopes ?? [], config.defaultScopes).defaults,
+      ),
+    },
     databaseHooks: {
       user: {
         // The backstop at the point EVERY account creation passes ([[CORE287]] P2): a path the endpoint hook does not name (a later Google sign-in) carries no token and is refused here.
