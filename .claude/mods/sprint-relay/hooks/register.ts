@@ -31,14 +31,14 @@ export const register: Register = (on) => {
     return next(e)
   })
 
-  on('tool.call', { tool: TOOL }, async ($, e, next) => {
+  on('tool.call', { tool: TOOL }, async (_$, e, _next) => {
     // Only the orchestrator, the main loop, may end a cycle. The tool is in the
     // session-wide pool, so subagents (planner, coder, gate-tester, e2e-tester)
     // see it too; their calls carry an agentId and are refused without effect.
     if (e.agentId) {
       return {
         result:
-          'Refused: next_cycle is the orchestrator\'s alone and nothing was scheduled. Do not call it again; finish your task and report back.',
+          "Refused: next_cycle is the orchestrator's alone and nothing was scheduled. Do not call it again; finish your task and report back.",
       }
     }
     const input = e as unknown as Input
