@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { compileOperation } from '@vibase/storage'
+import { readAgentExists } from './crm-key-reads.js'
 import { hashApiKey } from '../auth/api-keys.js'
-import { openApiKeyKit, NO_SUCH, NOW, OTHER_ORG, type ApiKeyKit } from '../test/api-key-kit.js'
+import { openApiKeyKit, NO_SUCH, NOW, OWNER_SCOPES, type ApiKeyKit } from '../test/api-key-kit.js'
 
 // [[CORE351]] groups 1 to 4: the four `api_keys.*` operations on the control store (D1 CRM database + control database, Miniflare), through the real REST app.
 let k: ApiKeyKit
@@ -73,81 +75,40 @@ describe('group 1: writes on control with audit (P1, D12)', () => {
   })
 })
 
-describe('group 2: CRM-only keys (P2)', () => {
-  it('get reads a CRM-only key', async () => {
-    const c = await k.crmKey()
-    const r = await k.owner('GET', `${KEYS}/${c.id}`)
-    expect(r.status).toBe(200)
-    expect(r.body).toMatchObject({ id: c.id, agent_id: k.e.agentId, revoked_at: null })
+describe('group 2: control only; a CRM-held key is not found (P2 dropped by the user)', () => {
+  it('an id in neither store is 404 for get and revoke; an id that is not a UUID is 400 for revoke (the adapter), as today', async () => {
+    for (const [m, p, status] of [
+      ['GET', `${KEYS}/${NO_SUCH}`, 404],
+      ['POST', `${KEYS}/${NO_SUCH}/revoke`, 404],
+      ['POST', `${KEYS}/nope/revoke`, 400],
+    ] as const) {
+      const r = await k.owner(m, p)
+      expect(r.status, p).toBe(status)
+    }
   })
 
-  it('revoke copies it into control revoked with one audit row, leaves the CRM row and writes no event; the key is refused cold and warm', async () => {
+  it('a key held only in the CRM database is 404 for get and revoke, is not listed, and nothing is written', async () => {
     const c = await k.crmKey()
-    expect((await k.keyCall(c.key)).status).toBe(200) // warm: the isolate has seen the CRM key
     const before = await k.counts()
-    const crmRow = (await k.crm('select * from api_keys where id = ?', c.id))[0]
-    k.clock.now = new Date(NOW.getTime() + 60_000)
-    const r = await k.owner('POST', `${KEYS}/${c.id}/revoke`)
-    expect(r.status).toBe(200)
-    expect(r.body).toMatchObject({ id: c.id, revoked_at: k.clock.now.toISOString() })
-    const after = await k.counts()
-    expect(after).toEqual({ ...before, ctlKeys: before.ctlKeys + 1, audit: before.audit + 1 })
-    expect((await k.crm('select * from api_keys where id = ?', c.id))[0]).toEqual({
-      ...crmRow,
-      last_used_at: expect.anything(),
-    })
-    expect((await auditOf(c.id)).map((a) => a.action)).toEqual(['api_key.revoked'])
-    expect((await k.keyCall(c.key)).status).toBe(401) // same isolate
-    expect((await k.keyCall(c.key)).status).toBe(401)
-  })
-
-  it("a second revoke is today's repeat: the revoked record, nothing written", async () => {
-    const c = await k.crmKey()
-    const first = await k.owner('POST', `${KEYS}/${c.id}/revoke`)
-    const before = await k.counts()
-    const again = await k.owner('POST', `${KEYS}/${c.id}/revoke`)
-    expect(again.status).toBe(200)
-    expect(again.body).toEqual(first.body)
-    expect(await k.counts()).toEqual(before)
-  })
-
-  it('an id in neither store is 404 for get and revoke; an id that is not a UUID is 404 for revoke', async () => {
     for (const [m, p] of [
-      ['GET', `${KEYS}/${NO_SUCH}`],
-      ['POST', `${KEYS}/${NO_SUCH}/revoke`],
-      ['POST', `${KEYS}/nope/revoke`],
+      ['GET', `${KEYS}/${c.id}`],
+      ['POST', `${KEYS}/${c.id}/revoke`],
     ] as const) {
       const r = await k.owner(m, p)
       expect([r.status, r.body.error.code], p).toEqual([404, 'not_found'])
     }
+    expect((await k.owner('GET', KEYS)).body).toEqual({ data: [], next_cursor: null })
+    expect(await k.counts()).toEqual(before)
   })
 
-  it('a key in both stores is read and revoked from control only', async () => {
+  it('a control key is read and revoked in control, leaving a same-id CRM row untouched', async () => {
     const c = await k.crmKey()
-    await k.control
-      .prepare(
-        'insert into api_keys (id, created_at, updated_at, organization_id, agent_id, key_hash, prefix, created_by) values (?, ?, ?, ?, ?, ?, ?, ?)',
-      )
-      .bind(
-        c.id,
-        NOW.toISOString(),
-        NOW.toISOString(),
-        k.e.organizationId,
-        k.e.agentId,
-        'other-hash',
-        'vk_control00',
-        k.e.userId,
-      )
-      .run()
+    await k.ctlKey({ id: c.id, prefix: 'vk_control00' })
     expect((await k.owner('GET', `${KEYS}/${c.id}`)).body.prefix).toBe('vk_control00')
     await k.owner('POST', `${KEYS}/${c.id}/revoke`)
     expect((await k.ctl('select revoked_at from api_keys where id = ?', c.id))[0]!.revoked_at).not.toBeNull()
     expect((await k.crm('select revoked_at from api_keys where id = ?', c.id))[0]!.revoked_at).toBeNull()
     expect((await auditOf(c.id)).map((a) => a.action)).toEqual(['api_key.revoked'])
-  })
-
-  it('an empty state lists nothing and revoking in an empty deployment is 404', async () => {
-    expect((await k.owner('GET', KEYS)).body).toEqual({ data: [], next_cursor: null })
   })
 })
 
@@ -166,22 +127,10 @@ describe('group 3: authority and refusals match today (P1, P6)', () => {
     }
   })
 
-  it("refusals write nothing, audit included: missing agent, other organisation's agent, past expiry, expiry equal to now, bad body", async () => {
-    const other = '0190b2c4-0000-7000-8000-0000000000a1'
-    await k.e
-      .d1!.batch([
-        k.e
-          .d1!.prepare("insert into principals (id, kind, created_at) values (?, 'agent', ?)")
-          .bind(other, NOW.toISOString()),
-        k.e
-          .d1!.prepare('insert into organizations (id, created_at, updated_at, name) values (?, ?, ?, ?)')
-          .bind(OTHER_ORG, NOW.toISOString(), NOW.toISOString(), 'Other'),
-      ])
-      .catch(() => undefined)
+  it('refusals write nothing, audit included: missing agent, past expiry, expiry equal to now, bad body', async () => {
     const before = await k.counts()
     const cases: Array<[unknown, number, string, string?]> = [
       [{ agent_id: NO_SUCH }, 400, 'invalid_reference', 'a referenced record does not exist'],
-      [{ agent_id: other }, 400, 'invalid_reference'],
       [
         { agent_id: k.e.agentId, expires_at: new Date(NOW.getTime() - 1000).toISOString() },
         400,
@@ -205,24 +154,13 @@ describe('group 3: authority and refusals match today (P1, P6)', () => {
     expect(await k.counts()).toEqual(before)
   })
 
-  it('an agent of another organisation is refused even when its id exists (the organisation predicate of the agent read)', async () => {
-    const foreign = '0190b2c4-0000-7000-8000-0000000000b2'
-    const at = NOW.toISOString()
-    await k.e
-      .d1!.prepare('insert into principals (id, kind, created_at) values (?, ?, ?)')
-      .bind(foreign, 'agent', at)
-      .run()
-    await k.e.d1!.prepare('pragma foreign_keys = off').run()
-    await k.e
-      .d1!.prepare(
-        'insert into agents (id, created_at, updated_at, organization_id, name, scopes, created_by) values (?, ?, ?, ?, ?, ?, ?)',
-      )
-      .bind(foreign, at, at, OTHER_ORG, 'foreign', '[]', k.e.userId)
-      .run()
-    const before = await k.counts()
-    const r = await k.owner('POST', KEYS, { agent_id: foreign })
-    expect([r.status, r.body.error.code]).toEqual([400, 'invalid_reference'])
-    expect(await k.counts()).toEqual(before)
+  it('the agent read is scoped to the organisation on both dialects (a D1 deployment holds one organisation and its binding refuses a foreign one, so the predicate is proven at the program)', () => {
+    for (const dialect of ['d1', 'postgres'] as const) {
+      const compiled = compileOperation(readAgentExists(k.e.organizationId, k.e.agentId), dialect, {})
+      const text = compiled.reads.map((r) => `${r.sql} ${JSON.stringify(r.parameters)}`).join(' ')
+      expect(text, dialect).toMatch(/organization_id/)
+      expect(text, dialect).toContain(k.e.organizationId)
+    }
   })
 
   it('a disabled agent may be issued a key (CORE27)', async () => {
@@ -347,6 +285,32 @@ describe('group 4: list surface (P3, P4): sort x order x filter, with cursor con
     for (const q of ['sort=prefix', 'order=desc', 'after=nope', 'sort=created_at&order=sideways', 'nope=1']) {
       const r = await k.owner('GET', `${KEYS}?${q}`)
       expect([r.status, r.body.error.code], q).toEqual([400, 'validation_error'])
+    }
+  })
+})
+
+describe('group 5 (api half): without a store the four operations answer 501 provider_not_configured (P5)', () => {
+  it('the registry has them all the same, and each answers 501 when composed without a control store', async () => {
+    const { createApp } = await import('../rest/app.js')
+    const { createVibaseRegistry } = await import('../operations.js')
+    const { fakeUserAuthenticator, mintTestUserToken } = await import('../test/user-auth.js')
+    const registry = createVibaseRegistry()
+    for (const name of ['api_keys.create', 'api_keys.revoke', 'api_keys.list', 'api_keys.get'])
+      expect(registry.get(name), name).toBeDefined()
+    const app = createApp({ registry, storage: () => k.e.binding, userAuthenticator: fakeUserAuthenticator() })
+    const token = mintTestUserToken({ userId: k.e.userId, organizationId: k.e.organizationId, scopes: OWNER_SCOPES })
+    for (const [m, p, b] of [
+      ['POST', KEYS, { agent_id: k.e.agentId }],
+      ['POST', `${KEYS}/${NO_SUCH}/revoke`, undefined],
+      ['GET', KEYS, undefined],
+      ['GET', `${KEYS}/${NO_SUCH}`, undefined],
+    ] as const) {
+      const res = await app.request(p, {
+        method: m,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: b === undefined ? undefined : JSON.stringify(b),
+      })
+      expect([res.status, ((await res.json()) as any).error.code], p).toEqual([501, 'provider_not_configured'])
     }
   })
 })

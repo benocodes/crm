@@ -1325,39 +1325,135 @@ export async function getApiKey(c: ControlDb, a: { id: string; organizationId: s
   return r ? apiKeyOf(r) : null
 }
 
-/** An organisation's keys in id order after the cursor, optionally one agent's, as `api_keys.list` reads them by default. The caller asks for `limit + 1` to see whether a page follows. */
+export type ApiKeyColumn =
+  | 'id'
+  | 'agent_id'
+  | 'prefix'
+  | 'last_used_at'
+  | 'revoked_at'
+  | 'expires_at'
+  | 'created_by'
+  | 'created_at'
+  | 'updated_at'
+const API_KEY_FILTER_COLUMNS: ReadonlySet<string> = new Set<ApiKeyColumn>([
+  'id',
+  'agent_id',
+  'prefix',
+  'last_used_at',
+  'revoked_at',
+  'expires_at',
+  'created_by',
+  'created_at',
+  'updated_at',
+])
+/**
+ * One column condition of a key list ([[CORE351]] P4), already parsed and normalised by the caller: `value` is the stored form (lower-case UUID text, UTC ISO text). `null` is `IS NULL`; `glob` and `like`
+ * carry a finished pattern (`like` escapes with `\`). Comparisons, `in`, `glob` and `like` never match a null, and `not` negates them (SQL null semantics, as the CRM list had).
+ */
+export type ApiKeyFilter = { column: ApiKeyColumn; not: boolean } & (
+  | { op: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'glob' | 'like'; value: string }
+  | { op: 'in'; value: readonly string[] }
+  | { op: 'null' }
+)
+/** A column sort with its keyset position: null sorts first ascending and last descending, ties by id in the same direction. `id` sorts by id alone. */
+export interface ApiKeySort {
+  column: 'id' | 'created_at' | 'updated_at' | 'last_used_at' | 'expires_at'
+  order: 'asc' | 'desc'
+  /** The last row of the previous page: its sort value (`null` for none) and id. */
+  position: { value: string | null; id: string } | null
+}
+const COMPARATORS = { eq: '=', neq: '<>', gt: '>', gte: '>=', lt: '<', lte: '<=' } as const
+function filterSql(f: ApiKeyFilter): { text: string; binds: unknown[] } {
+  if (!API_KEY_FILTER_COLUMNS.has(f.column)) throw new Error(`api_keys: ${f.column} is not a filterable column`)
+  const col = f.column
+  switch (f.op) {
+    case 'null':
+      return { text: f.not ? `${col} is not null` : `${col} is null`, binds: [] }
+    case 'in':
+      return {
+        text: `${f.not ? 'not ' : ''}(${col} in (select value from json_each(?)))`,
+        binds: [JSON.stringify(f.value)],
+      }
+    case 'glob':
+      return { text: `${f.not ? 'not ' : ''}(${col} glob ?)`, binds: [f.value] }
+    case 'like':
+      return { text: `${f.not ? 'not ' : ''}(${col} like ? escape '\\')`, binds: [f.value] }
+    default:
+      return { text: `${f.not ? 'not ' : ''}(${col} ${COMPARATORS[f.op]} ?)`, binds: [f.value] }
+  }
+}
+
+/**
+ * An organisation's keys, as `api_keys.list` read them from the CRM table: id order after the `after` id by default; or the column `sort` with its position; narrowed by `filters` (ANDed). The caller asks for
+ * `limit + 1` to see whether a page follows.
+ */
 export async function listApiKeys(
   c: ControlDb,
-  a: { organizationId: string; agentId?: string; after?: string; limit: number },
+  a: {
+    organizationId: string
+    filters?: readonly ApiKeyFilter[]
+    after?: string
+    sort?: ApiKeySort
+    limit: number
+  },
 ): Promise<ApiKeyRecord[]> {
   const where = ['organization_id = ?']
   const binds: unknown[] = [a.organizationId]
-  if (a.agentId !== undefined) {
-    where.push('agent_id = ?')
-    binds.push(a.agentId)
+  for (const f of a.filters ?? []) {
+    const q = filterSql(f)
+    where.push(q.text)
+    binds.push(...q.binds)
   }
-  if (a.after !== undefined) {
+  let order = 'id'
+  const s = a.sort
+  if (s) {
+    const dir = s.order
+    if (s.column === 'id') {
+      if (s.position) {
+        where.push(`id ${dir === 'asc' ? '>' : '<'} ?`)
+        binds.push(s.position.id)
+      }
+      order = `id ${dir}`
+    } else {
+      const v = s.column
+      if (s.position) {
+        const { value, id } = s.position
+        if (dir === 'asc') {
+          if (value === null) {
+            where.push(`(${v} is not null or id > ?)`)
+            binds.push(id)
+          } else {
+            where.push(`(${v} > ? or (${v} = ? and id > ?))`)
+            binds.push(value, value, id)
+          }
+        } else if (value === null) {
+          where.push(`(${v} is null and id < ?)`)
+          binds.push(id)
+        } else {
+          where.push(`(${v} < ? or ${v} is null or (${v} = ? and id < ?))`)
+          binds.push(value, value, id)
+        }
+      }
+      order = `${v} ${dir === 'asc' ? 'asc nulls first' : 'desc nulls last'}, id ${dir}`
+    }
+  } else if (a.after !== undefined) {
     where.push('id > ?')
     binds.push(a.after)
   }
   const res = await raw(c)
-    .prepare(`select ${API_KEY_COLUMNS} from api_keys where ${where.join(' and ')} order by id limit ?`)
+    .prepare(`select ${API_KEY_COLUMNS} from api_keys where ${where.join(' and ')} order by ${order} limit ?`)
     .bind(...binds, a.limit)
     .all()
   return ((res.results ?? []) as Array<Record<string, unknown>>).map(apiKeyOf)
 }
 
-/** The key operations' store ([[CORE351]]). RED STUB: the methods below are implemented in the green commit. */
-export async function copyApiKeyRevoked(_c: ControlDb, _a: Record<string, unknown>): Promise<'copied' | 'exists'> {
-  throw new Error('copyApiKeyRevoked: not implemented')
-}
+/** The key operations' store as the port composition hands `@vibase/api` ([[CORE351]], [[CORE350]]): the methods above bound to one control handle. */
 export const apiKeyStore = (c: ControlDb) => ({
   findByHash: (hash: string) => findApiKeyByHash(c, hash),
   readState: (id: string) => readApiKeyState(c, id),
   stampUsed: (a: { id: string; now: string }) => stampApiKeyUsed(c, a),
   create: (a: NewApiKey) => insertApiKey(c, a),
   revoke: (a: Parameters<typeof revokeApiKey>[1]) => revokeApiKey(c, a),
-  copyRevoked: (a: Record<string, unknown>) => copyApiKeyRevoked(c, a),
   get: (a: { id: string; organizationId: string }) => getApiKey(c, a),
   list: (a: Parameters<typeof listApiKeys>[1]) => listApiKeys(c, a),
 })

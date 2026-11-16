@@ -43,7 +43,6 @@ const EXPECTED: Record<string, string[]> = {
   company_files: ['id', 'created_at', 'updated_at'],
   memberships: ['id', 'created_at', 'updated_at'],
   agents: ['id', 'created_at', 'updated_at', 'name'],
-  api_keys: ['id', 'created_at', 'updated_at', 'last_used_at', 'expires_at'],
   action_requests: ['id', 'created_at', 'updated_at', 'expires_at', 'decided_at'],
 }
 const DERIVED = new Set(['last_contacted_at', 'last_interacted_at'])
@@ -207,18 +206,6 @@ const specs: ListSpec[] = [
         await e.insert('agents', stamped('agents', i, { id: id(100 + i), name: N[i], scopes: [] }))
       }
     },
-  },
-  {
-    name: 'api_keys',
-    nullable: ['last_used_at', 'expires_at'],
-    seed: () =>
-      insertAll('api_keys', (i) => ({
-        agent_id: e.agentId,
-        key_hash: `hash-${i}`,
-        prefix: 'vk_sort',
-        last_used_at: D[i],
-        expires_at: [null, T3, T3, T1, null, T1][i],
-      })),
   },
   {
     name: 'connections',

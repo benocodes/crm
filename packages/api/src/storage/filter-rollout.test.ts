@@ -24,7 +24,6 @@ describe('every generic list is wrapped (D10)', () => {
       'pipeline_stages',
       'connections',
       'agents',
-      'api_keys',
       'memberships',
       'contact_files',
       'company_files',

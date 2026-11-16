@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like, D1PreparedLike } from './binding.js'
 import {
-  copyApiKeyRevoked,
   findApiKeyByHash,
   getApiKey,
   insertApiKey,
@@ -586,77 +585,5 @@ describe('group 6: list sorts, orders and filters (CORE351 P4)', () => {
         limit: 5,
       }),
     ).rejects.toThrow(/column/)
-  })
-})
-
-describe('group 7: copy a CRM-only key into control, already revoked (CORE351 P2)', () => {
-  const copy = (over: Record<string, unknown> = {}) => {
-    const a = {
-      id: nextId(),
-      auditId: nextId(),
-      actorId: ACTOR,
-      organizationId: ORG,
-      agentId: nextId(),
-      keyHash: hashOf(),
-      prefix: 'vk_copied00',
-      createdBy: nextId(),
-      createdAt: plus(NOW, -2 * HOUR),
-      lastUsedAt: plus(NOW, -HOUR),
-      expiresAt: plus(NOW, 5 * HOUR),
-      now: plus(NOW, MIN),
-      ...over,
-    }
-    return a
-  }
-  it("writes the key revoked at the unit clock with the CRM row's own fields and one api_key.revoked audit row", async () => {
-    const a = copy()
-    expect(await copyApiKeyRevoked(c(), a as never)).toBe('copied')
-    expect(await keyRow(a.id)).toMatchObject({
-      organization_id: ORG,
-      agent_id: a.agentId,
-      key_hash: a.keyHash,
-      prefix: 'vk_copied00',
-      created_by: a.createdBy,
-      created_at: a.createdAt,
-      last_used_at: a.lastUsedAt,
-      expires_at: a.expiresAt,
-      revoked_at: a.now,
-      updated_at: a.now,
-    })
-    const log = await audit(a.id)
-    expect(log).toHaveLength(1)
-    expect(log[0]).toMatchObject({
-      id: a.auditId,
-      at: a.now,
-      actor_id: ACTOR,
-      action: 'api_key.revoked',
-      target_type: 'api_key',
-    })
-    expect(JSON.parse(log[0]!.detail)).toEqual({ agent_id: a.agentId, prefix: 'vk_copied00' })
-    expect(log[0]!.detail).not.toContain(a.keyHash)
-  })
-
-  it('an id that is already in control is left as it is: exists, no second audit row', async () => {
-    const made = await make()
-    const a = copy({ id: made.id, keyHash: made.keyHash })
-    expect(await copyApiKeyRevoked(c(), a as never)).toBe('exists')
-    expect(await keyRow(made.id)).toMatchObject({ revoked_at: null, updated_at: NOW })
-    expect(await audit(made.id)).toHaveLength(1) // the created row only
-    expect((await rows('select count(*) as n from control_audit where id = ?', a.auditId))[0]!.n).toBe(0)
-  })
-
-  it('a racer that inserts the same id at the same instant leaves its row and writes no audit row of ours', async () => {
-    const a = copy()
-    const store = racing(() =>
-      control
-        .prepare(
-          'insert into api_keys (id, created_at, updated_at, organization_id, agent_id, key_hash, prefix, revoked_at, created_by) values (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        )
-        .bind(a.id, a.now, a.now, ORG, a.agentId, hashOf(), 'vk_racer000', a.now, ACTOR)
-        .run(),
-    )
-    expect(await copyApiKeyRevoked(store, a as never)).toBe('exists')
-    expect(await keyRow(a.id)).toMatchObject({ prefix: 'vk_racer000' })
-    expect((await rows('select count(*) as n from control_audit where id = ?', a.auditId))[0]!.n).toBe(0)
   })
 })

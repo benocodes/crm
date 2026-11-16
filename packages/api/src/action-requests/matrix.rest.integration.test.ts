@@ -124,7 +124,7 @@ describe('what is not an eligible operation is refused', () => {
     expect([unknown.status, unknown.body.error.code]).toEqual([400, 'operation_not_proposable'])
     for (const [name, reason] of [
       ['agents.create', 'access administration'],
-      ['api_keys.create', 'credentials'],
+      ['api_keys.create', 'unknown operation'],
       ['connections.authorize', 'consent screen'],
       ['tasks.list', 'read-only'],
       ['action_requests.approve', 'never proposed'],

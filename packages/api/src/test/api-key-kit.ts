@@ -19,6 +19,8 @@ export interface Who {
   as: 'user' | 'agent'
   id?: string
   scopes?: string[]
+  /** The organisation the token claims (default: the seeded one). */
+  org?: string
 }
 export interface Res {
   status: number
@@ -98,7 +100,7 @@ export async function openApiKeyKit(): Promise<ApiKeyKit> {
     async call(who: Who, method: string, path: string, body?: unknown): Promise<Res> {
       const token = mintTestUserToken({
         userId: who.id ?? (who.as === 'agent' ? e.agentId : e.userId),
-        organizationId: e.organizationId,
+        organizationId: who.org ?? e.organizationId,
         scopes: who.scopes ?? OWNER_SCOPES,
         kind: who.as,
       })

@@ -77,8 +77,6 @@ export function engineSuite(engineName: EngineName): void {
       (await e.rows('events')).filter((x) => (prefix ? String(x.type).startsWith(prefix) : true))
     const newAgent = (body: Record<string, unknown> = {}, opts?: Opts) =>
       call('agents.create', { body: { name: 'bot', scopes: ['tasks:read'], ...body } }, opts)
-    const newKey = (agentId: string, opts?: Opts, extra: Record<string, unknown> = {}) =>
-      call('api_keys.create', { body: { agent_id: agentId, ...extra } }, opts)
     const row = async (table: 'agents' | 'api_keys' | 'memberships' | 'principals', id: string) => {
       const r = (await e.rows(table)).find((x) => x.id === id)
       expect(r, `${table} row ${id}`).toBeDefined()
@@ -510,180 +508,6 @@ export function engineSuite(engineName: EngineName): void {
       })
     })
 
-    describe('api keys', () => {
-      it('issue returns the record and the plaintext once; the hash is stored; one event without either secret', async () => {
-        const a = await newAgent()
-        const k = await newKey(a.id, { now: at(5) }, { expires_at: '2027-01-01T00:00:00.000Z' })
-        expect(k.key).toMatch(/^vk_/)
-        expect(k.prefix).toBe(k.key.slice(0, 11))
-        const { key, ...record } = k
-        expect(record).toEqual({
-          id: k.id,
-          organization_id: e.organizationId,
-          agent_id: a.id,
-          prefix: key.slice(0, 11),
-          last_used_at: null,
-          revoked_at: null,
-          expires_at: '2027-01-01T00:00:00.000Z',
-          created_by: e.userId,
-          created_at: iso(5),
-          updated_at: iso(5),
-        })
-        expect(await row('api_keys', k.id)).toMatchObject({
-          key_hash: await hashApiKey(key),
-          created_at: iso(5),
-          updated_at: iso(5),
-        })
-        const ev = await events('api_key.')
-        expect(ev).toHaveLength(1)
-        expect(ev[0]).toMatchObject({
-          type: 'api_key.created',
-          resource_id: k.id,
-          actor_id: e.userId,
-          created_at: iso(5),
-          before: null,
-          after: record,
-        })
-        expect(JSON.stringify(ev)).not.toContain(key)
-        expect(JSON.stringify(ev)).not.toContain('key_hash')
-      })
-
-      it('two keys differ, and each key authenticates to its own stored hash', async () => {
-        const a = await newAgent()
-        const k1 = await newKey(a.id)
-        const k2 = await newKey(a.id)
-        expect(k1.key).not.toBe(k2.key)
-        const hashes = (await e.rows('api_keys')).map((r) => r.key_hash)
-        expect(hashes).toEqual(expect.arrayContaining([await hashApiKey(k1.key), await hashApiKey(k2.key)]))
-      })
-
-      it('refuses an unknown agent, a past expiry and an expiry equal to now, writing nothing', async () => {
-        const before = await snapshot(e)
-        expect(await fail('api_keys.create', { body: { agent_id: UNKNOWN } })).toEqual([
-          400,
-          'invalid_reference',
-          'a referenced record does not exist',
-        ])
-        expect(await snapshot(e)).toEqual(before)
-        const now = at(9)
-        const a = await newAgent()
-        const mid = await snapshot(e)
-        expect(await fail('api_keys.create', { body: { agent_id: a.id, expires_at: iso(8) } }, { now })).toEqual([
-          400,
-          'validation_error',
-          'expires_at must be in the future',
-        ])
-        expect(await fail('api_keys.create', { body: { agent_id: a.id, expires_at: iso(9) } }, { now })).toEqual([
-          400,
-          'validation_error',
-          'expires_at must be in the future',
-        ])
-        expect(await snapshot(e)).toEqual(mid)
-      })
-
-      if (name === 'postgres') {
-        it("refuses another organisation's agent: invalid_reference, no row, no event", async () => {
-          const org = await seedOrganization(e.app!, { name: 'Foreign' })
-          const owner = await seedUser(e.app!, { organizationId: org.id, role: 'owner' })
-          const foreign = await seedAgent(e.app!, { organizationId: org.id, createdBy: owner.id })
-          const before = await snapshot(e)
-          expect(await fail('api_keys.create', { body: { agent_id: foreign.id } })).toEqual([
-            400,
-            'invalid_reference',
-            'a referenced record does not exist',
-          ])
-          expect(await snapshot(e)).toEqual(before)
-        })
-      }
-
-      it('issues a key for a disabled agent (the rule of CORE27)', async () => {
-        const a = await newAgent()
-        await call('agents.update', { params: { id: a.id }, body: { disabled: true } })
-        const k = await newKey(a.id)
-        expect(k.agent_id).toBe(a.id)
-      })
-
-      it('revoke stamps revoked_at and updated_at with now, emits one event; a second revoke is unchanged with no event', async () => {
-        const a = await newAgent()
-        const k = await newKey(a.id, { now: at(1) })
-        const revoked = await call('api_keys.revoke', { params: { id: k.id } }, { now: at(2) })
-        expect(revoked).toMatchObject({ id: k.id, revoked_at: iso(2), updated_at: iso(2), created_at: iso(1) })
-        expect(await row('api_keys', k.id)).toMatchObject({ revoked_at: iso(2), updated_at: iso(2) })
-        const ev = await events('api_key.revoked')
-        expect(ev).toHaveLength(1)
-        expect(ev[0]).toMatchObject({ resource_id: k.id, actor_id: e.userId, created_at: iso(2), after: revoked })
-        expect(ev[0]!.before).toMatchObject({ revoked_at: null, updated_at: iso(1) })
-        const again = await run('api_keys.revoke', { params: { id: k.id } }, { now: at(3) })
-        expect(again.value).toEqual(revoked)
-        expect(again.events).toEqual([])
-        expect(await events('api_key.revoked')).toHaveLength(1)
-        expect(await row('api_keys', k.id)).toMatchObject({ revoked_at: iso(2), updated_at: iso(2) })
-      })
-
-      it('revoke of an unknown id and of an id that is not a UUID is 404', async () => {
-        expect(await fail('api_keys.revoke', { params: { id: UNKNOWN } })).toEqual([
-          404,
-          'not_found',
-          'api_key not found',
-        ])
-        expect(await fail('api_keys.revoke', { params: { id: 'nope' } })).toEqual([
-          404,
-          'not_found',
-          'api_key not found',
-        ])
-      })
-
-      if (name === 'postgres') {
-        it("revoke of another organisation's key is 404 and changes nothing", async () => {
-          const org = await seedOrganization(e.app!, { name: 'Foreign' })
-          const owner = await seedUser(e.app!, { organizationId: org.id, role: 'owner' })
-          const foreign = await seedAgent(e.app!, { organizationId: org.id, createdBy: owner.id })
-          const key = await seedApiKey(e.app!, { organizationId: org.id, agentId: foreign.id, createdBy: owner.id })
-          const before = await snapshot(e)
-          expect(await fail('api_keys.revoke', { params: { id: key.id } })).toEqual([
-            404,
-            'not_found',
-            'api_key not found',
-          ])
-          expect(await snapshot(e)).toEqual(before)
-        })
-      }
-
-      it('list and get return records without key_hash or the plaintext, and filter by agent', async () => {
-        const a = await newAgent()
-        const b = await newAgent({ name: 'other' })
-        const k = await newKey(a.id)
-        await newKey(b.id)
-        const list = await call('api_keys.list', { query: { agent_id: a.id } })
-        expect(list.data.map((x: any) => x.id)).toEqual([k.id])
-        const got = await call('api_keys.get', { params: { id: k.id } })
-        const { key, ...record } = k
-        expect(got).toEqual(record)
-        expect(JSON.stringify([list, got])).not.toContain('key_hash')
-        expect(JSON.stringify([list, got])).not.toContain(key)
-      })
-
-      it('secrets: neither the hash nor the plaintext appears in any response or event but the one create response', async () => {
-        const a = await newAgent()
-        const k = await newKey(a.id)
-        const hash = await hashApiKey(k.key)
-        const seen = [
-          await call('api_keys.list', { query: {} }),
-          await call('api_keys.get', { params: { id: k.id } }),
-          await call('api_keys.revoke', { params: { id: k.id } }),
-          await call('api_keys.revoke', { params: { id: k.id } }),
-          await call('agents.get', { params: { id: a.id } }),
-          await e.rows('events'),
-        ]
-        const text = JSON.stringify(seen)
-        expect(text).not.toContain(k.key)
-        expect(text).not.toContain(hash)
-        expect(text).not.toContain('key_hash')
-        for (const ev of await e.rows('events'))
-          expect(Object.keys((ev.after ?? {}) as object)).not.toContain('key_hash')
-      })
-    })
-
     describe('memberships', () => {
       it('list returns the owner and the member; filters by role and user; a removed membership is neither listed nor found', async () => {
         const all = await call('memberships.list', { query: {} })
@@ -770,7 +594,7 @@ export function engineSuite(engineName: EngineName): void {
     })
 
     describe('clock parity (D2): every stamp is the unit clock, the response, the row and the event agree', () => {
-      it('agent create and update, key issue and revoke', async () => {
+      it('agent create and update', async () => {
         const a = await newAgent({}, { now: at(1) })
         expect(a).toMatchObject({ created_at: iso(1), updated_at: iso(1) })
         expect(await row('principals', a.id)).toMatchObject({ created_at: iso(1) })
@@ -781,24 +605,12 @@ export function engineSuite(engineName: EngineName): void {
         )
         expect(u).toMatchObject({ updated_at: iso(2), disabled_at: iso(2) })
         expect(await row('agents', a.id)).toMatchObject({ updated_at: iso(2), disabled_at: iso(2) })
-        const k = await newKey(a.id, { now: at(3) })
-        expect(k).toMatchObject({ created_at: iso(3), updated_at: iso(3) })
-        const r = await call('api_keys.revoke', { params: { id: k.id } }, { now: at(4) })
-        expect(r).toMatchObject({ revoked_at: iso(4), updated_at: iso(4), created_at: iso(3) })
-        expect(await row('api_keys', k.id)).toMatchObject({
-          revoked_at: iso(4),
-          updated_at: iso(4),
-          created_at: iso(3),
-        })
-        const ev = (await e.rows('events')).filter((x) => x.type.startsWith('agent.') || x.type.startsWith('api_key.'))
+        const ev = (await e.rows('events')).filter((x) => x.type.startsWith('agent.'))
         expect(ev.map((x) => [x.type, x.created_at])).toEqual([
           ['agent.created', iso(1)],
           ['agent.updated', iso(2)],
-          ['api_key.created', iso(3)],
-          ['api_key.revoked', iso(4)],
         ])
         expect(ev[1]!.after).toEqual(u)
-        expect(ev[3]!.after).toEqual(r)
       })
     })
 
@@ -806,14 +618,10 @@ export function engineSuite(engineName: EngineName): void {
       it('are constant, and printed for RESULT.md', async () => {
         const a = await run('agents.create', { body: { name: 'c' } })
         const b = await run('agents.update', { params: { id: a.value.id }, body: { name: 'd' } })
-        const k = await run('api_keys.create', { body: { agent_id: a.value.id } })
-        const r = await run('api_keys.revoke', { params: { id: k.value.id } })
         const l = await run('users.list', { query: {} })
         const counts = {
           'agent create': a.stats.statements,
           'agent update': b.stats.statements,
-          'key issue': k.stats.statements,
-          'key revoke': r.stats.statements,
           'users.list': l.stats.statements,
         }
         console.log(`[statements] ${name} ${JSON.stringify(counts)}`)
@@ -828,15 +636,6 @@ export function engineSuite(engineName: EngineName): void {
       const labels: StatementLabel[] = ['first-mutation', 'first-event', 'result']
       const cases: Record<string, () => Promise<() => Promise<PreparedOperation<unknown>>>> = {
         'agent create': async () => () => prepareOp('agents.create', { body: { name: 'f', scopes: ['tasks:read'] } }),
-        'key issue': async () => {
-          const a = await newAgent()
-          return () => prepareOp('api_keys.create', { body: { agent_id: a.id } })
-        },
-        'key revoke': async () => {
-          const a = await newAgent()
-          const k = await newKey(a.id)
-          return () => prepareOp('api_keys.revoke', { params: { id: k.id } })
-        },
         'agent update': async () => {
           const a = await newAgent()
           return () => prepareOp('agents.update', { params: { id: a.id }, body: { name: 'z', disabled: true } })
@@ -858,50 +657,7 @@ export function engineSuite(engineName: EngineName): void {
 
     if (name === 'd1') {
       describe('D1 drift: what changed between the plan and the commit batch aborts the unit', () => {
-        const keyed = async () => {
-          const a = await newAgent({}, { now: at(1) })
-          const k = await newKey(a.id, { now: at(1) })
-          return { a, k }
-        }
-        const revokeEvents = async () => (await e.rows('events')).filter((x) => x.type === 'api_key.revoked')
-
-        it('double revoke: a direct revoke between plan and commit makes the unit 409 with no api_key.revoked event; the retry returns the revoked key with none', async () => {
-          const { k } = await keyed()
-          e.betweenPlanAndCommit(async () => {
-            await e.update('api_keys', k.id, { revoked_at: iso(5), updated_at: iso(5) })
-          })
-          expect(await fail('api_keys.revoke', { params: { id: k.id } }, { now: at(6) })).toEqual([
-            409,
-            'conflict',
-            'the record changed while the operation was running; retry',
-          ])
-          expect(await revokeEvents()).toHaveLength(0)
-          expect(await row('api_keys', k.id)).toMatchObject({ revoked_at: iso(5), updated_at: iso(5) })
-          const retry = await run('api_keys.revoke', { params: { id: k.id } }, { now: at(7) })
-          expect(retry.value).toMatchObject({ revoked_at: iso(5), updated_at: iso(5) })
-          expect(retry.events).toEqual([])
-          expect(await revokeEvents()).toHaveLength(0)
-        })
-
-        it('revoke vs a revoke that did not move updated_at: the revoked_at guard alone makes it 409, with no api_key.revoked event', async () => {
-          const { k } = await keyed()
-          e.betweenPlanAndCommit(async () => {
-            await e.update('api_keys', k.id, { revoked_at: iso(5) })
-          })
-          expect((await fail('api_keys.revoke', { params: { id: k.id } }, { now: at(6) }))[1]).toBe('conflict')
-          expect(await row('api_keys', k.id)).toMatchObject({ revoked_at: iso(5), updated_at: iso(1) })
-          expect(await revokeEvents()).toHaveLength(0)
-        })
-
-        it('revoke vs touch: a bump of only updated_at between plan and commit is 409 (the stamp guard) and the key stays live', async () => {
-          const { k } = await keyed()
-          e.betweenPlanAndCommit(async () => {
-            await e.update('api_keys', k.id, { updated_at: iso(5) })
-          })
-          expect((await fail('api_keys.revoke', { params: { id: k.id } }, { now: at(6) }))[1]).toBe('conflict')
-          expect(await row('api_keys', k.id)).toMatchObject({ revoked_at: null, updated_at: iso(5) })
-          expect(await revokeEvents()).toHaveLength(0)
-        })
+        const keyed = async () => ({ a: await newAgent({}, { now: at(1) }) })
 
         it('agent update vs update: a direct rename between plan and commit is 409 and the direct name stays', async () => {
           const { a } = await keyed()
@@ -935,19 +691,6 @@ export function engineSuite(engineName: EngineName): void {
             { now: at(7) },
           )
           expect(retry.scopes).toEqual(['contacts:read', 'tasks:write'])
-        })
-
-        it('key issue racing the deletion of its agent: the guarded insert is a no-op, so 409 and no key row', async () => {
-          const { a } = await keyed()
-          const keysBefore = (await e.rows('api_keys')).length
-          e.betweenPlanAndCommit(async () => {
-            await e.d1!.prepare('delete from api_keys').run()
-            await e.d1!.prepare('delete from agents where id = ?').bind(a.id).run()
-          })
-          expect((await fail('api_keys.create', { body: { agent_id: a.id } }, { now: at(6) }))[1]).toBe('conflict')
-          expect(keysBefore).toBe(1)
-          expect((await e.rows('api_keys')).length).toBe(0)
-          expect((await events('api_key.created')).length).toBe(1) // the setup key's event only
         })
       })
     }

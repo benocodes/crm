@@ -62,7 +62,7 @@ describe('filters agree with the list, for every resource (CORE201 D11)', () => 
       )
       checked++
     }
-    expect(checked).toBeGreaterThanOrEqual(21)
+    expect(checked).toBeGreaterThanOrEqual(20)
   })
   it('column filters come first in record field order, then custom filters; each has the stated shape (the matrix)', async () => {
     const doc = (await rest()).body

@@ -62,7 +62,7 @@ describe('sorts agree with the list, for every resource (CORE187 D10, D16)', () 
       .filter((d) => registry.get(`${d.name}.list`))
       .map((d) => d.name)
       .sort()
-    expect(withList.length).toBeGreaterThanOrEqual(21)
+    expect(withList.length).toBeGreaterThanOrEqual(20)
     expect(
       resourceTables(doc)
         .map((t: any) => t.resource.name)
@@ -85,7 +85,7 @@ describe('sorts agree with the list, for every resource (CORE187 D10, D16)', () 
         expect(['timestamp', 'uuid', 'text', 'integer'], `${t.resource.name}.${s.name}`).toContain(s.kind)
       checked++
     }
-    expect(checked).toBeGreaterThanOrEqual(21)
+    expect(checked).toBeGreaterThanOrEqual(20)
   })
   it('each kind is the column kind (or the derived field kind) of that sort', async () => {
     const doc = (await rest()).body

@@ -18,7 +18,10 @@ export const apiKeyRecord = z.object({
 })
 export type ApiKeyRecord = z.infer<typeof apiKeyRecord>
 
-/** Read-only here; `api_keys.create` and `api_keys.revoke` are hand-written (`admin/`). */
+/**
+ * The record and the list grammar of the key operations ([[CORE351]]): not a registered resource (the four operations are control operations, `admin/api-keys.ts`), but the one source of the list's query parameters,
+ * sorts, filters and their parser, and of the request and response shapes of `list` and `get`.
+ */
 export const apiKeys = withColumnFilters(
   withColumnSorts(
     definePreparedResource({

@@ -82,19 +82,4 @@ describe('API key operations through the composed Worker (CORE351)', () => {
     expect((await rest(wk, 'GET', '/meta/v1/me', made.json.key)).status).toBe(401)
     expect(await count(w.control, 'control_audit')).toBeGreaterThanOrEqual(2)
   })
-
-  it('without CONTROL_DB the four operations answer 501 provider_not_configured', async () => {
-    await initWorkspace()
-    const wk = worker({ CONTROL_DB: undefined })
-    const tok = await owner()
-    for (const [m, p, b] of [
-      ['POST', '/meta/v1/api-keys', { agent_id: uuidv7(NOW) }],
-      ['POST', `/meta/v1/api-keys/${uuidv7(NOW)}/revoke`, undefined],
-      ['GET', '/meta/v1/api-keys', undefined],
-      ['GET', `/meta/v1/api-keys/${uuidv7(NOW)}`, undefined],
-    ] as const) {
-      const r = await rest(wk, m, p, tok, b)
-      expect([r.status, r.json?.error?.code], p).toEqual([501, 'provider_not_configured'])
-    }
-  })
 })

@@ -7,6 +7,7 @@ import {
   type PreparedOperation,
   type StorageBinding,
 } from '@vibase/storage'
+import type { ApiKeyStorePort } from '../admin/api-key-port.js'
 import { ScopeSet } from '../scopes.js'
 import type { InternalEnv } from '../storage/internal.js'
 import { authenticateApiKey, hashApiKey, LAST_USED_THROTTLE_MS } from './api-keys.js'
@@ -36,6 +37,8 @@ export interface ApiKeyControlPort {
 }
 export interface ApiKeyControlRuntime {
   port: ApiKeyControlPort
+  /** [[CORE351]] P5: the store of the four `api_keys.*` operations; absent: they answer `501 provider_not_configured`. Composition sets both from one control store. */
+  store?: ApiKeyStorePort | null
 }
 export type ApiKeyAuthenticator = (storage: StorageBinding, key: string, env: InternalEnv) => Promise<Principal | null>
 
