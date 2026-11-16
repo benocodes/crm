@@ -16,6 +16,8 @@ export interface AuthRuntimeConfig {
   secret: string
   /** `PUBLIC_BASE_URL`, an origin without a path. It is the one base URL, whatever host a request arrives on (D23): the issuer is `<baseURL>/auth`. */
   baseURL: string
+  /** Extra first-party app origins ([[UI255]] D3): appended to `trustedOrigins` after `baseURL`. Already validated by the Worker's composition (D6). Default none. */
+  trustedOrigins?: readonly string[]
   /** The vault's scope names (`contacts:read`, ...): joined to the OIDC scopes the provider knows, so an access token can carry them ([[CORE244]] D9). The composition passes the registry's declared scopes. */
   vaultScopes?: readonly string[]
   /** The subset of `vaultScopes` an agent may be granted ([[CORE243]] D11, P6): the only vault scopes a dynamically registered client may hold. Default none (OIDC scopes only). */

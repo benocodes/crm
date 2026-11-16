@@ -130,6 +130,8 @@ export interface D1WorkerEnv {
   CLERK_PUBLISHABLE_KEY?: string
   CLERK_API_URL?: string
   CORS_ALLOWED_ORIGINS?: string
+  /** [[UI255]] D6: comma-separated first-party app origins (better-auth only): trusted by Better Auth and given credentialed CORS on `/auth/*`. */
+  AUTH_TRUSTED_ORIGINS?: string
   /** The deployed commit, set by `deploy:remote` (`--var VERSION:<sha>`); `/health` reports it, `dev` when absent. */
   VERSION?: string
   /** The deployed source commit (`--var COMMIT:<sha>`, [[OPS210]] D7); `/health` reports it, `dev` when absent. */
@@ -962,3 +964,6 @@ export function composeD1Worker(
     },
   }
 }
+
+/** [[UI255]] D7: the request headers a credentialed preflight on `/auth/*` allows (STUB, filled with the implementation). */
+export const AUTH_CORS_ALLOW_HEADERS = ''
