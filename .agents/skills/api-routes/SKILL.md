@@ -109,7 +109,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     reader is a spec decision. The boundary test greps text, comments included: a comment in `@vibase/api` that says
     `control-store` fails it ([[CORE288]]), and so does an error message naming the binding (say "control-plane
     database", [[CORE261]]). A control **read** takes a port the same way (`AuditPort` over `listControlAudit`,
-    `packages/api/src/audit/port.ts`; `createApp({ audit })`), and without one answers `501 provider_not_configured`
+    `packages/api/src/audit/port.ts`; `createApp({ audit })`; `ApiKeyControlPort` for API-key authentication, [[CORE350]]), and without one answers `501 provider_not_configured`
     after the scope check. An operation that must reach the control plane after its CRM unit takes a
     narrow port composition hands in (`InvitationsPort`, `MembersPort`) in a decorated `after` stage. In **every** auth
     mode ([[CORE326]], reversing the earlier `better-auth`-only rule) the Worker fails closed without the binding (`500`,
@@ -1058,7 +1058,7 @@ that consequence still emits its event.
 | Channel machinery tables: credentials, subscriptions, sync state and cursors | the channel adapters | [[CHN5]] D22 |
 | The provider-id maps `message_sources` and `thread_sources` | capture | [[CORE25]] D17 |
 | Whatever the dev/ops `bootstrap` script writes | `bootstrap` only | [[CORE15]] |
-| The API-key usage stamp | `api_keys.last_used_at` only, at most once a minute, never `updated_at` | [[CORE36]] D17 |
+| The API-key usage stamp | `api_keys.last_used_at` only, at most once a minute, never `updated_at`; in whichever store holds the key (control `api_keys` via `stampApiKeyUsed`, below, [[CORE350]] P4) | [[CORE36]] D17 |
 | Execution lease columns: `action_executions.attempts`, `next_attempt_at`, `lease_until`, `lease_token`, `dispatched_at`, `last_error_code`, and the `queued`/`claimed` status they move between | claim, dispatch stamp, retry scheduling and lease recovery, without changing `updated_at`. Creation and the final outcome of an execution, and the linked request's `executed`/`failed`, are resources: they emit `action_execution.created`, `.completed`, `.failed` and `action_request.executed`, `.failed` | [[AGT8]] D56 |
 | The D1 full-text search indexes (`<table>_search` FTS5 tables) | triggers on the base table only, never a program, an operation or a script | [[CORE194]] D5 |
 | The CRM database's webhook tables (`webhook_subscriptions`, `webhook_secrets`, `webhook_dispatch_state`, `webhook_deliveries`) | none: since [[CORE337]] nothing reads or writes them (the subscription operations, dispatch and the sender run on the control plane, below); they stay, empty and inert, until #329 drops them. The old rule (machinery rows without events, subscription changes as `webhook.*` resources) is [[API7]] D20's and holds for no live code | [[API7]] D20, [[CORE337]] |
@@ -1102,8 +1102,14 @@ or an operation (`control-boundary.test.ts`, [[CORE259]] D5).
   eligibility and scopes, the newest event's id, the events and agents of a claimed delivery) are read from the
   CRM by the caller and handed to the store by value; the store never reads the CRM database. `webhook_secrets`
   is append-only by trigger.
-- **`api_keys`** (control migration 0005, [[CORE328]], [[CORE259]] D3, D8, D11, D12): dormant until #350/#351
-  (CRM `api_keys` is the live store until then). Written only by the control store's key methods: `insertApiKey`
+- **`api_keys`** (control migration 0005, [[CORE328]], [[CORE259]] D3, D8, D11, D12): **read** by API-key
+  authentication since [[CORE350]], through `ApiKeyControlPort` (`findByHash`, `readState`, `stampUsed`;
+  `packages/api/src/auth/api-key-control.ts`, `createApp({ apiKeys })`, built in `server-d1/src/compose.ts`):
+  control first, then the key's agent from the CRM; CRM `api_keys` only when control has no such hash (a key in
+  both stores is decided by control alone); the stamp goes to the store that holds the key. The per-isolate cache
+  holds only the immutable (key id, agent id, organisation id) per hash and belongs to the authenticator `createApp`
+  builds (one per composed app, never module state); revocation, expiry, the agent's `disabled_at` and scopes are
+  read on every request, so a warm isolate answers as a cold one. Writers stay on CRM `api_keys` until #351. Written only by the control store's key methods: `insertApiKey`
   and `revokeApiKey` are each one control batch with their `api_key.created` / `api_key.revoked` `control_audit`
   row (`detail` holds `agent_id`, `prefix`, `expires_at`, never the key, its hash or any part of it);
   `stampApiKeyUsed` writes `last_used_at` only, at most once a minute, never `updated_at`, with no audit row

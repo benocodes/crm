@@ -3,7 +3,7 @@ import { ApiError } from '../errors.js'
 import { ScopeSet } from '../scopes.js'
 import type { AppEnv } from '../rest/app.js'
 import type { InternalEnv } from '../storage/internal.js'
-import { authenticateApiKey } from './api-keys.js'
+import type { ApiKeyAuthenticator } from './api-key-control.js'
 import type { Principal, UserAuthenticator } from './types.js'
 import { AuthFailure } from './adapter.js'
 
@@ -33,6 +33,8 @@ export function authMiddleware(opts: {
   userAuthenticator?: UserAuthenticator
   env: (c: Context<AppEnv>) => InternalEnv
   declaredScopes?: readonly string[]
+  /** The API-key authenticator of this composed app (control first, CRM fallback; its cache lives in it). */
+  authenticateKey: ApiKeyAuthenticator
 }): MiddlewareHandler<AppEnv> {
   const declared = opts.declaredScopes ? new Set(opts.declaredScopes) : undefined
   return async (c, next) => {
@@ -57,7 +59,7 @@ export function authMiddleware(opts: {
         throw err
       }
     } else {
-      const found = await authenticateApiKey(storage, token, env)
+      const found = await opts.authenticateKey(storage, token, env)
       if (!found) throw unauthenticated(method, path, token, 'invalid or expired credentials')
       if (
         organizationHeader !== undefined &&

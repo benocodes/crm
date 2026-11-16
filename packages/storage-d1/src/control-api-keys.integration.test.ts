@@ -461,15 +461,7 @@ describe('group 5: list and get as the CRM resource reads them', () => {
 })
 
 describe('group 6: dormant and bounded (D5, P6)', () => {
-  const NAMES = [
-    'insertApiKey',
-    'revokeApiKey',
-    'findApiKeyByHash',
-    'readApiKeyState',
-    'stampApiKeyUsed',
-    'getApiKey',
-    'listApiKeys',
-  ]
+  const NAMES = ['insertApiKey', 'revokeApiKey', 'getApiKey', 'listApiKeys']
   const PACKAGES = fileURLToPath(new URL('../../', import.meta.url))
   const sources = (dir: string): string[] =>
     readdirSync(dir).flatMap((f) => {
@@ -478,7 +470,7 @@ describe('group 6: dormant and bounded (D5, P6)', () => {
       if (statSync(p).isDirectory()) return sources(p)
       return /\.(ts|tsx|js|mjs)$/.test(f) && !/\.test\.|\.suite\.|\.d\.ts$/.test(f) ? [p] : []
     })
-  // Deleted on purpose by CORE350/CORE351, which give the methods their callers.
+  // [[CORE350]] P7: the lookup, state and stamp methods now have a caller (the Worker composition, for API-key authentication) and left this list; the four below stay without callers until #351 (CORE351) wires the writers and deletes this test.
   it('no non-test source outside the control store and the index reaches the API key methods', () => {
     const own = ['storage-d1/src/control-store.ts', 'storage-d1/src/index.ts']
     const hits: string[] = []

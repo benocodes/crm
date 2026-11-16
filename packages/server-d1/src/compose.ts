@@ -36,6 +36,7 @@ import {
   runMailSync,
   workerdStreams,
   workspaceRole,
+  type ApiKeyControlRuntime,
   type AuditRuntime,
   type AuthAdapter,
   type InvitationsRuntime,
@@ -73,6 +74,9 @@ import {
   revokeInvitation,
   readControlMigrations,
   webhookStore,
+  findApiKeyByHash,
+  readApiKeyState,
+  stampApiKeyUsed,
   readMigrationState,
   runAuthSweep,
   type ControlDb,
@@ -549,12 +553,23 @@ export function composeD1Worker(
       : null
   // [[CORE261]] P1: the audit log's read port over the control store, on every D1 composition ([[CORE326]] P3).
   const audit: AuditRuntime | null = control ? { port: { list: (a) => listControlAudit(control, a) } } : null
+  // [[CORE350]] P5: API keys are looked up in the control plane first (then in the CRM database); the port is the one handle composition gives the API package for them.
+  const apiKeys: ApiKeyControlRuntime | null = control
+    ? {
+        port: {
+          findByHash: (hash) => findApiKeyByHash(control, hash),
+          readState: (id) => readApiKeyState(control, id),
+          stampUsed: (a) => stampApiKeyUsed(control, a),
+        },
+      }
+    : null
   const buildApp = (binding: D1Binding, googleFetch: typeof fetch | undefined): App =>
     createApp({
       storage: () => binding,
       invitations,
       members,
       audit,
+      apiKeys,
       workspace: { adapter: authAdapter, cliClientId },
       gmail: {
         ...(builtIn ? { roleOf: membershipRoleReader(binding, 'better-auth') } : {}),
