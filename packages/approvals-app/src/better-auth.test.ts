@@ -23,7 +23,10 @@ describe('signed in', () => {
 
   it('token() fetches /auth/token on every call (two calls, two requests), credentialed', async () => {
     let n = 0
-    const t = open({ 'GET /auth/get-session': SESSION, 'GET /auth/token': () => Response.json({ token: `jwt-${++n}` }) })
+    const t = open({
+      'GET /auth/get-session': SESSION,
+      'GET /auth/token': () => Response.json({ token: `jwt-${++n}` }),
+    })
     const s = await t.session
     expect(await s.token()).toBe('jwt-1')
     expect(await s.token()).toBe('jwt-2')
@@ -33,7 +36,10 @@ describe('signed in', () => {
   })
 
   it('token() is null when the SDK returns an error (P2)', async () => {
-    const t = open({ 'GET /auth/get-session': SESSION, 'GET /auth/token': new Response('{"message":"x"}', { status: 401 }) })
+    const t = open({
+      'GET /auth/get-session': SESSION,
+      'GET /auth/token': new Response('{"message":"x"}', { status: 401 }),
+    })
     expect(await (await t.session).token()).toBeNull()
   })
 

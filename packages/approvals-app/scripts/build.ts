@@ -1,4 +1,4 @@
-// pnpm -C packages/approvals-app build -> dist/: app.js, app.css, index.html and `_headers` (the CSP and friends, applied by Workers Static Assets).
+// pnpm -C packages/approvals-app build -> dist/: app.js (the entry), chunks/*.js (one per sign-in provider), app.css, index.html and `_headers` (the CSP and friends, applied by Workers Static Assets).
 import { copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -16,15 +16,18 @@ export async function buildApp(
   rmSync(out, { recursive: true, force: true })
   mkdirSync(out, { recursive: true })
   await build({
-    entryPoints: [join(SRC, 'main.ts')],
+    // Code splitting (ESM): each provider module is its own chunk behind a dynamic import, so a Clerk instance never downloads the Better Auth client ([[UI388]] D4).
+    entryPoints: { app: join(SRC, 'main.ts') },
     bundle: true,
+    splitting: true,
+    chunkNames: 'chunks/[name]-[hash]',
     format: 'esm',
     platform: 'browser',
     target: 'es2022',
     minify: true,
     legalComments: 'none',
     define: { __APP_CONFIG__: JSON.stringify(config) },
-    outfile: join(out, 'app.js'),
+    outdir: out,
     logLevel: 'warning',
   })
   copyFileSync(join(SRC, 'index.html'), join(out, 'index.html'))

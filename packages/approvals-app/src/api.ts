@@ -1,5 +1,4 @@
-// The vault REST calls the page makes. A fresh Clerk token per request, sent only as `Authorization: Bearer`.
-import { config } from './runtime-config.js'
+// The vault REST calls the page makes. A fresh session token per request, sent only as `Authorization: Bearer`.
 import type { ActionRequest } from './format.js'
 
 export class ApiFailure extends Error {
@@ -21,13 +20,14 @@ export interface Api {
 }
 
 export function createApi(
+  apiOrigin: string,
   getToken: () => Promise<string | null>,
   fetchImpl: typeof fetch = (i, init) => fetch(i, init),
 ): Api {
   async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
     const token = await getToken()
     if (!token) throw new ApiFailure(401, 'no_session', 'Your session has ended. Sign in again.')
-    const res = await fetchImpl(config.apiOrigin + path, {
+    const res = await fetchImpl(apiOrigin + path, {
       method,
       credentials: 'omit',
       headers: {
