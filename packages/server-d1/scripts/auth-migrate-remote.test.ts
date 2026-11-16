@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -54,6 +54,19 @@ function kit(
     readInstanceEnv: () => o.env ?? ENV_OK,
     exec: wrangler.exec,
     fetch: clerk.fetch,
+    git: () => {
+      throw new Error('plan runs no git')
+    },
+    withDatabases: () => Promise.reject(new Error('plan opens no database')),
+    run: () => {
+      throw new Error('plan runs no writing command')
+    },
+    appendEnvVar: () => {
+      throw new Error('plan writes no env file')
+    },
+    deploy: () => {
+      throw new Error('plan deploys nothing')
+    },
     now: () => new Date('2026-11-16T12:00:00.000Z'),
     newId: () => `0190cccc-0000-7000-8000-${String(++n).padStart(12, '0')}`,
     log: (l) => void out.push(l),
@@ -347,183 +360,4 @@ describe('read-only', () => {
   })
 })
 
-// ---- [[OPS392]]: `apply` ----
-
-/** The vault after the plan: what a fresh export shows once both batches have committed (users and agent accounts re-pointed, delegated agents disabled, the plan's memberships live). */
-function afterWorld(world: World, plan: AuthPlan): World {
-  const w = structuredClone(world)
-  for (const p of plan.people.filter((x) => x.action === 'migrate')) {
-    const u = w.users.find((x) => x.id === p.user_id)!
-    u.auth_provider = 'better-auth'
-    u.auth_subject = p.new_auth_user_id
-    if (p.role !== null && p.membership === null)
-      w.memberships.push({
-        id: `0190ffff-0000-7000-8000-${String(w.memberships.length).padStart(12, '0')}`,
-        user_id: p.user_id,
-        role: p.role,
-        deleted_at: null,
-      })
-  }
-  for (const a of plan.agents) {
-    const row = w.agents.find((x) => x.id === a.id)!
-    if (a.action === 'relink') {
-      row.auth_provider = 'better-auth'
-      row.auth_subject = a.new_auth_user_id
-    }
-    if (a.action === 'disable') row.disabled_at = '2026-11-17T09:00:00.000Z'
-  }
-  return w
-}
-
-describe('auth:migrate:remote apply', () => {
-  /** A plan written by the real plan command, then an apply kit over the given (possibly changed) instance. */
-  async function planFile(over: { world?: World } = {}) {
-    const p = kit()
-    expect(await runAuthMigrate(['plan', '--env', 'hq', '--plan', p.plan], GOOD, p.deps)).toBe(0)
-    const plan = JSON.parse(readFileSync(p.plan, 'utf8')) as AuthPlan
-    return { p, plan, world: over.world ?? standardWorld() }
-  }
-  const applyArgv = (path: string, ...more: string[]) => ['apply', '--env', 'hq', '--plan', path, ...more]
-  const noCalls = (k: ReturnType<typeof kit>) => {
-    expect(k.wrangler.cmds).toEqual([])
-    expect(k.clerk.calls).toEqual([])
-  }
-  const quiet = (k: ReturnType<typeof kit>) => {
-    const everything = [...k.out, ...k.err].join('\n')
-    expect(everything).not.toContain(CLERK_SECRET)
-    expect(everything).not.toContain('sk_test_')
-  }
-  /** Rewrites the plan file with a change, for the plan file checks. */
-  const edited = (plan: AuthPlan, f: (p: any) => void, path: string) => {
-    const copy = structuredClone(plan) as any
-    f(copy)
-    writeFileSync(path, JSON.stringify(copy))
-  }
-
-  it('without --dry-run it refuses before any call and names #393 (the dormant real run, P1)', async () => {
-    const { p } = await planFile()
-    const k = kit()
-    const code = await runAuthMigrate(applyArgv(p.plan), GOOD, k.deps)
-    expect(code).toBe(1)
-    expect(k.err.join('\n')).toMatch(/#393/)
-    expect(k.err.join('\n')).toMatch(/provider switch is not built/)
-    expect(k.calls).toEqual([]) // not even the credentials were loaded
-    noCalls(k)
-    quiet(k)
-  })
-
-  it('has the guards plan has: no CONFIRM_REMOTE=1, no --env, no --plan file named', async () => {
-    const { p } = await planFile()
-    for (const [argv, env, match] of [
-      [applyArgv(p.plan, '--dry-run'), {}, /CONFIRM_REMOTE=1/],
-      [['apply', '--plan', p.plan, '--dry-run'], GOOD, /--env/],
-    ] as const) {
-      const k = kit()
-      expect(await runAuthMigrate([...argv], env, k.deps)).toBe(1)
-      expect(k.err.join('\n')).toMatch(match)
-      noCalls(k)
-    }
-  })
-
-  const planChecks: Array<[string, (plan: AuthPlan, path: string) => void, RegExp]> = [
-    ['a plan file that is missing', (_p, path) => rmSync(path), /missing|read/i],
-    ['a plan file that is unreadable (a directory)', (_p, path) => (rmSync(path), mkdirSync(path)), /read/i],
-    ['a plan file that is not JSON', (_p, path) => writeFileSync(path, 'not json'), /read|JSON/i],
-    ['an unknown version', (p, path) => edited(p, (x) => (x.version = 2), path), /version/],
-    ['a plan made for another env', (p, path) => edited(p, (x) => (x.env = 'hq-staging'), path), /env/],
-    [
-      'another CRM database name',
-      (p, path) => edited(p, (x) => (x.crm.database_name = 'vault-crm-other'), path),
-      /database/,
-    ],
-    ['another CRM database id', (p, path) => edited(p, (x) => (x.crm.database_id = 'other-id'), path), /database/],
-    [
-      'another control database name',
-      (p, path) => edited(p, (x) => (x.control.database_name = 'other'), path),
-      /database/,
-    ],
-    [
-      'another control database id',
-      (p, path) => edited(p, (x) => (x.control.database_id = 'other-id'), path),
-      /database/,
-    ],
-  ]
-  for (const [title, change, match] of planChecks) {
-    it(`${title}: exit 1 before any wrangler or Clerk call`, async () => {
-      const { p, plan } = await planFile()
-      change(plan, p.plan)
-      const k = kit()
-      expect(await runAuthMigrate(applyArgv(p.plan, '--dry-run'), GOOD, k.deps)).toBe(1)
-      expect(k.err.join('\n')).toMatch(match)
-      noCalls(k)
-      quiet(k)
-    })
-  }
-
-  it('--dry-run on an instance that still matches the snapshot: not applied, counts per action, no personal data, only reads', async () => {
-    const { p } = await planFile()
-    const k = kit()
-    expect(await runAuthMigrate(applyArgv(p.plan, '--dry-run'), GOOD, k.deps)).toBe(0)
-    const text = k.out.join('\n')
-    expect(text).toMatch(/not applied/i)
-    expect(text).toMatch(/dry run/i)
-    expect(text).toMatch(/auth_users rows \(3 people, 1 agent account\)/)
-    expect(text).toMatch(/users re-pointed: 3/)
-    expect(text).toMatch(/agents relinked: 1/)
-    expect(text).toMatch(/agents disabled: 3/)
-    expect(text).toMatch(/memberships inserted: 0/)
-    expect(text).not.toContain('@example.test')
-    // nothing but reads: no secret, deploy or migrations command, no write SQL, Clerk only read, no invitation
-    for (const c of k.wrangler.cmds) {
-      expect(c.args.some((a) => ['secret', 'deploy', 'migrations', 'delete', 'put', 'time-travel'].includes(a))).toBe(
-        false,
-      )
-      expect(isReadOnlySql(c.args[c.args.indexOf('--command') + 1]!)).toBe(true)
-    }
-    expect(k.wrangler.cmds.length).toBe(3)
-    expect(k.clerk.calls.length).toBeGreaterThan(0)
-    expect(k.clerk.calls.every((c) => c.method === 'GET' && !/invitation/.test(c.url))).toBe(true)
-    quiet(k)
-  })
-
-  it('--dry-run on an instance the plan is already applied to says so and exits 0', async () => {
-    const { p, plan } = await planFile()
-    const k = kit({ world: afterWorld(standardWorld(), plan) })
-    expect(await runAuthMigrate(applyArgv(p.plan, '--dry-run'), GOOD, k.deps)).toBe(0)
-    expect(k.out.join('\n')).toMatch(/already applied/i)
-    expect(k.err).toEqual([])
-    quiet(k)
-  })
-
-  it('--dry-run on an instance that changed since the plan: mismatch, exit 1, the differing rows named by id', async () => {
-    const { p } = await planFile()
-    const world = standardWorld()
-    world.users[0]!.name = 'Changed'
-    const k = kit({ world })
-    expect(await runAuthMigrate(applyArgv(p.plan, '--dry-run'), GOOD, k.deps)).toBe(1)
-    expect(k.err.join('\n')).toContain(world.users[0]!.id)
-    expect(k.err.join('\n')).toMatch(/plan again/i)
-    expect(k.wrangler.cmds.every((c) => isReadOnlySql(c.args[c.args.indexOf('--command') + 1]!))).toBe(true)
-    quiet(k)
-  })
-
-  it('--dry-run on a changed Clerk user: mismatch naming the Clerk user', async () => {
-    const { p } = await planFile()
-    const clerk = standardClerk()
-    clerk[0]!.public_metadata = { vibase_role: 'member' }
-    const k = kit({ clerk })
-    expect(await runAuthMigrate(applyArgv(p.plan, '--dry-run'), GOOD, k.deps)).toBe(1)
-    expect(k.err.join('\n')).toContain('user_scrubbeda')
-    quiet(k)
-  })
-
-  it('a plan whose live membership role differs from its person role is refused at dry run, naming the person', async () => {
-    const world = standardWorld()
-    world.memberships[0]!.role = 'member' // Clerk says owner
-    const p = kit({ world })
-    expect(await runAuthMigrate(['plan', '--env', 'hq', '--plan', p.plan], GOOD, p.deps)).toBe(0)
-    const k = kit({ world })
-    expect(await runAuthMigrate(applyArgv(p.plan, '--dry-run'), GOOD, k.deps)).toBe(1)
-    expect(k.err.join('\n')).toContain(world.users[0]!.id)
-  })
-})
+// `apply`'s tests live in auth-migrate-apply-run.test.ts ([[OPS393]]): they need the two databases, which `plan` never opens.

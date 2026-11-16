@@ -286,6 +286,14 @@ code and +560 / -1537 test lines, 68 files, approved round 1 with no fix rounds.
 table from the shared Kysely `Database` (or any shared type) touches every typecheck fixture, kit table list, golden and
 suite that names it, not only its callers. Run `grep -rlw <name> packages` for each removed name at plan time and put the
 file count, not an estimate, in the Size line.
+**OPS393** (`knowledge/specs/015-OPS393-auth-migration-apply-run/RETRO.md`): 6 groups (1 matrix), 2 spec decisions + 6
+planner rules, scripts only, no E2E, three skill riders. ~233k / 64 calls over two runs (+254 code / +634 test lines, 9
+files), approved in round 2 after one coder round. The budget holds; the round came from the charter. The charter named
+the deploy step's clean-tree guard only in Watch-out, not among the pre-write checks. As written, a dirty tree was
+found after the control batch and the secret: exit 2 and a resume, where a refusal (exit 1) belonged. When a
+multi-step command writes before a later step that can refuse (a deploy's clean tree, a committed config, a migration
+level, a pairing), the charter lists that step's guard among the pre-write checks. It reuses the step's own guard and
+asks for a "refused, nothing written" case for it.
 
 ### Step 3: Resolve identities
 

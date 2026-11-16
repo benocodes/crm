@@ -30,7 +30,7 @@ export interface DeployDeps {
   log(line: string): void
 }
 
-const realDeps: DeployDeps = {
+export const realDeployDeps: DeployDeps = {
   git,
   loadEnv: (envName) => loadRemoteEnv(envName),
   readConfig: (envName) => unstable_readConfig({ config: CONFIG_PATH, env: envName }) as unknown as ConfigLike,
@@ -43,13 +43,18 @@ const realDeps: DeployDeps = {
   log: (line) => console.log(line),
 }
 
+/** The clean-tree guard of the deploy, shared with `auth:migrate:remote apply` ([[OPS393]] 393.15): no bypass. */
+export function requireCleanTree(git: DeployDeps['git'], hint = 'commit or stash first'): void {
+  const status = git(['status', '--porcelain'])
+  if (status.status !== 0 || status.stdout.trim() !== '')
+    throw new RemoteRefusal(`the working tree is not clean: ${hint}`)
+}
+
 /** The guarded deploy as a function a test can call: returns the exit code; a refusal throws `RemoteRefusal` before any command runs. */
 export function runDeploy(argv: string[], procEnv: NodeJS.ProcessEnv, deps: DeployDeps): number {
   const envName = parseEnvFlag(argv)
   requireConfirm(procEnv)
-  const status = deps.git(['status', '--porcelain'])
-  if (status.status !== 0 || status.stdout.trim() !== '')
-    throw new RemoteRefusal('the working tree is not clean: commit or stash first')
+  requireCleanTree(deps.git)
   deps.loadEnv(envName)
   // [[CORE326]] P4: a Worker without its control database answers 500 on every request, so the deploy is refused before the build.
   const target = requireControlTarget(deps.readConfig(envName), envName)
@@ -66,7 +71,7 @@ export function runDeploy(argv: string[], procEnv: NodeJS.ProcessEnv, deps: Depl
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   try {
-    process.exitCode = runDeploy(process.argv.slice(2), process.env, realDeps)
+    process.exitCode = runDeploy(process.argv.slice(2), process.env, realDeployDeps)
   } catch (err) {
     if (!(err instanceof RemoteRefusal)) throw err
     console.error(`deploy: ${err.message}`)

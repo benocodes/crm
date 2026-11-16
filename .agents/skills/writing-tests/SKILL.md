@@ -274,6 +274,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   so it fails under the stub (assert the success status, `201`/`200`, before the absence it claims) or name the mutation
   that reddens it. [[CORE245]]'s "no CRM event" test passed in red on a `404`: it proved nothing until it asserted the
   create succeeded first.
+  A refusal regex that the *old* refusal or usage text also matches passes in the red run for the same reason: assert
+  a phrase only the new guard prints (`provider switch is not committed`, never `apply`/`--dry-run`), and a negative
+  match on the old text ([[OPS392]], [[OPS393]]).
 - **Append-only tables in an emptied-between-tests database.** A `BEFORE DELETE ... RAISE` trigger (`control_audit`,
   [[CORE245]]) makes a plain `DELETE FROM` fail. `clearD1` (`packages/storage-d1/src/test/index.ts`) drops exactly the
   `BEFORE DELETE` triggers, empties, and recreates them from their stored `sqlite_master.sql`, all in one batch, so the

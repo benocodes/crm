@@ -153,6 +153,10 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
 - **Conflicts: `ON CONFLICT`, not catch-and-retry.** A caught `23505` inside a transaction does not save it;
   the transaction is already aborted. When the unique index is partial, the `onConflict` clause must repeat
   the predicate (`.where('kind', '=', 'email')`).
+  A bare `ON CONFLICT DO NOTHING` swallows a conflict on **every** unique constraint, not only the key you meant:
+  on a table with a second unique key (`auth_users.email` beside `id`), read each intended row back and compare it
+  to what you meant to write, or a row of another plan or run passes silently ([[OPS392]] P4: the control batch's
+  read-back).
 - **A column ordered by `fractional-indexing` keys must be `COLLATE "C"`.** Those keys assume bytewise
   ordering (`'Zz' < 'a0'`); the default locale collation sorts them wrongly and *deterministically*, which
   looks like the same-millisecond UUID flake and invites the wrong diagnosis.

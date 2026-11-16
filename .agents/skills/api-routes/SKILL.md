@@ -1039,6 +1039,10 @@ service context enforces it, so scope checks are written once.
     guarded statements no-oped leaves no decision. **A D1 unit cannot write a value derived from its own result
     select**: the batch is fixed at build time, so record what the build knows (the target's event receipts),
     not the target's response body.
+- **A resource write outside its prepared program** (a module-local `update`/`insert` on `agents` or `memberships`,
+  [[OPS392]] 392.16) is acceptable only when the unit guards it by its snapshot values (a drifted row aborts the
+  whole unit), emits its today-shaped event gated on the write (`eventStatement`), and has an `assertStep` that the
+  event row exists, so a write that no-oped leaves no event and a missing event aborts the unit.
 - **A provisioner that creates a parent and a child on first sight** (`src/auth/first-sight.ts`, [[CORE41]] P7): any
   network call (the profile fetch) and normalisation **before** the unit. Then plan-read every unique key the insert
   can collide on, insert the parent with an app-minted id, the child with `ON CONFLICT DO NOTHING`, and
@@ -1065,7 +1069,7 @@ that consequence still emits its event.
 
 | Write | Who writes it, and the limits | Decision |
 |---|---|---|
-| Identity bookkeeping: `principals`; `users` on first sight, on a provider profile refresh and on invitation acceptance; `users.auth_provider`/`auth_subject` re-pointed to the new provider by the hq auth migration's apply (`auth:migrate:remote apply`, one guarded unit that also writes the events of the memberships and agents it touches) | the identity paths; the migration's apply | [[CORE3]] D12, [[CORE41]] P11, [[CORE287]] P3, [[OPS250]] D13 ([[OPS392]]) |
+| Identity bookkeeping: `principals`; `users` on first sight, on a provider profile refresh and on invitation acceptance; `users.auth_provider`/`auth_subject` re-pointed to the new provider by the hq auth migration's apply (`auth:migrate:remote apply`, one guarded unit that also writes the events of the memberships and agents it touches); the CRM `deployment` row's `auth_provider` moved from the snapshot's value to `better-auth` by the same unit, guarded by that value, `auth_org_id` unchanged (D14) | the identity paths; the migration's apply | [[CORE3]] D12, [[CORE41]] P11, [[CORE287]] P3, [[OPS250]] D13, D14 ([[OPS392]], [[OPS393]]) |
 | Channel machinery tables: credentials, subscriptions, sync state and cursors | the channel adapters | [[CHN5]] D22 |
 | The provider-id maps `message_sources` and `thread_sources` | capture | [[CORE25]] D17 |
 | Whatever the dev/ops `bootstrap` script writes | `bootstrap` only | [[CORE15]] |
