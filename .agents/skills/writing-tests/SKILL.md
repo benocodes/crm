@@ -740,6 +740,16 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   never applied. A stray `:8788` from another run, built for a different API origin, makes `e2e:approvals-app` test
   the wrong build. Stop stray listeners first (`lsof -i :8788`) ([[UI388]]). Two `wrangler dev` processes at once
   need distinct inspector ports: give the second `--inspector-port=9230`.
+- **An E2E that drives a shipped remote command through a test-only driver lists every seam the driver fakes.** The
+  driver's file header names each swapped dependency (database handles, `exec`, `deploy`, config reader, `git`, `run`,
+  env-file writers, http instead of HTTPS) and what the real run must therefore check by hand; that list becomes the
+  runbook's manual checks. A seam faked but not named was [[OPS397]]'s review finding
+  (`packages/server-d1/e2e/auth-migration-driver.ts`, decision 397.18).
+- **Stop the local Worker around a Node command that opens its persisted D1 state**, then restart it: two processes
+  writing one local SQLite file contend ([[OPS397]], 397.15).
+- **A Worker that switches provider mid-run gets its Clerk sessions from the Backend API**, not `@clerk/testing`:
+  `POST /v1/sessions` with the user id, then `POST /v1/sessions/<id>/tokens`, and send the JWT as a bearer; the dev JWT
+  carries the session-token claims (`vibase_role`). Keep Playwright for the pages the scenario asserts ([[OPS397]], 397.14).
 - **A test Worker entry that re-creates composition config passes every field `compose.ts` passes.** `src/test/entry-mint.ts`
   builds its own `/auth` handler; when it omitted `defaultScopes`, the default scope list silently fell back to the ceiling
   and its tests proved the wrong configuration ([[CORE330]]). When you add a field to the auth config in `compose.ts`, add
