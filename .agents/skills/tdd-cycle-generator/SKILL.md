@@ -303,6 +303,13 @@ swaps a shipped command's dependencies costs about half a cycle by itself; when 
 into its own cycle. The one review finding came from the charter naming three driver seams where the code path needed
 seven: the charter lists every dependency the driver may fake, and asks for each to be named in the driver's header with
 the manual check that replaces it (writing-tests §7).
+**UI381** (`knowledge/specs/015-UI381-device-one-step/RETRO.md`): 5 groups (1 matrix), 2 decisions, no migration, 1 local
+E2E part (legs changed in an existing script). Initial run ~117k / 32 calls (+67 code / +207 test lines, 13 files), then three
+small follow-up rounds (lint, an E2E fold failure plus a leg left stale by an earlier fix, bookkeeping) of ~5 calls each that
+re-read ~120k of context apiece and tripled the total. The budget holds. When a charter leaves a layout value to the coder
+(a cap, a width) under a fold criterion, expect one E2E round on it. When the E2E part edits an existing script, put "run
+the unchanged script once first" in Watch out, so a leg already broken on `main` is seen before it is mistaken for the
+cycle's own failure.
 
 ### Step 3: Resolve identities
 

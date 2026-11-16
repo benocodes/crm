@@ -712,6 +712,16 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
     follow-up `vibase me get`);
   - `browser.newContext({ ignoreHTTPSErrors: true })`.
   (`packages/server-d1/e2e/oauth-pages.e2e.ts`, [[UI247]].)
+- **A change to a redirect or landing page greps every E2E script for the old URL** (`grep -rn "waitForURL\|toHaveURL"
+  packages/*/e2e`) and runs each script that matches. The scripts are not in the gate: #375 moved the post-sign-in landing
+  to `/connect`, fixed `e2e:auth-pages` only, and `e2e:oauth-pages` leg 0 stayed red until [[UI381]]'s E2E paid for it.
+  A cycle that edits an existing script runs it unchanged once first, so a leg already broken on `main` is told apart from
+  its own.
+- **A fit property ("the button is visible without scrolling") is proven in the browser at named viewports**, never by a
+  CSS-rule test alone: measure the element's bounding box against the viewport at the page unscrolled (1280×720 and
+  390×844 in `oauth-pages.e2e.ts`'s `foldCheck`). [[UI381]]'s CSS suite passed a fixed `10rem` scope cap that left Approve
+  21 px below a 720 px fold; a viewport-relative cap (`clamp(6rem, 18vh, 10rem)`) fixed it. The unit suite pins that the
+  rule exists; the E2E proves it fits.
 - **Better Auth trusts only `PUBLIC_BASE_URL` as an origin.**
   - In a Vitest harness (no TLS), use `http://localhost:<port>` as that origin: Better Auth accepts `https://` or
     `http://localhost` only. A CLI test that needs the control database gets `openControlDb` from
