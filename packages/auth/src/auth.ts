@@ -360,7 +360,22 @@ const endpointGate = (
       if (typeof token === 'string' && token !== '') await addOAuthServerContext({ [SERVER_CONTEXT_TOKEN]: token })
     }
     if (ctx.path !== '/oauth2/register') return
-    const method = (ctx.body as { token_endpoint_auth_method?: unknown } | undefined)?.token_endpoint_auth_method
+    const body = ctx.body as Record<string, unknown> | undefined
+    // What a connector sent, for the operator's log (RFC 7591 metadata is public; no secret rides a registration).
+    console.log(
+      '[oauth-register]',
+      JSON.stringify({
+        method: body?.token_endpoint_auth_method ?? null,
+        grants: body?.grant_types ?? null,
+        scope_count: typeof body?.scope === 'string' ? body.scope.split(/\s+/).filter(Boolean).length : null,
+        redirects: body?.redirect_uris ?? null,
+        application_type: body?.application_type ?? null,
+        client_name: body?.client_name ?? null,
+      }),
+    )
+    // RFC 7591 s2: an omitted `token_endpoint_auth_method` defaults to a secret-based method, but this server registers public clients only, so omitted means `none` (Claude web's registration, OPS252).
+    if (body && body.token_endpoint_auth_method === undefined) body.token_endpoint_auth_method = 'none'
+    const method = body?.token_endpoint_auth_method
     if (method !== 'none')
       throw new APIError('BAD_REQUEST', {
         error: 'invalid_client_metadata',

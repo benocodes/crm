@@ -108,6 +108,8 @@
     },
     "hq": {
       "name": "vault-hq",
+      // Smart Placement (OPS252): run the Worker near its D1 databases (WEUR), not near each caller; a connector's discovery check from the US was taking 2-3 s.
+      "placement": { "mode": "smart" },
       "workers_dev": false,
       "preview_urls": false,
       "routes": [
