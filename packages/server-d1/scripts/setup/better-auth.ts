@@ -38,7 +38,7 @@ export function chooseProvider(flag: string | undefined, record: RecordedAuth | 
   if (record === null) return (flag as AuthProvider | undefined) ?? 'better-auth'
   if (flag !== undefined && flag !== record.provider) {
     throw new RemoteRefusal(
-      `--auth ${flag}: this instance is recorded as ${record.provider} in ${record.where}; changing the provider is a migration (OPS250), not a setup re-run (drop the flag, or give --auth ${record.provider})`,
+      `--auth ${flag}: this instance is recorded as ${record.provider} in ${record.where}; changing the provider is a migration (OPS250), not a setup re-run (drop the flag, or give --auth ${record.provider}; setup:remote --replace-instance <env> builds a fresh instance in its place)`,
     )
   }
   return record.provider

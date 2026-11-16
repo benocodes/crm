@@ -15,6 +15,7 @@ import {
   type Target,
 } from '../remote.js'
 import { oldDomainManual } from './host.js'
+import { workflowName } from './names.js'
 import {
   GOOGLE_SECRET_NAMES,
   authSecretManual,
@@ -269,6 +270,7 @@ const configWrite: Step = async (ctx) => {
     workersDev: ctx.opts.workersDev || ctx.opts.recordedHost?.workersDev === true,
     noRoute: ctx.opts.workersDev,
     move: ctx.opts.move !== undefined,
+    ...(ctx.opts.replace ? { replace: true, workflowName: workflowName(ctx.opts.env) } : {}),
     corsOrigins: ctx.opts.origins.join(','),
     ...(ctx.gmail ? { gmailVars: ctx.gmail.vars } : {}),
     // [[UI30]] D7: the connect page's own origin is an authorized party (never a CORS origin, never a Clerk allowed origin), and the
@@ -323,7 +325,9 @@ const configWrite: Step = async (ctx) => {
   return withManual(
     result('config:write', 'update', `wrote ${r.changed.join(', ')}`, [
       ...diff,
-      'review and commit wrangler.jsonc, then re-run the same command to migrate, bootstrap, deploy and verify',
+      ctx.opts.replace
+        ? 'review and commit wrangler.jsonc, then re-run the same command WITHOUT --replace-instance to migrate, bootstrap, deploy and verify (the flag is refused once the record holds the new names)'
+        : 'review and commit wrangler.jsonc, then re-run the same command to migrate, bootstrap, deploy and verify',
     ]),
   )
 }

@@ -1,6 +1,7 @@
 // Shared types of `setup:remote` ([[OPS65]] D6, D7): the step model and the seams the tests fake (command runner, fetch, files, D1).
 import type { D1Like } from '@vibase/storage-d1'
 import type { HostMode, RecordedHost } from './host.js'
+import type { RecordedNames } from './names.js'
 
 export const STEP_NAMES = [
   'preflight',
@@ -124,4 +125,6 @@ export interface SetupOptions {
   clerkProduction: boolean
   noDcr: boolean
   rotateSecrets: boolean
+  /** `--replace-instance` ([[OPS250]] D12): the record is set aside; `old` holds the names it recorded (filled by `replaceNames`), only to refuse equal names and to list what is left in place. */
+  replace?: { old: RecordedNames }
 }
