@@ -50,6 +50,7 @@ describe('control migrations manifest (CORE259 D4)', () => {
       '0002_invitations.sql',
       '0003_invitation_delivery.sql',
       '0004_webhooks.sql',
+      '0005_api_keys.sql',
     ])
     expect(CONTROL_MIGRATIONS.map((e) => e.name).filter((n) => MIGRATIONS.some((m) => m.name === n))).toEqual([])
   })
@@ -65,8 +66,8 @@ describe('control migrations manifest (CORE259 D4)', () => {
   })
   it('catches an unlisted file', () => {
     const dir = copyOfTree()
-    writeFileSync(join(dir, '0005_stray.sql'), 'select 1;')
-    expect(manifestProblems(CONTROL_MIGRATIONS, dir)).toEqual(['file without a manifest entry: 0005_stray.sql'])
+    writeFileSync(join(dir, '0006_stray.sql'), 'select 1;')
+    expect(manifestProblems(CONTROL_MIGRATIONS, dir)).toEqual(['file without a manifest entry: 0006_stray.sql'])
   })
   it('catches an entry without a file', () => {
     const dir = copyOfTree()

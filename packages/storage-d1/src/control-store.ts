@@ -1162,6 +1162,72 @@ export async function recordWebhookDeliveries(
 }
 
 /** A function of this module with its leading `ControlDb` argument bound. */
+// ---- API keys ([[CORE328]]; [[CORE259]] D3, D8, D11, D12): the `api_keys` table in the control database, dormant until CORE350/CORE351 ----
+export interface ApiKeyRecord {
+  id: string
+  organizationId: string
+  agentId: string
+  prefix: string
+  lastUsedAt: string | null
+  revokedAt: string | null
+  expiresAt: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+/** What authentication needs from a hash lookup: the immutable mapping and the mutable fields (D11). */
+export interface ApiKeyLookup {
+  id: string
+  agentId: string
+  organizationId: string
+  lastUsedAt: string | null
+  revokedAt: string | null
+  expiresAt: string | null
+}
+export type ApiKeyState = Pick<ApiKeyLookup, 'lastUsedAt' | 'revokedAt' | 'expiresAt'>
+export interface NewApiKey {
+  id: string
+  auditId: string
+  /** The principal acting (`created_by` and the audit `actor_id`), by value. */
+  actorId: string
+  organizationId: string
+  agentId: string
+  keyHash: string
+  prefix: string
+  expiresAt: string | null
+  now: string
+}
+const todo = (): never => {
+  throw new Error('not implemented')
+}
+export async function insertApiKey(_c: ControlDb, _a: NewApiKey): Promise<'created' | 'duplicate'> {
+  return todo()
+}
+export async function revokeApiKey(
+  _c: ControlDb,
+  _a: { id: string; organizationId: string; auditId: string; actorId: string; now: string; expectedUpdatedAt?: string },
+): Promise<'revoked' | 'already_revoked' | 'not_found' | 'drifted'> {
+  return todo()
+}
+export async function findApiKeyByHash(_c: ControlDb, _keyHash: string): Promise<ApiKeyLookup | null> {
+  return todo()
+}
+export async function readApiKeyState(_c: ControlDb, _id: string): Promise<ApiKeyState | null> {
+  return todo()
+}
+export async function stampApiKeyUsed(_c: ControlDb, _a: { id: string; now: string }): Promise<boolean> {
+  return todo()
+}
+export async function getApiKey(_c: ControlDb, _a: { id: string; organizationId: string }): Promise<ApiKeyRecord | null> {
+  return todo()
+}
+export async function listApiKeys(
+  _c: ControlDb,
+  _a: { organizationId: string; agentId?: string; after?: string; limit: number },
+): Promise<ApiKeyRecord[]> {
+  return todo()
+}
+
 type Bound<F> = F extends (c: ControlDb, ...a: infer A) => infer R ? (...a: A) => R : never
 /**
  * The webhook store as the port composition hands `@vibase/api` ([[CORE337]] P5): the twelve methods above bound to one control handle, so that package reaches the control plane through a plain object

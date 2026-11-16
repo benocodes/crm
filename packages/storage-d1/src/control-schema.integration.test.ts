@@ -50,6 +50,7 @@ describe('control migration 0001_control_plane on an empty database', () => {
       '0002_invitations.sql',
       '0003_invitation_delivery.sql',
       '0004_webhooks.sql',
+      '0005_api_keys.sql',
     ])
     const state = await readMigrationState(
       control,
@@ -57,19 +58,26 @@ describe('control migration 0001_control_plane on an empty database', () => {
     )
     expect(state).toMatchObject({
       status: 'current',
-      applied: ['0001_control_plane.sql', '0002_invitations.sql', '0003_invitation_delivery.sql', '0004_webhooks.sql'],
+      applied: [
+        '0001_control_plane.sql',
+        '0002_invitations.sql',
+        '0003_invitation_delivery.sql',
+        '0004_webhooks.sql',
+        '0005_api_keys.sql',
+      ],
     })
     expect(CONTROL_MIGRATIONS_DIR).toMatch(/storage-d1\/control-migrations$/)
   })
 
-  it('creates the 14 auth tables, control_deployment (0002, CORE245) invitations and control_audit, (0004, CORE327) the four webhook tables, and no CRM table', async () => {
+  it('creates the 14 auth tables, control_deployment (0002, CORE245) invitations and control_audit, (0004, CORE327) the four webhook tables, (0005, CORE328) api_keys, and no CRM table', async () => {
     const names = (await tables(control)).filter((n) => n !== 'd1_migrations')
     expect(names).toContain('control_deployment')
     expect(names).toEqual(expect.arrayContaining(['invitations', 'control_audit']))
     expect(names.filter((n) => n.startsWith('auth_'))).toHaveLength(14)
     expect(names.filter((n) => n.startsWith('webhook_'))).toHaveLength(4)
-    expect(names).toHaveLength(21)
-    for (const crmTable of ['deployment', 'organizations', 'principals', 'events', 'api_keys'])
+    expect(names).toContain('api_keys')
+    expect(names).toHaveLength(22)
+    for (const crmTable of ['deployment', 'organizations', 'principals', 'events'])
       expect(names).not.toContain(crmTable)
   })
 
