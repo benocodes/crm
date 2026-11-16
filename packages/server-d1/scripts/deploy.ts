@@ -43,13 +43,18 @@ export const realDeployDeps: DeployDeps = {
   log: (line) => console.log(line),
 }
 
+/** The clean-tree guard of the deploy, shared with `auth:migrate:remote apply` ([[OPS393]] 393.15): no bypass. */
+export function requireCleanTree(git: DeployDeps['git'], hint = 'commit or stash first'): void {
+  const status = git(['status', '--porcelain'])
+  if (status.status !== 0 || status.stdout.trim() !== '')
+    throw new RemoteRefusal(`the working tree is not clean: ${hint}`)
+}
+
 /** The guarded deploy as a function a test can call: returns the exit code; a refusal throws `RemoteRefusal` before any command runs. */
 export function runDeploy(argv: string[], procEnv: NodeJS.ProcessEnv, deps: DeployDeps): number {
   const envName = parseEnvFlag(argv)
   requireConfirm(procEnv)
-  const status = deps.git(['status', '--porcelain'])
-  if (status.status !== 0 || status.stdout.trim() !== '')
-    throw new RemoteRefusal('the working tree is not clean: commit or stash first')
+  requireCleanTree(deps.git)
   deps.loadEnv(envName)
   // [[CORE326]] P4: a Worker without its control database answers 500 on every request, so the deploy is refused before the build.
   const target = requireControlTarget(deps.readConfig(envName), envName)

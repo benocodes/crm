@@ -37,7 +37,7 @@ import {
 } from './remote.js'
 import { parseBuiltInAuthConfig, AUTH_SECRET_MIN_LENGTH } from '../src/auth-config.js'
 import { readDeployment } from '../src/init-deployment.js'
-import { realDeployDeps, runDeploy } from './deploy.js'
+import { realDeployDeps, requireCleanTree, runDeploy } from './deploy.js'
 import { remoteProxyOptions } from './bootstrap.js'
 import { loadBetterAuth, newAuthSecret, providerFromVars } from './setup/better-auth.js'
 import { appendEnvFileVar, probeEnvFile } from './setup/env-file.js'
@@ -388,7 +388,7 @@ async function requireReady(envName: string, crm: D1Like, control: D1Like): Prom
   const marker = await readControlMarker(openControlDb(control))
   if (!marker || marker.organizationId !== link.organizationId)
     throw new RemoteRefusal(
-      `the control database is not paired with this CRM's organisation: the Better Auth Worker would answer 503 not_paired. Run CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env ${envName} ...`,
+      `the control database is not paired with this CRM's organisation: the Better Auth Worker would refuse every request (control database not paired). Run CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env ${envName} ...`,
     )
 }
 
@@ -400,6 +400,8 @@ async function runApply(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanDe
   requireConfirm(procEnv)
   const envName = args.env
   const target = resolveInstance(envName, deps, 'apply')
+  // 393.15: the deploy needs a clean tree, so an uncommitted provider switch is a refusal now, not a failure after the control batch
+  requireCleanTree(deps.git, 'commit the provider switch (and anything else) in wrangler.jsonc, then run apply again')
   const planPath = resolve(args.plan ?? defaultPlanPath(envName, procEnv, homedir()))
   const plan = readPlanFile(planPath, envName, target, deps)
   const secretKey = readSecretKey(envName, deps)
