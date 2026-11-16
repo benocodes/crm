@@ -435,6 +435,11 @@ Write the scenario so a tester can run it literally ([[CORE74]] needed two devia
   pre-merge condition.
 - **Deletes as the spec defines them:** for a soft delete, say "`deleted_at` set, row kept". Left unsaid,
   the tester asserted that cascaded edges were gone, against [[CORE62]] D15.
+  An **undo built on a soft delete is not an exact inverse**: the rows it removes stay as tombstones. A
+  "state equals the snapshot" obligation after an undo says "up to tombstones" (and that the removed row is
+  soft-deleted, not gone), and the charter says what the forward operation's state check does on a re-run over
+  those tombstones. [[OPS394]]'s charter said "exactly"; review amended it (394.16) and found that the same plan
+  cannot be re-applied after a revert (394.17).
 - **A refusal step is a full command line.** The tool validates its required flags before the check the step
   targets, so a refusal written as "`--clerk-env-file .env` refuses" is refused for a missing `--api-host`
   instead, and never reaches the key check ([[OPS87]] A4).
