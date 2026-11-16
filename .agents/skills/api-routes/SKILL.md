@@ -1008,6 +1008,10 @@ service context enforces it, so scope checks are written once.
     scopes as default ∪ allowed and, given no scope, authorizes the whole ceiling; so `endpointGate` (`packages/auth/src/auth.ts`)
     fills an `/oauth2/authorize` scope that is absent or blank with the registration default list (`registrationScopes(...).defaults`,
     one source) before the library reads it, for every client and both session states; a named scope is never touched (#330).
+    **Authorize has two parameter sources:** Better Auth 1.7.22 accepts `/oauth2/authorize` as GET or form POST and reads
+    only the body on a POST, so a before-hook that rewrites authorize parameters returns `{ context: { query } }` on a GET
+    and `{ context: { body } }` on a POST (never mutates `ctx.query`), and a test covers each; otherwise a form POST
+    bypasses it ([[CORE330]] review round 1).
 - **Owner-granted resource authority** ([[AGT8]] D1, D30, D31; shipped in cycle 1): three actions,
   `<resource>:read`, `<resource>:request_approval`, `<resource>:write`. Write includes request_approval; read
   stays independent. A user or agent with target write authority can approve. Do not reintroduce a
