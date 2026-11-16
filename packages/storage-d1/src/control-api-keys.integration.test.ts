@@ -474,7 +474,7 @@ describe('group 5: list and get as the CRM resource reads them', () => {
 
 describe('group 6: list sorts, orders and filters (CORE351 P4)', () => {
   const ORG3 = '0190b2c4-0000-7000-8000-00000000a0c3'
-  const seeded: Array<NewApiKey & { lastUsedAt: string | null; revokedAt: string | null }> = []
+  let seeded: Array<NewApiKey & { lastUsedAt: string | null; revokedAt: string | null }> = []
   const AGS = [nextId(), nextId()]
   beforeAll(async () => {
     // ten keys: ties on updated_at, nulls in last_used_at and expires_at, two agents, one revoked
