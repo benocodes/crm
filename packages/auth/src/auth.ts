@@ -571,7 +571,8 @@ export function staticAuthServerMetadata(baseURL: string, vaultScopes: readonly 
     response_types_supported: ['code'],
     response_modes_supported: ['query'],
     grant_types_supported: ['authorization_code', 'client_credentials', 'refresh_token', DEVICE_GRANT],
-    token_endpoint_auth_methods_supported: ['none', ...publicMethods],
+    // Registration admits public clients only (the policy in the before-hook), so a connector must not be offered a secret-based method: Claude web chose `client_secret_post` when it was listed and was refused.
+    token_endpoint_auth_methods_supported: ['none'],
     introspection_endpoint_auth_methods_supported: publicMethods,
     revocation_endpoint_auth_methods_supported: publicMethods,
     code_challenge_methods_supported: ['S256'],
