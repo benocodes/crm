@@ -1347,6 +1347,21 @@ export async function listApiKeys(
   return ((res.results ?? []) as Array<Record<string, unknown>>).map(apiKeyOf)
 }
 
+/** The key operations' store ([[CORE351]]). RED STUB: the methods below are implemented in the green commit. */
+export async function copyApiKeyRevoked(_c: ControlDb, _a: Record<string, unknown>): Promise<'copied' | 'exists'> {
+  throw new Error('copyApiKeyRevoked: not implemented')
+}
+export const apiKeyStore = (c: ControlDb) => ({
+  findByHash: (hash: string) => findApiKeyByHash(c, hash),
+  readState: (id: string) => readApiKeyState(c, id),
+  stampUsed: (a: { id: string; now: string }) => stampApiKeyUsed(c, a),
+  create: (a: NewApiKey) => insertApiKey(c, a),
+  revoke: (a: Parameters<typeof revokeApiKey>[1]) => revokeApiKey(c, a),
+  copyRevoked: (a: Record<string, unknown>) => copyApiKeyRevoked(c, a),
+  get: (a: { id: string; organizationId: string }) => getApiKey(c, a),
+  list: (a: Parameters<typeof listApiKeys>[1]) => listApiKeys(c, a),
+})
+
 /** A function of this module with its leading `ControlDb` argument bound. */
 type Bound<F> = F extends (c: ControlDb, ...a: infer A) => infer R ? (...a: A) => R : never
 /**

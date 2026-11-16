@@ -192,6 +192,8 @@ export {
   rotateWebhookSecret,
   updateWebhookSubscription,
   webhookStore,
+  apiKeyStore,
+  copyApiKeyRevoked,
   findApiKeyByHash,
   getApiKey,
   insertApiKey,
