@@ -1,5 +1,6 @@
 // Clerk in the browser, the same way the vault's /connect page does it: clerk-js from the instance's own Frontend API, pinned.
-import { config } from './runtime-config.js'
+import type { AppConfig } from './config.js'
+import type { Env, Session } from './session.js'
 
 const CLERK_JS_PATH = '/npm/@clerk/clerk-js@6.39.1/dist/clerk.browser.js'
 
@@ -9,14 +10,6 @@ interface ClerkBrowser {
   user?: { primaryEmailAddress?: { emailAddress: string } | null } | null
   redirectToSignIn(opts: { redirectUrl: string }): Promise<unknown> | void
   signOut(opts?: { redirectUrl?: string }): Promise<void>
-}
-
-export interface Session {
-  signedIn: boolean
-  email: string | null
-  token(): Promise<string | null>
-  signIn(): Promise<void>
-  signOut(): Promise<void>
 }
 
 function loadScript(src: string, key: string): Promise<void> {
@@ -32,7 +25,7 @@ function loadScript(src: string, key: string): Promise<void> {
   })
 }
 
-export async function loadSession(): Promise<Session> {
+export async function loadSession(config: AppConfig, _env?: Env): Promise<Session> {
   await loadScript(config.clerkIssuer + CLERK_JS_PATH, config.clerkPublishableKey)
   const clerk = (window as unknown as { Clerk?: ClerkBrowser }).Clerk
   if (!clerk) throw new Error('Clerk did not initialise')

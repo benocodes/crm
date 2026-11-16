@@ -249,7 +249,7 @@ These are the commands of everyday work. The rest live in the skill that uses th
   `db:migrate:remote`, `deploy:remote`, `smoke:remote`, `owner-reset`, `e2e:rail`): `ship-branch`, "Command
   reference".
 - **Browser E2E scripts** (`e2e:gallery`, `e2e:oauth-pages`, `e2e:auth-pages`, `e2e:auth-pages-reset`,
-  `e2e:connect`, `e2e:mcp-oauth`; none is in the gate): `writing-tests` §7, "Scripts".
+  `e2e:connect`, `e2e:mcp-oauth`, `e2e:approvals-app`; none is in the gate): `writing-tests` §7, "Scripts".
 
 Two rules hold wherever those commands are run. Agents run a remote command only against an environment that
 is theirs ("Environments"). Agents never push a release tag, publish the draft GitHub Release, run

@@ -45,7 +45,6 @@ describe('setup:remote and AUTH_TRUSTED_ORIGINS', () => {
     const o = await runSetup(ACME, CONFIRM, w.deps) // completes the record's env block
     expect(o.stoppedAfterConfigWrite, w.logs.join('\n')).toBe(true)
     expect(varsOf(w).AUTH_TRUSTED_ORIGINS).toBe(TRUSTED)
-    expect(varsOf(w).AUTH_TRUSTED_ORIGINS).toBe(TRUSTED)
     expect(w.logs.join('\n')).not.toMatch(/AUTH_TRUSTED_ORIGINS/)
   })
 
