@@ -188,6 +188,31 @@ describe('group 3: authority and refusals match today (P1, P6)', () => {
     k.store.revoke = real
     expect((await k.owner('POST', `${KEYS}/${made.id}/revoke`)).status).toBe(200)
   })
+
+  it("a revoke racing another revoke answers 200 with the racer's revoked_at and exactly one api_key.revoked audit row", async () => {
+    const made = await k.create()
+    const real = k.store.revoke
+    const racerAt = new Date(NOW.getTime() + 30_000).toISOString()
+    let raced = false
+    k.store.revoke = async (a) => {
+      if (!raced) {
+        raced = true
+        await real({
+          ...a,
+          auditId: '0190b2c4-0000-7000-8000-0000000000aa',
+          now: racerAt,
+          expectedUpdatedAt: undefined,
+        })
+      }
+      return real(a)
+    }
+    k.clock.now = new Date(NOW.getTime() + 60_000)
+    const r = await k.owner('POST', `${KEYS}/${made.id}/revoke`)
+    k.store.revoke = real
+    expect(r.status).toBe(200)
+    expect(r.body.revoked_at).toBe(racerAt)
+    expect((await auditOf(made.id)).filter((a) => a.action === 'api_key.revoked')).toHaveLength(1)
+  })
 })
 
 describe('group 4: list surface (P3, P4): sort x order x filter, with cursor continuation', () => {

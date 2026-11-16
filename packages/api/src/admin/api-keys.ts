@@ -121,7 +121,9 @@ async function revokeKey(port: ApiKeyStorePort, env: ControlEnv, rawId: string):
     })
     if (done === 'not_found') throw notFound()
     if (done === 'drifted') return 'drifted' as const
-    return done === 'already_revoked' ? recordOf(before) : recordOf({ ...before, revokedAt: now, updatedAt: now })
+    // `already_revoked` while our read saw it live: a concurrent revoke landed first; replan so the answer is the revoked row (as the old unit's drift did).
+    if (done === 'already_revoked') return before.revokedAt === null ? ('drifted' as const) : recordOf(before)
+    return recordOf({ ...before, revokedAt: now, updatedAt: now })
   })
 }
 
