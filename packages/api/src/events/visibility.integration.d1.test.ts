@@ -67,7 +67,7 @@ const rawEvent = async (type: string, resourceType: string, extra: { before?: un
   return id
 }
 
-// Every resource type the code emits, the read scope it is shown under, and the event types it emits (D4). `null`: invisible by design (#217). `webhook` is shown under `webhooks:read` to a user; an agent sees only its own subscriptions' events (API219 D19, webhooks/owner-visibility).
+// Every resource type the code emits, the read scope it is shown under, and the event types it emits (D4). `null`: invisible by design (#217). `webhook` is no longer an entry ([[CORE347]]): its historic rows are invisible, proven in webhooks/historic-events.
 const MATRIX: [resourceType: string, readScope: string | null, types: string[]][] = [
   ['task', 'tasks:read', ['task.created', 'task.updated', 'task.deleted']],
   ['contact', 'contacts:read', ['contact.created', 'contact.updated', 'contact.deleted', 'contact.merged']],
@@ -100,7 +100,6 @@ const MATRIX: [resourceType: string, readScope: string | null, types: string[]][
       'action_request.superseded',
     ],
   ],
-  ['webhook', 'webhooks:read', ['webhook.created', 'webhook.updated', 'webhook.deleted', 'webhook.secret_rotated']],
   ['action_execution', null, ['action_execution.created', 'action_execution.completed', 'action_execution.failed']],
 ]
 
@@ -130,6 +129,7 @@ describe('visibility per resource type (matrix)', () => {
 
   it('a resource type with no entry is invisible, whatever the caller holds', async () => {
     await rawEvent('widget.created', 'widget')
+    await rawEvent('webhook.created', 'webhook', { after: { agent_id: e.agentId } })
     expect(await seen(['events:read', ...READS])).toEqual([])
   })
 
