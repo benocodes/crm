@@ -129,8 +129,9 @@ doesn't exist misleads.
 If `knowledge/SPRINT.md` exists, every spec in its band should still have work outstanding. If **all** are
 `shipped`, nobody ran `/sprint-planning close`, so a stale planning file reads as current. Report it; don't
 delete it (closing has verification steps; see [[sprint-planning]]). The reverse also holds: a `SPRINT.md`
-whose Sequence table disagrees with the specs' real `status:` is a stale checkpoint, and its Ledger is the
-part most likely to have rotted.
+whose milestone tables disagree with the specs' real `status:` is a stale checkpoint. Run
+`node scripts/decisions.mjs status` too: a `SPRINT.md` over its line budget, or a rollover that is `DUE` and
+was not run, is a finding (see [[sprint-planning]], `rollover`).
 
 ### 9. Board and skill drift
 

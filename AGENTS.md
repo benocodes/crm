@@ -114,8 +114,10 @@ removes the worktree and its test DB, and checkpoints SPRINT.md. Cycles that bui
 order from an up-to-date `main`.
 
 **Decisions.** Agents decide design questions themselves and record them: in the spec (with the reason),
-and as one line in SPRINT.md's Ledger, so the user can review and overturn them later. Where a skill says
-to ask the user, the agent decides and records instead.
+and as one row each in the decisions log, written by the agent that decided
+(`node scripts/decisions.mjs add --issue <n> --by <role> --stage <stage> "<decision>"`; `find <issue>` reads
+them back with the related specs'), so the user can review and overturn them later. A user ruling is a row
+too (`--by user --stage ruling`). Where a skill says to ask the user, the agent decides and records instead.
 
 **Hard stops.** The orchestrator stops, records the situation in SPRINT.md (Position, Open Questions,
 Next Action) and tells the user before any of these, and never works around one:

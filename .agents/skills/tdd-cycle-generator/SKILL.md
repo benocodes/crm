@@ -440,7 +440,7 @@ Writing and pushing the charter is where this skill ends. Implementation follows
 3. **A rule that compares against stored state gets an empty-state obligation.** A guard such as
    [[CORE3]] D20's newer-copy rule is silent when there is no row to compare, and that is where it leaked
    in [[CORE29]]. If the spec doesn't say what happens with no stored state, raise it as a spec question
-   (in a sprint: decide it in the spec, with a Ledger line) before the charter ships.
+   (in a sprint: decide it in the spec, with a row in the decisions log) before the charter ships.
 4. **A step that creates a remote resource names who runs it, and assumes the agent cannot.** Claude
    Code's permission classifier denies an agent's creation of external resources (`wrangler d1 create`,
    `r2 bucket create`, a first deploy that attaches a Custom Domain) even when the spec authorizes it,
@@ -482,7 +482,7 @@ Writing and pushing the charter is where this skill ends. Implementation follows
    secrets); the coder had to find the real guards. When the grep finds nothing, name the property instead and let
    the coder find its guards (`knowledge/specs/015-OPS262-vibase-rename/RETRO.md`).
 9. **A charter revised mid-cycle names the stop point and what survives.** When a design decision changes while the
-   coder is working, the coder stops at a commit, and the planner revises the spec (changelog and Ledger) and the
+   coder is working, the coder stops at a commit, and the planner revises the spec (changelog and decisions log) and the
    charter in place, never in a second plan file. The revised charter opens with a **Revised** block. That block
    names the sha the coder stopped at and sorts the work into **Stays as built** (with the red runs and mutations
    that still count), **Reworked** (whose existing tests must be seen red again against the new source) and **New**.

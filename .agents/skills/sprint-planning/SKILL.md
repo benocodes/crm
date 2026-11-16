@@ -1,6 +1,6 @@
 ---
 name: sprint-planning
-description: Open, checkpoint and close a sprint — a dependency-ordered band of specs planned together toward one goal (e.g. 010–015, the first agent-readable vault). Stubs the whole sequence up front so the band is reserved and visible, then maintains knowledge/SPRINT.md as the single live account of what is drafted, generated, executed and still open across all of them. Use when a design conversation produces more than one spec, when resuming such work in a fresh session, or when the architect is running low on context; delete the file when the last spec ships.
+description: Open, checkpoint, roll over and close a sprint — a dependency-ordered band of specs planned together toward one goal (e.g. 010–015, the first agent-readable vault). Stubs the whole sequence up front so the band is reserved and visible, then maintains knowledge/SPRINT.md as the single live account of what is drafted, generated, executed and still open across all of them. Use when a design conversation produces more than one spec, when resuming such work in a fresh session, or when the architect is running low on context; delete the file when the last spec ships.
 ---
 
 # Sprint Planning
@@ -34,6 +34,20 @@ current to the archive; closing deletes both. Don't version, don't keep two live
 shipped specs, their cycles and their RETROs — a planning file lingering past that point is stale
 state competing with them, and `git log -- knowledge/SPRINT.md` serves anyone who wants the history.
 
+**Decisions are not in this file.** They live in the decisions log, `knowledge/decisions/sprint-NNN.jsonl`:
+append-only, one row per decision, keyed by issue, written by the agent that decided
+(`node scripts/decisions.mjs add`) and read back per issue (`node scripts/decisions.mjs find <issue>`, which
+also lists the parent spec, sibling cycles and specs the cycle's header names). Nobody reads it whole, so it
+costs no context, and it is kept when the sprint closes. `SPRINT.md` holds state only: where the sprint is
+and what is next.
+
+**A sprint has a size, and it ends on a finished milestone.** The decisions log is also the sprint's measure.
+When the script reports the rollover as `DUE`, the sprint is full: it takes on nothing new, finishes the one
+milestone it is on, and then rolls over; work from every other milestone waits for the next sprint. When the
+script reports `OVERDUE`, that milestone is too big to finish in this sprint, and the user decides how to cut
+it (`rollover`, below). The limits live in the script and nowhere else; never state it, or how full a sprint is, in a brief, a spec or a charter. The agents that
+record decisions must have no reason to record fewer.
+
 One live sprint at a time is a constraint, not a limitation: a second concurrent band of specs is a
 sign the first one's ordering was wrong.
 
@@ -41,7 +55,7 @@ sign the first one's ordering was wrong.
 
 ## Operations
 
-Three, dispatched on the argument. Bare `/sprint-planning` means **checkpoint** — by far the most
+Four, dispatched on the argument. Bare `/sprint-planning` means **checkpoint** — by far the most
 common.
 
 ### `open <goal>` — start a sprint
@@ -66,7 +80,8 @@ Run this **after** the design conversation has settled and before writing any sp
    Stub, don't draft. A stub that speculates about schema it hasn't earned is worse than no stub —
    the next agent reads it as a decision. Write the problem; leave the solution empty.
 
-3. **Write `knowledge/SPRINT.md`** per the template below.
+3. **Write `knowledge/SPRINT.md`** per the template below. If the decisions log's current file already holds
+   rows (a previous sprint's), start a fresh one: `node scripts/decisions.mjs rotate --force`.
 
 4. **State the ordering rationale explicitly**, per edge, in the Now / Next list and the specs' Context. "B needs A" is
    not enough — name the mechanism. The ordering is the sprint's one irreducible piece of knowledge,
@@ -89,8 +104,9 @@ Gather, in order — **evidence, not memory**:
    whether another session is active in this checkout. See Quality Rules.
 4. **Facts established by investigation**, especially ones that cost real time and are not written
    down anywhere else yet: a library API that doesn't exist in the installed version, a constraint
-   that already carries the value a spec says to add, a production measurement. These belong in the
-   Ledger section and are the highest-value part of the file.
+   that already carries the value a spec says to add, a production measurement. Record each as a row in the
+   decisions log (`node scripts/decisions.mjs add --issue <n> --by <role> --stage finding "<fact>"`), not in
+   this file.
 5. **Open questions** put to the user and not yet answered, carried forward until they are.
 
 Then rewrite, in this order:
@@ -100,10 +116,61 @@ Then rewrite, in this order:
    tables, in plain words.
 2. **Now / Next / Later.** Name the single next item and its first action. Mark which order is ruled by the
    user and which is the agents' proposal.
-3. **Archive overflow.** Position beyond five lines, Ledger beyond twelve, answered Open questions,
-   anything the budget in "The file" no longer allows: append verbatim to `sprint-archive.md` under the
-   matching section, then delete from `SPRINT.md`. Both files go in the same commit.
-4. **Glance test** (Quality Rule 11).
+3. **Archive overflow.** Position beyond five lines, answered Open questions, anything the budget in
+   "The file" no longer allows: append verbatim to `sprint-archive.md` under the matching section, then
+   delete from `SPRINT.md`. A decision that turns up in `SPRINT.md` is moved to the decisions log, not to
+   the archive. Both files go in the same commit.
+4. **Budget check.** `node scripts/decisions.mjs status` must report `SPRINT.md` as `ok`; `OVER` means step 3
+   is not finished.
+5. **Glance test** (Quality Rule 11).
+
+### `rollover` — the sprint is full: finish the milestone, then start the next sprint
+
+Run when `node scripts/decisions.mjs status` reports the rollover as `DUE` or `OVERDUE`, and only between
+cycles (nothing in flight: no agent running, no open cycle PR), so one cycle's decisions never straddle two
+files. A milestone is **finished** when every row of its table but the demo run is ✅ (the demo run is the
+user's and never holds a rollover). Which of the three steps applies depends on the state:
+
+**Narrow** (`DUE`, and the header has no **Finishing** line yet). The sprint stops taking new work and
+finishes one milestone:
+
+1. Name the milestone the sprint is on: the one that owns the item in flight or, with nothing in flight, the
+   first item of Next. Write it in the header: `**Finishing:** Milestone G`.
+2. Move every unfinished item of the *other* milestones out of Now / Next into a `## Next sprint` section
+   (after Now / Next / Later / Parked), in their existing order, each still naming its milestone. Their
+   milestone tables stay where they are. Nothing in that section is started until the sprint has rolled over.
+3. Commit, tell the user in two lines (the sprint is full, it now only finishes that milestone, what moved to
+   the next sprint), and carry on. This is not a stop.
+
+**Roll over** (the **Finishing** milestone is finished, or the status is `DUE` and no milestone has unfinished
+rows in this sprint). Mechanical, and not a stop:
+
+1. `node scripts/decisions.mjs rotate`: closes the current `decisions/sprint-NNN.jsonl` and opens the next.
+   The closed file is the user's batch of decisions to review.
+2. Rewrite `SPRINT.md` in place as the next sprint: milestone rows that are ✅ move to `sprint-archive.md`
+   (verbatim); unfinished rows, Now / Next / Later / Parked, Gaps, Owed by the user and open questions carry
+   forward unchanged; Position restarts with one line naming the sprint that closed and its decisions file.
+   A milestone whose rows are all archived keeps its heading and one line saying what is left (its demo run,
+   usually). The `## Next sprint` items move back into Next, in their order, and the section is removed. Do
+   not reorder Next: a rollover changes no priorities.
+3. Update the header's **Decisions** pointer to the new file, remove the **Finishing** line and bump **Updated**.
+4. Commit `SPRINT.md`, `sprint-archive.md` and `decisions` together (`docs(sprint): roll over to sprint NNN`).
+5. Tell the user: which sprint closed, the milestone it finished, the path of its decisions file, and the
+   next item.
+
+**Cut the milestone** (`OVERDUE` and the **Finishing** milestone is not finished). The milestone is bigger
+than a sprint. This is a **stop**, and the cut is the user's decision, never the agents':
+
+1. List the milestone's unfinished rows, in dependency order, each with its state (in review, planned, spec
+   only, no spec).
+2. Propose a cut: which rows are the smallest set that still makes the milestone demonstrable and stay in
+   it, and which rows move to a **new milestone** in the next sprint (name it, and say what it adds on top of
+   the slimmed one). Say what the slimmed milestone can no longer demonstrate.
+3. Write the proposal under Open questions, update Status at a glance and Position, commit, and stop: tell
+   the user and wait for the ruling. Do not start another cycle of the milestone meanwhile.
+4. On the ruling: record it (`node scripts/decisions.mjs add --issue <n> --by user --stage ruling "<ruling>"`),
+   add the new milestone's table to `SPRINT.md` with the moved rows, put its items in `## Next sprint`, and
+   continue: finish what is left of the slimmed milestone, or roll over at once if nothing is left.
 
 ### `close` — finish the sprint
 
@@ -115,7 +182,8 @@ Run when the last spec in the band has shipped.
 3. Check the open questions are genuinely closed, not merely stale. An unanswered question at close
    is a finding — report it.
 4. Delete `knowledge/SPRINT.md` and `knowledge/sprint-archive.md` and commit the deletion in the knowledge repo (`git -C knowledge`) with a message naming the band, so
-   `git log` reads as a record of what the sprint set out to do.
+   `git log` reads as a record of what the sprint set out to do. **Keep `knowledge/decisions/`**: it is the
+   index of what was decided for each issue, and later work reads it.
 
 ---
 
@@ -125,13 +193,14 @@ Run when the last spec in the band has shipped.
 30 seconds**. It is a dashboard, not a diary. Everything that has stopped being current moves to
 `knowledge/sprint-archive.md` (verbatim, append-only).
 
-**Hard budget: the live file stays under about 150 lines.** If a checkpoint pushes it past that, archive
-until it fits. Sections, in this order:
+**Hard budget: the live file stays under 150 lines** (`node scripts/decisions.mjs status` checks it). If a
+checkpoint pushes it past that, archive until it fits. Sections, in this order:
 
 ```markdown
 # {Goal} — sprint
 
-**Updated:** {YYYY-MM-DD} · **Archive:** [sprint-archive.md](sprint-archive.md)
+**Updated:** {YYYY-MM-DD} · **Archive:** [sprint-archive.md](sprint-archive.md) · **Decisions:** `decisions/sprint-{NNN}.jsonl` (`node scripts/decisions.mjs find <issue>`)
+{Only once the sprint is full (`rollover`, Narrow): **Finishing:** Milestone {X}}
 
 ## Status at a glance
 
@@ -156,6 +225,11 @@ table or in Parked; a spec in neither is a finding.}
 code) and any blocker; say which order is ruled and which is proposed. Later: the following milestone's
 chain on one line. Parked: a table `Item | Why`, so a parked spec is visibly not a gate.}
 
+## Next sprint
+
+{Only once the sprint is full: the unfinished items of every milestone but the one being finished, in order,
+each naming its milestone. Nothing here is started before the rollover.}
+
 ## Gaps
 
 {Things the milestones need that nothing owns yet (no spec, no issue, no charter).}
@@ -172,24 +246,20 @@ chain on one line. Parked: a table `Item | Why`, so a parked spec is visibly not
 
 {Only questions that block a milestone or need a ruling. Delete a question when it is answered.}
 
-## Recent decisions (the Ledger)
-
-{One line per material decision, newest first, at most 12 lines. Facts a fresh agent would otherwise pay to
-rediscover go here only until `retrospect` ingests them into a skill, AGENTS.md or architecture.md.}
-
 ## Repo state
 
 {Branch, cleanliness, open PRs, worktrees, next migration number, deployed sha. Two or three lines.}
 ```
 
-There is no table of every spec ever shipped, no "Why this order" essay and no "Next Action" section (that is
-Now / Next). The ordering rationale lives in the specs' own Context and in the Next list; a rejected ordering
-goes in the Ledger for a checkpoint and then to the archive.
+There is no table of every spec ever shipped, no "Why this order" essay, no "Next Action" section (that is
+Now / Next), no decisions section and no handoff section (a note for the next orchestrator goes in the relay's
+`handoff`, or is a line of Position). The ordering rationale lives in the specs' own Context and in the Next
+list; a rejected ordering is a row in the decisions log.
 
 ### Archive file
 
 `knowledge/sprint-archive.md` is append-only and has these sections: *Sequence table* (frozen rows),
-*Position diary*, *Ledger*, *Old open questions*, *Direction changes*, *Goal and milestone definitions as first
+*Position diary*, *Old open questions*, *Direction changes*, *Goal and milestone definitions as first
 agreed*. A checkpoint moves content here verbatim; nothing is summarised away.
 
 ---
@@ -203,9 +273,9 @@ agreed*. A checkpoint moves content here verbatim; nothing is summarised away.
    the spec file holds the design and the PLAN holds the cycle's scope and test obligations. A sprint file that restates a spec
    will drift from it, and the drift is invisible.
 
-3. **The Ledger is a staging area, not a second home.** A fact belongs there only until
-   `retrospect` ingests it into an area skill, `AGENTS.md` or `knowledge/architecture.md`. At each
-   checkpoint, prune what has landed elsewhere. A durable fact left only here dies with the sprint.
+3. **Decisions go to the decisions log, never here.** One row per decision, written by the agent that made
+   it. A durable rule still has to reach an area skill, `AGENTS.md` or `knowledge/architecture.md` through
+   `retrospect`: the log records that something was decided, it is not where agents learn how to work.
 
 4. **Reference specs and cycles by stable ID, never by seq-prefixed path.** `[[AGT43]]`, not
    `knowledge/specs/065-AGT43-suggestion-expiry/AGT43.md`. The seq is a reassignable ordering
@@ -226,8 +296,8 @@ agreed*. A checkpoint moves content here verbatim; nothing is summarised away.
 8. **Concise.** A checkpoint, not a narrative. Status cells are a few words; detail belongs in the spec,
    the PLAN or the RETRO, which the row links to by ID.
 
-9. **Archive, don't accumulate.** Position keeps five lines, the Ledger twelve, Open questions only open
-   ones, and the whole file stays near 150 lines. Move overflow to `sprint-archive.md` verbatim in the same
+9. **Archive, don't accumulate.** Position keeps five lines, Open questions only open
+   ones, and the whole file stays under 150 lines. Move overflow to `sprint-archive.md` verbatim in the same
    commit. Shipped rows stay in their milestone table as ✅ until that milestone's demo has run, then move
    to the archive.
 
@@ -248,7 +318,7 @@ agreed*. A checkpoint moves content here verbatim; nothing is summarised away.
   number; the coder picks it at implementation time (`execute-cycle`).
 - **`handoff`** takes over inside one cycle's execution. The two coexist: a sprint may have a live
   `knowledge/SPRINT.md` and an executing cycle with its own `HANDOFF.md`. Neither replaces the other.
-- **`retrospect`** is what drains the Ledger. When it ingests a lesson into a skill or doc, the
-  next checkpoint removes it from here.
+- **`retrospect`** carries a cycle's lessons into skills and docs. The decisions log is not drained: a row
+  stays as the record of the decision after its lesson has been ingested.
 - **`wiki-lint`** should treat a `knowledge/SPRINT.md` whose specs are all `shipped` as a finding —
   the sprint should have been closed.

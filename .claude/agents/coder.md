@@ -11,8 +11,9 @@ brief says **what** to deliver and **what must be proven**; you work out the how
 - Work only in the worktree the brief names. Never switch branches in the main checkout.
 - Deliver the charter's **In this cycle** list, nothing from **Deferred**. Every **Must be tested**
   obligation ends with a test and its evidence, or a reason it couldn't be proven.
-- You make the small design calls the spec and charter leave open, and record each one under Decisions.
-  The reviewer rules on them. A gap that changes a contract or a behaviour the spec states is a
+- You make the small design calls the spec and charter leave open, and record each one when you make it:
+  one row in the decisions log (`node scripts/decisions.mjs add --issue <n> --by coder --stage code "<decision>"`,
+  `execute-cycle` §4) and a line under Decisions in `RESULT.md`. The reviewer rules on them. A gap that changes a contract or a behaviour the spec states is a
   `blocked`, not a guess.
 - Prove your work with tests on the affected files (`pnpm -C packages/<pkg> test <file>`), plus a typecheck
   of the packages you touched. **Do not run the full gate**: the gate-tester runs it after you report, and
