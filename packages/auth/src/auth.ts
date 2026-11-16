@@ -373,21 +373,15 @@ const endpointGate = (
         client_name: body?.client_name ?? null,
       }),
     )
-    // RFC 7591 s2: an omitted `token_endpoint_auth_method` defaults to a secret-based method, but this server registers public clients only, so omitted means `none` (Claude web's registration, OPS252).
+    // RFC 7591 s2: an omitted `token_endpoint_auth_method` defaults to a secret-based method; this server keeps registering such a client as public (`none`), as before.
     if (body && body.token_endpoint_auth_method === undefined) body.token_endpoint_auth_method = 'none'
-    // RFC 7591 s3.2.1: the server may replace a requested value and answers with the one it registered. Claude web asks for `client_secret_post` whatever the metadata lists, so a
-    // secret-based request is registered as the public client this server admits (`none`, no secret, PKCE), and the response says so.
-    if (
-      body &&
-      (body.token_endpoint_auth_method === 'client_secret_post' ||
-        body.token_endpoint_auth_method === 'client_secret_basic')
-    )
-      body.token_endpoint_auth_method = 'none'
+    // The library's own registration methods: a connector may ask for a secret (`client_secret_post`/`client_secret_basic`, which Claude web does and which Cloudflare's reference MCP
+    // authorization server answers by issuing one) or none. Anything else (`private_key_jwt` needs registered keys) is refused.
     const method = body?.token_endpoint_auth_method
-    if (method !== 'none')
+    if (method !== 'none' && method !== 'client_secret_post' && method !== 'client_secret_basic')
       throw new APIError('BAD_REQUEST', {
         error: 'invalid_client_metadata',
-        error_description: 'only public clients may register: token_endpoint_auth_method must be none',
+        error_description: 'token_endpoint_auth_method must be one of none, client_secret_post, client_secret_basic',
       })
   })
 
@@ -579,8 +573,7 @@ export function staticAuthServerMetadata(baseURL: string, vaultScopes: readonly 
     response_types_supported: ['code'],
     response_modes_supported: ['query'],
     grant_types_supported: ['authorization_code', 'client_credentials', 'refresh_token', DEVICE_GRANT],
-    // Registration admits public clients only (the policy in the before-hook), so a connector must not be offered a secret-based method: Claude web chose `client_secret_post` when it was listed and was refused.
-    token_endpoint_auth_methods_supported: ['none'],
+    token_endpoint_auth_methods_supported: ['none', ...publicMethods],
     introspection_endpoint_auth_methods_supported: publicMethods,
     revocation_endpoint_auth_methods_supported: publicMethods,
     code_challenge_methods_supported: ['S256'],

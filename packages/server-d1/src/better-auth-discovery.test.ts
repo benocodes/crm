@@ -57,8 +57,6 @@ describe('the issuer metadata at the RFC 8414 path-inserted URL (OPS252)', () =>
         expected[k] = expected[k].filter((m: string) => m !== 'private_key_jwt')
       if (k.endsWith('_auth_signing_alg_values_supported')) delete expected[k]
     }
-    // Registration admits public clients only, so the token endpoint advertises `none` alone (Claude web picked client_secret_post when offered it).
-    expected.token_endpoint_auth_methods_supported = ['none']
     expect(served.json).toEqual(expected)
     expect(served.headers.get('access-control-allow-origin')).toBe('*')
   })

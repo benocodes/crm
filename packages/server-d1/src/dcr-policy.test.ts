@@ -79,13 +79,13 @@ describe('DCR policy (P6)', () => {
     expect(body.token_endpoint_auth_method).toBe('none')
   })
 
-  it('a secret-based request is registered as a public client and answered as such (Claude web asks for client_secret_post, OPS252): 201, none, no secret', async () => {
+  it('a secret-based request registers a confidential client and is answered with its secret and the method (Claude web asks for client_secret_post, OPS252): 201', async () => {
     for (const method of ['client_secret_post', 'client_secret_basic']) {
       const res = await register(meta({ token_endpoint_auth_method: method }))
       expect(res.status, `${method}: ${await res.clone().text()}`).toBe(201)
       const body = (await res.json()) as Record<string, any>
-      expect(body.client_secret, method).toBeUndefined()
-      expect(body.token_endpoint_auth_method, method).toBe('none')
+      expect(body.client_secret, method).toBeTruthy()
+      expect(body.token_endpoint_auth_method, method).toBe(method)
     }
   })
 
