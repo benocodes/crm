@@ -9,9 +9,9 @@ import { bytesOf, FakeChannel } from '@vibase/api/test/channels'
 import { nodeStreams } from '@vibase/api/test/streams'
 import { captureMessage, ensureConnection, tenantEnv } from '@vibase/api/test/capture'
 import { captureMessages, fileBlobKey, messageBodyKey, r2ObjectStore, recordMessagesOperation } from '@vibase/api'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { type D1WorkerEnv } from './compose.js'
 import {
+  bootstrapD1,
   NOW,
   clerkKit,
   meterD1,
@@ -39,8 +39,8 @@ const FREE_PLAN_EXCEPTIONS: Record<string, string> = {
 
 /** The exact D1 query count of each scenario, pinned from the first green run: a new round trip is a reviewed change. */
 const EXPECTED_QUERIES: Record<string, number> = {
-  'cold-first-request': 6, // migration-state read ([[CORE61]] D6, once per isolate), the control gate's deployment read ([[CORE326]] P1, once per isolate; the control database's own reads are not metered), marker read, auth read, auth stamp, operation read
-  'key-auth-stamp': 3, // auth read, auth stamp, operation read
+  'cold-first-request': 5, // migration-state read ([[CORE61]] D6, once per isolate), the control gate's deployment read ([[CORE326]] P1, once per isolate; the control database's own reads are not metered), marker read, agent read, operation read (a bootstrap key is a control key since [[CORE356]]: its lookup and its stamp are control queries, not metered; was 6 with the CRM stamp)
+  'key-auth-stamp': 2, // agent read, operation read (the key's lookup and stamp are control queries since [[CORE356]]; was 3)
   'key-auth-read': 2, // auth read, operation read
   'task-patch': 3, // auth read, operation read, operation write
   'resolve-100-new': 3,

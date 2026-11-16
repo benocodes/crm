@@ -7,9 +7,8 @@ import {
   type D1Like,
   type D1PreparedLike,
 } from '@vibase/storage-d1'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { type D1WorkerEnv } from './compose.js'
-import { NOW, openWorkerPair, type WorkerPair, composeD1Worker } from './test/kit.js'
+import { bootstrapD1, NOW, openWorkerPair, type WorkerPair, composeD1Worker } from './test/kit.js'
 
 // CORE337 group 5 (P2): the per-minute tick runs webhook dispatch and the sender only when the request path's control conditions hold (the binding, control migrations current or ahead, the control marker
 // paired with the CRM's). Otherwise both are skipped with one line naming the reason, no control query touches a webhook table, no fetch leaves, and the expiry and runner sweeps still run.

@@ -3,10 +3,18 @@ import { execute, uuidv7 } from '@vibase/storage'
 import { d1Binding } from '@vibase/storage-d1'
 import { createVibaseRegistry, scopesForRole } from '@vibase/api'
 import { mintClerkToken, orgClaim } from '@vibase/api/test/clerk'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { type D1WorkerEnv } from './compose.js'
 import { initDeploymentOperation } from './init-deployment.js'
-import { NOW, clerkKit, clerkUser, openWorkerD1, type ClerkKit, type WorkerD1, composeD1Worker } from './test/kit.js'
+import {
+  bootstrapD1,
+  NOW,
+  clerkKit,
+  clerkUser,
+  openWorkerD1,
+  type ClerkKit,
+  type WorkerD1,
+  composeD1Worker,
+} from './test/kit.js'
 
 // [[CORE64]] cycle 1: workspace sign-in on D1. A Clerk session token's `vibase_role` claim is the only authority; the vault
 // keeps no membership state and reads no organisation claim.
@@ -382,7 +390,11 @@ describe('bootstrap on a Clerk-backed D1 (D11)', () => {
     const [system] = await rows('principals').then((p) => p.filter((x) => x.kind === 'system'))
     expect(system).toBeDefined()
     expect(await rows('agents')).toMatchObject([{ id: r.agentId, created_by: system!.id }])
-    expect(await rows('api_keys')).toMatchObject([{ id: r.apiKeyId, agent_id: r.agentId, created_by: system!.id }])
+    // [[CORE356]]: the key is a control key attributed to the system principal; the CRM database has none.
+    expect(await rows('api_keys')).toEqual([])
+    expect((await w.control.prepare('select * from api_keys').all()).results).toMatchObject([
+      { id: r.apiKeyId, agent_id: r.agentId, created_by: system!.id },
+    ])
   })
 
   it('the agent is optional: without one only the marker and the organisation are written', async () => {

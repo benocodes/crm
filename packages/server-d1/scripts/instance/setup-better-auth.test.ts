@@ -8,6 +8,7 @@ import { seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { bootstrapD1 } from '../../src/bootstrap-d1.js'
 import { openWorkerPair, type WorkerPair } from '../../src/test/kit.js'
 import { makeClerk } from '../setup/test/clerk-world.js'
+import { memoryControl } from '../setup/test/world.js'
 import {
   ALL_MIGRATIONS,
   API_HOST,
@@ -369,7 +370,8 @@ describe('5. the bootstrap step on better-auth (D6)', () => {
     ['none', { authProvider: 'none', authOrgId: 'demo', email: 'x@example.com', agentName: 'a' }],
     ['clerk', { authProvider: 'clerk', authOrgId: 'https://c.example.com' }],
   ])('a %s: marker is refused (exit 3), whatever else is in the database', async (provider, link) => {
-    await bootstrapD1(pair.d1, { organizationName: 'Acme', ...link })
+    // The agent's key needs a control database; a scratch one keeps the real pair's marker untouched.
+    await bootstrapD1(pair.d1, { organizationName: 'Acme', ...link }, { control: openControlDb(memoryControl()) })
     const s = world({ sim: { marker: await readMarker(pair.d1) } })
     expect(await run(s)).toBe(3)
     expect(row(s, 'bootstrap').status).toBe('fail')
@@ -383,7 +385,9 @@ describe('5. the bootstrap step on better-auth (D6)', () => {
     const key = /^DEMO_KEY=(\S+)$/m.exec(file(s))?.[1]
     expect(key).toBeTruthy()
     expect(surface(s)).not.toContain(key!)
-    expect(await rowsOf(pair.d1, 'select * from api_keys')).toHaveLength(1)
+    expect(await rowsOf(pair.d1, 'select * from api_keys')).toHaveLength(0)
+    expect(await rowsOf(pair.control, 'select * from api_keys')).toHaveLength(1)
+    expect(await rowsOf(pair.control, "select * from control_audit where action = 'api_key.created'")).toHaveLength(1)
   })
 })
 

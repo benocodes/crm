@@ -8,9 +8,8 @@ import {
   recordMigrations,
   type LocalD1,
 } from '@vibase/storage-d1/test'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { type D1WorkerEnv } from './compose.js'
-import { NOW, openWorkerD1, spyD1, type WorkerD1, composeD1Worker } from './test/kit.js'
+import { bootstrapD1, NOW, openWorkerD1, spyD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 const NAMES = MIGRATIONS.map((m) => m.name)
 const LAST = NAMES[NAMES.length - 1]!

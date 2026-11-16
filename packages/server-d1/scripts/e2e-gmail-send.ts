@@ -8,15 +8,22 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
 import { execute, uuidv7 } from '@vibase/storage'
-import { d1Binding, MIGRATIONS, type D1Like } from '@vibase/storage-d1'
-import { MIGRATIONS_DIR, splitStatements, createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
+import { d1Binding, MIGRATIONS, openControlDb, type D1Like } from '@vibase/storage-d1'
+import {
+  MIGRATIONS_DIR,
+  applyControlMigrations,
+  splitStatements,
+  createMigrationTracker,
+  recordMigrations,
+} from '@vibase/storage-d1/test'
 import { seedAgent } from '@vibase/storage-d1/test/seed'
-import { ScopeSet, sealToken, hashApiKey } from '@vibase/api'
+import { ScopeSet, sealToken } from '@vibase/api'
 import { connectOperation } from '../../api/src/connections/connect.js'
 import { FakeGmail } from '@vibase/api/test/gmail'
 import { gmailFixture } from '@vibase/api/test/gmail-fixtures'
 import { API_URL, SECRET_KEY, clerkUser, fakeClerkFetch, mintClerkToken, testIssuer } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from '../src/bootstrap-d1.js'
+import { mintControlKey } from './e2e-keys.js'
 
 const dir = mkdtempSync(join(tmpdir(), 'vb-gmail-send-e2e-'))
 const bundle = join(dir, 'worker.mjs'),
@@ -40,7 +47,7 @@ const options = () => ({
   modulesRoot: dir,
   compatibilityDate: '2026-07-30',
   compatibilityFlags: ['nodejs_compat'],
-  d1Databases: { DB: 'gmail-send-e2e' },
+  d1Databases: { DB: 'gmail-send-e2e', CONTROL_DB: 'gmail-send-e2e-control' },
   d1Persist: join(dir, 'd1'),
   r2Buckets: ['BODIES'],
   r2Persist: join(dir, 'r2'),
@@ -96,11 +103,17 @@ try {
     .filter((f) => f < '0013')
     .sort())
     await d1.batch(splitStatements(readFileSync(join(MIGRATIONS_DIR, f), 'utf8')).map((s) => d1.prepare(s)))
-  const boot = await bootstrapD1(d1, {
-    organizationName: 'Gmail E2E',
-    agentName: 'legacy-seed-agent',
-    authOrgId: issuer.issuer,
-  })
+  let control = (await mf.getD1Database('CONTROL_DB')) as unknown as D1Like
+  await applyControlMigrations(control)
+  const boot = await bootstrapD1(
+    d1,
+    {
+      organizationName: 'Gmail E2E',
+      agentName: 'legacy-seed-agent',
+      authOrgId: issuer.issuer,
+    },
+    { control: openControlDb(control) },
+  )
   const org = boot.organizationId,
     oldId = uuidv7(),
     oldRequest = uuidv7(),
@@ -139,6 +152,7 @@ try {
   mf = new Miniflare(options())
   await mf.ready
   d1 = (await mf.getD1Database('DB')) as unknown as D1Like
+  control = (await mf.getD1Database('CONTROL_DB')) as unknown as D1Like
   const rows = async (s: string, ...binds: unknown[]) =>
     (
       await d1
@@ -197,12 +211,8 @@ try {
     const id = uuidv7(),
       secret = 'vk_' + Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
     await seedAgent(d1, { id, organizationId: org, createdBy: owner, name, scopes })
-    await d1
-      .prepare(
-        'insert into api_keys (id,created_at,updated_at,organization_id,created_by,agent_id,prefix,key_hash) values (?,?,?,?,?,?,?,?)',
-      )
-      .bind(uuidv7(), at, at, org, owner, id, secret.slice(0, 11), await hashApiKey(secret))
-      .run()
+    // [[CORE356]] P5: the key is minted on CONTROL_DB through the control store.
+    await mintControlKey(control, { organizationId: org, agentId: id, actorId: owner, key: secret })
     return { id, secret }
   }
   const writer = await actor('composer', ['messages:read', 'messages:write', 'action_requests:read'])

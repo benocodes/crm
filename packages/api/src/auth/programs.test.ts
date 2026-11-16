@@ -510,11 +510,23 @@ const BOOTSTRAP_ARGS = {
   scopes: ['tasks:read'],
   ids: { user: USER, membership: id(70), agent: AGENT, apiKey: KEY },
   secret: { key: PLAINTEXT, hash: HASH, prefix: PLAINTEXT.slice(0, 11) },
+  crmKey: true,
   now: NOW,
 }
 
 describe('bootstrap (C7, P14)', () => {
   const args = BOOTSTRAP_ARGS
+
+  // [[CORE356]] P4: the CRM key statement is the Postgres path's only; D1's key is minted on the control plane after the unit.
+  it.each(dialects)('crmKey decides whether a CRM api_keys statement is built on %s', (dialect) => {
+    const found = { 'bs:user': null, 'bs:holder': null, 'bs:org': null }
+    const writesKey = (crmKey: boolean) =>
+      sqls(build(bootstrapOperation({ ...args, crmKey }), dialect, found)).some((q) =>
+        /insert into "api_keys"/i.test(q),
+      )
+    expect(writesKey(true)).toBe(true)
+    expect(writesKey(false)).toBe(false)
+  })
 
   it.each(dialects)('never carries the plaintext key in a statement and writes no event on %s', (dialect) => {
     const found = { 'bs:user': null, 'bs:holder': null, 'bs:org': null }

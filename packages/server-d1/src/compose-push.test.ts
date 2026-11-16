@@ -7,10 +7,9 @@ import { FakeGmail } from '@vibase/api/test/gmail'
 import { seedGmailConnection } from '@vibase/api/test/gmail-sync'
 import { MIGRATIONS, d1Binding } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { type D1WorkerEnv } from './compose.js'
 import { readDeployment } from './init-deployment.js'
-import { NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
+import { bootstrapD1, NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // [[CHN155]] / [[CHN5]] D87, D89, D92: the composed Worker's push gate, the cron's watch renewal and the recorder's run name, over a local D1 with Google faked at the `fetch` seam.
 const KEY = new Uint8Array(32).fill(7)

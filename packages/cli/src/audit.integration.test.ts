@@ -62,10 +62,12 @@ it('audit list answers the control-plane log, filters by flag, and the command i
   expect(all.stderr).toBe('')
   expect(all.code).toBe(0)
   const body = JSON.parse(all.stdout)
+  // [[CORE356]]: the bootstrap key's own `api_key.created` row closes the log (its id is newer than the planted ones).
   expect(body.data.map((x: any) => x.action)).toEqual([
     'invitation.created',
     'invitation.revoked',
     'user.sessions_revoked',
+    'api_key.created',
   ])
   expect(body.data[0].detail).toEqual({ k: 'v' })
   const some = await r.run(['audit', 'list', '--target-id', 'cli-1', '--action', 'invitation.revoked', '--limit', '5'])

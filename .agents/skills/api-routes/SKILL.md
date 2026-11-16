@@ -52,7 +52,11 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - `src/operations.ts` (`createVibaseRegistry`, where new resources and operations are added);
   - `src/rest/{app,errors,openapi}.ts` (`createApp`, `renderError`);
   - `src/auth/{types,api-keys,middleware}.ts`;
-  - `src/bootstrap.ts` (`bootstrapOperation`, `bootstrap(storage, opts, env?)`: one internal unit, no events).
+  - `src/bootstrap.ts` (`bootstrapOperation`, `bootstrap(storage, opts, env?)`: one internal unit, no events). On D1 the
+    unit has no `api_keys` step: the key is minted after the CRM commit through `env.keyStore` (the control
+    `ApiKeyStorePort.create`, with its `api_key.created` audit row); only Postgres sets `BootstrapArgs.crmKey` and keeps the
+    CRM step until #329. A control failure after the CRM commit fails the run naming the agent and `api_keys.create` as
+    the recovery; there is no resume path ([[CORE356]] P1/P2).
 - **Postgres composition** (`@vibase/server-postgres`, enterprise, [[CORE36]] D22, since [[CORE44]]): every entry point
   that picks the Postgres runtime lives here, importing the app from the `@vibase/api` barrel.
   `packages/api` production code imports none of `pg`, `@vibase/db`, `@vibase/storage-postgres` or
@@ -1110,7 +1114,7 @@ or an operation (`control-boundary.test.ts`, [[CORE259]] D5).
   both stores is decided by control alone); the stamp goes to the store that holds the key. The per-isolate cache
   holds only the immutable (key id, agent id, organisation id) per hash and belongs to the authenticator `createApp`
   builds (one per composed app, never module state); revocation, expiry, the agent's `disabled_at` and scopes are
-  read on every request, so a warm isolate answers as a cold one. The four `api_keys.*` operations write and read control only since [[CORE351]] (a key held only in the CRM database is 404 there: none is in use); the other writers (bootstrap, setup, e2e) stay on CRM `api_keys` until #356. Written only by the control store's key methods: `insertApiKey`
+  read on every request, so a warm isolate answers as a cold one. The four `api_keys.*` operations write and read control only since [[CORE351]] (a key held only in the CRM database is 404 there: none is in use); since [[CORE356]] so do every other writer on D1 (`bootstrap`, `bootstrapWorkspace`, `bootstrapD1` local and `--remote`, both setup front-ends, the e2e scripts through `scripts/e2e-keys.ts`); the only CRM `api_keys` writes left are the parked Postgres bootstrap and test seeds of the fallback, until #329. Written only by the control store's key methods: `insertApiKey`
   and `revokeApiKey` are each one control batch with their `api_key.created` / `api_key.revoked` `control_audit`
   row (`detail` holds `agent_id`, `prefix`, `expires_at`, never the key, its hash or any part of it);
   `stampApiKeyUsed` writes `last_used_at` only, at most once a minute, never `updated_at`, with no audit row

@@ -207,6 +207,11 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   (`openWorkerPair` in `src/control-plane.test.ts`) and once on the real `wrangler.jsonc` (`better-auth-wrangler.test.ts`).
   The instance kit does the same (`validSettings` carries `control_d1`, `noControlSettings` does not). Import from the kit;
   composing straight from `src/compose.ts` in a test now fails closed.
+  [[CORE356]] did the same for keys: the kit's `bootstrapD1` wraps the real one and defaults `control` to the pair of an
+  `openWorkerD1` binding, so a bootstrapped key lands in control; import `bootstrapD1` from the kit in server-d1 suites,
+  not from `src/bootstrap-d1.ts`. `control_audit` is append-only, so a bootstrap now adds an `api_key.created` row to
+  every log: a suite that pins an exact audit log bootstraps with `unauditedControl` (its audit inserts do nothing)
+  rather than filtering the row out.
 - **Docs that quote program text are checked against the program's constant.** The docs test imports the constant,
   never retypes it, so editing the constant turns the docs check red. A check that the docs "do not promise X yet" can
   only search for names (`owner-reset`, `workers.dev`). A paraphrase ("the owner recovery tools need it") passes it, so

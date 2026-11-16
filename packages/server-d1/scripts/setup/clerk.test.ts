@@ -22,12 +22,14 @@ import {
   type ClerkOptions,
   type FakeClerk,
 } from './test/clerk-world.js'
+import { openControlDb } from '@vibase/storage-d1'
 import {
   EXPECTED_MIGRATIONS,
   FIXTURE_CONFIG_PATH,
   SHA,
   isWriteCommand,
   makeWorld,
+  memoryControl,
   type World,
   type WorldOptions,
 } from './test/world.js'
@@ -876,13 +878,17 @@ describe('12. verify (D21) and 13. the repair hint (D39)', () => {
       applied: [...EXPECTED_MIGRATIONS],
       deployedSha: SHA,
     })
-    await bootstrapD1(db.d1, {
-      organizationName: 'smoked1',
-      email: 'o@example.com',
-      agentName: 'a',
-      authProvider: 'none',
-      authOrgId: 'smoked1',
-    })
+    await bootstrapD1(
+      db.d1,
+      {
+        organizationName: 'smoked1',
+        email: 'o@example.com',
+        agentName: 'a',
+        authProvider: 'none',
+        authOrgId: 'smoked1',
+      },
+      { control: openControlDb(memoryControl()) },
+    )
     const o = await runSetup(
       ['--env', 'smoked1', '--auth', 'none', '--api-host', 'api.smoked1.vibase.ai', '--only', 'verify'],
       CONFIRM,
@@ -903,6 +909,11 @@ describe('bootstrap with the Clerk marker (D18, D38)', () => {
     expect(states(second)).toContain('bootstrap:create')
     expect(await readDeployment(db.d1)).toMatchObject({ authProvider: 'clerk', authOrgId: ISSUER })
     expect(w.state.envText).toMatch(/^ACME_KEY=.{17,}$/m)
+    // [[CORE356]]: the operator key is a control key with its audit row; the CRM database has none.
+    expect(((await db.d1.prepare('select count(*) as n from api_keys').first()) as { n: number }).n).toBe(0)
+    const ctl = w.control as ReturnType<typeof memoryControl>
+    expect(ctl.keys).toHaveLength(1)
+    expect(ctl.audit).toHaveLength(1)
     const users = await db.d1.prepare('select count(*) as n from users').first()
     expect((users as { n: number } | null)?.n).toBe(0)
   })

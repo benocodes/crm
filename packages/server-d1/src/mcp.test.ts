@@ -6,12 +6,12 @@ import { execute, uuidv7 } from '@vibase/storage'
 import { d1Binding } from '@vibase/storage-d1'
 import { closeScopes, createVibaseRegistry, grantableScopes, toolName } from '@vibase/api'
 import { mintClerkToken, mintOAuthToken } from '@vibase/api/test/clerk'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { type D1WorkerEnv } from './compose.js'
 import { initDeploymentOperation } from './init-deployment.js'
 import { MIGRATIONS } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import {
+  bootstrapD1,
   NOW,
   clerkKit,
   clerkUser,

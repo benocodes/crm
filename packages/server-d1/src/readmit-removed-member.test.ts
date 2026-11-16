@@ -11,10 +11,9 @@ import {
   type D1PreparedLike,
 } from '@vibase/storage-d1'
 import { createVibaseRegistry, scopesForRole } from '@vibase/api'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET, authKit } from './test/auth-kit.js'
-import { openWorkerPair, type WorkerPair } from './test/kit.js'
+import { bootstrapD1, openWorkerPair, type WorkerPair } from './test/kit.js'
 
 // [[CORE302]] / [[CORE243]] D14 P1-P6: re-admitting a removed member on `better-auth`, through the real Worker composition. A removed member's account and `users` row stay; an invitation token
 // presented on a sign-in (the `vibase-invitation` header on `/auth/sign-in/email`: Better Auth's sign-in body schema strips unknown fields, proven by this file's first test) restores a membership

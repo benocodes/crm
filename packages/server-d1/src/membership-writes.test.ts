@@ -5,10 +5,11 @@ import { MIGRATIONS, openControlDb, type D1Like } from '@vibase/storage-d1'
 import { seedAgent, seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { SCOPE_POLICY, assertAgentGrantable, createVibaseRegistry, grantableScopes, scopesForRole } from '@vibase/api'
 import { mintClerkToken } from '@vibase/api/test/clerk'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { type D1WorkerEnv } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET, authKit, type AuthKit } from './test/auth-kit.js'
 import {
+  bootstrapD1,
+  unauditedControl,
   NOW,
   clerkKit,
   clerkUser,
@@ -44,7 +45,7 @@ beforeEach(async () => {
   const r = await bootstrapD1(
     w.d1,
     { organizationName: 'Acme', email: 'boot@x.test', agentName: 'bot', authProvider: 'none', authOrgId: 'org_acme' },
-    { now: NOW, newId: () => uuidv7(NOW), control: openControlDb(w.control) },
+    { now: NOW, newId: () => uuidv7(NOW), control: openControlDb(unauditedControl(w.control)) },
   )
   orgId = r.organizationId
   bootUser = r.userId!

@@ -240,7 +240,7 @@ export async function runBootstrap(
       } catch (err) {
         const code = (err as NodeJS.ErrnoException).code ?? 'unknown'
         io.error(
-          `api_key: could not be written to .env (${code}); the key is lost: revoke api key ${r.apiKeyId} and create a new one`,
+          `api_key: could not be written to .env (${code}); the key is lost: revoke control api key ${r.apiKeyId} (api_keys.revoke) and create a new one`,
         )
         return 1
       }

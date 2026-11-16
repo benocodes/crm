@@ -1,8 +1,7 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { bootstrapD1 } from '@vibase/server-d1/bootstrap'
-import { composeD1Worker, openWorkerD1, type WorkerD1 } from '@vibase/server-d1/test'
+import { bootstrapD1, composeD1Worker, openWorkerD1, type WorkerD1 } from '@vibase/server-d1/test'
 import { rig, SERVER } from './test/harness.js'
 
 // [[API6]] cycle 1: the CLI against the real D1 app, in process, with an API-key profile (no auth provider).

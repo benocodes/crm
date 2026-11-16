@@ -1,6 +1,7 @@
 // OPS279 (`vibase-server setup`): the control database `vb-control-<env>` is derived, created, recorded as `control_d1`, migrated before the CRM database and
 // paired by the control marker ([[CORE259]] D7, D9, D14, D16; [[OPS276]] P3 extended, P4). `setup:remote`'s side is scripts/setup/control-database.test.ts.
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { memoryControl } from '../setup/test/world.js'
 import { openControlDb, readControlMarker, writeControlMarker } from '@vibase/storage-d1'
 import { bootstrapD1 } from '../../src/bootstrap-d1.js'
 import { readDeployment } from '../../src/init-deployment.js'
@@ -274,13 +275,17 @@ describe('the control marker in the bootstrap step (D7, D9)', () => {
       },
     })
   const legacyBootstrap = () =>
-    bootstrapD1(d1.d1, {
-      organizationName: 'demo',
-      authProvider: 'none',
-      authOrgId: 'demo',
-      email: 'owner@example.com',
-      agentName: 'op',
-    })
+    bootstrapD1(
+      d1.d1,
+      {
+        organizationName: 'demo',
+        authProvider: 'none',
+        authOrgId: 'demo',
+        email: 'owner@example.com',
+        agentName: 'op',
+      },
+      { control: openControlDb(memoryControl()) },
+    )
 
   it('fresh instance, marker only: the control marker follows the CRM deployment row and names its organisation', async () => {
     const order: string[] = []

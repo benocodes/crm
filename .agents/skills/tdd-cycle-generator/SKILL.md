@@ -256,6 +256,13 @@ makes a configuration mandatory that tests omit today, name the kit default that
 round was dead branches: the charter listed the scripts to refuse but not the code that consumed the old optional value
 (`instance/gate.ts`, `upgrade.ts`). When a value turns from optional to required, ask for every `?`/`undefined` branch on
 it to go, by property (grep the field name).
+**CORE356** (`knowledge/specs/015-CORE356-api-key-writers-control/RETRO.md`): 5 groups (1 matrix), 4 spec decisions + 5
+planner rules, no migration, no E2E, rider existing fixtures. ~283k / 129 calls in one run, +266 code / +653 test lines, 64
+files, approved round 1. Over the call count of comparable cycles because the rider was ~40 suites that bootstrap through
+`bootstrapD1` (import switched to a kit wrapper) and 8 that counted CRM keys or pinned an audit log. When a charter moves a
+write that a shared test helper performs, grep the helper's callers at plan time and put the count in the Size line
+(`rider: existing fixtures (~40 bootstrapD1 callers)`); above ~30, name the kit wrapper in Watch out so the coder edits one
+default, not each suite.
 
 ### Step 3: Resolve identities
 

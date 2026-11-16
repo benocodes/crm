@@ -1,8 +1,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { uuidv7 } from '@vibase/storage'
-import { clearD1 } from '@vibase/storage-d1/test'
+import { apiKeyStore, openControlDb, type D1Like } from '@vibase/storage-d1'
+import { clearD1, openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
 import { seedDeployment } from '@vibase/storage-d1/test/seed'
 import { authenticateApiKey, hashApiKey } from './auth/api-keys.js'
+import { createApiKeyAuthenticator } from './auth/api-key-control.js'
 import { bootstrap } from './bootstrap.js'
 import { openAuthKit, type AuthKit } from './test/auth-kit.js'
 import { openEngines, type Engine, type EngineName } from './test/engines.js'
@@ -14,11 +16,21 @@ const TABLES = ['organizations', 'principals', 'users', 'memberships', 'agents',
 /** The suite body: one instance per engine entry file (`*.d1.test.ts`, `*.postgres.test.ts`). */
 export function engineSuite(engineName: EngineName): void {
   let engines: Engine[]
+  // [[CORE356]]: on D1 the key is minted on the control plane; Postgres (parked, no control plane) keeps its CRM key step.
+  let local: LocalD1 | undefined
+  let control: D1Like | undefined
+  let store: ReturnType<typeof apiKeyStore> | undefined
   beforeAll(async () => {
     engines = await openEngines([engineName])
+    if (engineName === 'd1') {
+      local = await openLocalD1(['control'], { control: ['control'] })
+      control = local.bindings.control!
+      store = apiKeyStore(openControlDb(control))
+    }
   })
   afterAll(async () => {
     for (const e of engines) await e.close()
+    await local?.dispose()
   })
 
   describe.each([engineName])('bootstrap on %s', (name) => {
@@ -29,6 +41,7 @@ export function engineSuite(engineName: EngineName): void {
     })
     beforeEach(async () => {
       await e.reset()
+      if (control) await clearD1(control)
       kit = await openAuthKit(e)
       // D1 bootstraps a deployment that has its marker and no organisation row yet (CORE41 P14).
       if (name === 'd1') {
@@ -38,10 +51,25 @@ export function engineSuite(engineName: EngineName): void {
     })
     afterEach(() => vi.restoreAllMocks())
 
-    const state = async () =>
-      Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, await e.rows(t)] as const)))
+    const ctl = async (table: string) =>
+      control
+        ? (((await control.prepare(`select * from ${table}`).all()).results ?? []) as Array<Record<string, any>>)
+        : []
+    const state = async () => ({
+      ...(Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, await e.rows(t)] as const))) as Record<
+        (typeof TABLES)[number],
+        Array<Record<string, any>>
+      >),
+      ctl_api_keys: await ctl('api_keys'),
+      ctl_audit: await ctl('control_audit'),
+    })
     let n = 0
-    const env = () => ({ now: NOW, newId: () => uuidv7(NOW), randomBytes: (k: number) => new Uint8Array(k).fill(++n) })
+    const env = (keyStore: { create: NonNullable<typeof store>['create'] } | null | undefined = store) => ({
+      now: NOW,
+      newId: () => uuidv7(NOW),
+      randomBytes: (k: number) => new Uint8Array(k).fill(++n),
+      ...(keyStore ? { keyStore } : {}),
+    })
     const OPTS = {
       organizationName: 'Acme',
       email: 'Owner@Acme.test',
@@ -80,7 +108,17 @@ export function engineSuite(engineName: EngineName): void {
         created_by: r.userId,
         created_at: NOW.toISOString(),
       })
-      const key = s.api_keys.find((k) => k.id === r.apiKeyId)!
+      // D1: the key and its audit row are on the control plane and the CRM has none; Postgres: the CRM row.
+      const key = (name === 'd1' ? s.ctl_api_keys : s.api_keys).find((k) => k.id === r.apiKeyId)!
+      if (name === 'd1') {
+        expect(s.api_keys).toEqual([])
+        expect(s.ctl_audit).toMatchObject([
+          { action: 'api_key.created', actor_id: r.userId, target_type: 'api_key', target_id: r.apiKeyId },
+        ])
+        expect(s.ctl_audit).toHaveLength(1)
+      } else {
+        expect(s.ctl_api_keys).toEqual([])
+      }
       expect(key).toMatchObject({
         agent_id: r.agentId,
         organization_id: r.organizationId,
@@ -93,6 +131,7 @@ export function engineSuite(engineName: EngineName): void {
       })
       expect(key.key_hash).toBe(await hashApiKey(r.key))
       expect(JSON.stringify(s)).not.toContain(r.key)
+      expect(JSON.stringify(s.ctl_audit)).not.toContain(key.key_hash as string)
       expect(
         s.principals
           .filter((p) => [r.userId, r.agentId].includes(p.id as string))
@@ -114,7 +153,9 @@ export function engineSuite(engineName: EngineName): void {
 
     it('the bootstrapped key authenticates as the agent', async () => {
       const r = await bootstrap(e.binding, OPTS, env())
-      const principal = await authenticateApiKey(kit.binding, r.key, kit.env())
+      const principal = store
+        ? await createApiKeyAuthenticator({ port: store })(kit.binding, r.key, kit.env())
+        : await authenticateApiKey(kit.binding, r.key, kit.env())
       expect(principal).toMatchObject({ actor: { id: r.agentId, kind: 'agent' }, organizationId: r.organizationId })
       expect(principal!.scopes.toStrings()).toEqual(['tasks:read'])
     })
@@ -191,6 +232,34 @@ export function engineSuite(engineName: EngineName): void {
     })
 
     if (name === 'd1') {
+      it('no control key store is refused before either store is written (D1, CORE356 P3)', async () => {
+        const before = await state()
+        await expect(bootstrap(e.binding, OPTS, env(null))).rejects.toThrow(/control/i)
+        expect(await state()).toEqual(before)
+      })
+      it.each([
+        ['throws', async () => Promise.reject(new Error('control is down'))],
+        ['answers duplicate', async () => 'duplicate' as const],
+      ])(
+        'a control insert that %s after the CRM commit fails with the recovery message (D1, CORE356 P2 b)',
+        async (_n, create) => {
+          await expect(bootstrap(e.binding, OPTS, env({ create }))).rejects.toThrow(
+            new RegExp(`${e.organizationId}.*no key.*api_keys\\.create`, 's'),
+          )
+          const s = await state()
+          // The CRM unit committed (the organisation and the agent exist), the control plane holds nothing.
+          expect(s.organizations).toHaveLength(1)
+          expect(s.agents).toHaveLength(1)
+          expect(s.api_keys).toEqual([])
+          expect(s.ctl_api_keys).toEqual([])
+          expect(s.ctl_audit).toEqual([])
+          // A re-run is refused as today and writes nothing to control.
+          await expect(bootstrap(e.binding, { ...OPTS, email: 'second@acme.test' }, env())).rejects.toThrow(
+            `organization ${e.organizationId} is already initialised`,
+          )
+          expect((await state()).ctl_api_keys).toEqual([])
+        },
+      )
       it('an organisation row that already exists is refused and nothing is written (D1)', async () => {
         await bootstrap(e.binding, OPTS, env())
         const before = await state()

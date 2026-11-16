@@ -2,8 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { generateApiKey } from '@vibase/api'
 import { insertApiKey, openControlDb, revokeApiKey } from '@vibase/storage-d1'
 import { uuidv7 } from '@vibase/storage'
-import { bootstrapD1 } from './bootstrap-d1.js'
-import { NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
+import { bootstrapD1, NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // [[CORE350]] group 5: the composed Worker authenticates an API key against the control plane first, in the two-database harness (workerd's Miniflare), with the real control store.
 let w: WorkerD1
@@ -56,7 +55,24 @@ beforeEach(async () => {
     { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme', scopes: SCOPES },
     { now: NOW, newId: () => uuidv7(NOW) },
   )
-  crmKey = b.key
+  // [[CORE356]]: bootstrap mints a control key; the CRM-only key of the fallback rows ([[CORE350]]) is seeded on purpose, in the CRM database.
+  const crm = await generateApiKey((n) => crypto.getRandomValues(new Uint8Array(n)))
+  await w.d1
+    .prepare(
+      'insert into api_keys (id, created_at, updated_at, organization_id, agent_id, key_hash, prefix, created_by) values (?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+    .bind(
+      uuidv7(NOW),
+      NOW.toISOString(),
+      NOW.toISOString(),
+      b.organizationId,
+      b.agentId,
+      crm.hash,
+      crm.prefix,
+      b.agentId,
+    )
+    .run()
+  crmKey = crm.key
   agentId = b.agentId
   orgId = b.organizationId
 })

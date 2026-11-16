@@ -23,6 +23,7 @@ import {
   type FakeFetch,
   type TestIssuer,
 } from '@vibase/api/test/clerk'
+import { bootstrapD1 as bootstrapD1Real } from '../bootstrap-d1.js'
 import { composeD1Worker as composeRealD1Worker, type D1WorkerEnv } from '../compose.js'
 
 export { clerkOrganization, clerkMembership, clerkUser, mintOAuthToken }
@@ -91,6 +92,48 @@ export function composeD1Worker(
   const control = 'CONTROL_DB' in env ? undefined : pairedControl.get(env.DB)
   return composeRealD1Worker(control ? { ...env, CONTROL_DB: control } : env, deps)
 }
+
+/**
+ * A control database whose `control_audit` inserts do nothing, for a suite that bootstraps a real key through `bootstrapD1` but pins an empty or exact audit log ([[CORE356]]: bootstrap now writes an `api_key.created` row, and
+ * `control_audit` is append-only, so the row cannot be deleted after). Everything else is the real database.
+ */
+export function unauditedControl(control: D1Like): D1Like {
+  const inners = new WeakMap<object, D1PreparedLike>()
+  const noop = (): D1PreparedLike => {
+    const real = control.prepare('select 1')
+    const stub = {
+      bind: () => stub,
+      run: () => real.run(),
+      all: () => real.all(),
+      first: () => real.first(),
+    } as D1PreparedLike
+    inners.set(stub, real)
+    return stub
+  }
+  const wrap = (inner: D1PreparedLike): D1PreparedLike => {
+    const w = {
+      bind: (...v: unknown[]) => wrap(inner.bind(...v)),
+      run: () => inner.run(),
+      all: () => inner.all(),
+      first: () => inner.first(),
+    } as D1PreparedLike
+    inners.set(w, inner)
+    return w
+  }
+  return {
+    prepare: (q: string) => (/^\s*insert into control_audit/i.test(q) ? noop() : wrap(control.prepare(q))),
+    batch: (b: D1PreparedLike[]) => control.batch(b.map((s) => inners.get(s) ?? s)),
+  } as D1Like
+}
+
+/**
+ * `bootstrapD1` for tests ([[CORE356]] P5): a CRM binding from `openWorkerD1` (or a spy over it) has a paired control database, and a key is minted there, so the call gets it as `control` unless the test passes one
+ * (or `control: undefined` through a rest of its own: the missing-control rows call the real function). The call shape is the real function's.
+ */
+export const bootstrapD1: typeof bootstrapD1Real = ((d1: D1Like, opts: never, env: Record<string, unknown> = {}) => {
+  const paired = pairedControl.get(d1)
+  return bootstrapD1Real(d1, opts, { ...(paired ? { control: openControlDb(paired) } : {}), ...env })
+}) as never
 
 /** One migrated in-memory Miniflare D1 for a test file, with its auto-paired control-plane database. */
 export async function openWorkerD1(): Promise<WorkerD1> {

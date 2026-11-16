@@ -38,9 +38,12 @@ export function isWriteCommand(argv: readonly string[]): boolean {
 export function memoryControl(
   onInsert?: (organizationId: string) => Promise<void>,
   initial: string | null = null,
-): D1Like & { inserts: string[]; marker(): string | null } {
+): D1Like & { inserts: string[]; keys: unknown[][]; audit: unknown[][]; marker(): string | null } {
   let org: string | null = initial
   const inserts: string[] = []
+  // [[CORE356]]: a key is minted on the control plane, so the stand-in records the binds of the `api_keys` insert and of the `control_audit` insert it travels with.
+  const keys: unknown[][] = []
+  const audit: unknown[][] = []
   const prep = (q: string, args: unknown[] = []): D1PreparedLike => ({
     bind: (...v: unknown[]) => prep(q, v),
     run: async () => {
@@ -49,6 +52,8 @@ export function memoryControl(
         inserts.push(args[0] as string)
         org ??= args[0] as string
       }
+      if (/^\s*insert into api_keys/.test(q)) keys.push(args)
+      if (/^\s*insert into control_audit/.test(q)) audit.push(args)
       return { success: true }
     },
     all: async () => ({ success: true, results: org ? [{ organization_id: org }] : [] }),
@@ -58,6 +63,8 @@ export function memoryControl(
     prepare: (q: string) => prep(q),
     batch: async (s: D1PreparedLike[]) => Promise.all(s.map((x) => x.run())),
     inserts,
+    keys,
+    audit,
     marker: () => org,
   }
 }

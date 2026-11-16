@@ -461,7 +461,10 @@ describe('bootstrap from the release (P3, P4)', () => {
       auth_org_id: 'demo',
     })
     expect(await count('organizations')).toBe(1)
-    expect(await count('api_keys')).toBe(1)
+    // [[CORE356]]: the operator key is minted on the control plane, with its audit row, and none in the CRM database.
+    expect(await count('api_keys')).toBe(0)
+    expect(s.control.keys).toHaveLength(1)
+    expect(s.control.audit).toHaveLength(1)
     const file = readFileSync(s.w.secretsPath, 'utf8')
     const key = /^DEMO_KEY=(\S+)$/m.exec(file)?.[1]
     expect(key).toBeTruthy()

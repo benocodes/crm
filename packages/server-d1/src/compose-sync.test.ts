@@ -10,10 +10,9 @@ import { nodeStreams } from '@vibase/api/test/streams'
 import { makeWorkerdStepShim } from '@vibase/api/test/workerd-boundary'
 import { MIGRATIONS, d1Binding } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { type D1WorkerEnv } from './compose.js'
 import { readDeployment } from './init-deployment.js'
-import { NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
+import { bootstrapD1, NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // [[CHN141]] D14, D37, D75: the composed Worker's `scheduled` handler and `runMailSync` over a local D1, with Google faked at the `fetch` seam.
 const KEY = new Uint8Array(32).fill(7)
