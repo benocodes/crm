@@ -15,6 +15,7 @@ import {
   type Target,
 } from '../remote.js'
 import { oldDomainManual } from './host.js'
+import { workflowName } from './names.js'
 import {
   GOOGLE_SECRET_NAMES,
   authSecretManual,
@@ -269,7 +270,7 @@ const configWrite: Step = async (ctx) => {
     workersDev: ctx.opts.workersDev || ctx.opts.recordedHost?.workersDev === true,
     noRoute: ctx.opts.workersDev,
     move: ctx.opts.move !== undefined,
-    ...(ctx.opts.replace ? { replace: true } : {}),
+    ...(ctx.opts.replace ? { replace: true, workflowName: workflowName(ctx.opts.env) } : {}),
     corsOrigins: ctx.opts.origins.join(','),
     ...(ctx.gmail ? { gmailVars: ctx.gmail.vars } : {}),
     // [[UI30]] D7: the connect page's own origin is an authorized party (never a CORS origin, never a Clerk allowed origin), and the

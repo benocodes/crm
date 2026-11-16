@@ -152,6 +152,7 @@ function replacedLines(opts: SetupOptions): string[] {
     ...(o.d1Name ? [`D1 ${o.d1Name}`] : []),
     ...(o.controlD1Name ? [`control D1 ${o.controlD1Name}`] : []),
     ...(o.r2Name ? [`R2 ${o.r2Name}`] : []),
+    ...(o.workflowName ? [`Workflow ${o.workflowName}`] : []),
   ]
 }
 
@@ -171,6 +172,7 @@ export function recordedNames(configText: string, env: string): RecordedNames {
     d1Id: named(block.d1_databases, 'binding', 'DB', 'database_id'),
     controlD1Id: named(block.d1_databases, 'binding', 'CONTROL_DB', 'database_id'),
     r2Name: named(block.r2_buckets, 'binding', 'BODIES', 'bucket_name'),
+    workflowName: named(block.workflows, 'binding', 'MAIL_SYNC', 'name'),
   }
 }
 

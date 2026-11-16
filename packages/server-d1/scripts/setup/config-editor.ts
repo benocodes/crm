@@ -31,6 +31,8 @@ export interface DesiredEnv {
   gmailVars?: Record<string, string>
   /** [[OPS250]] D12: the block of `env.<env>` is replaced as a whole by the desired one (a replaced instance), instead of reconciled against the record. */
   replace?: boolean
+  /** [[OPS250]] 250.19: the `MAIL_SYNC` workflow's name; written only with `replace` (wrangler does not inherit `workflows` into an env). */
+  workflowName?: string
 }
 export interface ReconcileResult {
   text: string
@@ -70,6 +72,9 @@ export function desiredBlock(d: DesiredEnv): Json {
       ...(d.controlD1Name ? [controlEntry(d)] : []),
     ],
     r2_buckets: [{ binding: 'BODIES', bucket_name: d.r2Name }],
+    ...(d.replace && d.workflowName
+      ? { workflows: [{ binding: 'MAIL_SYNC', name: d.workflowName, class_name: 'MailSyncWorkflow' }] }
+      : {}),
     vars: Object.fromEntries(
       Object.entries(
         d.authVars

@@ -17,9 +17,19 @@ const REPLACE = [...BASE, '--replace-instance', 'smoked1']
 const fixture0 = readFileSync(FIXTURE_CONFIG_PATH, 'utf8')
 const fmt = { formattingOptions: { insertSpaces: true, tabSize: 2 } }
 /** The fixture plus a second env block after `smoked1`, so "every other block byte for byte" has something to hold. */
-const fixture = applyEdits(
+const withOther = applyEdits(
   fixture0,
   modify(fixture0, ['env', 'other'], { name: 'vault-other', vars: { AUTH_PROVIDER: '' } }, fmt),
+)
+/** The real smoked1 block carries a hand-added MAIL_SYNC workflow; the shared fixture does not, so it is added here (OPS250 review, 250.19). */
+const fixture = applyEdits(
+  withOther,
+  modify(
+    withOther,
+    ['env', 'smoked1', 'workflows'],
+    [{ binding: 'MAIL_SYNC', name: 'vault-smoked1-mail-sync', class_name: 'MailSyncWorkflow' }],
+    fmt,
+  ),
 )
 const withControl = applyEdits(
   fixture,
@@ -30,10 +40,15 @@ const withControl = applyEdits(
     { ...fmt, isArrayInsertion: true },
   ),
 )
+const sameWorkflow = applyEdits(
+  fixture,
+  modify(fixture, ['env', 'smoked1', 'workflows', 0, 'name'], 'vb-mail-sync-smoked1', fmt),
+)
 const OLD = {
   worker: 'vault-smoked1',
   d1: 'vault-smoked1',
   r2: 'vault-smoked1-bodies',
+  workflow: 'vault-smoked1-mail-sync',
   id: '13f7fb64-d909-44e7-9ce7-cc3c753bb3bc',
 }
 const oldCloud = { d1s: [{ uuid: OLD.id, name: OLD.d1 }], r2s: [OLD.r2] }
@@ -97,6 +112,12 @@ describe('1. refusals before any call (matrix)', () => {
     ],
     ['R2 name equals the record', [...REPLACE, '--r2-name', OLD.r2], {}, /--r2-name vault-smoked1-bodies.*R2 bucket/],
     [
+      'Workflow name equals the record',
+      REPLACE,
+      { configText: sameWorkflow },
+      /derived Workflow name vb-mail-sync-smoked1 equals the Workflow/,
+    ],
+    [
       'AUTH_SECRET already assigned in the instance file',
       REPLACE,
       { clerkEnvText: FILE_SECRET },
@@ -159,6 +180,9 @@ describe('2. the plan and the run on the smoked1 shape', () => {
     const b = block(w.state.configText)
     expect(b.name).toBe('vb-smoked1')
     expect(b.vars.AUTH_PROVIDER).toBe('better-auth')
+    expect(b.workflows).toEqual([
+      { binding: 'MAIL_SYNC', name: 'vb-mail-sync-smoked1', class_name: 'MailSyncWorkflow' },
+    ])
     expect(b.vars.PUBLIC_BASE_URL).toBe(`https://${HOST}`)
     w.logs.length = 0
     const second = await run(w, BASE)
@@ -168,7 +192,7 @@ describe('2. the plan and the run on the smoked1 shape', () => {
 })
 
 describe('3. nothing old is named', () => {
-  const oldNames = [OLD.worker, OLD.d1, OLD.r2, OLD.id]
+  const oldNames = [OLD.worker, OLD.d1, OLD.r2, OLD.id, OLD.workflow]
   const manualLine = (w: World) => {
     const at = w.logs.indexOf('manual:')
     return at < 0 ? '' : w.logs.slice(at + 1).join('\n')
@@ -193,6 +217,7 @@ describe('3. nothing old is named', () => {
     expect(manual).toContain(OLD.worker)
     expect(manual).toContain(OLD.d1)
     expect(manual).toContain(OLD.r2)
+    expect(manual).toContain(OLD.workflow)
     expect(manual).toMatch(/left in place/)
   })
   it('the manual line also lists a recorded control database', async () => {
@@ -208,7 +233,10 @@ describe('4. the record', () => {
     await run(reference, [...BASE])
     const w = world()
     await run(w, REPLACE)
-    expect(block(w.state.configText)).toEqual(block(reference.state.configText))
+    // the reference is a plain new-instance block, which has no workflows this cycle (250.20): the replaced block differs by that entry alone
+    const { workflows, ...rest } = block(w.state.configText)
+    expect(workflows).toEqual([{ binding: 'MAIL_SYNC', name: 'vb-mail-sync-smoked1', class_name: 'MailSyncWorkflow' }])
+    expect(rest).toEqual(block(reference.state.configText))
     // outside env.smoked1's value, the text is the fixture's
     const tree = parseTree(fixture)!
     const node = findNodeAtLocation(tree, ['env', 'smoked1'])!

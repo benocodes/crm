@@ -94,8 +94,9 @@ export function isWriteArgs(args: readonly string[]): boolean {
   )
 }
 
-/** [[OPS262]] D5: a new instance's Workflow; an existing record's name wins (the settings file's `workflow.name`). */
-export const workflowName = (env: string): string => `vb-mail-sync-${env}`
+import { workflowName } from '../setup/names.js'
+
+export { workflowName }
 
 const CORS = (o: SetupOptions) => o.origins.join(',')
 
