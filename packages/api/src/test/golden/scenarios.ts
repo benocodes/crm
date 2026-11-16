@@ -847,7 +847,7 @@ export const administrationScenarios: readonly GoldenScenario[] = [
   {
     name: 'api-keys-issue-revoke',
     about:
-      'a key is issued once with its plaintext (vk_ + prefix of 11 characters), the event and every read carry neither the plaintext nor the hash; list filters by agent; revoke stamps revoked_at and updated_at with the unit clock and emits api_key.revoked; revoking again returns the same record with no event; a disabled agent may be issued a key',
+      'a key is issued once with its plaintext (vk_ + prefix of 11 characters), no read carries the plaintext or the hash, and no event is written (the issue and the revoke are recorded in the audit log, read with `audit.list` and the `audit:read` scope); list filters by agent; revoke stamps revoked_at and updated_at with the unit clock; revoking again returns the same record and records nothing more; a disabled agent may be issued a key',
     steps: [
       {
         as: 'user',

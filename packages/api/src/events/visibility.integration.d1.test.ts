@@ -67,7 +67,7 @@ const rawEvent = async (type: string, resourceType: string, extra: { before?: un
   return id
 }
 
-// Every resource type the code emits, the read scope it is shown under, and the event types it emits (D4). `null`: invisible by design (#217). `webhook` is no longer an entry ([[CORE347]]): its historic rows are invisible, proven in webhooks/historic-events.
+// Every resource type the code emits, the read scope it is shown under, and the event types it emits (D4). `null`: invisible by design (#217). `webhook` ([[CORE347]]) and `api_key` ([[CORE357]]) are no longer entries: their historic rows are invisible, proven in webhooks/historic-events and webhooks/historic-api-key-events.
 const MATRIX: [resourceType: string, readScope: string | null, types: string[]][] = [
   ['task', 'tasks:read', ['task.created', 'task.updated', 'task.deleted']],
   ['contact', 'contacts:read', ['contact.created', 'contact.updated', 'contact.deleted', 'contact.merged']],
@@ -85,7 +85,6 @@ const MATRIX: [resourceType: string, readScope: string | null, types: string[]][
   ['contact_file', 'contacts:read', ['contact_file.created', 'contact_file.deleted']],
   ['company_file', 'companies:read', ['company_file.created', 'company_file.deleted']],
   ['agent', 'agents:read', ['agent.created', 'agent.updated']],
-  ['api_key', 'agents:read', ['api_key.created', 'api_key.revoked']],
   ['connection', 'connections:read', ['connection.created', 'connection.updated']],
   ['membership', 'members:read', ['membership.created', 'membership.updated', 'membership.deleted']],
   ['organization', 'members:read', ['organization.created', 'organization.updated']],

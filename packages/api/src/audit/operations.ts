@@ -35,7 +35,7 @@ export function auditOperations(runtime: AuditRuntime | null): ControlOperation[
       name: 'audit.list',
       summary: 'Browse the control-plane audit log',
       description:
-        'Owners, and agents an owner granted audit:read. A log to browse, not a feed: rows come oldest first by id, filtered by exact action, target_type and target_id (combinable), 50 per page by default (limit 1 to 200); pass next_cursor as after for the next page, null on the last. Rows are as stored (invitations created, revoked and accepted, sessions revoked on removal, reset links issued, webhook subscriptions created, updated, deleted and their secrets rotated: those changes are recorded here, not in the event feed); detail is the stored object and never holds a token. Reading is not itself audited. The log has no sequence number, so a row written by a lagging clock can land behind a cursor already read.',
+        'Owners, and agents an owner granted audit:read. A log to browse, not a feed: rows come oldest first by id, filtered by exact action, target_type and target_id (combinable), 50 per page by default (limit 1 to 200); pass next_cursor as after for the next page, null on the last. Rows are as stored (invitations created, revoked and accepted, sessions revoked on removal, reset links issued, webhook subscriptions created, updated, deleted and their secrets rotated, API keys issued and revoked: those changes are recorded here, not in the event feed); detail is the stored object and never holds a token. Reading is not itself audited. The log has no sequence number, so a row written by a lagging clock can land behind a cursor already read.',
       method: 'get',
       path: '/audit',
       scope: { resource: 'audit', action: 'read' },

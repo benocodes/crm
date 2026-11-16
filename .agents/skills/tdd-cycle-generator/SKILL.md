@@ -158,6 +158,10 @@ migration, cost 245k / 148 calls including one 5k fix round. The budget holds. T
 "anywhere" (P2, "not a default grant anywhere") with an enumeration of only two sites; the coder found a third, review a fourth
 (the `/mcp` challenge hint). When a rule says "every" or "anywhere", state the property and the grep that finds the sites
 (here `grantableScopes(`), never a closed list of the sites the planner remembered.
+**CORE357** (`knowledge/specs/015-CORE357-api-key-events-off-feed/RETRO.md`): 4 groups (1 matrix), no migration, one fix
+round. A grep by pattern finds texts that say something wrong, never a text that omits something: when a cycle moves a
+capability to a new home (key changes from the feed to `audit.list`), name the home's own enumeration as an obligation
+("`audit.list`'s description lists API keys"), found by grepping the previous mover's entry (`not in the event feed`).
 **OPS275** (`knowledge/specs/015-OPS275-instance-tooling-two-databases/RETRO.md`): the same Size line (5 groups, 1 matrix, 5
 decisions), no migration, scripts-only, cost 143k / 41 calls in one run with review approved in round 1; without release runs
 and with the `@vibase/api` suite legitimately skipped (`execute-cycle` §5) the same counts cost ~40% of OPS260. The budget holds.

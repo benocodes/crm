@@ -88,8 +88,6 @@ export function createVibaseRegistry(
   // [[API6]] D4: the feed's visibility map. Definitions register their own `eventName`; these are the types no definition names or that the feed hides.
   registry.registerEventType('association', { scope: 'associations', edge: true })
   registry.registerEventType('organization', { scope: 'members' })
-  // [[CORE351]]: `api_keys` is no longer a registered resource (its four operations are control operations), but its historic `api_key.*` events stay readable through the feed until #357 takes the type off the map.
-  registry.registerEventType('api_key', { scope: 'agents' })
   for (const op of adminOperations()) registry.register(op)
   for (const op of apiKeyOperations(options.apiKeys ?? null)) registry.register(op)
   for (const op of invitationOperations(options.invitations ?? null)) registry.register(op)
