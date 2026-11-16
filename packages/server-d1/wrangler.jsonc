@@ -147,7 +147,7 @@
       "workflows": [{ "binding": "MAIL_SYNC", "name": "vault-hq-mail-sync", "class_name": "MailSyncWorkflow" }],
       "triggers": { "crons": ["*/15 * * * *", "* * * * *"] },
       "vars": {
-        "AUTH_PROVIDER": "clerk",
+        "AUTH_PROVIDER": "better-auth",
         "CLERK_ISSUER": "https://clerk.hq.vibase.ai",
         "CLERK_AUTHORIZED_PARTIES": "https://api.hq.vibase.ai,https://app.hq.vibase.ai",
         "AUTH_CLI_CLIENT_ID": "Q5yzkwhHy7dhaYbt",
