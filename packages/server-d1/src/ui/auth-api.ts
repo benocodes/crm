@@ -132,13 +132,16 @@ export async function getSelfServiceReset(): Promise<boolean> {
 export const requestPasswordReset = (email: string): Promise<ApiResult<unknown>> =>
   call('POST', '/auth/request-password-reset', { email })
 /**
- * [[CORE294]] D8: starts Google sign-in. The body is exactly the callback URLs (the vault's own `/sign-in`, success and failure) and, on `/invite`, the invitation token; the answer is the Google URL to follow
+ * [[CORE294]] D8: starts Google sign-in. The body is exactly the callback URLs (success: `/connect` unless the page passes a valid return target; failure: the vault's own `/sign-in`) and, on `/invite`, the invitation token; the answer is the Google URL to follow
  * (validated like every redirect: `http:` or `https:` only).
  */
-export async function startGoogleSignIn(invitationToken?: string): Promise<ApiResult<{ redirect: string }>> {
+export async function startGoogleSignIn(
+  invitationToken?: string,
+  callbackURL = '/connect',
+): Promise<ApiResult<{ redirect: string }>> {
   const r = await call('POST', '/auth/sign-in/social', {
     provider: 'google',
-    callbackURL: '/sign-in',
+    callbackURL,
     errorCallbackURL: '/sign-in',
     ...(invitationToken === undefined ? {} : { invitation_token: invitationToken }),
   })

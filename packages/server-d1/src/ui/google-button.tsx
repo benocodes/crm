@@ -22,17 +22,19 @@ export function useGoogleEnabled(): boolean {
 /** [[CORE294]] D8: posts to `/auth/sign-in/social` and follows the returned Google URL. A failure goes to `onError` as the page's own text. */
 export function GoogleButton({
   invitationToken,
+  callbackURL,
   onError,
   navigate = goTo,
 }: {
   invitationToken?: string
+  callbackURL?: string
   onError: (message: string) => void
   navigate?: (url: string) => void
 }) {
   const [busy, setBusy] = useState(false)
   const click = async () => {
     setBusy(true)
-    const r = await startGoogleSignIn(invitationToken)
+    const r = await startGoogleSignIn(invitationToken, callbackURL)
     if (r.ok) return navigate(r.data.redirect)
     setBusy(false)
     onError(r.status === 429 ? MESSAGES.rateLimited : r.status === 0 ? genericFailure(0) : MESSAGES.googleFailed)

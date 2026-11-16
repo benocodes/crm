@@ -50,7 +50,7 @@ export function InvitePage({ navigate = goTo }: PageProps) {
     const result = await signIn({ email: email.trim(), password, invitationToken: token })
     setBusy(false)
     if (result.ok) {
-      navigate('/sign-in')
+      navigate('/connect')
       return undefined
     }
     if (result.code === 'invitation_acceptance_failed') return MESSAGES.signInAcceptanceFailed
@@ -74,7 +74,7 @@ export function InvitePage({ navigate = goTo }: PageProps) {
     const result = await signUp({ name: name.trim(), email: email.trim(), password, invitation_token: token })
     setBusy(false)
     if (result.ok) {
-      navigate('/sign-in')
+      navigate('/connect')
       return undefined
     }
     if (result.status === 403 && result.code === 'invitation_required') return MESSAGES.invitationRefused

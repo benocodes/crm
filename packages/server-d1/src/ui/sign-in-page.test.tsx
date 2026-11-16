@@ -84,7 +84,7 @@ describe('the session on load', () => {
 })
 
 describe('signing in', () => {
-  it('posts { email, password } to /auth/sign-in/email and shows the signed-in view from the answer', async () => {
+  it('posts { email, password } to /auth/sign-in/email and continues to /connect (#375)', async () => {
     const f = fakeFetch({
       'GET /auth/get-session': NO_SESSION,
       'POST /auth/sign-in/email': {
@@ -92,14 +92,14 @@ describe('signing in', () => {
         json: { redirect: false, user: { email: 'ann@x.test', name: 'Ann' } },
       },
     })
-    render(<SignInPage />)
+    const go = vi.fn()
+    render(<SignInPage navigate={go} />)
     await signInWith()
-    expect(await screen.findByText('Signed in as ann@x.test')).toBeTruthy()
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/connect'))
     expect(f.calls.find((c) => c.method === 'POST')!.body).toEqual({
       email: 'ann@x.test',
       password: 'a long enough password',
     })
-    expect(screen.queryByLabelText('Password')).toBeNull()
   })
 
   it('empty fields and a malformed email send nothing', async () => {
@@ -222,13 +222,12 @@ describe('the OAuth continuation (D6 a)', () => {
     expect(f.requests().filter((r) => r.startsWith('POST'))).toEqual([])
   })
 
-  it('a success without a redirect shows the signed-in view', async () => {
+  it('a success without a redirect continues to /connect (#375)', async () => {
     fakeFetch({ 'POST /auth/sign-in/email': { status: 200, json: { redirect: false, user: { email: 'ann@x.test' } } } })
     const go = vi.fn()
     render(<SignInPage navigate={go} />)
     await signInWith()
-    expect(await screen.findByText('Signed in as ann@x.test')).toBeTruthy()
-    expect(go).not.toHaveBeenCalled()
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/connect'))
   })
 
   it.each(['javascript:alert(1)', 'data:text/html,x'])(
@@ -249,9 +248,9 @@ describe('the OAuth continuation (D6 a)', () => {
       'GET /auth/get-session': NO_SESSION,
       'POST /auth/sign-in/email': { status: 200, json: { user: { email: 'ann@x.test' } } },
     })
-    render(<SignInPage />)
+    render(<SignInPage navigate={() => {}} />)
     await signInWith()
-    await screen.findByText('Signed in as ann@x.test')
+    await waitFor(() => expect(f.calls.some((c) => c.method === 'POST')).toBe(true))
     expect(f.calls.find((c) => c.method === 'POST')!.body).toEqual({
       email: 'ann@x.test',
       password: 'a long enough password',
@@ -280,8 +279,31 @@ describe('return_to (D6 b)', () => {
     expect(link.getAttribute('href')).toBe('/device?user_code=ABCDEFGH')
   })
 
+  it('a signed-in visitor with no return_to is offered a Continue link to /connect (#375)', async () => {
+    fakeFetch({ 'GET /auth/get-session': session({ email: 'ann@x.test' }) })
+    render(<SignInPage />)
+    const link = await screen.findByRole('link', { name: /continue/i })
+    expect(link.getAttribute('href')).toBe('/connect')
+  })
+
+  it('Google sign-in from /sign-in?return_to=/device lands on that target, not /sign-in (#375)', async () => {
+    history.replaceState(null, '', '/sign-in?return_to=%2Fdevice%3Fuser_code%3DABCDEFGH')
+    const f = fakeFetch({
+      'GET /auth/get-session': NO_SESSION,
+      'GET /.well-known/vibase': { status: 200, json: { auth: { sign_in_methods: ['password', 'google'] } } },
+      'POST /auth/sign-in/social': { status: 200, json: { url: 'https://accounts.google.com/x', redirect: true } },
+    })
+    render(<SignInPage navigate={() => {}} />)
+    await userEvent.setup().click(await screen.findByRole('button', { name: MESSAGES.googleButton }))
+    await waitFor(() => expect(f.calls.some((c) => c.method === 'POST')).toBe(true))
+    expect(f.calls.find((c) => c.method === 'POST')!.body).toMatchObject({
+      callbackURL: '/device?user_code=ABCDEFGH',
+      errorCallbackURL: '/sign-in',
+    })
+  })
+
   it.each(['https://evil.example/device', '//evil.example/device', '/device/../x', '/devices', 'javascript:alert(1)'])(
-    'return_to=%s is ignored: no navigation after sign-in, no Continue link',
+    'return_to=%s is ignored: sign-in continues to /connect, not the target',
     async (target) => {
       history.replaceState(null, '', `/sign-in?return_to=${encodeURIComponent(target)}`)
       fakeFetch({
@@ -291,9 +313,8 @@ describe('return_to (D6 b)', () => {
       const go = vi.fn()
       render(<SignInPage navigate={go} />)
       await signInWith()
-      await screen.findByText('Signed in as ann@x.test')
-      expect(go).not.toHaveBeenCalled()
-      expect(screen.queryByRole('link')).toBeNull()
+      await waitFor(() => expect(go).toHaveBeenCalledWith('/connect'))
+      expect(go).toHaveBeenCalledTimes(1)
     },
   )
 })
