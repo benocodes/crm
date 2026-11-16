@@ -279,6 +279,13 @@ files, approved round 1. Over the call count of comparable cycles because the ri
 write that a shared test helper performs, grep the helper's callers at plan time and put the count in the Size line
 (`rider: existing fixtures (~40 bootstrapD1 callers)`); above ~30, name the kit wrapper in Watch out so the coder edits one
 default, not each suite.
+**CORE329** (`knowledge/specs/015-CORE329-crm-contract-drop/RETRO.md`): 6 groups (1 matrix), 3 spec decisions + 6
+planner rules, 1 migration (a CRM table drop), no E2E, rider existing fixtures. ~314k / 151 calls in one run, +157 / -543
+code and +560 / -1537 test lines, 68 files, approved round 1 with no fix rounds. The budget holds, but the Size line said
+"~15 suites and kits, found by grep" without running the grep, and the real rider was ~45 files. A cycle that removes a
+table from the shared Kysely `Database` (or any shared type) touches every typecheck fixture, kit table list, golden and
+suite that names it, not only its callers. Run `grep -rlw <name> packages` for each removed name at plan time and put the
+file count, not an estimate, in the Size line.
 
 ### Step 3: Resolve identities
 

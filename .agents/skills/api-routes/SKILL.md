@@ -309,7 +309,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
 - **Administration** ([[CORE3]] cycle 2, [[CORE27]]):
   - prepared definitions `src/resources/{memberships,agents,api-keys}.ts` since [[CORE40]] (`memberships` is
     read-only, written only by the directory sync; `agents` normalises scopes with `normalizeAgentScopes` in
-    `prepare`, and its create is the concrete `createAgentOperation`; `api_keys.ts` is the record and the list grammar of the key operations, not a registered resource since [[CORE351]]);
+    `prepare`, and its create is the concrete `createAgentOperation`; `api_keys.ts` is the record and the list grammar of the key operations, not a registered resource since [[CORE351]]; since [[CORE329]] it is a `defineGrammarResource` (`src/storage/definition.ts`): a list grammar for a table outside the CRM `Database` type (a control-plane table), carrying its own `columnKinds`, read through `columnKindsOf`. Use it, not a CRM table type, when a control operation needs the generic list grammar);
   - `src/admin/` (`users.list`, `users.get`: `adminOperations()`, prepared since [[CORE40]]; `api_keys.create|revoke|list|get` are control operations on an `ApiKeyStorePort` since [[CORE351]], `apiKeyOperations()` in `api-keys.ts`, one control batch with its `control_audit` row and no CRM write or event; `createApp({ apiKeys: { port, store } })`; no store: `501 provider_not_configured`);
   - `src/directory/` ([[CORE29]], on storage since [[CORE41]]): `repairMembership` (the token claim repairs one
     user's membership; `repairOperation`), `reconcileOrganization` (fetch-and-reconcile one Clerk organisation;
