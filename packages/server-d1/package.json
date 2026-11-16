@@ -54,6 +54,7 @@
     "@types/node": "^22",
     "@types/react": "19.3.0",
     "@vibase/ui": "workspace:*",
+    "better-auth": "1.7.22",
     "esbuild": "0.28.2",
     "happy-dom": "21.0.4",
     "jsonc-parser": "3.3.1",
