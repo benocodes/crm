@@ -58,7 +58,7 @@ export interface WebhookKit {
   create(agentId: string, body?: Record<string, unknown>): Promise<any>
   /** A raw read. A statement naming a `webhook_*` table or `control_audit` reads the CONTROL database; every other reads the CRM engine's. */
   all<T = Record<string, any>>(sqlText: string, ...binds: unknown[]): Promise<T[]>
-  /** A raw read of the CRM database whatever the statement names (the suites assert the CRM `webhook_*` tables stay empty). */
+  /** A raw read of the CRM database whatever the statement names (the suites assert the CRM has no `webhook_*` table, [[CORE329]]). */
   crm<T = Record<string, any>>(sqlText: string, ...binds: unknown[]): Promise<T[]>
   /** The dependencies the dispatcher takes ([[API219]]): the engine's binding, the registry, the kit's clock and an id source on it. */
   deps(): DispatchDeps
@@ -94,12 +94,11 @@ export async function openWebhookKit(
   const registry = createVibaseRegistry({ webhooks: runtime })
   const clock = opts.clock ?? (() => NOW)
   const kit = {} as WebhookKit
-  // [[CORE337]] D12: the CRM's `webhook_*` tables are no longer read or written, so every suite on this kit holds them empty throughout; checked before each reset and at close.
+  // [[CORE337]] D12, [[CORE329]]: the CRM has no `webhook_*` table any more (migration 0020), so nothing can write one; checked before each reset and at close that none came back.
   const assertCrmUntouched = async () => {
-    for (const table of ['webhook_subscriptions', 'webhook_secrets', 'webhook_dispatch_state', 'webhook_deliveries']) {
-      const n = ((await e.d1!.prepare(`select count(*) as n from ${table}`).first()) as { n: number }).n
-      if (n !== 0) throw new Error(`the CRM table ${table} holds ${n} row(s): the webhook code wrote to it`)
-    }
+    const left = (await e.d1!.prepare("select name from sqlite_master where name like 'webhook\\_%' escape '\\'").all())
+      .results as Array<{ name: string }>
+    if (left.length > 0) throw new Error(`the CRM has webhook table(s): ${left.map((r) => r.name).join(', ')}`)
   }
   const build = () =>
     createApp({

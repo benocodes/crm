@@ -33,7 +33,7 @@ export function authMiddleware(opts: {
   userAuthenticator?: UserAuthenticator
   env: (c: Context<AppEnv>) => InternalEnv
   declaredScopes?: readonly string[]
-  /** The API-key authenticator of this composed app (control first, CRM fallback; its cache lives in it). */
+  /** The API-key authenticator of this composed app (control only, [[CORE329]]; its cache lives in it). */
   authenticateKey: ApiKeyAuthenticator
 }): MiddlewareHandler<AppEnv> {
   const declared = opts.declaredScopes ? new Set(opts.declaredScopes) : undefined

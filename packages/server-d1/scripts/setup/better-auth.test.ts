@@ -403,7 +403,6 @@ describe('5. the bootstrap step on better-auth (D6)', () => {
     expect(w.state.envText).toMatch(/^ACME_KEY=\S+$/m)
     const key = /^ACME_KEY=(\S+)$/m.exec(w.state.envText)![1]!
     expect(w.surface()).not.toContain(key)
-    expect(await rows(pair.d1, 'select * from api_keys')).toHaveLength(0)
     expect(await rows(pair.control, 'select * from api_keys')).toHaveLength(1)
     expect(await rows(pair.control, "select * from control_audit where action = 'api_key.created'")).toHaveLength(1)
   })

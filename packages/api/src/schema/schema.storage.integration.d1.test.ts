@@ -80,7 +80,13 @@ describe('schema.get on the migrated D1 (D9)', () => {
     expect(names.filter((n) => n.startsWith('_cf_') || n.startsWith('sqlite_') || n === 'd1_migrations')).toEqual([])
     for (const p of PRESENT) expect(names, p).toContain(p)
     // [[CORE329]]: the control-plane tables are not CRM tables, so they are neither listed nor hidden
-    for (const gone of ['api_keys', 'webhook_subscriptions', 'webhook_secrets', 'webhook_dispatch_state', 'webhook_deliveries'])
+    for (const gone of [
+      'api_keys',
+      'webhook_subscriptions',
+      'webhook_secrets',
+      'webhook_dispatch_state',
+      'webhook_deliveries',
+    ])
       expect(names, gone).not.toContain(gone)
   })
   it('OPS260 D13: the CRM database has no auth_ table after its migrations, so the exclusion is proven with one created here: a real auth_* table is never listed', async () => {

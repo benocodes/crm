@@ -156,9 +156,17 @@ describe('administration columns (CORE40 C1)', () => {
   })
 
   it('models the administration tables', () => {
-    expect(Object.keys(COLUMN_KINDS)).toEqual(expect.arrayContaining(['users', 'memberships', 'agents', 'api_keys']))
+    expect(Object.keys(COLUMN_KINDS)).toEqual(expect.arrayContaining(['users', 'memberships', 'agents']))
     expect((COLUMN_KINDS as Record<string, Record<string, string>>).agents?.scopes).toBe('string_array')
-    expect((COLUMN_KINDS as Record<string, Record<string, string>>).api_keys?.key_hash).toBe('text')
+    // [[CORE329]]: the control-plane tables are not CRM tables
+    for (const t of [
+      'api_keys',
+      'webhook_subscriptions',
+      'webhook_secrets',
+      'webhook_dispatch_state',
+      'webhook_deliveries',
+    ])
+      expect(Object.keys(COLUMN_KINDS), t).not.toContain(t)
   })
 })
 

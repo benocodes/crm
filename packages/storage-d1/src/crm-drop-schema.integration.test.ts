@@ -121,7 +121,9 @@ describe('migration 0020 drops the CRM api_keys and webhook tables (CORE329 P1),
     await seedFive(crm)
     const before = await tablesOf(crm)
     for (const t of DROPPED) expect(before).toContain(t)
-    const keep = before.filter((t) => !(DROPPED as readonly string[]).includes(t) && !t.startsWith('sqlite_') && !t.startsWith('_'))
+    const keep = before.filter(
+      (t) => !(DROPPED as readonly string[]).includes(t) && !t.startsWith('sqlite_') && !t.startsWith('_'),
+    )
     const rowsBefore = await countsOf(crm, keep)
     expect(rowsBefore.events).toBe(2)
     expect(rowsBefore.agents).toBe(1)
@@ -136,9 +138,9 @@ describe('migration 0020 drops the CRM api_keys and webhook tables (CORE329 P1),
     const after = await tablesOf(crm)
     for (const t of DROPPED) expect(after, t).not.toContain(t)
     expect(await countsOf(crm, keep)).toEqual(rowsBefore)
-    expect((await all(crm, "select type from events where type like 'api_key.%' or type like 'webhook.%'")).length).toBe(
-      2,
-    )
+    expect(
+      (await all(crm, "select type from events where type like 'api_key.%' or type like 'webhook.%'")).length,
+    ).toBe(2)
     expect(await tablesOf(control)).toEqual(controlBefore)
     expect(
       await countsOf(

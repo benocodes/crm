@@ -773,11 +773,7 @@ describe('the messaging slice (CORE25 C1)', () => {
     // the eight capture append-only triggers, the events one (API105 D15), the CORE194 search-index triggers (three per indexed resource); nothing else (the webhook secrets one went with its table, [[CORE329]])
     const search = ['companies', 'notes', 'tasks'].flatMap((t) => ['ai', 'au', 'ad'].map((k) => `${t}_search_${k}`))
     expect(trg.map((t) => t.name).sort()).toEqual(
-      [
-        ...CAPTURE.map((t) => `${t}_append_only`),
-        'events_append_only',
-        ...search,
-      ].sort(),
+      [...CAPTURE.map((t) => `${t}_append_only`), 'events_append_only', ...search].sort(),
     )
     for (const t of trg.filter((x) => x.name.endsWith('_append_only'))) expect(t.name).toBe(`${t.tbl_name}_append_only`)
     for (const t of LINKS) expect(trg.some((x) => x.tbl_name === t)).toBe(false)

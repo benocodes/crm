@@ -328,7 +328,7 @@ Carried over from the predecessor product, where each cost real time. Add new on
    resource's table except its prepared programs, and nothing but `eventStatement`/`eventSetStatement`
    inserts into `events`. The rule covers *resources* (anything tenant-visible).
    Writes that skip events are allowed only when they are not resources and a spec decision names them:
-   identity bookkeeping, channel machinery tables, the `bootstrap` script, the API-key usage stamp, the
+   identity bookkeeping, channel machinery tables, the `bootstrap` script, the
    execution lease columns, the D1 full-text search indexes, and the
    control-plane database `CONTROL_DB` (`auth_*`, `control_deployment`, `invitations`, `control_audit`, the four `webhook_*` tables, `api_keys`).
    The exact tables and columns, who may write each and the deciding spec are the table in `api-routes`

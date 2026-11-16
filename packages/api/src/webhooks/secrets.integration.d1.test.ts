@@ -68,14 +68,13 @@ describe('what is shown (D12)', () => {
     expect(text).not.toContain('whsec_')
   })
 
-  it('schema.get lists webhook_subscriptions and neither machinery table, and carries no secret', async () => {
+  it('schema.get lists none of the webhook tables (they live in the control plane, CORE329), and carries no secret', async () => {
     const made = await k.create(await k.seedAgent(TASKS))
     const r = await k.owner('GET', '/meta/v1/schema')
     expect(r.status, r.text).toBe(200)
     const names = r.body.tables.map((t: any) => t.name)
-    expect(names).toContain('webhook_subscriptions')
-    expect(names).not.toContain('webhook_secrets')
-    expect(names).not.toContain('webhook_dispatch_state')
+    for (const t of ['webhook_subscriptions', 'webhook_deliveries', 'webhook_secrets', 'webhook_dispatch_state'])
+      expect(names).not.toContain(t)
     expect(r.text).not.toContain(made.secret)
     expect(r.text).not.toContain('sealed')
   })

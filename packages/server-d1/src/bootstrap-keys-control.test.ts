@@ -23,7 +23,6 @@ const rows = async (db: D1Like, q: string) => ((await db.prepare(q).all()).resul
 const counts = async () => ({
   ctlKeys: (await rows(pair.control, 'select * from api_keys')).length,
   audit: (await rows(pair.control, 'select * from control_audit')).length,
-  crmKeys: (await rows(pair.d1, 'select * from api_keys')).length,
   orgs: (await rows(pair.d1, 'select * from organizations')).length,
   events: (await rows(pair.d1, 'select * from events')).length,
 })
@@ -44,7 +43,7 @@ describe('each bootstrap path mints its key on the control plane (CORE356 group 
   it.each(['none', 'clerk', 'better-auth'] as const)('%s with an agent', async (path) => {
     const r = await bootstrapD1(pair.d1, PATHS[path], env())
     expect(r.key).toMatch(/^vk_/)
-    expect(await counts()).toEqual({ ctlKeys: 1, audit: 1, crmKeys: 0, orgs: 1, events: 0 })
+    expect(await counts()).toEqual({ ctlKeys: 1, audit: 1, orgs: 1, events: 0 })
     const [key] = await rows(pair.control, 'select * from api_keys')
     expect(key).toMatchObject({ id: r.apiKeyId, agent_id: r.agentId, organization_id: r.organizationId })
     const actor =
@@ -66,7 +65,7 @@ describe('each bootstrap path mints its key on the control plane (CORE356 group 
     const { agentName: _a, ...noAgent } = PATHS[path]
     const r = await bootstrapD1(pair.d1, noAgent, env())
     expect(r.key).toBeNull()
-    expect(await counts()).toEqual({ ctlKeys: 0, audit: 0, crmKeys: 0, orgs: 1, events: 0 })
+    expect(await counts()).toEqual({ ctlKeys: 0, audit: 0, orgs: 1, events: 0 })
   })
 
   it('better-auth re-run converges and writes no second key', async () => {
@@ -128,14 +127,14 @@ describe('order and partial states (CORE356 group 2)', () => {
       const [agent] = await rows(pair.d1, 'select id from agents')
       expect(thrown?.message).toContain(org!.id)
       expect(thrown?.message).toContain(agent!.id)
-      expect(await counts()).toEqual({ ctlKeys: 0, audit: 0, crmKeys: 0, orgs: 1, events: 0 })
+      expect(await counts()).toEqual({ ctlKeys: 0, audit: 0, orgs: 1, events: 0 })
       if (path === 'better-auth') {
         const again = await bootstrapD1(pair.d1, PATHS[path], env())
         expect(again).toMatchObject({ organizationExisted: true, key: null })
       } else {
         await expect(bootstrapD1(pair.d1, PATHS[path], env())).rejects.toThrow(/already initialised/)
       }
-      expect(await counts()).toEqual({ ctlKeys: 0, audit: 0, crmKeys: 0, orgs: 1, events: 0 })
+      expect(await counts()).toEqual({ ctlKeys: 0, audit: 0, orgs: 1, events: 0 })
     },
   )
 })

@@ -97,7 +97,7 @@ const rows = async (d1: D1Like, text: string, ...binds: unknown[]) =>
 const crmCounts = async () =>
   Object.fromEntries(
     await Promise.all(
-      ['events', 'users', 'principals', 'agents', 'memberships', 'organizations', 'api_keys'].map(async (t) => [
+      ['events', 'users', 'principals', 'agents', 'memberships', 'organizations'].map(async (t) => [
         t,
         (await rows(w.d1, `select count(*) n from "${t}"`))[0]!.n as number,
       ]),

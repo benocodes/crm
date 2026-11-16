@@ -30,6 +30,5 @@ describe('the e2e scripts key helper', () => {
     expect(await rows(pair.control, 'select * from control_audit')).toMatchObject([
       { action: 'api_key.created', actor_id: ids.actorId, target_id: id },
     ])
-    expect(await rows(pair.d1, 'select * from api_keys')).toEqual([])
   })
 })

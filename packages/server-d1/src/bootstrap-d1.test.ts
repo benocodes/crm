@@ -28,9 +28,10 @@ const all = async (table: string) =>
 const counts = async () =>
   Object.fromEntries(
     await Promise.all(
-      ['deployment', 'organizations', 'users', 'principals', 'memberships', 'agents', 'api_keys', 'events'].map(
-        async (t) => [t, (await all(t)).length],
-      ),
+      ['deployment', 'organizations', 'users', 'principals', 'memberships', 'agents', 'events'].map(async (t) => [
+        t,
+        (await all(t)).length,
+      ]),
     ),
   )
 
@@ -59,7 +60,6 @@ describe('bootstrapD1 (P7)', () => {
     ])
     expect(await all('agents')).toMatchObject([{ id: r.agentId, organization_id: r.organizationId }])
     // [[CORE356]]: the key is a control key; the CRM database holds none.
-    expect(await all('api_keys')).toEqual([])
     const [key] = ((await w.control.prepare('select * from api_keys').all()).results ?? []) as Array<
       Record<string, any>
     >

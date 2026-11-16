@@ -18,11 +18,14 @@ const storageOf = (kind: 'd1' | 'postgres') =>
   ) as unknown as StorageBinding
 
 describe('bootstrap needs a key store on every engine (CORE329 P3)', () => {
-  it.each(['d1', 'postgres'] as const)('%s: no keyStore refuses naming the control store, before the CRM unit', async (kind) => {
-    touched.length = 0
-    await expect(
-      bootstrap(storageOf(kind), { organizationName: 'Acme', email: 'a@example.com', agentName: 'op' }),
-    ).rejects.toThrow(/control/)
-    expect(touched).toEqual([])
-  })
+  it.each(['d1', 'postgres'] as const)(
+    '%s: no keyStore refuses naming the control store, before the CRM unit',
+    async (kind) => {
+      touched.length = 0
+      await expect(
+        bootstrap(storageOf(kind), { organizationName: 'Acme', email: 'a@example.com', agentName: 'op' }),
+      ).rejects.toThrow(/control/)
+      expect(touched).toEqual([])
+    },
+  )
 })

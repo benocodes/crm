@@ -266,6 +266,5 @@ describe('API-key authentication reads the control plane first (CORE350)', () =>
       }
       await expect(auth()(kit.binding, key, kit.env())).rejects.toThrow('control down')
     })
-
   })
 })

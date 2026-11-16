@@ -396,7 +396,9 @@ describe('group 5: list and get as the CRM resource reads them', () => {
     // The rows as the CRM read answered them before [[CORE329]] dropped that table: by id, optionally one agent, after a cursor, limited.
     const crmRead = async (a: { agentId?: string; after?: string; limit: number }) =>
       made
-        .filter((k) => (a.agentId === undefined || k.agentId === a.agentId) && (a.after === undefined || k.id > a.after))
+        .filter(
+          (k) => (a.agentId === undefined || k.agentId === a.agentId) && (a.after === undefined || k.id > a.after),
+        )
         .sort((x, y) => (x.id < y.id ? -1 : 1))
         .slice(0, a.limit)
         .map((k) => ({
@@ -453,7 +455,7 @@ describe('group 5: list and get as the CRM resource reads them', () => {
 
 describe('group 6: list sorts, orders and filters (CORE351 P4)', () => {
   const ORG3 = '0190b2c4-0000-7000-8000-00000000a0c3'
-  let seeded: Array<NewApiKey & { lastUsedAt: string | null; revokedAt: string | null }> = []
+  const seeded: Array<NewApiKey & { lastUsedAt: string | null; revokedAt: string | null }> = []
   const AGS = [nextId(), nextId()]
   beforeAll(async () => {
     // ten keys: ties on updated_at, nulls in last_used_at and expires_at, two agents, one revoked

@@ -432,7 +432,10 @@ describe('values and exposed (D11)', () => {
   it('exposed is true only for record fields; secret columns are listed with exposed false', () => {
     expect(column(doc, 'tasks', 'status').exposed).toBe(true)
     expect(column(doc, 'companies', 'name').exposed).toBe(true)
-    expect(column(doc, 'channel_credentials', 'refresh_token_ciphertext')).toMatchObject({ exposed: false, kind: 'text' })
+    expect(column(doc, 'channel_credentials', 'refresh_token_ciphertext')).toMatchObject({
+      exposed: false,
+      kind: 'text',
+    })
     expect(column(doc, 'events', 'id').exposed).toBe(false)
   })
 })

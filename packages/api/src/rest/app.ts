@@ -111,7 +111,7 @@ export interface AppOptions {
   members?: MembersRuntime | null
   /** [[CORE261]]: the audit log's read port; absent or null (the parked Postgres composition only; every D1 composition has it, [[CORE326]] P3): `audit.list` answers `501 provider_not_configured`. Ignored when `registry` is given. */
   audit?: AuditRuntime | null
-  /** [[CORE350]] P5: the control plane's API-key port; keys are looked up there first, then in the CRM database. Absent or null (the parked Postgres composition): CRM keys only, as before. */
+  /** [[CORE350]] P5: the control plane's API-key port; keys are looked up there only ([[CORE329]]: the CRM `api_keys` is gone). Absent or null (the parked Postgres composition): every key is unknown. */
   apiKeys?: ApiKeyControlRuntime | null
   /** Extra operations registered before the queue's (Node tests; see `createVibaseRegistry`). Ignored when `registry` is given. */
   extraOperations?: (registry: Registry) => void

@@ -330,8 +330,11 @@ try {
   const detail = JSON.parse(audit[0]!.detail)
   assert.equal(detail.url_origin, 'http://receiver.test')
   assert(!audit[0]!.detail.includes('/hook'), 'the audit detail holds the origin, never the path')
-  for (const table of ['webhook_subscriptions', 'webhook_secrets', 'webhook_dispatch_state', 'webhook_deliveries'])
-    assert.equal((await rows(`select * from ${table}`)).length, 0, `the CRM ${table} table is empty`)
+  assert.equal(
+    (await rows("select name from sqlite_master where type = 'table' and name like 'webhook\\_%' escape '\\'")).length,
+    0,
+    'the CRM has no webhook table (migration 0020)',
+  )
   assert.equal((await rows("select id from events where type like 'webhook.%'")).length, 0, 'no webhook.* event')
   const all = logs.join('')
   for (const [name, value] of [

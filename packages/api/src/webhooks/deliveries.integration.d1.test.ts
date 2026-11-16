@@ -6,7 +6,7 @@ import { AGENT_SCOPES, NO_SUCH, NOW, openWebhookKit, type WebhookKit } from '../
 import { scopesForRole } from '../auth/roles.js'
 
 // API219 (D14, D20): `webhooks.deliveries` reads a subscription's delivery rows (keyset by id, oldest first like webhooks.list, filterable by status), with the ownership of
-// `webhooks.get`; the table is in `schema.get` and its rows are exactly the delivery read schema.
+// `webhooks.get`; its rows are exactly the delivery read schema (the table is no longer in the CRM `schema.get`, CORE329).
 let k: WebhookKit
 beforeAll(async () => {
   k = await openWebhookKit()
@@ -160,27 +160,12 @@ describe('webhooks.deliveries (D14)', () => {
   })
 })
 
-describe('the table in schema.get (API63)', () => {
-  it('webhook_deliveries is listed with its columns and descriptions; the secret and cursor tables stay hidden', async () => {
+describe('the tables in schema.get (API63, CORE329)', () => {
+  it('no webhook table is listed: the four live in the control plane, so schema.get (the CRM catalogue) names none', async () => {
     const r = await k.call({ as: 'user', scopes: ['schema:read'] }, 'GET', '/meta/v1/schema')
     expect(r.status, r.text).toBe(200)
-    const tables = r.body.tables as { name: string; description?: string; columns: { name: string }[] }[]
-    const t = tables.find((x) => x.name === 'webhook_deliveries')
-    expect(t, 'webhook_deliveries is in schema.get').toBeDefined()
-    expect(t!.description?.length ?? 0).toBeGreaterThan(20)
-    expect(t!.columns.map((c) => c.name)).toEqual(
-      expect.arrayContaining([
-        'subscription_id',
-        'event_id',
-        'event_type',
-        'status',
-        'attempts',
-        'next_attempt_at',
-        'last_error',
-        'delivered_at',
-      ]),
-    )
-    expect(tables.map((x) => x.name)).not.toContain('webhook_secrets')
-    expect(tables.map((x) => x.name)).not.toContain('webhook_dispatch_state')
+    const names = (r.body.tables as { name: string }[]).map((x) => x.name)
+    for (const t of ['webhook_subscriptions', 'webhook_deliveries', 'webhook_secrets', 'webhook_dispatch_state'])
+      expect(names, t).not.toContain(t)
   })
 })

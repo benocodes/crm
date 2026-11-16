@@ -136,6 +136,7 @@ export async function clearD1(d1: D1Like): Promise<void> {
   // FTS5 virtual tables (CORE194) are emptied through their own name; their shadow tables (`<virtual>_data`, `_idx`, ...) may not be modified.
   const virtual = rows.filter((r) => /^\s*CREATE\s+VIRTUAL\s+TABLE/i.test(r.sql ?? '')).map((r) => r.name)
   for (const t of [...tables]) if (virtual.some((v) => t.startsWith(`${v}_`))) tables.delete(t)
+  // The webhook tables and `api_keys` are in this list for the CONTROL database, which this helper also empties (the CRM has none since 0020, [[CORE329]]); an absent table is skipped below.
   const order = [
     'webhook_deliveries',
     'webhook_dispatch_state',

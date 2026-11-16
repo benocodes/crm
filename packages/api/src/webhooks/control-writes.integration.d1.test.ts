@@ -17,11 +17,10 @@ const BASE = '/meta/v1/webhooks'
 const TASKS = ['tasks:read']
 const audit = () => k.all('select action, actor_id, target_type, target_id, detail from control_audit order by at, id')
 const detailOf = (r: any) => JSON.parse(r.detail)
+// [[CORE329]]: the CRM has no `webhook_*` table at all, so "untouched" is "still absent" plus no `webhook.*` event.
 const crmWebhookRows = async () => ({
-  subscriptions: (await k.crm('select id from webhook_subscriptions')).length,
-  secrets: (await k.crm('select id from webhook_secrets')).length,
-  state: (await k.crm('select subscription_id from webhook_dispatch_state')).length,
-  deliveries: (await k.crm('select id from webhook_deliveries')).length,
+  tables: (await k.crm("select name from sqlite_master where type = 'table' and name like 'webhook\\_%' escape '\\'"))
+    .length,
   webhookEvents: (await k.crm("select id from events where type like 'webhook.%'")).length,
 })
 const counts = async () => ({
@@ -57,7 +56,7 @@ describe('writes on control with one audit row each', () => {
       url_origin: 'https://example.com',
     })
     expect(rows[0]!.detail).not.toContain('secret/path')
-    expect(await crmWebhookRows()).toEqual({ subscriptions: 0, secrets: 0, state: 0, deliveries: 0, webhookEvents: 0 })
+    expect(await crmWebhookRows()).toEqual({ tables: 0, webhookEvents: 0 })
     expect((await k.crm('select id from events')).length).toBe(eventsBefore)
   })
 
@@ -77,7 +76,7 @@ describe('writes on control with one audit row each', () => {
       status: 'paused',
       url_origin: 'https://example.org',
     })
-    expect(await crmWebhookRows()).toMatchObject({ subscriptions: 0, webhookEvents: 0 })
+    expect(await crmWebhookRows()).toEqual({ tables: 0, webhookEvents: 0 })
     expect((await k.crm('select id from events')).length).toBe(eventsBefore)
   })
 
@@ -90,7 +89,7 @@ describe('writes on control with one audit row each', () => {
     const rows = (await audit()).filter((x) => x.action === 'webhook.deleted')
     expect(rows).toHaveLength(1)
     expect(detailOf(rows[0]!)).toEqual({ agent_id: a })
-    expect(await crmWebhookRows()).toMatchObject({ subscriptions: 0, webhookEvents: 0 })
+    expect(await crmWebhookRows()).toEqual({ tables: 0, webhookEvents: 0 })
     expect((await k.crm('select id from events')).length).toBe(eventsBefore)
   })
 
@@ -107,7 +106,7 @@ describe('writes on control with one audit row each', () => {
     expect(secrets.map((s) => s.id)).toContain(detailOf(rows[0]!).secret_id)
     expect(rows[0]!.detail).not.toContain(r.body.secret)
     for (const s of secrets) expect(rows[0]!.detail).not.toContain(s.sealed)
-    expect(await crmWebhookRows()).toMatchObject({ secrets: 0, webhookEvents: 0 })
+    expect(await crmWebhookRows()).toEqual({ tables: 0, webhookEvents: 0 })
     expect((await k.crm('select id from events')).length).toBe(eventsBefore)
   })
 

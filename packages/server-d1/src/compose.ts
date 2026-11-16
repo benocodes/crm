@@ -551,7 +551,7 @@ export function composeD1Worker(
       : null
   // [[CORE261]] P1: the audit log's read port over the control store, on every D1 composition ([[CORE326]] P3).
   const audit: AuditRuntime | null = control ? { port: { list: (a) => listControlAudit(control, a) } } : null
-  // [[CORE350]] P5: API keys are looked up in the control plane first (then in the CRM database); the port is the one handle composition gives the API package for them.
+  // [[CORE350]] P5: API keys are looked up in the control plane only ([[CORE329]]); the port is the one handle composition gives the API package for them.
   // [[CORE351]] P5: the same store serves the four `api_keys.*` operations.
   const apiKeys: ApiKeyControlRuntime | null = control
     ? (() => {
