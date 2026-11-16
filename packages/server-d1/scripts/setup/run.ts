@@ -41,7 +41,7 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
     }
     if (!named.dryRun) requireConfirm(procEnv)
     // [[OPS308]] P1, P3: the one host of this run, resolved before any write and before anything reads the base URL (the Gmail group's default and refusal, bootstrap, verify).
-    const creds = deps.loadEnv()
+    const creds = deps.loadEnv(named.env)
     const opts = await resolveHost(named, creds, deps.fetch)
     // The Clerk keys come from the instance's own file, before any request; the process environment is never read for them (D34).
     // The same file also holds the Gmail group ([[OPS150]]), on `--auth none` too: one probe, the same refusals.

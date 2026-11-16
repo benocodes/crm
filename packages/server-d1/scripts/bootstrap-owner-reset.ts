@@ -12,8 +12,8 @@ export const OWNER_RESET_USAGE =
   'usage: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --owner-reset [--email <owner>]'
 
 export interface OwnerResetRemoteDeps {
-  /** Loads the Cloudflare credentials from the root `.env` (and refuses when they are missing). */
-  loadEnv(): void
+  /** Loads the Cloudflare credentials from the instance's env file (and refuses when they are missing). */
+  loadEnv(envName: string): void
   readConfig(envName: string): ConfigLike & { vars?: Record<string, unknown> }
   /** The instance's own env file `.env.<env>` as `probeEnvFile` reports it. */
   readInstanceEnv(envName: string): {
@@ -55,7 +55,7 @@ export async function runOwnerResetRemote(
       throw new RemoteRefusal(`--owner-reset needs --remote and --env <name>; ${OWNER_RESET_USAGE}`)
     requireConfirm(env)
     const envName = values.env
-    deps.loadEnv()
+    deps.loadEnv(envName)
     const config = deps.readConfig(envName)
     const target = resolveTarget(config, envName)
     deps.log(`target: env ${target.env}, database ${target.databaseName} (${target.databaseId})`)
