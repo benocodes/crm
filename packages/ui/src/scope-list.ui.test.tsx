@@ -26,4 +26,14 @@ describe('ScopeList', () => {
     expect(screen.getByText(attack)).toBeTruthy()
     expect(container.textContent).toContain('<b>bold</b><script>1</script>')
   })
+
+  // [[UI381]] D10: a bounded, named, keyboard-focusable scroll region
+  it('sits in a named region that is keyboard focusable, and still lists every scope', () => {
+    const scopes = Array.from({ length: 30 }, (_, i) => ({ name: `s${i}:read`, description: `d${i}` }))
+    render(<ScopeList scopes={scopes} />)
+    const region = screen.getByRole('region', { name: /permissions/i })
+    expect(region.getAttribute('tabindex')).toBe('0')
+    expect(region.querySelectorAll('li')).toHaveLength(30)
+    expect(region.className).toContain('vb-scope-list__region')
+  })
 })
