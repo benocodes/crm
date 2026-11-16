@@ -180,9 +180,9 @@ describe('auth:migrate:remote plan refuses first', () => {
       /not ignored by git/,
     ],
     [
-      'a subcommand that is not built yet',
-      (k) => ({ argv: ['revert', '--env', 'hq', '--plan', k.plan], env: GOOD }),
-      /plan/,
+      'a subcommand that does not exist',
+      (k) => ({ argv: ['rollback', '--env', 'hq', '--plan', k.plan], env: GOOD }),
+      /plan, apply, claim and revert subcommands/,
     ],
   ]
   for (const [title, build, message] of cases) {
