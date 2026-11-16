@@ -23,6 +23,7 @@ import {
   type FakeFetch,
   type TestIssuer,
 } from '@vibase/api/test/clerk'
+import { bootstrapD1 as bootstrapD1Real } from '../bootstrap-d1.js'
 import { composeD1Worker as composeRealD1Worker, type D1WorkerEnv } from '../compose.js'
 
 export { clerkOrganization, clerkMembership, clerkUser, mintOAuthToken }
@@ -91,6 +92,15 @@ export function composeD1Worker(
   const control = 'CONTROL_DB' in env ? undefined : pairedControl.get(env.DB)
   return composeRealD1Worker(control ? { ...env, CONTROL_DB: control } : env, deps)
 }
+
+/**
+ * `bootstrapD1` for tests ([[CORE356]] P5): a CRM binding from `openWorkerD1` (or a spy over it) has a paired control database, and a key is minted there, so the call gets it as `control` unless the test passes one
+ * (or `control: undefined` through a rest of its own: the missing-control rows call the real function). The call shape is the real function's.
+ */
+export const bootstrapD1: typeof bootstrapD1Real = ((d1: D1Like, opts: never, env: Record<string, unknown> = {}) => {
+  const paired = pairedControl.get(d1)
+  return bootstrapD1Real(d1, opts, { ...(paired ? { control: openControlDb(paired) } : {}), ...env })
+}) as never
 
 /** One migrated in-memory Miniflare D1 for a test file, with its auto-paired control-plane database. */
 export async function openWorkerD1(): Promise<WorkerD1> {

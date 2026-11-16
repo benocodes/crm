@@ -383,7 +383,9 @@ describe('5. the bootstrap step on better-auth (D6)', () => {
     const key = /^DEMO_KEY=(\S+)$/m.exec(file(s))?.[1]
     expect(key).toBeTruthy()
     expect(surface(s)).not.toContain(key!)
-    expect(await rowsOf(pair.d1, 'select * from api_keys')).toHaveLength(1)
+    expect(await rowsOf(pair.d1, 'select * from api_keys')).toHaveLength(0)
+    expect(await rowsOf(pair.control, 'select * from api_keys')).toHaveLength(1)
+    expect(await rowsOf(pair.control, "select * from control_audit where action = 'api_key.created'")).toHaveLength(1)
   })
 })
 
