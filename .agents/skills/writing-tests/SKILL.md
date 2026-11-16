@@ -714,6 +714,10 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   owner invitation, so two scripts cannot share one local state. Capture outbound email with a test-only entry that
   wraps the real Worker module and replaces `env.EMAIL` with a recording binding (`src/test/entry-email.ts`, read back at
   `/__emails`).
+- **A test Worker entry that re-creates composition config passes every field `compose.ts` passes.** `src/test/entry-mint.ts`
+  builds its own `/auth` handler; when it omitted `defaultScopes`, the default scope list silently fell back to the ceiling
+  and its tests proved the wrong configuration ([[CORE330]]). When you add a field to the auth config in `compose.ts`, add
+  it to every test entry in the same commit.
 - **Local setup:** `wrangler d1 migrations apply DB --local` and `... apply CONTROL_DB --local` before `bootstrap` (it writes the control marker, CORE259); in `.dev.vars` write the
   `CLERK_JWT_KEY` PEM on one line with `\n` escapes. Delete every DCR client the run creates through BAPI by
   its application id (`DELETE /v1/oauth_applications/oa_…`), not its client id.
