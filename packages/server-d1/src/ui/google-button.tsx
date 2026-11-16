@@ -40,7 +40,7 @@ export function GoogleButton({
     onError(r.status === 429 ? MESSAGES.rateLimited : r.status === 0 ? genericFailure(0) : MESSAGES.googleFailed)
   }
   return (
-    <Button variant="secondary" busy={busy} onClick={click}>
+    <Button variant="secondary" block busy={busy} onClick={click}>
       {MESSAGES.googleButton}
     </Button>
   )

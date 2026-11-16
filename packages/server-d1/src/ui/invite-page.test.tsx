@@ -220,12 +220,60 @@ describe('refusals', () => {
   })
 })
 
+// #376: top to bottom: h1, Google (when discovery lists it), an OR divider hidden from assistive tech, the "Create a new account" form, the full-width submit, then the sign-in text link.
+describe('the layout (#376)', () => {
+  const DISCOVERY = {
+    'GET /.well-known/vibase': {
+      status: 200,
+      json: { auth: { provider: 'better-auth', sign_in_methods: ['password', 'google'] } },
+    },
+  }
+  it('orders header, Google, OR, form heading, fields, submit, link; one h1; the divider is aria-hidden', async () => {
+    fakeFetch(DISCOVERY)
+    render(<InvitePage />)
+    const google = await screen.findByRole('button', { name: MESSAGES.googleButton })
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Accept your invitation')
+    const divider = screen.getByText('OR')
+    expect(divider.closest('[aria-hidden="true"]')).toBeTruthy()
+    const sub = screen.getByRole('heading', { name: 'Create a new account' })
+    const name = screen.getByLabelText('Name')
+    const submit = screen.getByRole('button', { name: /^create account$/i })
+    const link = screen.getByRole('link', { name: /already have an account\? sign in to accept/i })
+    const h1 = screen.getByRole('heading', { level: 1 })
+    const follows = (a: Node, b: Node) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    const order = [h1, google, divider, sub, name, submit, link]
+    for (let i = 0; i < order.length - 1; i++) expect(follows(order[i]!, order[i + 1]!)).toBe(true)
+    expect(screen.queryByRole('button', { name: /already have an account/i })).toBeNull()
+  })
+
+  it('without Google in discovery there is no OR divider', async () => {
+    fakeFetch({
+      'GET /.well-known/vibase': {
+        status: 200,
+        json: { auth: { provider: 'better-auth', sign_in_methods: ['password'] } },
+      },
+    })
+    render(<InvitePage />)
+    await screen.findByLabelText('Email')
+    expect(screen.queryByText('OR')).toBeNull()
+  })
+
+  it('the submit button sits in the card body (a stretched column), not the shrink-to-fit actions row', () => {
+    render(<InvitePage />)
+    const submit = screen.getByRole('button', { name: /^create account$/i })
+    expect(submit.closest('.vb-card__actions')).toBeNull()
+    expect(submit.closest('.vb-card__body')).toBeTruthy()
+    expect(submit.className).toContain('vb-button--block')
+  })
+})
+
 // [[CORE302]] P6: the sign-in mode, for a person whose account already exists (a removed member invited again): the token rides `/auth/sign-in/email` as the `vibase-invitation` header (the sign-in body schema strips it).
 describe('the sign-in mode (CORE302 P6)', () => {
   const MODE = /already have an account\? sign in to accept/i
   const switchToSignIn = async () => {
     const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: MODE }))
+    await user.click(screen.getByRole('link', { name: MODE }))
     return user
   }
   const signInFields = async (
@@ -246,7 +294,7 @@ describe('the sign-in mode (CORE302 P6)', () => {
     expect(screen.getByLabelText('Email')).toBeTruthy()
     expect(screen.getByLabelText('Password').getAttribute('autocomplete')).toBe('current-password')
     expect(screen.getByRole('button', { name: /^sign in$/i })).toBeTruthy()
-    await userEvent.setup().click(screen.getByRole('button', { name: /create (an )?account/i }))
+    await userEvent.setup().click(screen.getByRole('link', { name: /create (an )?account/i }))
     expect(screen.getByLabelText('Name')).toBeTruthy()
   })
 
