@@ -58,7 +58,10 @@ async function targetsOf(plan: AuthPlan, control: D1Like): Promise<Target[]> {
       throw new ClaimRefusal(
         `auth user ${w.subject} is missing from the control database although the instance reads as applied: plan again, or look at the control rows`,
       )
-    const account = await control.prepare('select 1 as n from auth_accounts where user_id = ? limit 1').bind(w.subject).first()
+    const account = await control
+      .prepare('select 1 as n from auth_accounts where user_id = ? limit 1')
+      .bind(w.subject)
+      .first()
     out.push({ ...w, email: user.email, claimed: account !== null })
   }
   return out
@@ -146,9 +149,7 @@ export async function claim(p: ClaimParams): Promise<void> {
       throw new ClaimFailure(
         `claim failed for ${t.email}: no Better Auth account answers to that address although the instance reads as applied. ${tail}`,
       )
-    p.log(
-      `claim link for ${t.email} (${label(t)}; expires ${link.expiresAt}; shown once, stored nowhere): ${link.url}`,
-    )
+    p.log(`claim link for ${t.email} (${label(t)}; expires ${link.expiresAt}; shown once, stored nowhere): ${link.url}`)
     issued.push(t.email)
   }
   p.log(`claim: ${issued.length} link${issued.length === 1 ? '' : 's'} issued, each valid for one hour`)

@@ -528,7 +528,9 @@ async function runClaim(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanDe
     )
   const publicBaseUrl = config.vars?.PUBLIC_BASE_URL
   if (typeof publicBaseUrl !== 'string' || publicBaseUrl === '')
-    throw new RemoteRefusal(`claim needs PUBLIC_BASE_URL in wrangler.jsonc's env ${envName} block: it is the origin of the links`)
+    throw new RemoteRefusal(
+      `claim needs PUBLIC_BASE_URL in wrangler.jsonc's env ${envName} block: it is the origin of the links`,
+    )
   const planPath = resolve(args.plan ?? defaultPlanPath(envName, procEnv, homedir()))
   const plan = readPlanFile(planPath, envName, target, deps)
   const secretKey = readSecretKey(envName, deps)

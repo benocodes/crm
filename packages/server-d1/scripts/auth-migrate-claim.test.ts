@@ -37,7 +37,9 @@ const config = (vars: Record<string, unknown> = VARS, control = true) => ({
   name: 'vault-hq',
   d1_databases: [
     { binding: 'DB', database_name: 'vault-crm-hq', database_id: CRM_ID, remote: true },
-    ...(control ? [{ binding: 'CONTROL_DB', database_name: 'vault-control-hq', database_id: CTL_ID, remote: true }] : []),
+    ...(control
+      ? [{ binding: 'CONTROL_DB', database_name: 'vault-control-hq', database_id: CTL_ID, remote: true }]
+      : []),
   ],
   vars,
 })
@@ -73,10 +75,16 @@ const rows = async (d1: D1Like, q: string, ...b: unknown[]) =>
   ).results ?? []) as Array<Record<string, any>>
 const CRM_TABLES = ['principals', 'users', 'agents', 'memberships', 'events', 'organizations', 'deployment']
 const crmDump = async () =>
-  JSON.stringify(await Promise.all(CRM_TABLES.map(async (t) => [t, await rows(pair.d1, `select * from ${t} order by 1`)])))
+  JSON.stringify(
+    await Promise.all(CRM_TABLES.map(async (t) => [t, await rows(pair.d1, `select * from ${t} order by 1`)])),
+  )
 const audits = () =>
-  rows(pair.control, "select actor_id, target_id, detail from control_audit where action = 'user.reset_link_issued' order by at, id")
-const verifications = () => rows(pair.control, "select identifier from auth_verifications where identifier like 'reset-password:%'")
+  rows(
+    pair.control,
+    "select actor_id, target_id, detail from control_audit where action = 'user.reset_link_issued' order by at, id",
+  )
+const verifications = () =>
+  rows(pair.control, "select identifier from auth_verifications where identifier like 'reset-password:%'")
 const URL_RE = /https?:\/\/\S+#token=([A-Za-z0-9_-]+)/g
 const urlsIn = (lines: string[]) => [...lines.join('\n').matchAll(URL_RE)].map((m) => ({ url: m[0], token: m[1]! }))
 
@@ -198,9 +206,16 @@ const targetEmails = (c: Ctx) => {
       .map((a) => clerk.get(c.plan.snapshot.agents.find((x) => x.id === a.id)!.auth_subject!)!.email!.toLowerCase()),
   ]
 }
-const subjectOf = async (email: string) => (await rows(pair.control, 'select id from auth_users where email = ?', email))[0]!.id as string
+const subjectOf = async (email: string) =>
+  (await rows(pair.control, 'select id from auth_users where email = ?', email))[0]!.id as string
 const worker = () =>
-  composeD1Worker({ DB: pair.d1, CONTROL_DB: pair.control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET: SECRET, PUBLIC_BASE_URL: BASE })
+  composeD1Worker({
+    DB: pair.d1,
+    CONTROL_DB: pair.control,
+    AUTH_PROVIDER: 'better-auth',
+    AUTH_SECRET: SECRET,
+    PUBLIC_BASE_URL: BASE,
+  })
 let ip = 0
 const post = (path: string, body: unknown) =>
   worker().fetch(
@@ -261,7 +276,9 @@ describe('targets and links (P2, P3)', () => {
     const again = await runClaim(c)
     expect(again.code, again.text()).toBe(0)
     expect(urlsIn(again.out)).toHaveLength(targets.length - 1)
-    expect(again.out.filter((l) => /claimed/i.test(l) && l.includes('a@example.test') && !l.includes('#token='))).toHaveLength(1)
+    expect(
+      again.out.filter((l) => /claimed/i.test(l) && l.includes('a@example.test') && !l.includes('#token=')),
+    ).toHaveLength(1)
     expect(again.out.filter((l) => l.includes('a@example.test') && l.includes('#token='))).toEqual([])
     expect(await audits()).toHaveLength(targets.length + targets.length - 1)
     // an earlier unused link (member b's, first run) still works
@@ -310,7 +327,9 @@ describe('targets and links (P2, P3)', () => {
     const world = standardWorld()
     world.users = [world.users[4]!]
     world.memberships = []
-    world.agents = world.agents.filter((a) => ['plain key', 'delegated'].includes(a.name)).map((a) => (a.delegated_by ? { ...a, delegated_by: U(5) } : a))
+    world.agents = world.agents
+      .filter((a) => ['plain key', 'delegated'].includes(a.name))
+      .map((a) => (a.delegated_by ? { ...a, delegated_by: U(5) } : a))
     const c = await setup({ world })
     expect(targetEmails(c)).toEqual([])
     const r = await runClaim(c)
@@ -384,7 +403,14 @@ function onlyPerson(): World {
 }
 
 describe('refused before any write (P5)', () => {
-  const cases: Array<[string, (c: Ctx) => Promise<RunOpts | undefined> | RunOpts | undefined, RegExp, { apply?: boolean; world?: World }?]> = [
+  const cases: Array<
+    [
+      string,
+      (c: Ctx) => Promise<RunOpts | undefined> | RunOpts | undefined,
+      RegExp,
+      { apply?: boolean; world?: World }?,
+    ]
+  > = [
     ['the instance is not applied', () => undefined, /claim needs an applied instance.*apply/s, { apply: false }],
     [
       'the instance no longer matches the plan',
@@ -394,9 +420,17 @@ describe('refused before any write (P5)', () => {
       },
       /claim needs an applied instance.*no longer matches the plan.*users row/s,
     ],
-    ['the record is not better-auth', () => ({ cfg: config({ AUTH_PROVIDER: 'clerk', PUBLIC_BASE_URL: BASE }) }), /claim needs a better-auth instance/],
+    [
+      'the record is not better-auth',
+      () => ({ cfg: config({ AUTH_PROVIDER: 'clerk', PUBLIC_BASE_URL: BASE }) }),
+      /claim needs a better-auth instance/,
+    ],
     ['the record binds no control database', () => ({ cfg: config(VARS, false) }), /claim needs a control database/],
-    ['the record has no PUBLIC_BASE_URL', () => ({ cfg: config({ AUTH_PROVIDER: 'better-auth' }) }), /claim needs PUBLIC_BASE_URL/],
+    [
+      'the record has no PUBLIC_BASE_URL',
+      () => ({ cfg: config({ AUTH_PROVIDER: 'better-auth' }) }),
+      /claim needs PUBLIC_BASE_URL/,
+    ],
     [
       'AUTH_SECRET is missing from the instance file',
       (c) => void writeFileSync(c.envFile, envText(null)),
@@ -421,14 +455,22 @@ describe('refused before any write (P5)', () => {
         const c = await setup(opt)
         const o = (await arrange(c)) ?? {}
         const crm = await crmDump()
-        const before = { audits: await audits(), verifs: await verifications(), users: await rows(pair.control, 'select * from auth_users') }
+        const before = {
+          audits: await audits(),
+          verifs: await verifications(),
+          users: await rows(pair.control, 'select * from auth_users'),
+        }
         const r = await runClaim(c, { ...o, argv: dry ? ['--dry-run'] : [] })
         expect(r.code, r.text()).toBe(1)
         expect(r.err.join('\n')).toMatch(phrase)
         expect(urlsIn(r.out)).toEqual([])
         expect(r.controlWrites()).toEqual([])
         expect(r.crmWrites()).toBe(0)
-        expect({ audits: await audits(), verifs: await verifications(), users: await rows(pair.control, 'select * from auth_users') }).toEqual(before)
+        expect({
+          audits: await audits(),
+          verifs: await verifications(),
+          users: await rows(pair.control, 'select * from auth_users'),
+        }).toEqual(before)
         expect(await crmDump()).toBe(crm)
       })
 
@@ -439,7 +481,9 @@ describe('refused before any write (P5)', () => {
       runClaimRaw(c, argv, env, planPath)
     expect((await runClaim(c, { env: {} })).err.join('\n')).toMatch(/set CONFIRM_REMOTE=1/)
     expect((await run(['claim'])).err.join('\n')).toMatch(/--env <name> is required/)
-    expect((await runClaim(c, { planPath: join(c.dir, 'missing.json') })).err.join('\n')).toMatch(/plan file .* is missing or unreadable/)
+    expect((await runClaim(c, { planPath: join(c.dir, 'missing.json') })).err.join('\n')).toMatch(
+      /plan file .* is missing or unreadable/,
+    )
     const other = join(c.dir, 'other.json')
     writeFileSync(other, JSON.stringify({ ...c.plan, env: 'smoked1' }))
     expect((await runClaim(c, { planPath: other })).err.join('\n')).toMatch(/made for env smoked1, not hq/)

@@ -56,7 +56,14 @@ async function applied() {
 }
 
 let ip = 0
-const worker = () => composeD1Worker({ DB: pair.d1, CONTROL_DB: pair.control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE })
+const worker = () =>
+  composeD1Worker({
+    DB: pair.d1,
+    CONTROL_DB: pair.control,
+    AUTH_PROVIDER: 'better-auth',
+    AUTH_SECRET,
+    PUBLIC_BASE_URL: AUTH_BASE,
+  })
 const post = (wk: ReturnType<typeof worker>, path: string, body: unknown) =>
   wk.fetch(
     new Request(AUTH_BASE + path, {
