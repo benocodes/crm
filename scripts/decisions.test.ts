@@ -167,6 +167,51 @@ describe('decisions find', () => {
   })
 })
 
+describe('decisions size', () => {
+  it('groups the current sprint by the milestone that names the issue, the spec or a spec it implements', () => {
+    writeFileSync(
+      join(knowledge, 'SPRINT.md'),
+      [
+        '# Sprint',
+        '## Milestones',
+        '### Milestone D — webhooks',
+        '| Needed | Spec | State |',
+        '| Gmail | [[CHN5]] | ✅ |',
+        '### Milestone G — built-in auth',
+        '| Control plane | [[CORE259]] | in flight |',
+        '| Follow-up | #999 | not started |',
+        '## Now / Next',
+        'Mentions [[CORE351]] and #5 outside any milestone.',
+      ].join('\n'),
+    )
+    run(...addArgs('351', 'a cycle of the control plane'))
+    run(...addArgs('259', 'the spec itself'))
+    run(...addArgs('999', 'an issue with no spec'))
+    run(...addArgs('5', 'gmail'))
+    run(...addArgs('777', 'named nowhere'))
+    run('rotate', '--force')
+    run(...addArgs('350', 'the only row of the new sprint'))
+    expect(run('size').stdout).toBe(
+      [
+        'sprint-002.jsonl: 1 decisions',
+        '     0    0%  Milestone D — webhooks',
+        '     1  100%  Milestone G — built-in auth',
+        '',
+      ].join('\n'),
+    )
+    rmSync(join(knowledge, 'decisions', 'sprint-002.jsonl'))
+    expect(run('size').stdout).toBe(
+      [
+        'sprint-001.jsonl: 5 decisions',
+        '     1   20%  Milestone D — webhooks',
+        '     3   60%  Milestone G — built-in auth',
+        '     1   20%  no milestone',
+        '',
+      ].join('\n'),
+    )
+  })
+})
+
 describe('decisions status and rotate', () => {
   beforeEach(() => mkdirSync(join(knowledge, 'decisions')))
 

@@ -21,6 +21,9 @@ Relationship to other specs, Non-goals, Open questions only where genuinely defe
   (see "Recording decisions"). Commit and push in the knowledge repo.
 - If a decision would cross a hard stop (it needs a paid account, a production change, or it commits the
   product publicly), don't make it: report `blocked` with the decision framed for the user.
+- If the design needs a capability that no spec in the sprint covers, don't open a spec for it and don't
+  fold it into this one: name it under `Next` in your report as `admission: <the capability, and why this
+  spec needs it>`. The user decides whether it joins the sprint.
 
 ## Mode: plan
 
