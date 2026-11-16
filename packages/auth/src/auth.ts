@@ -535,6 +535,32 @@ export interface AuthService {
   issueResetToken(email: string): Promise<{ token: string; expiresAt: Date } | null>
 }
 
+/**
+ * What the authorization-server metadata advertises to connectors (OPS252, hq cutover): Claude web connected against Clerk's metadata, which lists
+ * `none`, `client_secret_basic` and `client_secret_post` only and answers CORS; the library also lists `private_key_jwt` with its signing algorithms.
+ * Only the advertisement changes (the endpoints still accept what they accepted), and the response is readable from a browser.
+ */
+async function shapeMetadata(res: Response | Promise<Response>): Promise<Response> {
+  const r = await res
+  if (!r.ok) return r
+  let doc: Record<string, unknown>
+  try {
+    doc = (await r.clone().json()) as Record<string, unknown>
+  } catch {
+    return r
+  }
+  for (const k of Object.keys(doc)) {
+    if (k.endsWith('_auth_methods_supported') && Array.isArray(doc[k]))
+      doc[k] = (doc[k] as string[]).filter((m) => m !== 'private_key_jwt')
+    if (k.endsWith('_auth_signing_alg_values_supported')) delete doc[k]
+  }
+  const headers = new Headers(r.headers)
+  headers.delete('content-length')
+  headers.set('content-type', 'application/json')
+  headers.set('access-control-allow-origin', '*')
+  return new Response(JSON.stringify(doc), { status: r.status, headers })
+}
+
 /** The built-in provider for the Worker: build once per isolate; it holds the library's own caches. */
 export function createAuth(db: AuthDatabaseLike, config: AuthRuntimeConfig, opts: CreateAuthOptions = {}): AuthService {
   const captures: ResetCaptures = opts.resetCaptures ?? new Map()
@@ -543,7 +569,8 @@ export function createAuth(db: AuthDatabaseLike, config: AuthRuntimeConfig, opts
   const metadata = oauthProviderAuthServerMetadata(auth as never)
   const lanes = new Map<string, Promise<unknown>>()
   return {
-    handler: (req) => (new URL(req.url).pathname === AUTH_SERVER_METADATA_PATH ? metadata(req) : auth.handler(req)),
+    handler: (req) =>
+      new URL(req.url).pathname === AUTH_SERVER_METADATA_PATH ? shapeMetadata(metadata(req)) : auth.handler(req),
     issueResetToken(email) {
       const key = email.trim().toLowerCase()
       const run = (lanes.get(key) ?? Promise.resolve()).then(async () => {
@@ -579,7 +606,8 @@ export function createAuthHandler(
 ): (req: Request) => Promise<Response> {
   const auth = betterAuth(authOptions(db, config, opts))
   const metadata = oauthProviderAuthServerMetadata(auth as never)
-  return (req) => (new URL(req.url).pathname === AUTH_SERVER_METADATA_PATH ? metadata(req) : auth.handler(req))
+  return (req) =>
+    new URL(req.url).pathname === AUTH_SERVER_METADATA_PATH ? shapeMetadata(metadata(req)) : auth.handler(req)
 }
 
 /** The first-party CLI's fixed client id ([[CORE243]] D10). */
