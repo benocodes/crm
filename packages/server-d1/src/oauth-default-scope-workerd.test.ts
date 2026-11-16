@@ -157,6 +157,50 @@ describe('group 1: a scope-less authorize is asked for and granted exactly the d
         })
 })
 
+describe('group 1b: a scope-less POST authorize (form body) gets the default set', () => {
+  for (const [formName, scope] of [
+    ['absent', undefined],
+    ['blank', ''],
+  ] as Array<[string, string | undefined]>)
+    it(`dcr, signed-in, POST body, scope ${formName}`, async () => {
+      const id = await registerNoScope()
+      const { cookie } = await signUp(`g1b-${formName}@x.test`)
+      const params = new URL(authorizeUrl(id, scope), BASE).searchParams
+      const res = (await w.mf.dispatchFetch(`${BASE}/auth/oauth2/authorize`, {
+        method: 'POST',
+        redirect: 'manual',
+        headers: { origin: BASE, ...ip(), cookie, 'content-type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      })) as unknown as Response
+      const raw = res.status === 302 ? res.headers.get('location') : ((await res.json()) as { url?: string }).url
+      expect(raw, `authorize answered ${res.status}`).toBeTruthy()
+      const consent = new URL(raw!, BASE)
+      expect(consent.pathname).toBe('/consent')
+      expect(set(consent.searchParams.get('scope'))).toEqual([...DEFAULTS].sort())
+      const accepted = await call('/auth/oauth2/consent', {
+        cookie,
+        body: { accept: true, oauth_query: consent.search.slice(1) },
+      })
+      expect(accepted.status, await accepted.clone().text()).toBe(200)
+      const code = new URL(((await accepted.json()) as { url: string }).url).searchParams.get('code')!
+      const tok = await call('/auth/oauth2/token', {
+        form: true,
+        body: {
+          grant_type: 'authorization_code',
+          code,
+          code_verifier: verifier,
+          redirect_uri: REDIRECT,
+          client_id: id,
+          resource: MCP,
+        },
+      })
+      expect(tok.status, await tok.clone().text()).toBe(200)
+      const granted = set(decode(((await tok.json()) as { access_token: string }).access_token).scope)
+      expect(granted).toEqual([...DEFAULTS].sort())
+      expect(granted).not.toContain('audit:read')
+    })
+})
+
 describe('group 2: a named scope passes through untouched', () => {
   it('a named set is asked for and granted exactly', async () => {
     const id = await registerNoScope()
