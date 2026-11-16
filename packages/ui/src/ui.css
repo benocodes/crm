@@ -281,18 +281,31 @@ body {
   color: var(--vb-color-error-fg);
 }
 
+.vb-scope-list__region {
+  max-height: clamp(6rem, 18vh, 10rem);
+  overflow-y: auto;
+  border: 1px solid var(--vb-color-border);
+  border-radius: var(--vb-radius);
+  padding: var(--vb-space-2) var(--vb-space-3);
+}
+
 .vb-scope-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--vb-space-3);
+  gap: var(--vb-space-1);
 }
 
 .vb-scope-list__item {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--vb-space-3);
+  font-size: 0.875rem;
+  line-height: 1.3;
 }
 
 .vb-scope-list__name {
@@ -304,6 +317,7 @@ body {
   color: var(--vb-color-muted);
 }
 
+.vb-scope-list__region:focus-visible,
 .vb-button:focus-visible,
 .vb-field__input:focus-visible,
 .vb-alert:focus-visible {

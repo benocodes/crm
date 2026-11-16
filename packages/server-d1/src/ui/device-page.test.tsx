@@ -59,11 +59,11 @@ describe('no session', () => {
 
 describe('signed in: the code form', () => {
   it('shows "Signed in as <email>" and the code input prefilled from ?user_code= as XXXX-XXXX', async () => {
-    history.replaceState(null, '', '/device?user_code=abcdefgh')
+    history.replaceState(null, '', '/device?user_code=abcdefg')
     fakeFetch(happyRoutes())
     render(<DevicePage />)
     expect(await screen.findByText('Signed in as ann@x.test')).toBeTruthy()
-    expect((screen.getByLabelText(MESSAGES.deviceCodeLabel) as HTMLInputElement).value).toBe('ABCD-EFGH')
+    expect((screen.getByLabelText(MESSAGES.deviceCodeLabel) as HTMLInputElement).value).toBe('ABCD-EFG')
   })
 
   it('without ?user_code= the input is empty', async () => {
@@ -119,7 +119,6 @@ describe('claim, then review', () => {
     history.replaceState(null, '', '/device?user_code=ABCDEFGH')
     const f = fakeFetch(happyRoutes())
     render(<DevicePage />)
-    await submitCode()
     expect(await screen.findByText('Vibase CLI')).toBeTruthy()
     expect(screen.getByText('ABCD-EFGH')).toBeTruthy()
     expect(screen.getByText(MESSAGES.deviceCheckCode)).toBeTruthy()
@@ -144,7 +143,6 @@ describe('claim, then review', () => {
       'GET /auth/oauth2/public-client': { status: 200, json: { client_name: '<b id="n">Evil</b>' } },
     })
     render(<DevicePage />)
-    await submitCode()
     await screen.findByText('<b id="n">Evil</b>')
     expect(screen.getByText('Signed in as <i id="e">a</i>@x.test')).toBeTruthy()
     expect(screen.getByText('<u>x</u>:read')).toBeTruthy()
@@ -162,7 +160,6 @@ describe('claim, then review', () => {
       },
     })
     render(<DevicePage />)
-    await submitCode()
     expect(await screen.findByText('mystery:read')).toBeTruthy()
     expect(screen.getByText(MESSAGES.noDescription)).toBeTruthy()
   })
@@ -171,7 +168,7 @@ describe('claim, then review', () => {
     history.replaceState(null, '', '/device?user_code=ABCDEFGH')
     const f = fakeFetch(happyRoutes())
     render(<DevicePage />)
-    const user = await submitCode()
+    const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /approve/i }))
     expect(await screen.findByText(MESSAGES.deviceApproved)).toBeTruthy()
     expect(MESSAGES.deviceApproved).toContain('You can return to your terminal')
@@ -184,7 +181,7 @@ describe('claim, then review', () => {
     history.replaceState(null, '', '/device?user_code=ABCDEFGH')
     const f = fakeFetch(happyRoutes())
     render(<DevicePage />)
-    const user = await submitCode()
+    const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /deny/i }))
     expect(await screen.findByText(MESSAGES.deviceDenied)).toBeTruthy()
     expect(f.calls.find((c) => c.path === '/auth/device/deny')!.body).toEqual({ userCode: 'ABCDEFGH' })
@@ -226,10 +223,14 @@ describe('one message per outcome', () => {
     history.replaceState(null, '', '/device?user_code=ABCDEFGH')
     const f = fakeFetch({ ...happyRoutes(), 'GET /auth/device': reply })
     render(<DevicePage />)
-    await submitCode()
     expect((await screen.findByRole('alert')).textContent).toBe(message)
     expect(screen.queryByRole('button', { name: /approve/i })).toBeNull()
     expect(f.requests()).not.toContain('GET /auth/oauth2/public-client')
+    // the form, prefilled, Check code usable; and no retry after a re-render
+    expect((screen.getByLabelText(MESSAGES.deviceCodeLabel) as HTMLInputElement).value).toBe('ABCD-EFGH')
+    expect(screen.getByRole('button', { name: /check code/i })).toBeTruthy()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(f.requests().filter((r) => r === 'GET /auth/device')).toHaveLength(1)
   })
 
   const decideCases: Array<[string, { status: number; json?: unknown; text?: string }, string]> = [
@@ -251,7 +252,7 @@ describe('one message per outcome', () => {
     history.replaceState(null, '', '/device?user_code=ABCDEFGH')
     fakeFetch({ ...happyRoutes(), 'POST /auth/device/approve': reply })
     render(<DevicePage />)
-    const user = await submitCode()
+    const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /approve/i }))
     expect((await screen.findByRole('alert')).textContent).toBe(message)
   })
@@ -260,7 +261,7 @@ describe('one message per outcome', () => {
     history.replaceState(null, '', '/device?user_code=ABCDEFGH')
     fakeFetch({ ...happyRoutes(), 'POST /auth/device/deny': { status: 400, json: { error: 'expired_token' } } })
     render(<DevicePage />)
-    const user = await submitCode()
+    const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /deny/i }))
     expect((await screen.findByRole('alert')).textContent).toBe(MESSAGES.deviceExpired)
   })
@@ -275,7 +276,6 @@ describe('one message per outcome', () => {
       },
     })
     render(<DevicePage />)
-    await submitCode()
     expect((await screen.findByRole('alert')).textContent).toBe(MESSAGES.deviceUnrecognised)
     expect(document.body.textContent).not.toContain('Invalid user code')
   })
@@ -284,8 +284,100 @@ describe('one message per outcome', () => {
     history.replaceState(null, '', '/device?user_code=ABCDEFGH')
     fakeFetch({ ...happyRoutes(), 'GET /auth/oauth2/public-client': { status: 404, json: { error: 'not_found' } } })
     render(<DevicePage />)
-    await submitCode()
     expect(await screen.findByText('vibase-cli')).toBeTruthy()
     expect(screen.getByRole('button', { name: /approve/i })).toBeTruthy()
+  })
+})
+
+// [[UI381]] D9: the link is claimed on load, once, with no click.
+describe('one step: a complete code in the link is claimed on load', () => {
+  const claimsOf = (f: ReturnType<typeof fakeFetch>) => f.requests().filter((r) => r === 'GET /auth/device')
+
+  it.each([
+    ['separated', 'abcd-efgh'],
+    ['unseparated', 'ABCDEFGH'],
+  ])('%s: exactly one claim with that code, then the review, with no click', async (_n, link) => {
+    history.replaceState(null, '', `/device?user_code=${link}`)
+    const f = fakeFetch(happyRoutes())
+    render(<DevicePage />)
+    expect(await screen.findByText('Vibase CLI')).toBeTruthy()
+    expect(screen.getByText('ABCD-EFGH')).toBeTruthy()
+    expect(screen.getByText(MESSAGES.deviceCheckCode)).toBeTruthy()
+    expect(screen.getByText(MESSAGES.deviceWarning)).toBeTruthy()
+    expect(claimsOf(f)).toHaveLength(1)
+    const claim = urlsOf(f).find((u) => u.startsWith('/auth/device?'))!
+    expect(new URL(claim, 'http://x').searchParams.get('user_code')).toBe('ABCDEFGH')
+    expect(screen.queryByRole('button', { name: /check code/i })).toBeNull()
+  })
+
+  it('shows no Approve / Deny while the claim is pending', async () => {
+    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    fakeFetch({
+      ...happyRoutes(),
+      'GET /auth/device': async () => {
+        await gate
+        return CLAIM
+      },
+    })
+    render(<DevicePage />)
+    await screen.findByText(MESSAGES.deviceChecking)
+    expect(screen.queryByRole('button', { name: /approve|deny/i })).toBeNull()
+    release()
+    expect(await screen.findByRole('button', { name: /approve/i })).toBeTruthy()
+  })
+
+  it('approval still needs a click: nothing is posted until the button is pressed', async () => {
+    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    const f = fakeFetch(happyRoutes())
+    render(<DevicePage />)
+    await screen.findByRole('button', { name: /approve/i })
+    await new Promise((r) => setTimeout(r, 50))
+    expect(f.requests()).not.toContain('POST /auth/device/approve')
+    expect(f.requests()).not.toContain('POST /auth/device/deny')
+    await userEvent.setup().click(screen.getByRole('button', { name: /approve/i }))
+    expect(await screen.findByText(MESSAGES.deviceApproved)).toBeTruthy()
+    expect(f.requests().filter((r) => r === 'POST /auth/device/approve')).toHaveLength(1)
+  })
+})
+
+describe('where the page does not claim by itself', () => {
+  const claimsOf = (f: ReturnType<typeof fakeFetch>) => f.requests().filter((r) => r === 'GET /auth/device')
+
+  it.each([
+    ['no user_code', '/device'],
+    ['an incomplete code', '/device?user_code=ABCD'],
+    ['a code too long', '/device?user_code=ABCDEFGHJ'],
+    ['a code outside the alphabet (I, O, 0, 1)', '/device?user_code=ABCDEFG0'],
+  ])('%s: the form, prefilled as typed, and no claim before a click', async (_n, url) => {
+    history.replaceState(null, '', url)
+    const f = fakeFetch(happyRoutes())
+    render(<DevicePage />)
+    await screen.findByRole('button', { name: /check code/i })
+    await new Promise((r) => setTimeout(r, 50))
+    expect(claimsOf(f)).toHaveLength(0)
+  })
+
+  it('an incomplete code is prefilled, and Check code on a typed completion still claims', async () => {
+    history.replaceState(null, '', '/device?user_code=ABCD')
+    const f = fakeFetch(happyRoutes())
+    render(<DevicePage />)
+    const user = userEvent.setup()
+    expect(((await screen.findByLabelText(MESSAGES.deviceCodeLabel)) as HTMLInputElement).value).toBe('ABCD')
+    await user.type(screen.getByLabelText(MESSAGES.deviceCodeLabel), 'efgh')
+    await user.click(screen.getByRole('button', { name: /check code/i }))
+    expect(await screen.findByRole('button', { name: /approve/i })).toBeTruthy()
+    expect(claimsOf(f)).toHaveLength(1)
+  })
+
+  it('no session: the sign-in redirect and zero claim calls', async () => {
+    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    const f = fakeFetch({ ...happyRoutes(), 'GET /auth/get-session': NO_SESSION })
+    const go = vi.fn()
+    render(<DevicePage navigate={go} />)
+    await waitFor(() => expect(go).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 50))
+    expect(claimsOf(f)).toHaveLength(0)
   })
 })

@@ -35,6 +35,7 @@ export const MESSAGES = {
   deviceProcessed:
     'That code has already been approved or denied. Run the sign-in again in your terminal if you need a new one.',
   deviceCheckCode: 'Check that your terminal shows this code.',
+  deviceChecking: 'Checking your code…',
   deviceWarning: 'Approve only if you started this sign-in yourself, just now.',
   deviceApproved: 'Approved. You can return to your terminal.',
   deviceDenied: 'Denied. Nothing was shared with the app, and you can close this page.',

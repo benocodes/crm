@@ -79,4 +79,11 @@ describe('ui.css', () => {
   it('has no inline-style escape hatches (url() to a remote host, @import)', () => {
     expect(css).not.toMatch(/@import|url\(\s*['"]?https?:/)
   })
+
+  it('caps the scope list region height and lets it scroll on its own ([[UI381]] D10)', () => {
+    const rule = allRules(blocks).find((b) => b.prelude === '.vb-scope-list__region')
+    expect(rule, 'a .vb-scope-list__region rule').toBeDefined()
+    expect(rule!.body).toMatch(/max-height:\s*[^;]+;/)
+    expect(rule!.body).toMatch(/overflow-y:\s*auto/)
+  })
 })
