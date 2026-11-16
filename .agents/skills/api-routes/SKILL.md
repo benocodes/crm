@@ -856,7 +856,10 @@ interactive transaction, no `withContext` and no `executor` marker.
     conditional on it (the audit row as `insert ... select ... from invitations where id = ?`, so it exists only if the
     change did, with `changes() = 1` of that update in its `where`: a guard on the value written alone, `accepted_at = ?`,
     also holds for a concurrent writer that wrote the same millisecond, which gave two `invitation.accepted` rows once statements
-    really overlapped, #343, OPS340), and read `meta.changes` of the guarded statement for the outcome. Set-based changes go the same way
+    really overlapped, #343, OPS340). The same hole opens with a guard on the *read stamp* (`updated_at = ?`):
+    a racer that writes the same `now` leaves the stamp matching, so the dependent audit insert still needs
+    `changes() = 1` of the update (`revokeApiKey`, [[CORE328]] review, with a `racing` test that sets the same
+    instant). Read `meta.changes` of the guarded statement for the outcome. Set-based changes go the same way
     (`update ... where role = 'owner' and <live>` rather than reading ids first). `reissueOwnerInvitation` still reads
     the live owner invitations before its batch (acceptable for a single-operator bootstrap; not for [[OPS249]]'s
     `owner-reset`).
@@ -1099,6 +1102,12 @@ or an operation (`control-boundary.test.ts`, [[CORE259]] D5).
   eligibility and scopes, the newest event's id, the events and agents of a claimed delivery) are read from the
   CRM by the caller and handed to the store by value; the store never reads the CRM database. `webhook_secrets`
   is append-only by trigger.
+- **`api_keys`** (control migration 0005, [[CORE328]], [[CORE259]] D3, D8, D11, D12): dormant until #350/#351
+  (CRM `api_keys` is the live store until then). Written only by the control store's key methods: `insertApiKey`
+  and `revokeApiKey` are each one control batch with their `api_key.created` / `api_key.revoked` `control_audit`
+  row (`detail` holds `agent_id`, `prefix`, `expires_at`, never the key, its hash or any part of it);
+  `stampApiKeyUsed` writes `last_used_at` only, at most once a minute, never `updated_at`, with no audit row
+  (machinery, as the CRM stamp). `organization_id`, `agent_id` and `created_by` are CRM ids held by value, no FK.
 
 ## Response shape and errors
 
