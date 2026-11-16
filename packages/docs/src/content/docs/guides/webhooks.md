@@ -11,6 +11,8 @@ A complete, copyable receiver for Cloudflare Workers lives in the repository at 
 
 An agent subscribes with `POST /meta/v1/webhooks`. It needs `webhooks:write` to manage subscriptions and `webhooks:read` to list them and see their deliveries. It also needs `events:read` and the read scope of every event type it subscribes to, because a subscription delivers exactly what that agent could read from the event feed.
 
+Changes to subscriptions themselves (created, updated, deleted, secret rotated) are recorded in the audit log, read with `audit.list` (`audit:read`), not in the event feed: there is no event type for them to subscribe to.
+
 ```bash
 curl -X POST "$VIBASE_URL/meta/v1/webhooks" \
   -H "authorization: Bearer $AGENT_KEY" -H "content-type: application/json" \

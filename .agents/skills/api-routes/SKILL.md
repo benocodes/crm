@@ -37,7 +37,12 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     | { invisible: reason })`, and an explicit entry wins over a definition's. A type with no entry is hidden (fail
     closed), and `src/events/visibility.integration.d1.test.ts` scans the source for `resourceType: '…'` literals and
     fails on an emitted type with no entry, so a new emitter must decide its visibility in the same change. An unknown
-    `after` is `unknown_cursor` even when nothing is readable ([[API214]]);
+    `after` is `unknown_cursor` even when nothing is readable ([[API214]]). The map is the single gate for every
+    reader (feed, `checkEventTypes` on webhook `event_types`, dispatch, the sender's send-time visibility read), so
+    removing an entry retires a type everywhere at once: historic rows become invisible, the type is refused
+    `unknown_event_type`, pending deliveries for it cancel `cancelled_scope` ([[CORE347]]: `webhook.*`). An entry
+    may also declare `owner` (a per-row predicate, `FeedVisibility.owned`, [[API219]]); no production type uses it
+    since [[CORE347]], it is kept for #217;
   - `src/storage/internal.ts` (`InternalEnv { now, newId }`, `internalEnv(opts)`: built per request from
     `AppOptions.clock`/`newId`, handed to auth, first sight, the directory and the webhook, [[CORE41]] P5);
   - `src/resources/define.ts` (shared helpers only: `crudActions`, `scopeResourceOf`, `resourcePath`, `parseInput`,

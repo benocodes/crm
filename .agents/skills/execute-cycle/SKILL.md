@@ -130,7 +130,9 @@ don't guess: stop and report `blocked` with the question.
 ## 5. Gate
 
 **In a sprint the coder does not run the gate.** Before you report, run the tests on the files you changed
-and added (`pnpm -C packages/<pkg> test <file>`) and a typecheck of the packages you touched; report the gate
+and added (`pnpm -C packages/<pkg> test <file>`) and a typecheck of the packages you touched: every package with
+a path in `git diff --name-only main...`, test-only and `scripts/` files included (CORE347 changed a test in
+`packages/webhook-receiver-example/scripts/`, typechecked only `api`, and lost a gate round to a TS2339); report the gate
 as "not run: gate-tester". The orchestrator then spawns the gate-tester, which runs `scripts/gate.sh` and writes
 `GATE.md`; you are woken only if it is red, and that round is free (it does not count toward the reviewer-round
 cap). Outside a sprint, run the gate yourself, as below. Never report a test as passing without having run it.

@@ -14,6 +14,7 @@ import {
   webhookOperations,
 } from '@vibase/api'
 import { ROTATION_OVERLAP_MS } from '../../api/src/webhooks/secrets.js'
+import { createVibaseRegistry } from '../../api/src/operations.js'
 import { eventOperations } from '../../api/src/events/operations.js'
 import { TOLERANCE_SECONDS } from '../src/verify.js'
 import { REQUIRED_SCOPES } from '../src/vibase.js'
@@ -67,6 +68,17 @@ describe('the webhooks guide states what the code defines', () => {
     expect(guide).toMatch(/410/)
     expect(guide).toMatch(/Retry-After/)
     expect(guide).not.toMatch(/auto-?disable[sd]? (the|a) subscription (on|after|when)|is purged|are purged/i)
+  })
+  it('says subscription changes are in the audit log, not the event feed, and names no webhook.* event type (CORE347)', () => {
+    const ops = createVibaseRegistry().operations()
+    const audit = ops.find((o) => o.name === 'audit.list')
+    expect(audit, 'audit.list is registered').toBeDefined()
+    expect('scope' in audit! ? audit.scope : undefined).toEqual({ resource: 'audit', action: 'read' })
+    expect(guide).toContain('`audit.list`')
+    expect(guide).toContain('`audit:read`')
+    expect(guide).toMatch(/audit log/i)
+    expect(createVibaseRegistry().eventTypes().has('webhook')).toBe(false)
+    expect(guide).not.toMatch(/webhook\.(created|updated|deleted|secret_rotated)/)
   })
   it('is in the sidebar under "Connect your agents"', () => {
     const config = readFileSync(join(root, 'docs/astro.config.mjs'), 'utf8')

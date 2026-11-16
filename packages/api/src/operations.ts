@@ -110,8 +110,7 @@ export function createVibaseRegistry(
   for (const op of executionReadOperations(registry)) registry.register(op)
   for (const op of schemaOperations(() => registry.resources())) registry.register(op)
   for (const op of eventOperations(() => registry)) registry.register(op)
-  // [[API7]] D2, D19, D22: the webhook subscriptions. `webhooks:read` shows their events; an agent sees only its own subscriptions' (the record's `agent_id`), a user holding the scope all.
-  registry.registerEventType('webhook', { scope: 'webhooks', owner: { path: '$.agent_id' } })
+  // [[CORE347]] P1: no `webhook` entry. Subscriptions live in the control plane and their changes are in the audit log (`audit.list`), not the feed; historic `webhook.*` rows are invisible (no entry fails closed).
   for (const op of webhookOperations(options.webhooks ?? null, () => registry)) registry.register(op)
   return registry
 }
