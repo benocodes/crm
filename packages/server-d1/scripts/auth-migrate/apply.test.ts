@@ -96,17 +96,25 @@ const run = (s: Seeded, o: { crm?: D1Like; control?: D1Like; fresh?: Snapshot; p
 const TABLES = ['principals', 'users', 'agents', 'memberships', 'events', 'organizations', 'deployment']
 /** Every row of the CRM tables that matter, as text. */
 async function crmDump(): Promise<string> {
-  return JSON.stringify(await Promise.all(TABLES.map(async (t) => [t, await rows(pair.d1, `select * from ${t} order by 1`)])))
+  return JSON.stringify(
+    await Promise.all(TABLES.map(async (t) => [t, await rows(pair.d1, `select * from ${t} order by 1`)])),
+  )
 }
 async function controlDump(skip: string[] = []): Promise<string> {
   const tables = (
-    await rows(pair.control, "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' and name not like '_cf_%'")
+    await rows(
+      pair.control,
+      "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' and name not like '_cf_%'",
+    )
   )
     .map((r) => r.name as string)
     .filter((t) => !skip.includes(t))
-  return JSON.stringify(await Promise.all(tables.map(async (t) => [t, await rows(pair.control, `select * from "${t}"`)])))
+  return JSON.stringify(
+    await Promise.all(tables.map(async (t) => [t, await rows(pair.control, `select * from "${t}"`)])),
+  )
 }
-const authUsers = () => rows(pair.control, 'select id, name, email, email_verified, created_at, updated_at from auth_users order by id')
+const authUsers = () =>
+  rows(pair.control, 'select id, name, email, email_verified, created_at, updated_at from auth_users order by id')
 
 /** A refusal: the error is an ApplyRefusal, and neither database changed by a single row. */
 async function expectRefused(s: Seeded, match: RegExp, o: Parameters<typeof run>[1] = {}) {
@@ -187,7 +195,11 @@ describe('the control batch', () => {
     const person = (n: number) => s.plan.people.find((p) => p.user_id === U(n))!
     const agent = s.plan.agents.find((a) => a.id === A(2))!
     expect(byId.size).toBe(5) // u1, u2, u3, u6 and the agent account; none for none/keep/disable
-    expect(byId.get(person(1).new_auth_user_id!)).toMatchObject({ email: 'a@example.test', name: 'Alice', email_verified: 1 })
+    expect(byId.get(person(1).new_auth_user_id!)).toMatchObject({
+      email: 'a@example.test',
+      name: 'Alice',
+      email_verified: 1,
+    })
     // name falls back to the email; verified ignores case
     expect(byId.get(person(2).new_auth_user_id!)).toMatchObject({
       email: 'b@example.test',
@@ -197,9 +209,17 @@ describe('the control batch', () => {
     // the vault address is not Clerk's primary: not verified
     expect(byId.get(person(3).new_auth_user_id!)).toMatchObject({ email: 'd-vault@example.test', email_verified: 0 })
     // Clerk did not verify the address: not verified
-    expect(byId.get(person(6).new_auth_user_id!)).toMatchObject({ email: 'e@example.test', name: 'Eve', email_verified: 0 })
+    expect(byId.get(person(6).new_auth_user_id!)).toMatchObject({
+      email: 'e@example.test',
+      name: 'Eve',
+      email_verified: 0,
+    })
     // an agent account: Clerk's primary address, the agent's name
-    expect(byId.get(agent.new_auth_user_id!)).toMatchObject({ email: 'c@example.test', name: 'account', email_verified: 1 })
+    expect(byId.get(agent.new_auth_user_id!)).toMatchObject({
+      email: 'c@example.test',
+      name: 'account',
+      email_verified: 1,
+    })
     for (const r of byId.values()) expect(r.created_at).toBe(NOW.toISOString())
   })
 
@@ -232,7 +252,9 @@ describe('the control batch', () => {
     const s = await seed()
     const p = s.plan.people.find((x) => x.user_id === U(1))!
     await pair.control
-      .prepare('insert into auth_users (id, name, email, email_verified, created_at, updated_at) values (?, ?, ?, 1, ?, ?)')
+      .prepare(
+        'insert into auth_users (id, name, email, email_verified, created_at, updated_at) values (?, ?, ?, 1, ?, ?)',
+      )
       .bind(p.new_auth_user_id, 'Else', 'someone-else@example.test', NOW.toISOString(), NOW.toISOString())
       .run()
     const crmBefore = await crmDump()
@@ -257,7 +279,16 @@ describe('the CRM batch', () => {
       .prepare(
         'insert into api_keys (id, created_at, updated_at, organization_id, agent_id, key_hash, prefix, created_by) values (?, ?, ?, ?, ?, ?, ?, ?)',
       )
-      .bind('0190ffff-0000-7000-8000-000000000002', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z', ORG_ID, A(1), 'hash', 'pfx', U(1))
+      .bind(
+        '0190ffff-0000-7000-8000-000000000002',
+        '2026-10-01T00:00:00.000Z',
+        '2026-10-01T00:00:00.000Z',
+        ORG_ID,
+        A(1),
+        'hash',
+        'pfx',
+        U(1),
+      )
       .run()
     const before = {
       principals: await rows(pair.d1, 'select id, kind from principals order by id'),
@@ -279,9 +310,11 @@ describe('the CRM batch', () => {
   it('people: migrate re-points, a missing membership is inserted with membership.created, a same-role one is left alone, role null gets none, none is untouched', async () => {
     const { s, before } = await applied()
     for (const n of [1, 2, 3, 6])
-      expect(await userRow(n)).toMatchObject({ auth_provider: 'better-auth', auth_subject: person(s, n).new_auth_user_id })
-    for (const n of [4, 5])
-      expect(await userRow(n)).toEqual(before.usersFull.find((u) => u.id === U(n)))
+      expect(await userRow(n)).toMatchObject({
+        auth_provider: 'better-auth',
+        auth_subject: person(s, n).new_auth_user_id,
+      })
+    for (const n of [4, 5]) expect(await userRow(n)).toEqual(before.usersFull.find((u) => u.id === U(n)))
     // memberships: the two live ones are exactly as they were; Eve got one; Dee (role null) none
     const live = await rows(pair.d1, 'select * from memberships where deleted_at is null order by user_id')
     expect(live.map((m) => [m.user_id, m.role])).toEqual([
@@ -289,7 +322,8 @@ describe('the CRM batch', () => {
       [U(2), 'member'],
       [U(6), 'member'],
     ])
-    for (const m of before.memberships) expect(await rows(pair.d1, 'select * from memberships where id = ?', m.id)).toEqual([m])
+    for (const m of before.memberships)
+      expect(await rows(pair.d1, 'select * from memberships where id = ?', m.id)).toEqual([m])
     const events = await rows(pair.d1, "select * from events where type = 'membership.created'")
     expect(events).toHaveLength(1)
     expect(events[0]).toMatchObject({ resource_type: 'membership', organization_id: ORG_ID, before: null })
@@ -333,20 +367,35 @@ describe('the CRM batch', () => {
     ])
     for (const e of events) expect(e.actor_id).toBe(system)
     expect(await rows(pair.d1, 'select type from events')).toHaveLength(6) // no event for the four users
-    expect((await rows(pair.d1, "select * from events where id = '0190ffff-0000-7000-8000-000000000001'"))[0]).toEqual(before.events[0])
-    expect(await rows(pair.d1, 'select id, kind from principals where kind != \'system\' order by id')).toEqual(before.principals)
+    expect((await rows(pair.d1, "select * from events where id = '0190ffff-0000-7000-8000-000000000001'"))[0]).toEqual(
+      before.events[0],
+    )
+    expect(await rows(pair.d1, "select id, kind from principals where kind != 'system' order by id")).toEqual(
+      before.principals,
+    )
     expect(await rows(pair.d1, 'select id from users order by id')).toEqual(before.users)
     expect(await rows(pair.d1, 'select id from agents order by id')).toEqual(before.agents)
     expect(await rows(pair.control, 'select * from api_keys')).toEqual(before.keys)
-    expect(out).toMatchObject({ users_repointed: 4, agents_relinked: 1, agents_disabled: 3, memberships_inserted: 1, control_inserted: 5 })
+    expect(out).toMatchObject({
+      users_repointed: 4,
+      agents_relinked: 1,
+      agents_disabled: 3,
+      memberships_inserted: 1,
+      control_inserted: 5,
+    })
   })
 
   it('an existing system principal is the actor, and no second one is made', async () => {
     const s = await seed()
-    await pair.d1.prepare("insert into principals (id, kind, created_at) values (?, 'system', ?)").bind(U(99), '2026-10-01T00:00:00.000Z').run()
+    await pair.d1
+      .prepare("insert into principals (id, kind, created_at) values (?, 'system', ?)")
+      .bind(U(99), '2026-10-01T00:00:00.000Z')
+      .run()
     await run(s)
     expect(await rows(pair.d1, "select id from principals where kind = 'system'")).toEqual([{ id: U(99) }])
-    expect(new Set((await rows(pair.d1, 'select actor_id from events')).map((e) => e.actor_id))).toEqual(new Set([U(99)]))
+    expect(new Set((await rows(pair.d1, 'select actor_id from events')).map((e) => e.actor_id))).toEqual(
+      new Set([U(99)]),
+    )
   })
 
   it('a plan with no people and no agents writes nothing (no system principal either)', async () => {
@@ -355,7 +404,13 @@ describe('the CRM batch', () => {
     const out = await run(s, { crm: crm.d1 })
     expect(crm.log.statements.filter((q) => WRITE.test(q))).toEqual([])
     expect(await rows(pair.d1, 'select id from principals')).toEqual([])
-    expect(out).toMatchObject({ users_repointed: 0, agents_relinked: 0, agents_disabled: 0, memberships_inserted: 0, control_inserted: 0 })
+    expect(out).toMatchObject({
+      users_repointed: 0,
+      agents_relinked: 0,
+      agents_disabled: 0,
+      memberships_inserted: 0,
+      control_inserted: 0,
+    })
   })
 })
 
@@ -369,7 +424,13 @@ describe('all or nothing', () => {
     const fault = faultD1(pair.d1, {
       match: /^update "users"/,
       act: async () => {
-        await seedPrincipal(pair.d1, { id: U(7), kind: 'user', email: 'u7@example.test', authProvider: 'better-auth', authSubject: p6.new_auth_user_id! })
+        await seedPrincipal(pair.d1, {
+          id: U(7),
+          kind: 'user',
+          email: 'u7@example.test',
+          authProvider: 'better-auth',
+          authSubject: p6.new_auth_user_id!,
+        })
         before = await crmDump()
       },
     })
@@ -386,15 +447,48 @@ describe('all or nothing', () => {
   })
 
   const drifts: Array<[string, () => Promise<void>]> = [
-    ["a user's subject changed", () => pair.d1.prepare("update users set auth_subject = 'user_changed' where id = ?").bind(U(1)).run().then(() => {})],
-    ["an agent's subject changed", () => pair.d1.prepare("update agents set auth_subject = 'user_changed' where id = ?").bind(A(2)).run().then(() => {})],
-    ['an agent was disabled', () => pair.d1.prepare('update agents set disabled_at = ? where id = ?').bind('2026-11-16T23:00:00.000Z', A(3)).run().then(() => {})],
+    [
+      "a user's subject changed",
+      () =>
+        pair.d1
+          .prepare("update users set auth_subject = 'user_changed' where id = ?")
+          .bind(U(1))
+          .run()
+          .then(() => {}),
+    ],
+    [
+      "an agent's subject changed",
+      () =>
+        pair.d1
+          .prepare("update agents set auth_subject = 'user_changed' where id = ?")
+          .bind(A(2))
+          .run()
+          .then(() => {}),
+    ],
+    [
+      'an agent was disabled',
+      () =>
+        pair.d1
+          .prepare('update agents set disabled_at = ? where id = ?')
+          .bind('2026-11-16T23:00:00.000Z', A(3))
+          .run()
+          .then(() => {}),
+    ],
     [
       'a membership was inserted',
       () =>
         pair.d1
-          .prepare("insert into memberships (id, created_at, updated_at, organization_id, user_id, role, created_by) values (?, ?, ?, ?, ?, 'member', ?)")
-          .bind('0190ffff-0000-7000-8000-0000000000aa', '2026-11-16T23:00:00.000Z', '2026-11-16T23:00:00.000Z', ORG_ID, U(6), U(1))
+          .prepare(
+            "insert into memberships (id, created_at, updated_at, organization_id, user_id, role, created_by) values (?, ?, ?, ?, ?, 'member', ?)",
+          )
+          .bind(
+            '0190ffff-0000-7000-8000-0000000000aa',
+            '2026-11-16T23:00:00.000Z',
+            '2026-11-16T23:00:00.000Z',
+            ORG_ID,
+            U(6),
+            U(1),
+          )
           .run()
           .then(() => {}),
     ],

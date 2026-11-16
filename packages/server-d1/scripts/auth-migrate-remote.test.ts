@@ -357,7 +357,12 @@ function afterWorld(world: World, plan: AuthPlan): World {
     u.auth_provider = 'better-auth'
     u.auth_subject = p.new_auth_user_id
     if (p.role !== null && p.membership === null)
-      w.memberships.push({ id: `0190ffff-0000-7000-8000-${String(w.memberships.length).padStart(12, '0')}`, user_id: p.user_id, role: p.role, deleted_at: null })
+      w.memberships.push({
+        id: `0190ffff-0000-7000-8000-${String(w.memberships.length).padStart(12, '0')}`,
+        user_id: p.user_id,
+        role: p.role,
+        deleted_at: null,
+      })
   }
   for (const a of plan.agents) {
     const row = w.agents.find((x) => x.id === a.id)!
@@ -426,10 +431,22 @@ describe('auth:migrate:remote apply', () => {
     ['a plan file that is not JSON', (_p, path) => writeFileSync(path, 'not json'), /read|JSON/i],
     ['an unknown version', (p, path) => edited(p, (x) => (x.version = 2), path), /version/],
     ['a plan made for another env', (p, path) => edited(p, (x) => (x.env = 'hq-staging'), path), /env/],
-    ['another CRM database name', (p, path) => edited(p, (x) => (x.crm.database_name = 'vault-crm-other'), path), /database/],
+    [
+      'another CRM database name',
+      (p, path) => edited(p, (x) => (x.crm.database_name = 'vault-crm-other'), path),
+      /database/,
+    ],
     ['another CRM database id', (p, path) => edited(p, (x) => (x.crm.database_id = 'other-id'), path), /database/],
-    ['another control database name', (p, path) => edited(p, (x) => (x.control.database_name = 'other'), path), /database/],
-    ['another control database id', (p, path) => edited(p, (x) => (x.control.database_id = 'other-id'), path), /database/],
+    [
+      'another control database name',
+      (p, path) => edited(p, (x) => (x.control.database_name = 'other'), path),
+      /database/,
+    ],
+    [
+      'another control database id',
+      (p, path) => edited(p, (x) => (x.control.database_id = 'other-id'), path),
+      /database/,
+    ],
   ]
   for (const [title, change, match] of planChecks) {
     it(`${title}: exit 1 before any wrangler or Clerk call`, async () => {
@@ -458,7 +475,9 @@ describe('auth:migrate:remote apply', () => {
     expect(text).not.toContain('@example.test')
     // nothing but reads: no secret, deploy or migrations command, no write SQL, Clerk only read, no invitation
     for (const c of k.wrangler.cmds) {
-      expect(c.args.some((a) => ['secret', 'deploy', 'migrations', 'delete', 'put', 'time-travel'].includes(a))).toBe(false)
+      expect(c.args.some((a) => ['secret', 'deploy', 'migrations', 'delete', 'put', 'time-travel'].includes(a))).toBe(
+        false,
+      )
       expect(isReadOnlySql(c.args[c.args.indexOf('--command') + 1]!)).toBe(true)
     }
     expect(k.wrangler.cmds.length).toBe(3)
