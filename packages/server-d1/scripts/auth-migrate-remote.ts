@@ -1,5 +1,6 @@
 // `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 auth:migrate:remote -- plan --env <name> [--plan <path>] [--dry-run]` ([[OPS365]], [[OPS250]] D2, D3) and `apply --env <name> [--plan <path>] [--dry-run]` ([[OPS392]], [[OPS393]]): moving a Clerk instance onto Better Auth.
 // `plan` reads the Clerk instance (Backend API, GET only) and both D1 databases (wrangler, SELECT and Time Travel info only) and writes the reviewable plan file that apply and revert (#394) consume. Nothing is written but the plan file.
+// `claim --env <name> [--plan <path>] [--email <address>] [--dry-run]` ([[OPS397]]) prints one reset link per migrated person and per relinked agent account, and the caps of the disabled delegated agents; it writes only the links' verification and audit rows.
 // `apply` opens the two remote databases and runs: checks, fresh export, control batch, `AUTH_SECRET`, the deploy with the provider switched, and then the CRM batch (P1). A refusal exits 1 before any write; a failure after a write began exits 2.
 // A source script, not part of the release bin ([[OPS250]] "Tooling home").
 import { spawnSync } from 'node:child_process'
@@ -19,6 +20,7 @@ import {
 } from '@vibase/storage-d1'
 import { uuidv7 } from '@vibase/storage'
 import { ApplyFailure, ApplyRefusal, applyBatches, assessRun, describePlan, exitCodeFor } from './auth-migrate/apply.js'
+import { ClaimRefusal, claim } from './auth-migrate/claim.js'
 import { classify } from './auth-migrate/classify.js'
 import { exportClerkUsers } from './auth-migrate/clerk-export.js'
 import { AGENTS_SQL, MEMBERSHIPS_SQL, USERS_SQL, readCrmExport } from './auth-migrate/crm-export.js'
@@ -32,6 +34,7 @@ import {
   loadRemoteEnv,
   requireConfirm,
   requireControlTarget,
+  resolveTarget,
   type Cmd,
   type ConfigLike,
 } from './remote.js'
@@ -44,7 +47,7 @@ import { appendEnvFileVar, probeEnvFile } from './setup/env-file.js'
 import type { EnvFileProbe } from './setup/types.js'
 
 export const USAGE =
-  'usage: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 auth:migrate:remote -- plan|apply --env <name> [--plan <path>] [--dry-run]'
+  'usage: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 auth:migrate:remote -- plan|apply|claim --env <name> [--plan <path>] [--dry-run] (claim also takes --email <address>)'
 
 export interface PlanDeps {
   /** Loads the Cloudflare credentials (and refuses when they are missing). */
@@ -162,15 +165,22 @@ export const realDeps: PlanDeps = {
 }
 
 interface PlanArgs {
-  sub: 'plan' | 'apply'
+  sub: 'plan' | 'apply' | 'claim'
   env: string
   plan: string | undefined
   dryRun: boolean
+  /** claim only: limit the run to one target */
+  email: string | undefined
 }
 function parsePlanArgs(argv: string[]): PlanArgs {
   let parsed: ReturnType<
     typeof parseArgs<{
-      options: { env: { type: 'string' }; plan: { type: 'string' }; 'dry-run': { type: 'boolean' } }
+      options: {
+        env: { type: 'string' }
+        plan: { type: 'string' }
+        'dry-run': { type: 'boolean' }
+        email: { type: 'string' }
+      }
       allowPositionals: true
     }>
   >
@@ -179,16 +189,29 @@ function parsePlanArgs(argv: string[]): PlanArgs {
       args: argv.filter((a) => a !== '--'),
       strict: true,
       allowPositionals: true,
-      options: { env: { type: 'string' }, plan: { type: 'string' }, 'dry-run': { type: 'boolean' } },
+      options: {
+        env: { type: 'string' },
+        plan: { type: 'string' },
+        'dry-run': { type: 'boolean' },
+        email: { type: 'string' },
+      },
     })
   } catch (e) {
     throw new RemoteRefusal(`${e instanceof Error ? e.message : 'bad arguments'}; ${USAGE}`)
   }
   const [sub, ...rest] = parsed.positionals
-  if ((sub !== 'plan' && sub !== 'apply') || rest.length > 0)
-    throw new RemoteRefusal(`only the plan and apply subcommands exist so far (revert is #394); ${USAGE}`)
+  if ((sub !== 'plan' && sub !== 'apply' && sub !== 'claim') || rest.length > 0)
+    throw new RemoteRefusal(`only the plan, apply and claim subcommands exist so far (revert is #394); ${USAGE}`)
   if (!parsed.values.env) throw new RemoteRefusal(`--env <name> is required; ${USAGE}`)
-  return { sub, env: parsed.values.env, plan: parsed.values.plan, dryRun: parsed.values['dry-run'] === true }
+  if (parsed.values.email !== undefined && sub !== 'claim')
+    throw new RemoteRefusal(`--email limits a claim run: only the claim subcommand takes it; ${USAGE}`)
+  return {
+    sub,
+    env: parsed.values.env,
+    plan: parsed.values.plan,
+    dryRun: parsed.values['dry-run'] === true,
+    email: parsed.values.email,
+  }
 }
 
 const wranglerD1 = (...args: string[]): Cmd => ({ command: 'pnpm', args: ['exec', 'wrangler', 'd1', ...args] })
@@ -439,7 +462,7 @@ async function runApply(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanDe
     )
     deps.log(`applied: env ${envName} now runs Better Auth, and the deployment marker says so`)
     deps.log(
-      'next: claim links for the people and the agent accounts (#397); until then nobody can sign in, and API keys keep working',
+      `next: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 auth:migrate:remote -- claim --env ${envName} --plan ${planPath} (claim links for the people and the agent accounts, and the caps of the disabled delegated agents; until then nobody can sign in, and API keys keep working)`,
     )
   })
 }
@@ -483,11 +506,82 @@ async function secretAndDeploy(envName: string, procEnv: NodeJS.ProcessEnv, deps
     throw new ApplyFailure(`the deploy failed (exit ${status ?? 'none'}): the CRM is untouched; re-run apply`)
 }
 
-/** Returns the exit code: 0 done or already applied, 1 refused (or a read failed) before any write, 2 failed after a write began (apply only, [[OPS393]] P5). */
+/**
+ * `claim` ([[OPS397]] P1-P6): the guards, the record, the plan file and `AUTH_SECRET`, then (inside the opened databases) the applied check, and only then the targets. Every refusal is raised before a write, `--dry-run` included.
+ * It writes only the reset links' verification and audit rows in the control database: never the CRM, a file or a command.
+ */
+async function runClaim(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanDeps): Promise<void> {
+  requireConfirm(procEnv)
+  const envName = args.env
+  deps.loadEnv(envName)
+  const config = deps.readConfig(envName)
+  const resolved = resolveTarget(config, envName)
+  if (!resolved.control)
+    throw new RemoteRefusal(
+      `claim needs a control database: env ${envName} has no CONTROL_DB binding, and a Better Auth instance keeps its accounts there`,
+    )
+  const target = resolved as ReturnType<typeof requireControlTarget>
+  const provider = providerFromVars(config.vars, `wrangler.jsonc env ${envName}`)
+  if (provider !== 'better-auth')
+    throw new RemoteRefusal(
+      `claim needs a better-auth instance: env ${envName} runs AUTH_PROVIDER ${provider}. Run apply first, with the provider switch committed`,
+    )
+  const publicBaseUrl = config.vars?.PUBLIC_BASE_URL
+  if (typeof publicBaseUrl !== 'string' || publicBaseUrl === '')
+    throw new RemoteRefusal(
+      `claim needs PUBLIC_BASE_URL in wrangler.jsonc's env ${envName} block: it is the origin of the links`,
+    )
+  const planPath = resolve(args.plan ?? defaultPlanPath(envName, procEnv, homedir()))
+  const plan = readPlanFile(planPath, envName, target, deps)
+  const secretKey = readSecretKey(envName, deps)
+  const file = deps.readInstanceEnv(envName)
+  const authSecret = parseEnv(file.text ?? '').AUTH_SECRET?.trim()
+  if (!authSecret)
+    throw new RemoteRefusal(
+      `claim needs AUTH_SECRET in ${file.display}: it composes Better Auth as the Worker does (apply put it there). If the Worker has one, copy it in; a new value would sign everyone out`,
+    )
+  if (authSecret.length < AUTH_SECRET_MIN_LENGTH)
+    throw new RemoteRefusal(
+      `AUTH_SECRET in ${file.display} is shorter than ${AUTH_SECRET_MIN_LENGTH} characters: it is not the value the Worker holds`,
+    )
+  deps.log(
+    `target: env ${target.env}, database ${target.databaseName} (${target.databaseId}), control database ${target.control.databaseName} (${target.control.databaseId})`,
+  )
+  await deps.withDatabases(envName, async ({ crm, control }) => {
+    const link = await readDeployment(crm)
+    if (!link) throw new RemoteRefusal('the CRM database has no deployment row: it is not an initialised instance')
+    const fresh = await readSnapshotFrom(crm, secretKey, deps)
+    let state: ReturnType<typeof assessRun>
+    try {
+      state = assessRun(plan, fresh, link.authProvider)
+    } catch (e) {
+      if (e instanceof ApplyRefusal) throw new ClaimRefusal(`claim needs an applied instance: ${e.message}`)
+      throw e
+    }
+    if (state !== 'applied')
+      throw new ClaimRefusal(
+        `claim needs an applied instance: this one is not applied yet. Run CONFIRM_REMOTE=1 pnpm -C packages/server-d1 auth:migrate:remote -- apply --env ${envName} --plan ${planPath} first`,
+      )
+    await claim({
+      plan,
+      crm,
+      control,
+      authSecret,
+      baseUrl: publicBaseUrl.replace(/\/+$/, ''),
+      email: args.email,
+      dryRun: args.dryRun,
+      now: () => deps.now(),
+      newId: () => deps.newId(),
+      log: (l) => deps.log(l),
+    })
+  })
+}
+
+/** Returns the exit code: 0 done or already applied, 1 refused (or a read failed) before any write, 2 failed after a write began (apply and claim, [[OPS393]] P5, [[OPS397]] P6). */
 export async function runAuthMigrate(argv: string[], procEnv: NodeJS.ProcessEnv, deps: PlanDeps): Promise<number> {
   try {
     const args = parsePlanArgs(argv)
-    await (args.sub === 'apply' ? runApply : runPlan)(args, procEnv, deps)
+    await (args.sub === 'apply' ? runApply : args.sub === 'claim' ? runClaim : runPlan)(args, procEnv, deps)
     return 0
   } catch (e) {
     deps.error(`auth-migrate: ${e instanceof Error ? e.message : 'failed'}`)

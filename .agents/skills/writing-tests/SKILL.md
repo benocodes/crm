@@ -740,6 +740,16 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   never applied. A stray `:8788` from another run, built for a different API origin, makes `e2e:approvals-app` test
   the wrong build. Stop stray listeners first (`lsof -i :8788`) ([[UI388]]). Two `wrangler dev` processes at once
   need distinct inspector ports: give the second `--inspector-port=9230`.
+- **An E2E that drives a shipped remote command through a test-only driver lists every seam the driver fakes.** The
+  driver's file header names each swapped dependency (database handles, `exec`, `deploy`, config reader, `git`, `run`,
+  env-file writers, http instead of HTTPS) and what the real run must therefore check by hand; that list becomes the
+  runbook's manual checks. A seam faked but not named was [[OPS397]]'s review finding
+  (`packages/server-d1/e2e/auth-migration-driver.ts`, decision 397.18).
+- **Stop the local Worker around a Node command that opens its persisted D1 state**, then restart it: two processes
+  writing one local SQLite file contend ([[OPS397]], 397.15).
+- **A Worker that switches provider mid-run gets its Clerk sessions from the Backend API**, not `@clerk/testing`:
+  `POST /v1/sessions` with the user id, then `POST /v1/sessions/<id>/tokens`, and send the JWT as a bearer; the dev JWT
+  carries the session-token claims (`vibase_role`). Keep Playwright for the pages the scenario asserts ([[OPS397]], 397.14).
 - **A test Worker entry that re-creates composition config passes every field `compose.ts` passes.** `src/test/entry-mint.ts`
   builds its own `/auth` handler; when it omitted `defaultScopes`, the default scope list silently fell back to the ceiling
   and its tests proved the wrong configuration ([[CORE330]]). When you add a field to the auth config in `compose.ts`, add
@@ -759,6 +769,7 @@ pnpm -C packages/ui e2e:gallery                   # builds the test-only gallery
 pnpm -C packages/server-d1 e2e:oauth-pages         # Better Auth /device and /consent with the real `vibase login` and an MCP-style client (UI247); local Worker over HTTPS (`wrangler dev --local-protocol https`, recipe in the file header and writing-tests §7), no Clerk; `e2e:auth-pages` is UI246's sibling; not in the gate
 pnpm -C packages/server-d1 e2e:auth-pages-reset      # self-service reset by email on /sign-in (CORE304): its own email-on Worker from the test-only entry src/test/entry-email.ts (a recording EMAIL binding read at /__emails), over HTTPS, fresh local state (recipe in the spec file header); no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:approvals-app      # the approvals app (:8788, started by the config) signs in, approves and signs out through Better Auth against a local better-auth Worker on :8787 that the operator starts (UI388); E2E_INVITE_URL from bootstrap; recipe in e2e/approvals-app.e2e.ts; no Clerk; not in the gate
+pnpm -C packages/server-d1 e2e:auth-migration     # the hq auth migration end to end (OPS397): the real `auth:migrate:remote` plan, apply and claim through a test-only driver (e2e/auth-migration-driver.ts: local D1 pair, fixed Time Travel bookmark, `deploy` = restart the local Worker on Better Auth) against the Clerk dev instance (users and sessions by the Backend API, keys from `.env.dev`, E2E_DEV_ENV_FILE may name it), then a claim link opened in the browser; own temp state, removed at the end; recipe in the spec header; E2E_BROWSER_CHANNEL=chrome if Playwright's Chromium is not installed; not in the gate
 pnpm -C packages/server-d1 e2e:connect             # Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only); not in the gate
 pnpm -C packages/server-d1 e2e:mcp-oauth          # MCP OAuth end to end (DCR, consent, delegated agent, revocation) on the Clerk dev instance; same harness, not in the gate
 ```

@@ -294,6 +294,15 @@ found after the control batch and the secret: exit 2 and a resume, where a refus
 multi-step command writes before a later step that can refuse (a deploy's clean tree, a committed config, a migration
 level, a pairing), the charter lists that step's guard among the pre-write checks. It reuses the step's own guard and
 asks for a "refused, nothing written" case for it.
+**OPS397** (`knowledge/specs/015-OPS397-auth-migration-claim/RETRO.md`): chartered as 5 groups (1 matrix), really 6
+groups over 6 bullets, with a refusal list of 8 cases × (real, `--dry-run`) that is a second matrix; 3 spec decisions + 6
+planner rules, no migration, 1 local E2E part as a new script with a test-only driver. Coder 318k / 143 calls over an
+initial run and one review round (+337 code / +1231 test lines, 496 of them E2E, 12 files). Over budget in substance: count
+the bullets, not an estimate, and count a refusal list run under `--dry-run` too as a matrix. A new E2E script whose driver
+swaps a shipped command's dependencies costs about half a cycle by itself; when the cycle also has a matrix, split the E2E
+into its own cycle. The one review finding came from the charter naming three driver seams where the code path needed
+seven: the charter lists every dependency the driver may fake, and asks for each to be named in the driver's header with
+the manual check that replaces it (writing-tests §7).
 
 ### Step 3: Resolve identities
 

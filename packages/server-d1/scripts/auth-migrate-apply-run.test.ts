@@ -480,10 +480,12 @@ describe('every stopping point exits 2 and a re-run ends applied', () => {
     expect(again.marks).toEqual([])
   })
 
-  it('a successful run names the next step: the claim links (#397)', async () => {
+  it('a successful run names the next step: the exact claim command for this env and plan ([[OPS397]] P1)', async () => {
     const c = await setup()
     const r = await runApply(c)
-    expect(r.out.join('\n')).toMatch(/next: claim links/i)
+    expect(r.out).toContain(
+      `next: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 auth:migrate:remote -- claim --env hq --plan ${c.planPath} (claim links for the people and the agent accounts, and the caps of the disabled delegated agents; until then nobody can sign in, and API keys keep working)`,
+    )
   })
 })
 
