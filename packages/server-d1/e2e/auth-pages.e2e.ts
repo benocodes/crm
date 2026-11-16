@@ -6,6 +6,7 @@
 // `bootstrap --org E2E --auth-provider better-auth --public-base-url http://localhost:8787 --owner-email owner@e2e.test` (E2E_INVITE_URL = the URL it printed), `pnpm dev` running.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
+import { createServer } from 'node:http'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import AxeBuilder from '@axe-core/playwright'
@@ -249,8 +250,8 @@ test('8. every page and the bundle carry the exact headers', async ({ request })
   expect((await request.get('/sign-in/', { maxRedirects: 0 })).status()).toBe(404)
 })
 
-// [[UI255]] D3, D7, D8: a trusted app origin. The Worker's `.dev.vars` also carries `AUTH_TRUSTED_ORIGINS=http://localhost:8788` (inert for every step above). The "app" is a stub page Playwright serves for
-// `http://localhost:8788/` (no second server): it reads the session from `/auth/get-session` and signs out through `POST /auth/sign-out`, both credentialed and cross-origin. localhost ports are same-site, so the
+// [[UI255]] D3, D7, D8: a trusted app origin. The Worker's `.dev.vars` also carries `AUTH_TRUSTED_ORIGINS=http://localhost:8788` (inert for every step above). The "app" is a stub page a throwaway node listener serves on
+// `http://localhost:8788/` (Playwright's `page.route` cannot: Chrome's Local Network Access check refuses a loopback fetch from a fulfilled page): it reads the session from `/auth/get-session` and signs out through `POST /auth/sign-out`, both credentialed and cross-origin. localhost ports are same-site, so the
 // host-only cookie of `localhost:8787` is sent with `credentials: 'include'`.
 const APP = 'http://localhost:8788/'
 const STUB = `<!doctype html><meta charset="utf-8"><title>stub app</title><p id="who">loading</p><button id="out">Sign out</button>
@@ -273,40 +274,49 @@ show()
 </script>`
 
 test('9. [UI255] a trusted app origin: credentialed CORS on /auth, sign-in returns to it, sign-out works; an untrusted return_to stays on /sign-in', async () => {
-  await context.route(`${APP}**`, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: STUB }))
-  await context.clearCookies()
-  await visit(APP)
-  await expect(page.locator('#who')).toHaveText('signed out')
+  // A real listener, not `page.route`: Chrome's Local Network Access check refuses a loopback fetch from a page that Playwright fulfilled (its address space is not loopback): "Permission was denied for this request to access the `loopback` address space".
+  const stub = createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' })
+    res.end(STUB)
+  })
+  await new Promise<void>((resolve) => stub.listen(8788, 'localhost', resolve))
+  try {
+    await context.clearCookies()
+    await visit(APP)
+    await expect(page.locator('#who')).toHaveText('signed out')
 
-  const signInAs = async (target: string) => {
-    await visit(`/sign-in?return_to=${encodeURIComponent(target)}`)
-    await page.getByLabel('Email').fill('owner@e2e.test')
-    await page.getByLabel('Password').fill(PASSWORD)
-    await page.getByRole('button', { name: 'Sign in' }).click()
+    const signInAs = async (target: string) => {
+      await visit(`/sign-in?return_to=${encodeURIComponent(target)}`)
+      await page.getByLabel('Email').fill('owner@e2e.test')
+      await page.getByLabel('Password').fill(PASSWORD)
+      await page.getByRole('button', { name: 'Sign in' }).click()
+    }
+    await signInAs(APP)
+    if (
+      await page
+        .getByText(/Too many attempts/)
+        .isVisible()
+        .catch(() => false)
+    ) {
+      console.log('NOTE: a 429 appeared on the app sign-in; waited 11 s')
+      await page.waitForTimeout(11_000)
+      await page.getByRole('button', { name: 'Sign in' }).click()
+    }
+    await page.waitForURL(APP)
+    await expect(page.locator('#who')).toHaveText('owner@e2e.test')
+
+    await page.locator('#out').click()
+    await expect(page.locator('#who')).toHaveText('signed out')
+
+    // An origin that is not trusted: Better Auth refuses the callbackURL, the page shows its ordinary error, stays on /sign-in, and no session exists.
+    await context.clearCookies()
+    await page.waitForTimeout(11_000) // Better Auth's 10 s sign-in window
+    await signInAs('http://localhost:9999/')
+    await expect(page.getByRole('alert')).toBeVisible()
+    expect(new URL(page.url()).pathname).toBe('/sign-in')
+    const session = await page.evaluate(async () => (await fetch('/auth/get-session')).json())
+    expect(session).toBeNull()
+  } finally {
+    stub.close()
   }
-  await signInAs(APP)
-  if (
-    await page
-      .getByText(/Too many attempts/)
-      .isVisible()
-      .catch(() => false)
-  ) {
-    console.log('NOTE: a 429 appeared on the app sign-in; waited 11 s')
-    await page.waitForTimeout(11_000)
-    await page.getByRole('button', { name: 'Sign in' }).click()
-  }
-  await page.waitForURL(APP)
-  await expect(page.locator('#who')).toHaveText('owner@e2e.test')
-
-  await page.locator('#out').click()
-  await expect(page.locator('#who')).toHaveText('signed out')
-
-  // An origin that is not trusted: Better Auth refuses the callbackURL, the page shows its ordinary error, stays on /sign-in, and no session exists.
-  await context.clearCookies()
-  await page.waitForTimeout(11_000) // Better Auth's 10 s sign-in window
-  await signInAs('http://localhost:9999/')
-  await expect(page.getByRole('alert')).toBeVisible()
-  expect(new URL(page.url()).pathname).toBe('/sign-in')
-  const session = await page.evaluate(async () => (await fetch('/auth/get-session')).json())
-  expect(session).toBeNull()
 })
