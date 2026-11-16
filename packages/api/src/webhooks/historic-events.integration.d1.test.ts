@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { OWNER_SCOPES, openWebhookKit, type WebhookKit } from '../test/webhook-kit.js'
+import { OWNER_SCOPES, openWebhookKit, type Who, type WebhookKit } from '../test/webhook-kit.js'
 
 // CORE347 groups 1 and 2 (P1, P3): the `webhook` event type left the event-type map, so the four historic `webhook.*` rows ([[CORE337]] stopped writing them) are invisible to every reader on every read
 // path, and `webhook.*` cannot be subscribed to. A subscription stored with one (accepted between #337 and #347) is read back as stored and never fires.
@@ -42,11 +42,11 @@ describe('historic webhook.* rows are invisible (fail closed)', () => {
     const a = await k.seedAgent(SCOPES)
     const b = await k.seedAgent(SCOPES)
     const { historic, other } = await history(a)
-    const readers = [
+    const readers: (readonly [string, Who])[] = [
       ['the owning agent', asAgent(a)],
       ['another agent', asAgent(b)],
-      ['a user with webhooks:read and events:read', { as: 'user' as const, scopes: [...OWNER_SCOPES, 'tasks:read'] }],
-    ] as const
+      ['a user with webhooks:read and events:read', { as: 'user', scopes: [...OWNER_SCOPES, 'tasks:read'] }],
+    ]
     for (const [name, who] of readers) {
       const list = await k.call(who, 'GET', '/api/v1/events?limit=200')
       expect(list.status, `${name}: ${list.text}`).toBe(200)
@@ -77,7 +77,11 @@ describe('webhook.* cannot be subscribed to', () => {
         400,
         'unknown_event_type',
       )
-      refused(await k.owner('PATCH', `${BASE}/${sub.id}`, { event_types: ['task.created', type] }), 400, 'unknown_event_type')
+      refused(
+        await k.owner('PATCH', `${BASE}/${sub.id}`, { event_types: ['task.created', type] }),
+        400,
+        'unknown_event_type',
+      )
     }
     expect({ audit: await audit(), rows: await rows() }).toEqual(before)
   })
