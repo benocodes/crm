@@ -45,6 +45,23 @@ const get = async (path: string, host = AUTH_BASE, over: Partial<D1WorkerEnv> = 
 }
 const PRM = '/.well-known/oauth-protected-resource'
 
+describe('the issuer metadata at the RFC 8414 path-inserted URL (OPS252)', () => {
+  it("is built without the database and equals the library's own document, less what is deliberately not advertised (private_key_jwt)", async () => {
+    const served = await get('/.well-known/oauth-authorization-server/auth')
+    const library = await get('/auth/.well-known/oauth-authorization-server')
+    expect(served.status).toBe(200)
+    expect(library.status).toBe(200)
+    const expected = { ...library.json }
+    for (const k of Object.keys(expected)) {
+      if (k.endsWith('_auth_methods_supported'))
+        expected[k] = expected[k].filter((m: string) => m !== 'private_key_jwt')
+      if (k.endsWith('_auth_signing_alg_values_supported')) delete expected[k]
+    }
+    expect(served.json).toEqual(expected)
+    expect(served.headers.get('access-control-allow-origin')).toBe('*')
+  })
+})
+
 describe('GET /.well-known/vibase (P3)', () => {
   const auth = {
     provider: 'better-auth',

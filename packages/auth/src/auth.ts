@@ -1,7 +1,7 @@
 // The Better Auth composition for the D1 Worker ([[CORE243]] D1, D3, D4, D13, D21). Better Auth is the vault's built-in sign-in and OAuth authorisation server; this module
 // only configures it: the plugins (`jwt`, `oauthProvider`, `oauthDeviceAuthorization`, nothing else), the vault's table and column names, UUIDv7 ids, the PBKDF2 hasher, and a
 // fail-closed admission policy while the vault has no invitations ([[CORE245]]) and no client-registration policy ([[CORE244]]).
-import { oauthDeviceAuthorization, oauthProvider, oauthProviderAuthServerMetadata } from '@better-auth/oauth-provider'
+import { oauthDeviceAuthorization, oauthProvider } from '@better-auth/oauth-provider'
 import { betterAuth, type BetterAuthOptions } from 'better-auth'
 import { APIError, addOAuthServerContext, createAuthMiddleware, getOAuthState } from 'better-auth/api'
 import { getAuthTables } from 'better-auth/db'
@@ -551,29 +551,72 @@ export interface AuthService {
 }
 
 /**
- * What the authorization-server metadata advertises to connectors (OPS252, hq cutover): Claude web connected against Clerk's metadata, which lists
- * `none`, `client_secret_basic` and `client_secret_post` only and answers CORS; the library also lists `private_key_jwt` with its signing algorithms.
- * Only the advertisement changes (the endpoints still accept what they accepted), and the response is readable from a browser.
+ * The authorization-server metadata, built from config alone (OPS252, hq cutover). The library's own handler runs Better Auth's request machinery, which on a cold isolate made
+ * several D1 round trips (3.4 s from a US colo to a European database) and overran the 5 s budget of Claude web's connector check, so Claude never reached registration. This
+ * document needs no database. It equals what the library emits for this composition with `shapeMetadata` applied (the discovery test compares them), so a library upgrade that
+ * changes the document fails that test instead of drifting.
  */
-async function shapeMetadata(res: Response | Promise<Response>): Promise<Response> {
-  const r = await res
-  if (!r.ok) return r
-  let doc: Record<string, unknown>
-  try {
-    doc = (await r.clone().json()) as Record<string, unknown>
-  } catch {
-    return r
+export function staticAuthServerMetadata(baseURL: string, vaultScopes: readonly string[]): Record<string, unknown> {
+  const issuer = `${baseURL}/auth`
+  const publicMethods = ['client_secret_basic', 'client_secret_post']
+  return {
+    scopes_supported: [...AUTH_SCOPES, ...vaultScopes],
+    issuer,
+    authorization_endpoint: `${issuer}/oauth2/authorize`,
+    token_endpoint: `${issuer}/oauth2/token`,
+    jwks_uri: `${issuer}/jwks`,
+    registration_endpoint: `${issuer}/oauth2/register`,
+    introspection_endpoint: `${issuer}/oauth2/introspect`,
+    revocation_endpoint: `${issuer}/oauth2/revoke`,
+    response_types_supported: ['code'],
+    response_modes_supported: ['query'],
+    grant_types_supported: ['authorization_code', 'client_credentials', 'refresh_token', DEVICE_GRANT],
+    token_endpoint_auth_methods_supported: ['none', ...publicMethods],
+    introspection_endpoint_auth_methods_supported: publicMethods,
+    revocation_endpoint_auth_methods_supported: publicMethods,
+    code_challenge_methods_supported: ['S256'],
+    authorization_response_iss_parameter_supported: true,
+    dpop_signing_alg_values_supported: ['EdDSA', 'ES256', 'ES512', 'PS256', 'RS256'],
+    backchannel_logout_supported: true,
+    backchannel_logout_session_supported: true,
+    claims_supported: [
+      'sub',
+      'iss',
+      'aud',
+      'exp',
+      'iat',
+      'sid',
+      'scope',
+      'azp',
+      'name',
+      'picture',
+      'given_name',
+      'family_name',
+      'email',
+      'email_verified',
+    ],
+    claims_parameter_supported: true,
+    userinfo_endpoint: `${issuer}/oauth2/userinfo`,
+    subject_types_supported: ['public'],
+    acr_values_supported: ['0'],
+    id_token_signing_alg_values_supported: ['EdDSA'],
+    end_session_endpoint: `${issuer}/oauth2/end-session`,
+    request_parameter_supported: false,
+    request_uri_parameter_supported: false,
+    prompt_values_supported: ['login', 'consent', 'create', 'select_account', 'none'],
+    device_authorization_endpoint: `${issuer}/device/code`,
   }
-  for (const k of Object.keys(doc)) {
-    if (k.endsWith('_auth_methods_supported') && Array.isArray(doc[k]))
-      doc[k] = (doc[k] as string[]).filter((m) => m !== 'private_key_jwt')
-    if (k.endsWith('_auth_signing_alg_values_supported')) delete doc[k]
-  }
-  const headers = new Headers(r.headers)
-  headers.delete('content-length')
-  headers.set('content-type', 'application/json')
-  headers.set('access-control-allow-origin', '*')
-  return new Response(JSON.stringify(doc), { status: r.status, headers })
+}
+
+function staticMetadataResponse(baseURL: string, vaultScopes: readonly string[]): Response {
+  return new Response(JSON.stringify(staticAuthServerMetadata(baseURL, vaultScopes)), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json',
+      'access-control-allow-origin': '*',
+      'cache-control': 'public, max-age=15, stale-while-revalidate=15, stale-if-error=86400',
+    },
+  })
 }
 
 /** The built-in provider for the Worker: build once per isolate; it holds the library's own caches. */
@@ -581,11 +624,12 @@ export function createAuth(db: AuthDatabaseLike, config: AuthRuntimeConfig, opts
   const captures: ResetCaptures = opts.resetCaptures ?? new Map()
   const auth = betterAuth(authOptions(db, config, { ...opts, resetCaptures: captures }))
   // RFC 8414 path insertion ([[CORE283]] D12): the library mounts its metadata under `/auth`; the standard URL for the issuer `<base>/auth` is outside the base path.
-  const metadata = oauthProviderAuthServerMetadata(auth as never)
   const lanes = new Map<string, Promise<unknown>>()
   return {
-    handler: (req) =>
-      new URL(req.url).pathname === AUTH_SERVER_METADATA_PATH ? shapeMetadata(metadata(req)) : auth.handler(req),
+    handler: async (req) =>
+      new URL(req.url).pathname === AUTH_SERVER_METADATA_PATH
+        ? staticMetadataResponse(config.baseURL, config.vaultScopes ?? [])
+        : auth.handler(req),
     issueResetToken(email) {
       const key = email.trim().toLowerCase()
       const run = (lanes.get(key) ?? Promise.resolve()).then(async () => {
@@ -620,9 +664,12 @@ export function createAuthHandler(
   opts: CreateAuthOptions = {},
 ): (req: Request) => Promise<Response> {
   const auth = betterAuth(authOptions(db, config, opts))
-  const metadata = oauthProviderAuthServerMetadata(auth as never)
   return (req) =>
-    new URL(req.url).pathname === AUTH_SERVER_METADATA_PATH ? shapeMetadata(metadata(req)) : auth.handler(req)
+    Promise.resolve(
+      new URL(req.url).pathname === AUTH_SERVER_METADATA_PATH
+        ? staticMetadataResponse(config.baseURL, config.vaultScopes ?? [])
+        : auth.handler(req),
+    )
 }
 
 /** The first-party CLI's fixed client id ([[CORE243]] D10). */
