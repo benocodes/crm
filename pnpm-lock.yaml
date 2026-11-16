@@ -103,9 +103,15 @@ importers:
       '@types/node':
         specifier: ^22
         version: 22.20.5
+      better-auth:
+        specifier: 1.7.22
+        version: 1.7.22(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.3(@types/node@22.20.5)(happy-dom@21.0.4)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)))
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
+      happy-dom:
+        specifier: 21.0.4
+        version: 21.0.4
       tsx:
         specifier: 4.23.15
         version: 4.23.15
