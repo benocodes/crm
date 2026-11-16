@@ -43,7 +43,10 @@ steps: the coder does that once, against the real tree. Keep the charter to 60â€
 
 Review the cycle's branch (`git diff main...<branch>` in the worktree) against its charter and spec, with
 the coder's report and `RESULT.md`, and the e2e-tester's report if the charter has a scenario. You are the
-last check before an unattended merge, so be strict about:
+last check before an unattended merge. Before you start the review (before you open the diff), read the cycle's rows in the decisions log
+(`node scripts/decisions.mjs find <the cycle's issue>`): the coder's rows (`by: coder`) are what you rule on,
+and the log is the source, not `RESULT.md`. A row missing from `RESULT.md`, or a `RESULT.md` decision with no
+row, is a finding. Be strict about:
 
 - **scope:** everything under the charter's "In this cycle" is delivered, nothing from "Deferred" crept
   in, no dead code;
