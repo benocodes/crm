@@ -8,6 +8,7 @@ import { dirname, join, relative, resolve, isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs, parseEnv } from 'node:util'
 import { unstable_readConfig } from 'wrangler'
+import type { D1Like } from '@vibase/storage-d1'
 import { uuidv7 } from '@vibase/storage'
 import { ApplyFailure, ApplyRefusal, assessState, describePlan, exitCodeFor } from './auth-migrate/apply.js'
 import { classify } from './auth-migrate/classify.js'
@@ -45,6 +46,14 @@ export interface PlanDeps {
   exists(path: string): boolean
   /** Is the path inside the repository checkout and not ignored by git? */
   repoPathNotIgnored(path: string): boolean
+  /** Opens the instance's remote CRM and control databases for `fn` and closes them after ([[OPS393]]; the way `bootstrap --owner-reset` opens them). */
+  withDatabases<T>(envName: string, fn: (dbs: { crm: D1Like; control: D1Like }) => Promise<T>): Promise<T>
+  /** Runs one writing command with `input` on its stdin (`wrangler secret put`); returns its exit status. */
+  run(cmd: Cmd, input?: string): number | null
+  /** Appends `NAME=value` to the instance's own env file, never over a line that is there, mode 600. */
+  appendEnvVar(envName: string, name: string, value: string): void
+  /** The guarded deploy (`deploy:remote`'s own path); returns its exit status. */
+  deploy(envName: string, procEnv: NodeJS.ProcessEnv): number | null
   /** The text of a file (the plan file `apply` reads); throws when it is missing or unreadable. */
   readText(path: string): string
   /** Creates the file exclusively (never over an existing one) with the mode, and its directory when missing. */
@@ -59,6 +68,18 @@ export interface PlanDeps {
 export function defaultPlanPath(envName: string, procEnv: NodeJS.ProcessEnv, home: string): string {
   const root = procEnv.XDG_CONFIG_HOME ? procEnv.XDG_CONFIG_HOME : join(home, '.config')
   return join(root, 'vibase', 'instances', `${envName}.auth-plan.json`)
+}
+
+/** Appends `NAME=value` to the instance's own env file and leaves it mode 600 (stub: [[OPS393]] P4 builds it). */
+export function appendInstanceVar(
+  _file: string | undefined,
+  _envName: string,
+  _name: string,
+  _value: string,
+  _repoRoot: string,
+  _rootEnvPath: string,
+): void {
+  throw new Error('not implemented')
 }
 
 export const realFileDeps: Pick<PlanDeps, 'exists' | 'repoPathNotIgnored' | 'writeNew' | 'readText'> = {
@@ -93,6 +114,10 @@ export const realDeps: PlanDeps = {
     return { status: r.status, stdout: r.stdout ?? '' }
   },
   fetch: (input, init) => globalThis.fetch(input, init),
+  withDatabases: () => Promise.reject(new Error('not wired yet')),
+  run: () => 1,
+  appendEnvVar: () => undefined,
+  deploy: () => 1,
   now: () => new Date(),
   newId: () => uuidv7(),
   log: (line) => console.log(line),

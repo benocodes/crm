@@ -398,11 +398,13 @@ describe('the CRM batch', () => {
     )
   })
 
-  it('a plan with no people and no agents writes nothing (no system principal either)', async () => {
+  it('a plan with no people and no agents writes only the deployment marker (D14; no system principal, no event)', async () => {
     const s = await seed({ users: [], agents: [], memberships: [] })
     const crm = spyD1(pair.d1)
     const out = await run(s, { crm: crm.d1 })
-    expect(crm.log.statements.filter((q) => WRITE.test(q))).toEqual([])
+    expect(crm.log.statements.filter((q) => WRITE.test(q)).filter((q) => !/^update deployment\b/.test(q))).toEqual([])
+    expect(await rows(pair.d1, 'select auth_provider from deployment')).toEqual([{ auth_provider: 'better-auth' }])
+    expect(await rows(pair.d1, 'select id from events')).toEqual([])
     expect(await rows(pair.d1, 'select id from principals')).toEqual([])
     expect(out).toMatchObject({
       users_repointed: 0,
