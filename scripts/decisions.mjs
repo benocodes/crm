@@ -9,10 +9,10 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
-// A sprint is full at this many decisions: from there it only finishes the milestone it is on (`sprint-planning`,
-// "rollover"), and rolls over when that milestone is done.
+// A sprint is one milestone (#372). At this many decisions the milestone is at its budget: it takes on no new scope
+// (`sprint-planning`, "admit") and is finished as it stands.
 const SPRINT_DECISION_CAP = 250
-// Past this the milestone is too big for the sprint: the orchestrator stops and asks the user how to cut it.
+// Past this the milestone is too big for one sprint: the orchestrator stops and asks the user how to cut it.
 const SPRINT_DECISION_HARD_LIMIT = 300
 const SPRINT_FILE_LINE_BUDGET = 150
 const DECISION_MAX_CHARS = 300
@@ -284,23 +284,33 @@ function status() {
   }
 }
 
-/** `### Milestone X — title` sections of SPRINT.md, in the file's order, with the specs and issues each one names. */
+const MILESTONE_FOLDER = /^(?:\d{3}-)?([A-Z]+)-/
+
+/**
+ * The milestones of `knowledge/milestones/`: ranked folders `<seq>-<letter>-<slug>/` in rank order, then the finished
+ * ones under `done/<letter>-<slug>/`. Each is read from its `milestone-<letter>.md`, with the specs and issues it names.
+ */
 function readMilestones(knowledge) {
-  const sprintFile = join(knowledge, 'SPRINT.md')
-  if (!existsSync(sprintFile)) return []
-  const milestones = []
-  for (const line of readFileSync(sprintFile, 'utf8').split('\n')) {
-    const heading = /^### (Milestone .+)$/.exec(line)?.[1]
-    if (heading) milestones.push({ name: heading.trim(), text: '' })
-    else if (/^##+ /.test(line)) milestones.push(null)
-    else if (milestones.at(-1)) milestones.at(-1).text += `${line}\n`
-  }
-  return milestones
-    .filter((m) => m !== null)
-    .map(({ name, text }) => ({ name, specs: new Set(links(text).specs), issues: new Set(links(text).issues) }))
+  const root = join(knowledge, 'milestones')
+  const foldersOf = (dir) =>
+    existsSync(dir)
+      ? readdirSync(dir, { withFileTypes: true })
+          .filter((entry) => entry.isDirectory() && MILESTONE_FOLDER.test(entry.name))
+          .map((entry) => join(dir, entry.name))
+          .sort()
+      : []
+  return [...foldersOf(root), ...foldersOf(join(root, 'done'))].flatMap((folder) => {
+    const letter = MILESTONE_FOLDER.exec(folder.split('/').at(-1))[1]
+    const file = join(folder, `milestone-${letter}.md`)
+    if (!existsSync(file)) return []
+    const text = readFileSync(file, 'utf8')
+    const title = /^title:\s*(.+)$/m.exec(/^---\n([\s\S]*?)\n---/.exec(text)?.[1] ?? '')?.[1]
+    const name = `Milestone ${letter}${title ? ` — ${title.trim().replace(/^["']|["']$/g, '')}` : ''}`
+    return [{ name, specs: new Set(links(text).specs), issues: new Set(links(text).issues) }]
+  })
 }
 
-/** The current sprint's decisions grouped by the milestone whose table names their issue, spec or a spec it implements. */
+/** The current sprint's decisions grouped by the milestone whose file names their issue, spec or a spec it implements. */
 function size() {
   const knowledge = knowledgeDir()
   const dir = join(knowledge, 'decisions')

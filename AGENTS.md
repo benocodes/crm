@@ -30,7 +30,7 @@ Read these first (they live in the separate knowledge repo, cloned at `knowledge
 | Repo | Path | Holds |
 |---|---|---|
 | `benocodes/crm` | this repo | code, skills, issues, the project board |
-| `benocodes/crm-knowledge` (private) | `knowledge/` (gitignored here, its own `.git`) | vision, architecture, specs, plans, retros, discussions, `project-state.md` |
+| `benocodes/crm-knowledge` (private) | `knowledge/` (gitignored here, its own `.git`) | vision, architecture, milestones, specs, plans, retros, discussions, `project-state.md` |
 
 The delivery board is the GitHub project **crm** (project 3): https://github.com/users/benocodes/projects/3 (IDs and
 queries in the `board` skill, `.agents/skills/board/SKILL.md`).
@@ -48,7 +48,7 @@ The lifecycle is issue-driven. Skills live in `.agents/skills/`:
 | Board (IDs, queries, field edits) | `board` |
 | Triage | `triage-issues` |
 | Spec | `spec-author` |
-| Sprint (a band of specs) | `sprint-planning`, `sprint-checkpoint` |
+| Milestones and the sprint (one milestone at a time) | `sprint-planning`, `sprint-checkpoint` |
 | Plan (a cycle charter: scope now vs later, what must be tested) | `tdd-cycle-generator` |
 | Implement a cycle | `execute-cycle` |
 | Deliver features / bugs | `work-on-ready-issues` / `fix-bugs` |
@@ -131,10 +131,14 @@ Next Action) and tells the user before any of these, and never works around one:
   force-pushing, deleting branches the sprint didn't create.
 
 It also stops when the fix loop exhausts its two coder rounds, when an agent is blocked on something no other
-agent can resolve, when the sprint is too full to finish its milestone (`sprint-planning`, `rollover`: the
-user decides the cut), and when the sprint is finished. Milestones are ranked by the user in SPRINT.md and
-agents pick work in that order; new work (a milestone, or a spec no milestone lists) joins a running sprint
-only by the user's ruling on what waits for it (`sprint-planning`, `admit`).
+agent can resolve, and when the backlog is empty.
+
+**A sprint is one milestone** (milestones live in `knowledge/milestones/<seq>-<letter>-<slug>/`: the seq is
+the rank, set by the user; the letter is the identifier). The orchestrator builds the top-ranked milestone and
+then opens the next. It stops when a milestone is too big for one sprint (the user decides the cut) and when
+a milestone is paused on something only the user can supply: the factory waits, and no other milestone starts.
+New work is a new milestone the user ranks, or a new row the user admits; work no milestone needs goes
+through the board. All of it is in `sprint-planning`.
 
 ### Environments
 

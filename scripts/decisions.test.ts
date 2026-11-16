@@ -168,22 +168,22 @@ describe('decisions find', () => {
 })
 
 describe('decisions size', () => {
-  it('groups the current sprint by the milestone that names the issue, the spec or a spec it implements', () => {
-    writeFileSync(
-      join(knowledge, 'SPRINT.md'),
-      [
-        '# Sprint',
-        '## Milestones',
-        '### Milestone D — webhooks',
-        '| Needed | Spec | State |',
-        '| Gmail | [[CHN5]] | ✅ |',
-        '### Milestone G — built-in auth',
-        '| Control plane | [[CORE259]] | in flight |',
-        '| Follow-up | #999 | not started |',
-        '## Now / Next',
-        'Mentions [[CORE351]] and #5 outside any milestone.',
-      ].join('\n'),
-    )
+  it('groups the current sprint by the milestone file that names the issue, the spec or a spec it implements', () => {
+    const milestone = (folder: string, letter: string, lines: string[]) => {
+      mkdirSync(join(knowledge, 'milestones', folder), { recursive: true })
+      writeFileSync(join(knowledge, 'milestones', folder, `milestone-${letter}.md`), lines.join('\n'))
+    }
+    // Rank order is the seq prefix, not the letter; a finished milestone comes last.
+    milestone('010-G-built-in-auth', 'G', [
+      '---',
+      'id: G',
+      'title: built-in auth',
+      '---',
+      '| Control plane | [[CORE259]] | in flight |',
+      '| Follow-up | #999 | not started |',
+    ])
+    milestone('done/D-webhooks', 'D', ['---', 'id: D', 'title: webhooks', '---', '| Gmail | [[CHN5]] | ✅ |'])
+    writeFileSync(join(knowledge, 'SPRINT.md'), 'Mentions [[CORE351]] and #5 outside any milestone file.')
     run(...addArgs('351', 'a cycle of the control plane'))
     run(...addArgs('259', 'the spec itself'))
     run(...addArgs('999', 'an issue with no spec'))
@@ -194,8 +194,8 @@ describe('decisions size', () => {
     expect(run('size').stdout).toBe(
       [
         'sprint-002.jsonl: 1 decisions',
-        '     0    0%  Milestone D — webhooks',
         '     1  100%  Milestone G — built-in auth',
+        '     0    0%  Milestone D — webhooks',
         '',
       ].join('\n'),
     )
@@ -203,8 +203,8 @@ describe('decisions size', () => {
     expect(run('size').stdout).toBe(
       [
         'sprint-001.jsonl: 5 decisions',
-        '     1   20%  Milestone D — webhooks',
         '     3   60%  Milestone G — built-in auth',
+        '     1   20%  Milestone D — webhooks',
         '     1   20%  no milestone',
         '',
       ].join('\n'),

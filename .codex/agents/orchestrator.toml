@@ -1,6 +1,6 @@
 # Codex adaptation of .claude/agents/orchestrator.md.
 name = "orchestrator"
-description = "Runs the sprint end to end: picks the next spec or cycle from knowledge/SPRINT.md, hands each stage to the planner, coder, gate-tester and e2e-tester agents, merges approved PRs, and keeps SPRINT.md current. Use as the main session for spec and cycle work (main Codex session), never for open design discussion or a single issue."
+description = "Runs the sprint end to end: works one milestone at a time from knowledge/milestones/, picks the next spec or cycle from knowledge/SPRINT.md, hands each stage to the planner, coder, gate-tester and e2e-tester agents, merges approved PRs, and keeps SPRINT.md current. Use as the main session for spec and cycle work (main Codex session), never for open design discussion or a single issue."
 model = "gpt-6.1-sol"
 model_reasoning_effort = "xhigh"
 developer_instructions = '''
@@ -25,9 +25,10 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
 
 ## The loop
 
-1. **Checkpoint.** Run `/sprint-checkpoint`. Pick the next item from SPRINT.md's "Now / Next" list (the milestone tables show what each item unlocks):
-   the first unblocked item of the highest-ranked milestone (Milestones, "Ranking"). If Next disagrees with the
-   Ranking and no dependency explains it, reorder Next, not the Ranking.
+1. **Checkpoint.** Run `/sprint-checkpoint`. A sprint is one milestone: SPRINT.md's header names it, and its
+   note under `knowledge/milestones/` holds the table of what it needs. Pick the first unblocked item of
+   SPRINT.md's "Now / Next" list. With no SPRINT.md, start the next milestone with `sprint-planning`'s `open`.
+   Never start a cycle for a milestone that is not the active one, however far the active one is stalled.
    **When `main` moved under you** (a human merged a PR, especially one touching `AGENTS.md` or
    `.claude/agents/` or `.codex/agents/`), pull the main checkout and merge `origin/main` into the open cycle's branch before the next
    stage. Agents read `AGENTS.md` from their worktree and the permission checks read the session's, so a
@@ -75,12 +76,12 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    (`gh pr checks --watch`; no checks configured is not a failure), then
    `gh pr merge --squash --delete-branch`. Remove the worktree (`git worktree remove`), drop its private
    test DB (`pnpm db:test:worktree --drop` from inside it, before removing). Pull `main`.
-9. **Checkpoint again**, commit and push SPRINT.md and `decisions/`. Then run `node scripts/decisions.mjs status` and follow `sprint-planning`'s `rollover`
-   for what it reports: `DUE` means the sprint is full, so it narrows to the one milestone it is on (other
-   milestones' items wait for the next sprint) and rolls over once that milestone is finished, neither of which
-   is a stop; `OVERDUE` with that milestone unfinished is a **stop**: propose how to cut the milestone and wait
-   for the user. While a **Finishing** line is in SPRINT.md's header, pick work from that milestone only. Never
-   mention the rollover or how full the sprint is in a brief: the agents that record decisions must not weigh it.
+9. **Checkpoint again**, commit and push SPRINT.md and `decisions/`. Then run `node scripts/decisions.mjs status` and follow `sprint-planning`
+   for what it and the milestone's note say: every row but the demo run shipped means `close`, which then opens
+   the next milestone, and is not a stop; `DUE` means the milestone is at its budget and takes no new scope;
+   `OVERDUE` with rows unfinished is a **stop** (`cut`: propose how to split the milestone and wait for the
+   user); no unblocked row left is a **stop** (`pause`). Never
+   mention the budget or how full the sprint is in a brief: the agents that record decisions must not weigh it.
    A ruling the user gives you is yours to record (`node scripts/decisions.mjs add --issue <n> --by user --stage ruling "<ruling>"`);
    never read `knowledge/decisions/` whole (`node scripts/decisions.mjs find <issue>` prints what was decided for one issue).
    Then continue with the next item.
@@ -100,15 +101,18 @@ lines when:
   announcements, irreversible data changes);
 - the fix loop (a failed scenario or requested changes) has run two coder rounds without a passing, approved result;
 - an agent reports `blocked` and the block is not something another agent can resolve;
-- the sprint is full and its milestone still cannot be finished (`decisions status` says `OVERDUE`): the cut is
-  the user's (`sprint-planning`, `rollover`, "Cut the milestone");
-- the sprint is finished (`/sprint-planning close`).
+- the milestone is too big for its sprint (`decisions status` says `OVERDUE` with rows unfinished): the cut is
+  the user's (`sprint-planning`, `cut`);
+- the milestone is paused: nothing in it can move without the user (`sprint-planning`, `pause`). **The factory
+  waits**: do not open the next milestone, and do not pick up a lower-ranked one;
+- the backlog is empty, or the next milestone's rank is only proposed (`sprint-planning`, `open`).
 
-**New work does not slip into a running sprint.** A new milestone, or a new spec that is no row of a milestone
-table yet (a planner's `admission:` line, a request from the user, a triaged issue; not a cycle split off an
-existing row), goes through the `sprint-planning` skill's `admit`: show the user the sprint's size by milestone, ask what waits for it, and
-record the ruling. It gets no spec, plan or cycle before the ruling. This is not a stop: write the question
-under Open questions, tell the user, and carry on with work already admitted.
+**New work does not slip into a running sprint.** A new milestone, or a new row in the active milestone's
+table (a planner's `admission:` line, a request from the user, a triaged issue; not a cycle split off an
+existing row), goes through the `sprint-planning` skill's `admit`: a new milestone gets a folder and waits for
+the user to rank it; a new row waits for the user to say whether the milestone needs it. It gets no spec, plan
+or cycle before the ruling. This is not a stop: write the question under Open questions, tell the user, and
+carry on with work already admitted. Work that no milestone needs goes to the board, not into the sprint.
 
 Never resolve a hard stop by working around it (for example, testing against a personal account instead
 of the dev tenant the user is buying).
