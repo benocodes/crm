@@ -2,12 +2,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFile
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import {
-  defaultPlanPath,
-  realFileDeps,
-  runAuthMigrate,
-  type PlanDeps,
-} from './auth-migrate-remote.js'
+import { defaultPlanPath, realFileDeps, runAuthMigrate, type PlanDeps } from './auth-migrate-remote.js'
 import {
   CLERK_SECRET,
   KEY_HASH,
@@ -71,23 +66,108 @@ const GOOD = { CONFIRM_REMOTE: '1' }
 
 // [[OPS365]] group 1: every refusal happens before any call, exits 1 and writes nothing.
 describe('auth:migrate:remote plan refuses first', () => {
-  const cases: Array<[string, (k: ReturnType<typeof kit>) => { argv: string[]; env: NodeJS.ProcessEnv; k?: ReturnType<typeof kit> }, RegExp]> = [
+  const cases: Array<
+    [
+      string,
+      (k: ReturnType<typeof kit>) => { argv: string[]; env: NodeJS.ProcessEnv; k?: ReturnType<typeof kit> },
+      RegExp,
+    ]
+  > = [
     ['no CONFIRM_REMOTE=1', (k) => ({ argv: ['plan', '--env', 'hq', '--plan', k.plan], env: {} }), /CONFIRM_REMOTE=1/],
     ['no --env', (k) => ({ argv: ['plan', '--plan', k.plan], env: GOOD }), /--env/],
-    ['an env with no record', (k) => ({ argv: ['plan', '--env', 'nope', '--plan', k.plan], env: GOOD, k: kit({ cfg: config({ name: 'vb' }) }) }), /unknown env/],
-    ['a placeholder database id', (k) => ({ argv: ['plan', '--env', 'hq', '--plan', k.plan], env: GOOD, k: kit({ cfg: config({ crmId: '00000000-0000-0000-0000-000000000000' }) }) }), /placeholder/],
-    ['no recorded control database', (k) => ({ argv: ['plan', '--env', 'hq', '--plan', k.plan], env: GOOD, k: kit({ cfg: config({ control: false }) }) }), /CONTROL_DB/],
-    ['a better-auth instance', (k) => ({ argv: ['plan', '--env', 'hq', '--plan', k.plan], env: GOOD, k: kit({ cfg: config({ vars: { AUTH_PROVIDER: 'better-auth' } }) }) }), /clerk/],
-    ['an instance on provider none', (k) => ({ argv: ['plan', '--env', 'hq', '--plan', k.plan], env: GOOD, k: kit({ cfg: config({ vars: {} }) }) }), /clerk/],
-    ['no CLERK_SECRET_KEY in .env.<env>', (k) => ({ argv: ['plan', '--env', 'hq', '--plan', k.plan], env: GOOD, k: kit({ env: { display: '.env.hq', status: 'ok', text: 'OTHER=x\n' } }) }), /CLERK_SECRET_KEY/],
-    ['no .env.<env> file', (k) => ({ argv: ['plan', '--env', 'hq', '--plan', k.plan], env: GOOD, k: kit({ env: { display: '.env.hq', status: 'missing' } }) }), /\.env\.hq/],
-    ['an .env.<env> git does not ignore', (k) => ({ argv: ['plan', '--env', 'hq', '--plan', k.plan], env: GOOD, k: kit({ env: { display: '.env.hq', status: 'not-ignored' } }) }), /not ignored/],
-    ['a plan path that already exists', (k) => { writeFileSync(k.plan, 'precious'); return { argv: ['plan', '--env', 'hq', '--plan', k.plan], env: GOOD } }, /already exists/],
-    ['a plan path in the repo that git does not ignore', () => {
-      const k2 = kit()
-      return { argv: ['plan', '--env', 'hq', '--plan', join(REPO_ROOT, 'packages', 'auth-plan-ops365-test.json')], env: GOOD, k: k2 }
-    }, /not ignored by git/],
-    ['a subcommand that is not built yet', (k) => ({ argv: ['apply', '--env', 'hq', '--plan', k.plan], env: GOOD }), /plan/],
+    [
+      'an env with no record',
+      (k) => ({
+        argv: ['plan', '--env', 'nope', '--plan', k.plan],
+        env: GOOD,
+        k: kit({ cfg: config({ name: 'vb' }) }),
+      }),
+      /unknown env/,
+    ],
+    [
+      'a placeholder database id',
+      (k) => ({
+        argv: ['plan', '--env', 'hq', '--plan', k.plan],
+        env: GOOD,
+        k: kit({ cfg: config({ crmId: '00000000-0000-0000-0000-000000000000' }) }),
+      }),
+      /placeholder/,
+    ],
+    [
+      'no recorded control database',
+      (k) => ({
+        argv: ['plan', '--env', 'hq', '--plan', k.plan],
+        env: GOOD,
+        k: kit({ cfg: config({ control: false }) }),
+      }),
+      /CONTROL_DB/,
+    ],
+    [
+      'a better-auth instance',
+      (k) => ({
+        argv: ['plan', '--env', 'hq', '--plan', k.plan],
+        env: GOOD,
+        k: kit({ cfg: config({ vars: { AUTH_PROVIDER: 'better-auth' } }) }),
+      }),
+      /clerk/,
+    ],
+    [
+      'an instance on provider none',
+      (k) => ({ argv: ['plan', '--env', 'hq', '--plan', k.plan], env: GOOD, k: kit({ cfg: config({ vars: {} }) }) }),
+      /clerk/,
+    ],
+    [
+      'no CLERK_SECRET_KEY in .env.<env>',
+      (k) => ({
+        argv: ['plan', '--env', 'hq', '--plan', k.plan],
+        env: GOOD,
+        k: kit({ env: { display: '.env.hq', status: 'ok', text: 'OTHER=x\n' } }),
+      }),
+      /CLERK_SECRET_KEY/,
+    ],
+    [
+      'no .env.<env> file',
+      (k) => ({
+        argv: ['plan', '--env', 'hq', '--plan', k.plan],
+        env: GOOD,
+        k: kit({ env: { display: '.env.hq', status: 'missing' } }),
+      }),
+      /\.env\.hq/,
+    ],
+    [
+      'an .env.<env> git does not ignore',
+      (k) => ({
+        argv: ['plan', '--env', 'hq', '--plan', k.plan],
+        env: GOOD,
+        k: kit({ env: { display: '.env.hq', status: 'not-ignored' } }),
+      }),
+      /not ignored/,
+    ],
+    [
+      'a plan path that already exists',
+      (k) => {
+        writeFileSync(k.plan, 'precious')
+        return { argv: ['plan', '--env', 'hq', '--plan', k.plan], env: GOOD }
+      },
+      /already exists/,
+    ],
+    [
+      'a plan path in the repo that git does not ignore',
+      () => {
+        const k2 = kit()
+        return {
+          argv: ['plan', '--env', 'hq', '--plan', join(REPO_ROOT, 'packages', 'auth-plan-ops365-test.json')],
+          env: GOOD,
+          k: k2,
+        }
+      },
+      /not ignored by git/,
+    ],
+    [
+      'a subcommand that is not built yet',
+      (k) => ({ argv: ['apply', '--env', 'hq', '--plan', k.plan], env: GOOD }),
+      /plan/,
+    ],
   ]
   for (const [title, build, message] of cases) {
     it(`${title}: exit 1, the message, no wrangler or Clerk call, no file`, async () => {
@@ -110,7 +190,9 @@ describe('auth:migrate:remote plan refuses first', () => {
 
 describe('the plan path', () => {
   it('defaults to $XDG_CONFIG_HOME/vibase/instances/<env>.auth-plan.json, else ~/.config', () => {
-    expect(defaultPlanPath('hq', { XDG_CONFIG_HOME: '/x/cfg' }, '/home/u')).toBe('/x/cfg/vibase/instances/hq.auth-plan.json')
+    expect(defaultPlanPath('hq', { XDG_CONFIG_HOME: '/x/cfg' }, '/home/u')).toBe(
+      '/x/cfg/vibase/instances/hq.auth-plan.json',
+    )
     expect(defaultPlanPath('hq', {}, '/home/u')).toBe('/home/u/.config/vibase/instances/hq.auth-plan.json')
   })
   it('the default is created (directory too), mode 600, and a second run refuses to overwrite it', async () => {
@@ -160,7 +242,9 @@ describe('the plan file', () => {
     const tt = k.wrangler.cmds.filter((c) => c.args.includes('time-travel'))
     expect(tt.map((c) => c.args[c.args.indexOf('time-travel') + 2])).toEqual(['vault-crm-hq', 'vault-control-hq'])
     const firstExecute = k.wrangler.cmds.findIndex((c) => c.args.includes('execute'))
-    expect(k.wrangler.cmds.findLastIndex((c) => c.args.includes('time-travel'))).toBeLessThan(firstExecute)
+    expect(Math.max(...k.wrangler.cmds.map((c, i) => (c.args.includes('time-travel') ? i : -1)))).toBeLessThan(
+      firstExecute,
+    )
   })
 
   it('every new id is a UUIDv7 and they are unique', async () => {
@@ -170,7 +254,9 @@ describe('the plan file', () => {
     k.deps.newId = () => uuidv7()
     expect(await runAuthMigrate(['plan', '--env', 'hq', '--plan', k.plan], GOOD, k.deps)).toBe(0)
     const plan = JSON.parse(readFileSync(k.plan, 'utf8')) as AuthPlan
-    const all = [...plan.people.map((p) => p.new_auth_user_id), ...plan.agents.map((a) => a.new_auth_user_id)].filter((x): x is string => x !== null)
+    const all = [...plan.people.map((p) => p.new_auth_user_id), ...plan.agents.map((a) => a.new_auth_user_id)].filter(
+      (x): x is string => x !== null,
+    )
     expect(all.length).toBe(4)
     expect(new Set(all).size).toBe(all.length)
     for (const id of all) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
@@ -203,7 +289,12 @@ describe('the plan file', () => {
     const k = kit({ world: { users: [], agents: [], memberships: [] }, clerk: [] })
     expect(await runAuthMigrate(['plan', '--env', 'hq', '--plan', k.plan], GOOD, k.deps)).toBe(0)
     const plan = JSON.parse(readFileSync(k.plan, 'utf8')) as AuthPlan
-    expect(plan).toMatchObject({ people: [], clerk_only: [], agents: [], snapshot: { clerk_users: [], users: [], agents: [], memberships: [] } })
+    expect(plan).toMatchObject({
+      people: [],
+      clerk_only: [],
+      agents: [],
+      snapshot: { clerk_users: [], users: [], agents: [], memberships: [] },
+    })
   })
 })
 

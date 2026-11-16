@@ -15,7 +15,7 @@ async function snapshot(): Promise<Snapshot> {
 
 // [[OPS365]] group 3: the classification matrix. Agent kind x action, and humans x match.
 describe('classifying the agents (D6)', () => {
-  it('api_key -> keep; agent_account -> relink to its Clerk user\'s new id; delegated -> disable with its scopes; none of the three is disabled yet', async () => {
+  it("api_key -> keep; agent_account -> relink to its Clerk user's new id; delegated -> disable with its scopes; none of the three is disabled yet", async () => {
     const plan = classify(await snapshot(), counter())
     const by = (n: number) => plan.agents.find((a) => a.id === ids.A(n))!
     expect(by(1)).toMatchObject({ kind: 'api_key', action: 'keep', new_auth_user_id: null, scopes: null })
@@ -25,7 +25,11 @@ describe('classifying the agents (D6)', () => {
 
   it('an already-disabled agent is keep whatever its kind, with the reason recorded', async () => {
     const plan = await snapshot().then((s) => classify(s, counter()))
-    for (const [n, kind] of [[4, 'api_key'], [5, 'agent_account'], [6, 'delegated']] as const) {
+    for (const [n, kind] of [
+      [4, 'api_key'],
+      [5, 'agent_account'],
+      [6, 'delegated'],
+    ] as const) {
       const a = plan.agents.find((x) => x.id === ids.A(n))!
       expect(a, `agent ${n}`).toMatchObject({ kind, action: 'keep', new_auth_user_id: null })
       expect(a.reason).toMatch(/already disabled/)
@@ -42,7 +46,7 @@ describe('classifying the agents (D6)', () => {
     expect(member.reason).toMatch(/not an agent/)
   })
 
-  it('every agent is classified, once, in the vault\'s order', async () => {
+  it("every agent is classified, once, in the vault's order", async () => {
     const plan = await snapshot().then((s) => classify(s, counter()))
     expect(plan.agents.map((a) => a.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8].map(ids.A))
   })
@@ -62,12 +66,22 @@ describe('classifying the humans (P4)', () => {
       membership: { id: ids.U(101), role: 'owner' },
       new_auth_user_id: 'new-id-1',
     })
-    expect(by(2)).toMatchObject({ action: 'migrate', role: 'member', membership: { id: ids.U(102), role: 'member' }, new_auth_user_id: 'new-id-2' })
+    expect(by(2)).toMatchObject({
+      action: 'migrate',
+      role: 'member',
+      membership: { id: ids.U(102), role: 'member' },
+      new_auth_user_id: 'new-id-2',
+    })
   })
 
   it('a missing Clerk role gets what the adapter gives today: no workspace role (it refuses sign-in)', async () => {
     const plan = await snapshot().then((s) => classify(s, counter()))
-    expect(plan.people.find((p) => p.user_id === ids.U(3))).toMatchObject({ action: 'migrate', role: null, role_raw: null, membership: null })
+    expect(plan.people.find((p) => p.user_id === ids.U(3))).toMatchObject({
+      action: 'migrate',
+      role: null,
+      role_raw: null,
+      membership: null,
+    })
   })
 
   it('a vault user with no Clerk match is listed with action none: no id, and a deleted membership is not live', async () => {
@@ -81,19 +95,27 @@ describe('classifying the humans (P4)', () => {
 
   it('a Clerk user no vault row points at is listed with action none; one an agent account points at is not', async () => {
     const plan = await snapshot().then((s) => classify(s, counter()))
-    expect(plan.clerk_only).toEqual([{ clerk_user_id: 'user_scrubbede', email: 'e@example.test', role_raw: 'member', action: 'none' }])
+    expect(plan.clerk_only).toEqual([
+      { clerk_user_id: 'user_scrubbede', email: 'e@example.test', role_raw: 'member', action: 'none' },
+    ])
   })
 
   it('the new ids are unique and one per migrated person or relinked agent', async () => {
     const plan = await snapshot().then((s) => classify(s, counter()))
-    const all = [...plan.people.map((p) => p.new_auth_user_id), ...plan.agents.map((a) => a.new_auth_user_id)].filter((x) => x !== null)
+    const all = [...plan.people.map((p) => p.new_auth_user_id), ...plan.agents.map((a) => a.new_auth_user_id)].filter(
+      (x) => x !== null,
+    )
     expect(all).toEqual(['new-id-1', 'new-id-2', 'new-id-3', 'new-id-4'])
   })
 })
 
 describe('the empty state (rule 3)', () => {
   it('zero Clerk users, zero vault rows: a valid plan with empty lists', () => {
-    expect(classify({ clerk_users: [], users: [], agents: [], memberships: [] }, counter())).toEqual({ people: [], clerk_only: [], agents: [] })
+    expect(classify({ clerk_users: [], users: [], agents: [], memberships: [] }, counter())).toEqual({
+      people: [],
+      clerk_only: [],
+      agents: [],
+    })
   })
   it('vault users with zero Clerk users: every one is none', () => {
     const plan = classify({ clerk_users: [], users: standardWorld().users, agents: [], memberships: [] }, counter())

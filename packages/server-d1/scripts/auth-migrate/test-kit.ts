@@ -12,9 +12,18 @@ export const CLERK_SECRET = 'sk_test_THIS_VALUE_MUST_NEVER_BE_PRINTED_0123456789
 export const KEY_HASH = 'keyhash_0123456789abcdef0123456789abcdef'
 
 /** A user shaped like a recorded one: the recorded entry with its ids and address replaced. */
-export function clerkUserLike(base: Record<string, any>, id: string, email: string, role?: string): Record<string, any> {
+export function clerkUserLike(
+  base: Record<string, any>,
+  id: string,
+  email: string,
+  role?: string,
+): Record<string, any> {
   const u = structuredClone(base)
-  const addr = { ...u.email_addresses.find((e: any) => e.id === u.primary_email_address_id), id: `idn_${id}`, email_address: email }
+  const addr = {
+    ...u.email_addresses.find((e: any) => e.id === u.primary_email_address_id),
+    id: `idn_${id}`,
+    email_address: email,
+  }
   u.id = id
   u.primary_email_address_id = addr.id
   u.email_addresses = [addr]
@@ -35,10 +44,14 @@ export function fakeClerk(users: Array<Record<string, any>>, cap = 2) {
     const headers = new Headers(init?.headers)
     calls.push({ method: init?.method ?? 'GET', url, authorization: headers.get('authorization') })
     const u = new URL(url)
-    if ((init?.method ?? 'GET') !== 'GET' || u.pathname !== '/v1/users') return new Response('unexpected', { status: 500 })
+    if ((init?.method ?? 'GET') !== 'GET' || u.pathname !== '/v1/users')
+      return new Response('unexpected', { status: 500 })
     const limit = Math.min(Number(u.searchParams.get('limit') ?? '10'), cap)
     const offset = Number(u.searchParams.get('offset') ?? '0')
-    return new Response(JSON.stringify(users.slice(offset, offset + limit)), { status: 200, headers: { 'content-type': 'application/json' } })
+    return new Response(JSON.stringify(users.slice(offset, offset + limit)), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })
   }) as typeof fetch
   return { fetch: fetchFn, calls }
 }
@@ -48,7 +61,13 @@ export interface World {
   agents: AgentRow[]
   memberships: MembershipRow[]
 }
-const asDb = (r: Record<string, any>) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, typeof v === 'boolean' ? (v ? 1 : 0) : Array.isArray(v) ? JSON.stringify(v) : v]))
+const asDb = (r: Record<string, any>) =>
+  Object.fromEntries(
+    Object.entries(r).map(([k, v]) => [
+      k,
+      typeof v === 'boolean' ? (v ? 1 : 0) : Array.isArray(v) ? JSON.stringify(v) : v,
+    ]),
+  )
 
 /** A fake wrangler: `d1 execute` answers by the table the SELECT names, `d1 time-travel info <name>` by the database name. Everything it is asked is in `cmds`. */
 export function fakeWrangler(world: World, bookmarks: Record<string, string>) {
@@ -65,8 +84,17 @@ export function fakeWrangler(world: World, bookmarks: Record<string, string>) {
     if (a.includes('execute')) {
       const sql = a[a.indexOf('--command') + 1] ?? ''
       const table = /\bfrom\s+(\w+)/i.exec(sql)?.[1]
-      const rows = table === 'users' ? world.users : table === 'agents' ? world.agents : table === 'memberships' ? world.memberships : null
-      return rows ? { status: 0, stdout: JSON.stringify([{ results: rows.map(asDb), success: true }]) } : { status: 1, stdout: '' }
+      const rows =
+        table === 'users'
+          ? world.users
+          : table === 'agents'
+            ? world.agents
+            : table === 'memberships'
+              ? world.memberships
+              : null
+      return rows
+        ? { status: 0, stdout: JSON.stringify([{ results: rows.map(asDb), success: true }]) }
+        : { status: 1, stdout: '' }
     }
     return { status: 1, stdout: '' }
   }
@@ -80,7 +108,14 @@ export const ids = { U, A }
 /** Clerk: the four recorded users (a owner, b member, c agent, d no role) plus e (a member nobody in the vault knows) and f (a member who an agent row points at). */
 export function standardClerk(): Array<Record<string, any>> {
   const [a, b, c, d] = recordedClerkUsers() as [any, any, any, any]
-  return [a, b, c, d, clerkUserLike(a, 'user_scrubbede', 'e@example.test', 'member'), clerkUserLike(a, 'user_scrubbedf', 'f@example.test', 'member')]
+  return [
+    a,
+    b,
+    c,
+    d,
+    clerkUserLike(a, 'user_scrubbede', 'e@example.test', 'member'),
+    clerkUserLike(a, 'user_scrubbedf', 'f@example.test', 'member'),
+  ]
 }
 
 const user = (n: number, email: string, subject: string | null, extra: Partial<UserRow> = {}): UserRow => ({
@@ -123,10 +158,20 @@ export function standardWorld(): World {
     agents: [
       agent(1, 'plain key'),
       agent(2, 'account', { auth_provider: 'clerk', auth_subject: 'user_scrubbedc' }),
-      agent(3, 'delegated', { auth_provider: 'clerk', auth_client_id: 'client_x', delegated_by: U(1), scopes: ['contacts:read', 'notes:write'] }),
+      agent(3, 'delegated', {
+        auth_provider: 'clerk',
+        auth_client_id: 'client_x',
+        delegated_by: U(1),
+        scopes: ['contacts:read', 'notes:write'],
+      }),
       agent(4, 'plain key, disabled', { disabled_at: DISABLED }),
       agent(5, 'account, disabled', { auth_provider: 'clerk', auth_subject: 'user_scrubbedc2', disabled_at: DISABLED }),
-      agent(6, 'delegated, disabled', { auth_provider: 'clerk', auth_client_id: 'client_y', delegated_by: U(2), disabled_at: DISABLED }),
+      agent(6, 'delegated, disabled', {
+        auth_provider: 'clerk',
+        auth_client_id: 'client_y',
+        delegated_by: U(2),
+        disabled_at: DISABLED,
+      }),
       agent(7, 'account, Clerk user gone', { auth_provider: 'clerk', auth_subject: 'user_vanished' }),
       agent(8, 'account, Clerk user is a member', { auth_provider: 'clerk', auth_subject: 'user_scrubbedf' }),
     ],

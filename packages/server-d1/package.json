@@ -28,6 +28,7 @@
     "open:check": "tsx scripts/open-check.ts",
     "setup:remote": "tsx scripts/setup-remote.ts",
     "deploy:remote": "tsx scripts/deploy.ts",
+    "auth:migrate:remote": "tsx scripts/auth-migrate-remote.ts",
     "db:migrate:remote": "tsx scripts/migrate-remote.ts",
     "db:status:remote": "tsx scripts/status-remote.ts",
     "smoke:remote": "tsx scripts/smoke-remote.ts",
