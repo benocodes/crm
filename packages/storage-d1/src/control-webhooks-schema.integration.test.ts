@@ -80,31 +80,109 @@ const seedSub = async () => {
   return row.id
 }
 
+const EXPECTED: Record<
+  string,
+  { cols: Array<Record<string, unknown>>; idx: Array<Record<string, unknown>>; uniq: string[] }
+> = {
+  webhook_subscriptions: {
+    cols: [
+      { name: 'id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 1 },
+      { name: 'created_at', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'updated_at', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'organization_id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'created_by', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'agent_id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'url', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'event_types', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'status', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'deleted_at', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+    ],
+    idx: [{ name: 'idx_webhook_subscriptions_agent', unique: 0, partial: 1 }],
+    uniq: ['organization_id,id'],
+  },
+  webhook_secrets: {
+    cols: [
+      { name: 'id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 1 },
+      { name: 'created_at', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'organization_id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'created_by', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'subscription_id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'sealed', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'key_version', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 0 },
+    ],
+    idx: [{ name: 'idx_webhook_secrets_subscription', unique: 0, partial: 0 }],
+    uniq: [],
+  },
+  webhook_dispatch_state: {
+    cols: [
+      { name: 'subscription_id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 1 },
+      { name: 'created_at', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'organization_id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'created_by', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'cursor_event_id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'last_dispatched_at', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { name: 'last_success_at', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+    ],
+    idx: [],
+    uniq: [],
+  },
+  webhook_deliveries: {
+    cols: [
+      { name: 'id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 1 },
+      { name: 'created_at', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'organization_id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'created_by', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'subscription_id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'event_id', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'event_type', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'status', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'attempts', type: 'INTEGER', notnull: 1, dflt_value: '0', pk: 0 },
+      { name: 'next_attempt_at', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'lease_until', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { name: 'lease_token', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { name: 'last_attempt_at', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { name: 'last_status_code', type: 'INTEGER', notnull: 0, dflt_value: null, pk: 0 },
+      { name: 'last_error', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { name: 'delivered_at', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+    ],
+    idx: [
+      { name: 'idx_webhook_deliveries_due', unique: 0, partial: 1 },
+      { name: 'idx_webhook_deliveries_list', unique: 0, partial: 0 },
+    ],
+    uniq: ['subscription_id,event_id'],
+  },
+}
+
 describe('control 0004: the four webhook tables', () => {
-  it('creates them in the control database, with the columns, types and nullability of CRM 0016/0017', async () => {
+  // The columns, indexes and unique keys are pinned literally ([[CORE329]]: they were compared with the CRM 0016/0017 copies until 0020 dropped those).
+  it('creates them in the control database with their columns, types and nullability', async () => {
     for (const t of TABLES) {
-      const info = (d1: D1Like) =>
-        all(d1, `select name, type, "notnull", dflt_value, pk from pragma_table_info('${t}') order by cid`)
-      const mine = await info(control)
-      expect(mine.length, t).toBeGreaterThan(0)
-      expect(mine, t).toEqual(await info(crm))
+      const mine = await all(
+        control,
+        `select name, type, "notnull", dflt_value, pk from pragma_table_info('${t}') order by cid`,
+      )
+      expect(mine, t).toEqual(EXPECTED[t]!.cols)
     }
   })
 
-  it('keeps the indexes (and their partial predicates) and the unique keys of the CRM tables', async () => {
+  it('keeps the indexes (and their partial predicates) and the unique keys', async () => {
     for (const t of TABLES) {
-      const idx = (d1: D1Like) =>
-        all(
-          d1,
+      expect(
+        await all(
+          control,
           `select name, "unique", partial from pragma_index_list('${t}') where origin <> 'pk' and name not like 'sqlite_autoindex%' order by name`,
-        )
-      expect(await idx(control), t).toEqual(await idx(crm))
-      const uniq = (d1: D1Like) =>
-        all(
-          d1,
-          `select (select group_concat(name) from pragma_index_info(l.name)) as cols from pragma_index_list('${t}') l where l."unique" = 1 and l.origin = 'u' order by cols`,
-        )
-      expect(await uniq(control), t).toEqual(await uniq(crm))
+        ),
+        t,
+      ).toEqual(EXPECTED[t]!.idx)
+      expect(
+        (
+          await all(
+            control,
+            `select (select group_concat(name) from pragma_index_info(l.name)) as cols from pragma_index_list('${t}') l where l."unique" = 1 and l.origin = 'u' order by cols`,
+          )
+        ).map((r) => r.cols),
+        t,
+      ).toEqual(EXPECTED[t]!.uniq)
     }
   })
 
@@ -268,9 +346,9 @@ describe('control 0004: the four webhook tables', () => {
     ])
   })
 
-  it('the CRM schema is unchanged: its migration list still ends at 0019 and still holds the four tables', async () => {
-    expect(MIGRATIONS.at(-1)?.name).toBe('0019_drop_auth_tables.sql')
+  it('the CRM schema no longer holds the four tables ([[CORE329]]: 0020 dropped them; the control database holds them)', async () => {
+    expect(MIGRATIONS.at(-1)?.name).toBe('0020_drop_api_key_webhook_tables.sql')
     const names = (await all(crm, "select name from sqlite_master where type = 'table'")).map((r) => r.name)
-    expect(names).toEqual(expect.arrayContaining([...TABLES]))
+    for (const t of TABLES) expect(names, t).not.toContain(t)
   })
 })

@@ -711,13 +711,11 @@ try {
     delivery,
   )
   check(
-    'W6d the subscription change is audited in the control database and the CRM holds no webhook row and no webhook event',
+    'W6d the subscription change is audited in the control database and the CRM has no webhook table (migration 0020) and no webhook event',
     (await controlCount('webhook_subscriptions')) === 1 &&
       (await controlRows("select id from control_audit where action = 'webhook.created'")).length === 1 &&
-      (await count('webhook_subscriptions')) === 0 &&
-      (await count('webhook_secrets')) === 0 &&
-      (await count('webhook_dispatch_state')) === 0 &&
-      (await count('webhook_deliveries')) === 0 &&
+      (await rows("select name from sqlite_master where type = 'table' and name like 'webhook\\_%' escape '\\'"))
+        .length === 0 &&
       (await rows("select id from events where type like 'webhook.%'")).length === 0,
     undefined,
   )

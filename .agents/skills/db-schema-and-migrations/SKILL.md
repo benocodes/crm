@@ -407,7 +407,14 @@ tracker inside its own database. No foreign key or trigger crosses them; they li
   that owns the migration. CRM `0019` (drop `auth_*`) broke `packages/server-d1/src/auth-routing.test.ts`, which the
   charter's watch list missed and only the full gate found ([[OPS260]]). Grep `scripts/` too: `smoke:worker` is not
   in the gate, so its check 25d (reading the dropped CRM `auth_jwks`) stayed broken on `main` until [[CORE244]] needed
-  the smoke; a cycle that drops a table runs `pnpm -C packages/server-d1 smoke:worker` before review.
+  the smoke; a cycle that drops a table runs `pnpm -C packages/server-d1 smoke:worker` before review. Until #295, #334
+  and #361 are fixed the smoke aborts after check 25a on `main` (better-auth bootstrap without a control database), so
+  every later check runs on no branch: say so in RESULT.md rather than reading the abort as a pass ([[CORE329]]).
+- **Drop children before parents on D1.** D1 enforces foreign keys during `DROP TABLE` (it is an implicit
+  `DELETE`), and `pragma foreign_keys = off` is ignored, so dropping a referenced table that holds rows fails
+  `FOREIGN KEY constraint failed`. Order the drops leaf first and prove it over seeded rows in every table, with
+  the parent-first order as the absence mutation (`0020_drop_api_key_webhook_tables.sql`, [[CORE329]]). A dropped
+  table's triggers go with it; remove them from any schema suite that lists triggers.
 - Adding a binding means updating every harness that composes the Worker (storage-d1 test support, the server
   kit, the auth harness, `smoke:worker`) and every test that composes `better-auth` without it, which otherwise
   fails with the same `500` as the fail-closed refusal: assert the log line naming the cause.

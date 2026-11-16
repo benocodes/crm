@@ -4,9 +4,8 @@ import { insertApiKey, openControlDb, revokeApiKey } from '@vibase/storage-d1'
 import { uuidv7 } from '@vibase/storage'
 import { bootstrapD1, NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
-// [[CORE350]] group 5: the composed Worker authenticates an API key against the control plane first, in the two-database harness (workerd's Miniflare), with the real control store.
+// [[CORE350]] group 5: the composed Worker authenticates an API key against the control plane only ([[CORE329]]), in the two-database harness (workerd's Miniflare), with the real control store.
 let w: WorkerD1
-let crmKey: string
 let agentId: string
 let orgId: string
 let now = NOW
@@ -55,34 +54,15 @@ beforeEach(async () => {
     { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme', scopes: SCOPES },
     { now: NOW, newId: () => uuidv7(NOW) },
   )
-  // [[CORE356]]: bootstrap mints a control key; the CRM-only key of the fallback rows ([[CORE350]]) is seeded on purpose, in the CRM database.
-  const crm = await generateApiKey((n) => crypto.getRandomValues(new Uint8Array(n)))
-  await w.d1
-    .prepare(
-      'insert into api_keys (id, created_at, updated_at, organization_id, agent_id, key_hash, prefix, created_by) values (?, ?, ?, ?, ?, ?, ?, ?)',
-    )
-    .bind(
-      uuidv7(NOW),
-      NOW.toISOString(),
-      NOW.toISOString(),
-      b.organizationId,
-      b.agentId,
-      crm.hash,
-      crm.prefix,
-      b.agentId,
-    )
-    .run()
-  crmKey = crm.key
   agentId = b.agentId
   orgId = b.organizationId
 })
 
 describe('API keys through the composed Worker (CORE350)', () => {
-  it('accepts a control-seeded key and the CRM key; a revoked control key is the exact 401 of an unknown key', async () => {
+  it('accepts a control-seeded key; a key control does not hold (no CRM fallback, CORE329) and a revoked control key is the exact 401 of an unknown key', async () => {
     const wk = worker()
     const k = await controlKey()
     expect((await get(wk, k.key)).status).toBe(200)
-    expect((await get(wk, crmKey)).status).toBe(200)
     const unknown = await get(wk, 'vk_not-a-key-at-all')
     expect(unknown.status).toBe(401)
     expect(unknown.body).toEqual({ error: expect.objectContaining({ code: 'unauthenticated' }) })
@@ -126,10 +106,9 @@ describe('API keys through the composed Worker (CORE350)', () => {
     expect((await get(wk, k.key, { 'x-organization-id': orgId })).status).toBe(200)
   })
 
-  it('the stamp: control once inside a minute and again after it, no audit row, the CRM row untouched', async () => {
+  it('the stamp: control once inside a minute and again after it, no audit row', async () => {
     const wk = worker()
     const k = await controlKey()
-    const crmBefore = await w.d1.prepare('select id, last_used_at from api_keys').all()
     const audits = await auditCount()
     expect((await ctlRow(k.id)).last_used_at).toBeNull()
     await get(wk, k.key)
@@ -142,12 +121,5 @@ describe('API keys through the composed Worker (CORE350)', () => {
     await get(wk, k.key)
     expect((await ctlRow(k.id)).last_used_at).toBe(now.toISOString())
     expect(await auditCount()).toBe(audits)
-    expect((await w.d1.prepare('select id, last_used_at from api_keys').all()).results).toEqual(crmBefore.results)
-  })
-
-  it('a CRM-only key is stamped in CRM as today', async () => {
-    await get(worker(), crmKey)
-    const row = (await w.d1.prepare('select last_used_at from api_keys').first()) as { last_used_at: string | null }
-    expect(row.last_used_at).toBe(NOW.toISOString())
   })
 })

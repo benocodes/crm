@@ -910,7 +910,6 @@ describe('bootstrap with the Clerk marker (D18, D38)', () => {
     expect(await readDeployment(db.d1)).toMatchObject({ authProvider: 'clerk', authOrgId: ISSUER })
     expect(w.state.envText).toMatch(/^ACME_KEY=.{17,}$/m)
     // [[CORE356]]: the operator key is a control key with its audit row; the CRM database has none.
-    expect(((await db.d1.prepare('select count(*) as n from api_keys').first()) as { n: number }).n).toBe(0)
     const ctl = w.control as ReturnType<typeof memoryControl>
     expect(ctl.keys).toHaveLength(1)
     expect(ctl.audit).toHaveLength(1)

@@ -137,19 +137,6 @@ export interface AgentsTable {
   auth_client_id: string | null
   delegated_by: string | null
 }
-export interface ApiKeysTable {
-  id: string
-  created_at: Timestamp
-  updated_at: Timestamp
-  organization_id: string
-  agent_id: string
-  key_hash: string
-  prefix: string
-  last_used_at: NullableTimestamp
-  revoked_at: NullableTimestamp
-  expires_at: NullableTimestamp
-  created_by: string
-}
 
 // ---- the messaging model (CORE25 D44): capture tables are append-only, the two link tables are soft-deleted ----------
 export interface ThreadsTable {
@@ -465,72 +452,9 @@ export interface ActionExecutionsTable {
   error_message: string | null
 }
 
-/**
- * [[API7]] D1, D16: a webhook subscription (D1 only): one agent's standing request to POST exact event types to one URL. Soft-deleted. `event_types` is a JSON array of 1..20 strings.
- */
-export interface WebhookSubscriptionsTable {
-  id: string
-  created_at: Timestamp
-  updated_at: Timestamp
-  organization_id: string
-  created_by: string
-  agent_id: string
-  url: string
-  event_types: StringArrayColumn
-  status: 'active' | 'paused' | 'disabled'
-  deleted_at: NullableTimestamp
-}
-/** [[API7]] D12, D20: a signing secret, SEALED (AES-256-GCM under `CREDENTIALS_KEY`). Machinery: append-only (a trigger aborts an UPDATE), hidden from `schema.get`, written without an event. D1 only. */
-export interface WebhookSecretsTable {
-  id: string
-  created_at: Timestamp
-  organization_id: string
-  created_by: string
-  subscription_id: string
-  sealed: string
-  key_version: IntegerColumn
-}
-/** [[API7]] D5, D20: a subscription's position in the event feed (`cursor_event_id`, an event id and no foreign key). Machinery, hidden, written without an event. D1 only. */
-export interface WebhookDispatchStateTable {
-  subscription_id: string
-  created_at: Timestamp
-  organization_id: string
-  created_by: string
-  cursor_event_id: string
-  last_dispatched_at: NullableTimestamp
-  last_success_at: NullableTimestamp
-}
-
-/**
- * [[API7]] D4, D14, D20: one delivery of one event to one subscription (D1 only). The dispatcher inserts it `pending` (unique per subscription and event); the sender settles it. `event_id` is a position
- * (no foreign key). `lease_*` are machinery columns of the sender's claim. Written without events; readable through `webhooks.deliveries` and listed in `schema.get`.
- */
-export interface WebhookDeliveriesTable {
-  id: string
-  created_at: Timestamp
-  organization_id: string
-  created_by: string
-  subscription_id: string
-  event_id: string
-  event_type: string
-  status: 'pending' | 'delivered' | 'dead' | 'cancelled'
-  attempts: IntegerColumn
-  next_attempt_at: Timestamp
-  lease_until: NullableTimestamp
-  lease_token: string | null
-  last_attempt_at: NullableTimestamp
-  last_status_code: NullableIntegerColumn
-  last_error: string | null
-  delivered_at: NullableTimestamp
-}
-
 export interface StorageDatabase {
   action_executions: ActionExecutionsTable
   action_requests: ActionRequestsTable
-  webhook_subscriptions: WebhookSubscriptionsTable
-  webhook_secrets: WebhookSecretsTable
-  webhook_dispatch_state: WebhookDispatchStateTable
-  webhook_deliveries: WebhookDeliveriesTable
   organizations: OrganizationsTable
   principals: PrincipalsTable
   events: EventsTable
@@ -541,7 +465,6 @@ export interface StorageDatabase {
   users: UsersTable
   memberships: MembershipsTable
   agents: AgentsTable
-  api_keys: ApiKeysTable
   threads: ThreadsTable
   messages: MessagesTable
   interactions: InteractionsTable
@@ -575,14 +498,11 @@ export type ValueOf<T extends Table, C extends ColumnOf<T>> = UpdateType<
 
 /** Columns that must never appear in a public projection, per table. */
 export interface SecretColumns {
-  api_keys: 'key_hash'
   /** [[CORE25]] D23: the object keys never appear in a read schema; the content operations read them with `selectColumns`. */
   messages: 'content_key'
   files: 'storage_key'
   /** [[CHN5]] D41: the ciphertext of the refresh token; only the credentials module selects it, by an explicit column list. */
   channel_credentials: 'refresh_token_ciphertext'
-  /** [[API7]] D12: the sealed signing secret; only the sender will open it, by an explicit column list. */
-  webhook_secrets: 'sealed'
 }
 export type PublicColumn<T extends Table> = Exclude<
   ColumnOf<T>,
@@ -590,7 +510,7 @@ export type PublicColumn<T extends Table> = Exclude<
 >
 
 export type ColumnKind = 'uuid' | 'text' | 'timestamp' | 'json' | 'boolean' | 'string_array' | 'integer'
-/** Every table exists physically on both engines (CORE40 migrated the last type-only table, api_keys). */
+/** Every table exists physically on both engines (CORE40 migrated the last type-only table; CORE329 removed the control-plane tables, api_keys and the webhook ones). */
 export type PhysicalTable = Table
 
 /**
@@ -700,19 +620,6 @@ export const COLUMN_KINDS = {
     auth_subject: 'text',
     auth_client_id: 'text',
     delegated_by: 'uuid',
-  },
-  api_keys: {
-    id: 'uuid',
-    created_at: 'timestamp',
-    updated_at: 'timestamp',
-    organization_id: 'uuid',
-    agent_id: 'uuid',
-    key_hash: 'text',
-    prefix: 'text',
-    last_used_at: 'timestamp',
-    revoked_at: 'timestamp',
-    expires_at: 'timestamp',
-    created_by: 'uuid',
   },
   threads: {
     id: 'uuid',
@@ -995,54 +902,6 @@ export const COLUMN_KINDS = {
     result: 'json',
     error_code: 'text',
     error_message: 'text',
-  },
-  webhook_subscriptions: {
-    id: 'uuid',
-    created_at: 'timestamp',
-    updated_at: 'timestamp',
-    organization_id: 'uuid',
-    created_by: 'uuid',
-    agent_id: 'uuid',
-    url: 'text',
-    event_types: 'string_array',
-    status: 'text',
-    deleted_at: 'timestamp',
-  },
-  webhook_secrets: {
-    id: 'uuid',
-    created_at: 'timestamp',
-    organization_id: 'uuid',
-    created_by: 'uuid',
-    subscription_id: 'uuid',
-    sealed: 'text',
-    key_version: 'integer',
-  },
-  webhook_deliveries: {
-    id: 'uuid',
-    created_at: 'timestamp',
-    organization_id: 'uuid',
-    created_by: 'uuid',
-    subscription_id: 'uuid',
-    event_id: 'uuid',
-    event_type: 'text',
-    status: 'text',
-    attempts: 'integer',
-    next_attempt_at: 'timestamp',
-    lease_until: 'timestamp',
-    lease_token: 'text',
-    last_attempt_at: 'timestamp',
-    last_status_code: 'integer',
-    last_error: 'text',
-    delivered_at: 'timestamp',
-  },
-  webhook_dispatch_state: {
-    subscription_id: 'uuid',
-    created_at: 'timestamp',
-    organization_id: 'uuid',
-    created_by: 'uuid',
-    cursor_event_id: 'uuid',
-    last_dispatched_at: 'timestamp',
-    last_success_at: 'timestamp',
   },
   thread_sources: {
     id: 'uuid',

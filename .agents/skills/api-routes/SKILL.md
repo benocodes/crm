@@ -52,10 +52,10 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - `src/operations.ts` (`createVibaseRegistry`, where new resources and operations are added);
   - `src/rest/{app,errors,openapi}.ts` (`createApp`, `renderError`);
   - `src/auth/{types,api-keys,middleware}.ts`;
-  - `src/bootstrap.ts` (`bootstrapOperation`, `bootstrap(storage, opts, env?)`: one internal unit, no events). On D1 the
-    unit has no `api_keys` step: the key is minted after the CRM commit through `env.keyStore` (the control
-    `ApiKeyStorePort.create`, with its `api_key.created` audit row); only Postgres sets `BootstrapArgs.crmKey` and keeps the
-    CRM step until #329. A control failure after the CRM commit fails the run naming the agent and `api_keys.create` as
+  - `src/bootstrap.ts` (`bootstrapOperation`, `bootstrap(storage, opts, env?)`: one internal unit, no events). The
+    unit has no `api_keys` step on any engine ([[CORE329]]): the key is minted after the CRM commit through `env.keyStore` (the control
+    `ApiKeyStorePort.create`, with its `api_key.created` audit row), and a `bootstrap` without a key store refuses before the
+    unit runs (`bootstrapWorkspace` likewise when it makes an agent). A control failure after the CRM commit fails the run naming the agent and `api_keys.create` as
     the recovery; there is no resume path ([[CORE356]] P1/P2).
 - **Postgres composition** (`@vibase/server-postgres`, enterprise, [[CORE36]] D22, since [[CORE44]]): every entry point
   that picks the Postgres runtime lives here, importing the app from the `@vibase/api` barrel.
@@ -309,7 +309,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
 - **Administration** ([[CORE3]] cycle 2, [[CORE27]]):
   - prepared definitions `src/resources/{memberships,agents,api-keys}.ts` since [[CORE40]] (`memberships` is
     read-only, written only by the directory sync; `agents` normalises scopes with `normalizeAgentScopes` in
-    `prepare`, and its create is the concrete `createAgentOperation`; `api_keys.ts` is the record and the list grammar of the key operations, not a registered resource since [[CORE351]]);
+    `prepare`, and its create is the concrete `createAgentOperation`; `api_keys.ts` is the record and the list grammar of the key operations, not a registered resource since [[CORE351]]; since [[CORE329]] it is a `defineGrammarResource` (`src/storage/definition.ts`): a list grammar for a table outside the CRM `Database` type (a control-plane table), carrying its own `columnKinds`, read through `columnKindsOf`. Use it, not a CRM table type, when a control operation needs the generic list grammar);
   - `src/admin/` (`users.list`, `users.get`: `adminOperations()`, prepared since [[CORE40]]; `api_keys.create|revoke|list|get` are control operations on an `ApiKeyStorePort` since [[CORE351]], `apiKeyOperations()` in `api-keys.ts`, one control batch with its `control_audit` row and no CRM write or event; `createApp({ apiKeys: { port, store } })`; no store: `501 provider_not_configured`);
   - `src/directory/` ([[CORE29]], on storage since [[CORE41]]): `repairMembership` (the token claim repairs one
     user's membership; `repairOperation`), `reconcileOrganization` (fetch-and-reconcile one Clerk organisation;
@@ -1063,10 +1063,8 @@ that consequence still emits its event.
 | Channel machinery tables: credentials, subscriptions, sync state and cursors | the channel adapters | [[CHN5]] D22 |
 | The provider-id maps `message_sources` and `thread_sources` | capture | [[CORE25]] D17 |
 | Whatever the dev/ops `bootstrap` script writes | `bootstrap` only | [[CORE15]] |
-| The API-key usage stamp | `api_keys.last_used_at` only, at most once a minute, never `updated_at`; in whichever store holds the key (control `api_keys` via `stampApiKeyUsed`, below, [[CORE350]] P4) | [[CORE36]] D17 |
 | Execution lease columns: `action_executions.attempts`, `next_attempt_at`, `lease_until`, `lease_token`, `dispatched_at`, `last_error_code`, and the `queued`/`claimed` status they move between | claim, dispatch stamp, retry scheduling and lease recovery, without changing `updated_at`. Creation and the final outcome of an execution, and the linked request's `executed`/`failed`, are resources: they emit `action_execution.created`, `.completed`, `.failed` and `action_request.executed`, `.failed` | [[AGT8]] D56 |
 | The D1 full-text search indexes (`<table>_search` FTS5 tables) | triggers on the base table only, never a program, an operation or a script | [[CORE194]] D5 |
-| The CRM database's webhook tables (`webhook_subscriptions`, `webhook_secrets`, `webhook_dispatch_state`, `webhook_deliveries`) | none: since [[CORE337]] nothing reads or writes them (the subscription operations, dispatch and the sender run on the control plane, below); they stay, empty and inert, until #329 drops them. The old rule (machinery rows without events, subscription changes as `webhook.*` resources) is [[API7]] D20's and holds for no live code | [[API7]] D20, [[CORE337]] |
 | The control-plane database `CONTROL_DB` | see below | [[CORE259]] |
 
 **The control-plane database.** Its tables are deployment-scoped (no `organization_id`), emit no CRM event and
@@ -1110,11 +1108,11 @@ or an operation (`control-boundary.test.ts`, [[CORE259]] D5).
 - **`api_keys`** (control migration 0005, [[CORE328]], [[CORE259]] D3, D8, D11, D12): **read** by API-key
   authentication since [[CORE350]], through `ApiKeyControlPort` (`findByHash`, `readState`, `stampUsed`;
   `packages/api/src/auth/api-key-control.ts`, `createApp({ apiKeys })`, built in `server-d1/src/compose.ts`):
-  control first, then the key's agent from the CRM; CRM `api_keys` only when control has no such hash (a key in
-  both stores is decided by control alone); the stamp goes to the store that holds the key. The per-isolate cache
+  control only ([[CORE329]], [[CORE259]] D17): a hash control does not hold is `null`, with no CRM read, and with no
+  port (the parked Postgres composition) every key is `null`; the key's agent is then read from the CRM; the stamp goes to control. The per-isolate cache
   holds only the immutable (key id, agent id, organisation id) per hash and belongs to the authenticator `createApp`
   builds (one per composed app, never module state); revocation, expiry, the agent's `disabled_at` and scopes are
-  read on every request, so a warm isolate answers as a cold one. The four `api_keys.*` operations write and read control only since [[CORE351]] (a key held only in the CRM database is 404 there: none is in use); since [[CORE356]] so do every other writer on D1 (`bootstrap`, `bootstrapWorkspace`, `bootstrapD1` local and `--remote`, both setup front-ends, the e2e scripts through `scripts/e2e-keys.ts`); the only CRM `api_keys` writes left are the parked Postgres bootstrap and test seeds of the fallback, until #329. Written only by the control store's key methods: `insertApiKey`
+  read on every request, so a warm isolate answers as a cold one. The four `api_keys.*` operations write and read control only since [[CORE351]]; since [[CORE356]] so do every other writer (`bootstrap`, `bootstrapWorkspace`, `bootstrapD1` local and `--remote`, both setup front-ends, the e2e scripts through `scripts/e2e-keys.ts`); CRM migration 0020 ([[CORE329]]) dropped the CRM `api_keys` and the four `webhook_*` tables, so the control plane holds the only copies. The usage stamp (`last_used_at`) is a `CONTROL_DB` write with no audit row and no event. Written only by the control store's key methods: `insertApiKey`
   and `revokeApiKey` are each one control batch with their `api_key.created` / `api_key.revoked` `control_audit`
   row (`detail` holds `agent_id`, `prefix`, `expires_at`, never the key, its hash or any part of it);
   `stampApiKeyUsed` writes `last_used_at` only, at most once a minute, never `updated_at`, with no audit row

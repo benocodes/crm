@@ -41,13 +41,11 @@ const HIDDEN = [
   'gmail_watches',
   'mail_sync_state',
   'mail_sync_cursors',
-  'webhook_secrets',
-  'webhook_dispatch_state',
 ]
 const PRESENT = [
   'events',
   'principals',
-  'api_keys',
+  'tasks',
   'notes',
   'associations',
   'organizations',
@@ -76,11 +74,20 @@ describe('schema.get on the migrated D1 (D9)', () => {
     expect(names).toEqual([...names].sort())
     expect(doc.engine).toBe('d1')
   })
-  it('never lists _cf_*, sqlite_*, d1_migrations or the hidden tables, and always lists events, principals, api_keys, notes, associations', async () => {
+  it('never lists _cf_*, sqlite_*, d1_migrations or the hidden tables, and always lists events, principals, tasks, notes, associations', async () => {
     const names = (await getDoc()).tables.map((t: any) => t.name) as string[]
     for (const h of HIDDEN) expect(names, h).not.toContain(h)
     expect(names.filter((n) => n.startsWith('_cf_') || n.startsWith('sqlite_') || n === 'd1_migrations')).toEqual([])
     for (const p of PRESENT) expect(names, p).toContain(p)
+    // [[CORE329]]: the control-plane tables are not CRM tables, so they are neither listed nor hidden
+    for (const gone of [
+      'api_keys',
+      'webhook_subscriptions',
+      'webhook_secrets',
+      'webhook_dispatch_state',
+      'webhook_deliveries',
+    ])
+      expect(names, gone).not.toContain(gone)
   })
   it('OPS260 D13: the CRM database has no auth_ table after its migrations, so the exclusion is proven with one created here: a real auth_* table is never listed', async () => {
     expect((await realTables()).filter((n) => n.startsWith('auth_'))).toEqual([])
@@ -210,7 +217,6 @@ describe('catalog completeness (D16)', () => {
     expect(column(doc, 'tasks', 'title').values).toBeNull()
     expect(column(doc, 'tasks', 'title').exposed).toBe(true)
     for (const [t, c] of [
-      ['api_keys', 'key_hash'],
       ['messages', 'content_key'],
       ['files', 'storage_key'],
     ] as const)

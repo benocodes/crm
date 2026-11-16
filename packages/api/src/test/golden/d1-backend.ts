@@ -189,7 +189,6 @@ export async function d1GoldenBackend(): Promise<D1GoldenBackend> {
         'users',
         'memberships',
         'agents',
-        'api_keys',
         'events',
         'tasks',
         'threads',

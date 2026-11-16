@@ -9,7 +9,7 @@ import {
   type ApiKeyState,
 } from './api-key-control.js'
 
-// [[CORE350]] groups 1 to 4 at the authenticator: a CRM database (D1, Miniflare) and an in-memory control port that counts its calls. The real control store is the server-d1 suite's.
+// [[CORE350]] groups 1 to 4 at the authenticator, control only since [[CORE329]] (the CRM `api_keys` is gone): a CRM database (D1, Miniflare) and an in-memory control port that counts its calls. The real control store is the server-d1 suite's.
 const NOW = new Date('2026-10-22T10:00:00.000Z')
 const iso = (s: number) => new Date(NOW.getTime() + s * 1000).toISOString()
 const OTHER_ORG = '0190b2c4-0000-7000-8000-0000000000ff'
@@ -61,11 +61,6 @@ describe('API-key authentication reads the control plane first (CORE350)', () =>
   })
   const auth = (maxEntries?: number, port: ApiKeyControlPort | null = control) =>
     createApiKeyAuthenticator({ port, ...(maxEntries ? { maxEntries } : {}) })
-  const crmKey = async (over: Record<string, unknown> = {}) => {
-    const { key, hash, prefix } = await generateApiKey((k) => crypto.getRandomValues(new Uint8Array(k)))
-    const row = await e.insert('api_keys', { agent_id: e.agentId, key_hash: hash, prefix, ...over })
-    return { key, hash, id: row.id as string }
-  }
   const ctlKey = async (over: Partial<FakeKey> = {}) => {
     const { key, hash } = await generateApiKey((k) => crypto.getRandomValues(new Uint8Array(k)))
     const id = `0190b2c4-0000-7000-8000-${String(++n + 5000).padStart(12, '0')}`
@@ -96,8 +91,6 @@ describe('API-key authentication reads the control plane first (CORE350)', () =>
       ['control expiring one ms ahead', () => ctlKey({ expiresAt: new Date(NOW.getTime() + 1).toISOString() }), true],
       ['control key, agent row missing', () => ctlKey({ agentId: '0190b2c4-0000-7000-8000-0000000000aa' }), false],
       ['control key, agent of another organisation', () => ctlKey({ organizationId: OTHER_ORG }), false],
-      ['CRM only valid', () => crmKey(), true],
-      ['CRM only revoked', () => crmKey({ revoked_at: iso(-10) }), false],
     ]
     it.each(cases)('%s: cold and warm answer alike', async (_n, seed, valid) => {
       const { key } = await seed()
@@ -119,45 +112,15 @@ describe('API-key authentication reads the control plane first (CORE350)', () =>
       expect(await ok(auth(), key)).toBeNull()
     })
 
-    it('both stores: control wins. Live in control and revoked in CRM authenticates; revoked in control and live in CRM is 401', async () => {
-      const { key, hash } = await crmKey({ revoked_at: iso(-10) })
-      control.keys.set('c1', {
-        id: 'c1',
-        hash,
-        agentId: e.agentId,
-        organizationId: e.organizationId,
-        lastUsedAt: null,
-        revokedAt: null,
-        expiresAt: null,
-      })
-      expect(await ok(auth(), key)).not.toBeNull()
-      const live = await crmKey()
-      control.keys.set('c2', {
-        id: 'c2',
-        hash: live.hash,
-        agentId: e.agentId,
-        organizationId: e.organizationId,
-        lastUsedAt: null,
-        revokedAt: iso(-5),
-        expiresAt: null,
-      })
-      const a = auth()
-      expect(await ok(a, live.key)).toBeNull()
-      expect(await ok(a, live.key)).toBeNull()
-    })
-
-    it('neither store: 401, cold and repeated', async () => {
+    it('a key control does not hold: 401, cold and repeated', async () => {
       const a = auth()
       expect(await ok(a, 'vk_nothing-anywhere')).toBeNull()
       expect(await ok(a, 'vk_nothing-anywhere')).toBeNull()
     })
 
-    it('no port: CRM keys exactly as today, control keys unknown', async () => {
-      const c = await crmKey()
+    it('no port: every key is unknown', async () => {
       const k = await ctlKey()
-      const a = auth(undefined, null)
-      expect(await ok(a, c.key)).not.toBeNull()
-      expect(await ok(a, k.key)).toBeNull()
+      expect(await ok(auth(undefined, null), k.key)).toBeNull()
     })
   })
 
@@ -165,7 +128,7 @@ describe('API-key authentication reads the control plane first (CORE350)', () =>
     it.each([
       ['revoked', (id: string) => void (control.keys.get(id)!.revokedAt = iso(-1))],
       ['expired', (id: string) => void (control.keys.get(id)!.expiresAt = iso(-1))],
-      ['key row deleted (the cold path answers: CRM has none)', (id: string) => void control.keys.delete(id)],
+      ['key row deleted (the cold path answers: control has none)', (id: string) => void control.keys.delete(id)],
     ])('%s after warming: the next request is 401', async (_n, change) => {
       const { key, id } = await ctlKey()
       const a = auth()
@@ -189,23 +152,6 @@ describe('API-key authentication reads the control plane first (CORE350)', () =>
       expect((await ok(a, key))!.scopes).toEqual(['tasks:read', 'tasks:write'])
       await e.update('agents', e.agentId, { scopes: ['tasks:read'] })
       expect((await ok(a, key))!.scopes).toEqual(['tasks:read'])
-    })
-
-    it('a state row deleted under a cached mapping, with a CRM row of the same hash: the cold path answers (CRM)', async () => {
-      const { key, hash } = await crmKey()
-      control.keys.set('c3', {
-        id: 'c3',
-        hash,
-        agentId: e.agentId,
-        organizationId: e.organizationId,
-        lastUsedAt: null,
-        revokedAt: null,
-        expiresAt: null,
-      })
-      const a = auth()
-      expect(await ok(a, key)).not.toBeNull()
-      control.keys.delete('c3')
-      expect(await ok(a, key)).not.toBeNull()
     })
   })
 
@@ -269,16 +215,6 @@ describe('API-key authentication reads the control plane first (CORE350)', () =>
       expect(await ok(a, key)).not.toBeNull()
     })
 
-    it('a CRM-fallback key is not cached: every request looks the hash up again', async () => {
-      const { key } = await crmKey()
-      const a = auth()
-      await ok(a, key)
-      control.calls.length = 0
-      await ok(a, key)
-      expect(control.calls.filter((c) => c === 'find')).toHaveLength(1)
-      expect(control.calls.filter((c) => c === 'state')).toEqual([])
-    })
-
     it('the bound evicts: with room for one, the oldest mapping is looked up again', async () => {
       const k1 = await ctlKey()
       const k2 = await ctlKey()
@@ -305,7 +241,7 @@ describe('API-key authentication reads the control plane first (CORE350)', () =>
   })
 
   describe('group 4: the stamp is in the holding store', () => {
-    it('a control key is stamped once inside a minute and again after it; the CRM row is never touched', async () => {
+    it('a control key is stamped once inside a minute and again after it', async () => {
       const { key, id } = await ctlKey()
       const a = auth()
       await ok(a, key)
@@ -315,7 +251,6 @@ describe('API-key authentication reads the control plane first (CORE350)', () =>
       const later = { ...kit.env(), now: new Date(NOW.getTime() + 61_000) }
       await a(kit.binding, key, later)
       expect(control.stamps).toEqual([id, id])
-      expect(await e.rows('api_keys')).toEqual([])
     })
 
     it('a stamp not written for a revoked or expired control key', async () => {
@@ -330,30 +265,6 @@ describe('API-key authentication reads the control plane first (CORE350)', () =>
         throw new Error('control down')
       }
       await expect(auth()(kit.binding, key, kit.env())).rejects.toThrow('control down')
-    })
-
-    it('a CRM-only key is stamped in CRM as today, and control is not asked to stamp', async () => {
-      const { key, id } = await crmKey()
-      await ok(auth(), key)
-      const row = (await e.rows('api_keys')).find((r) => r.id === id)!
-      expect(row.last_used_at).not.toBeNull()
-      expect(control.stamps).toEqual([])
-    })
-
-    it('a key in both stores stamps control only', async () => {
-      const { key, hash, id } = await crmKey()
-      control.keys.set('both', {
-        id: 'both',
-        hash,
-        agentId: e.agentId,
-        organizationId: e.organizationId,
-        lastUsedAt: null,
-        revokedAt: null,
-        expiresAt: null,
-      })
-      await ok(auth(), key)
-      expect(control.stamps).toEqual(['both'])
-      expect((await e.rows('api_keys')).find((r) => r.id === id)!.last_used_at).toBeNull()
     })
   })
 })

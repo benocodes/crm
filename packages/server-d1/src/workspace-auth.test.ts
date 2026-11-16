@@ -348,7 +348,8 @@ describe('me.get for an API-key agent (spec me.get)', () => {
       .run()
     const { generateApiKey } = await import('@vibase/api')
     const secret = await generateApiKey((n) => crypto.getRandomValues(new Uint8Array(n)))
-    await w.d1
+    // [[CORE329]]: keys live in the control plane only.
+    await w.control
       .prepare(
         'insert into api_keys (id, created_at, updated_at, organization_id, agent_id, key_hash, prefix, created_by) values (?, ?, ?, ?, ?, ?, ?, ?)',
       )
@@ -391,7 +392,6 @@ describe('bootstrap on a Clerk-backed D1 (D11)', () => {
     expect(system).toBeDefined()
     expect(await rows('agents')).toMatchObject([{ id: r.agentId, created_by: system!.id }])
     // [[CORE356]]: the key is a control key attributed to the system principal; the CRM database has none.
-    expect(await rows('api_keys')).toEqual([])
     expect((await w.control.prepare('select * from api_keys').all()).results).toMatchObject([
       { id: r.apiKeyId, agent_id: r.agentId, created_by: system!.id },
     ])
@@ -402,7 +402,7 @@ describe('bootstrap on a Clerk-backed D1 (D11)', () => {
     expect(r).toMatchObject({ userId: null, agentId: null, apiKeyId: null, key: null })
     expect(await rows('organizations')).toHaveLength(1)
     expect(await rows('agents')).toEqual([])
-    expect(await rows('api_keys')).toEqual([])
+    expect((await w.control.prepare('select * from api_keys').all()).results).toEqual([])
   })
 
   it('a user who signs in afterwards with owner is admitted', async () => {
@@ -418,7 +418,7 @@ describe('bootstrap on a Clerk-backed D1 (D11)', () => {
     const before = {
       orgs: (await rows('organizations')).length,
       agents: (await rows('agents')).length,
-      keys: (await rows('api_keys')).length,
+      keys: ((await w.control.prepare('select * from api_keys').all()).results ?? []).length,
     }
     const again = await bootstrapD1(w.d1, opts, env()).catch((e: Error) => e)
     expect(again).toBeInstanceOf(Error)
@@ -426,7 +426,7 @@ describe('bootstrap on a Clerk-backed D1 (D11)', () => {
     expect({
       orgs: (await rows('organizations')).length,
       agents: (await rows('agents')).length,
-      keys: (await rows('api_keys')).length,
+      keys: ((await w.control.prepare('select * from api_keys').all()).results ?? []).length,
     }).toEqual(before)
   })
 
@@ -465,7 +465,7 @@ describe('bootstrap on a Clerk-backed D1 (D11)', () => {
       { kind: 'internal', organizationId: link.organizationId },
       initDeploymentOperation(link),
     )
-    const tables = ['deployment', 'organizations', 'users', 'principals', 'agents', 'api_keys', 'events']
+    const tables = ['deployment', 'organizations', 'users', 'principals', 'agents', 'events']
     const counts = async () => Promise.all(tables.map(async (t) => (await rows(t)).length))
     const before = await counts()
     await expect(bootstrapD1(w.d1, { ...opts, ...over }, env())).rejects.toThrow(message)

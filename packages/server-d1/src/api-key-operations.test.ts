@@ -72,7 +72,6 @@ describe('API key operations through the composed Worker (CORE351)', () => {
     const events = await count(w.d1, 'events')
     const made = await rest(wk, 'POST', '/meta/v1/api-keys', tok, { agent_id: agentId })
     expect(made.status).toBe(201)
-    expect(await count(w.d1, 'api_keys')).toBe(0)
     expect(await count(w.d1, 'events')).toBe(events)
     expect(await count(w.control, 'api_keys')).toBe(1)
     expect((await rest(wk, 'GET', '/meta/v1/me', made.json.key)).status).toBe(200)

@@ -36,8 +36,6 @@ export const HIDDEN_TABLES: readonly string[] = [
   'gmail_watches',
   'mail_sync_state',
   'mail_sync_cursors',
-  'webhook_secrets',
-  'webhook_dispatch_state',
 ]
 
 /** D6: a column's default label is its name with `_` as spaces and the first letter capitalised (`due_at` -> "Due at"). */
@@ -183,18 +181,6 @@ export const CATALOG: Catalog = {
         auth_subject: "An agent account: the provider's id of the user whose role is agent; null otherwise.",
         auth_client_id: 'A delegated agent: the OAuth client the person consented to; null otherwise.',
         delegated_by: 'A delegated agent: the user who consented and whose role bounds its scopes; null otherwise.',
-      },
-    },
-    api_keys: {
-      label: 'API keys',
-      description: 'Credentials of agents. Only a hash is stored; the key itself is shown once, at creation.',
-      columns: {
-        agent_id: 'The agent the key authenticates as.',
-        key_hash: 'Secret: hash of the key. Never returned by any operation.',
-        prefix: 'The first characters of the key, to recognise it.',
-        last_used_at: 'When the key last authenticated a request (approximate: stamped at most once a minute).',
-        revoked_at: 'When the key was revoked; null while valid.',
-        expires_at: 'When the key stops working; null for no expiry.',
       },
     },
     threads: {
@@ -443,40 +429,6 @@ export const CATALOG: Catalog = {
         error_code:
           'Why it failed: reauth_required, permission_missing, anchor_missing, provider_rejected, outcome_unknown, attempts_exhausted or deadline_passed.',
         error_message: "Vibase's sentence for the failure; never a provider's own text.",
-      },
-    },
-    webhook_subscriptions: {
-      label: 'Webhook subscriptions',
-      description:
-        "An agent's standing request to have events POSTed, signed, to one https URL. Each belongs to one agent, which receives only event types it could read itself. Managed through the webhooks operations; the signing secret is shown once, when it is created or rotated, and is never stored readably.",
-      columns: {
-        agent_id: 'The agent that owns the subscription: whose read scopes decide which events it may receive.',
-        url: 'Where the events are POSTed: https, a public host, at most 2048 characters.',
-        event_types: 'The exact event types delivered (for example task.created), as a JSON array of 1 to 20 strings.',
-        status: 'active, paused (by a caller) or disabled (by Vibase after sustained failure).',
-        deleted_at: 'When the subscription was deleted; null while it exists.',
-      },
-    },
-    webhook_deliveries: {
-      label: 'Webhook deliveries',
-      description:
-        "One row per event per webhook subscription: the dispatcher adds it pending when the event reaches the subscription's position in the feed, and the sender settles it as delivered, dead or cancelled. Read a subscription's rows through webhooks.deliveries to see why a hook did or did not fire. Vibase writes it; nothing here is edited by callers.",
-      columns: {
-        subscription_id: 'The webhook subscription this delivery belongs to.',
-        event_id:
-          "The id of the event to deliver (the event feed's id; there is no foreign key, an event id is a position).",
-        event_type: "The event's type, for example task.created.",
-        status:
-          'pending (waiting or between attempts), delivered, dead (every attempt failed) or cancelled (the subscription was deleted or lost its read scope).',
-        attempts: 'How many attempts were started.',
-        next_attempt_at: 'When the next attempt is due.',
-        lease_until: "When the running attempt's lease lapses; internal, never returned.",
-        lease_token: 'Identifies the sender holding the lease; internal, never returned.',
-        last_attempt_at: 'When the last attempt started; null before the first.',
-        last_status_code: 'The HTTP status the last attempt got, when it got one.',
-        last_error:
-          'Why the last attempt failed: timeout, connection_failed, http_status, redirect, sender_failed, cancelled_subscription or cancelled_scope. A response body is never stored.',
-        delivered_at: 'When a 2xx answered; null until then.',
       },
     },
     associations: {

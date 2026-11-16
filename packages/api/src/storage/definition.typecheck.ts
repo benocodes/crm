@@ -4,9 +4,9 @@
 import { z } from 'zod'
 import { membershipRecord } from '../account/organizations.js'
 import { agentRecord, agents } from '../resources/agents.js'
-import { apiKeyRecord, apiKeys } from '../resources/api-keys.js'
+import { API_KEY_COLUMN_KINDS, apiKeyRecord, apiKeys } from '../resources/api-keys.js'
 import { memberships } from '../resources/memberships.js'
-import { definePreparedResource } from './definition.js'
+import { defineGrammarResource, definePreparedResource } from './definition.js'
 
 const filter = { schema: z.string() }
 const tasksRecord = z.object({
@@ -52,21 +52,13 @@ definePreparedResource({
   record: z.object({ id: z.uuid(), bogus: z.string() }),
 })
 
-// secret record column
-definePreparedResource({
-  surface: 'api',
-  name: 'api_keys',
-  eventName: 'api_key',
-  table: 'api_keys',
-  // @ts-expect-error key_hash is a secret column
-  record: z.object({ id: z.uuid(), key_hash: z.string() }),
-})
-export const okKeys = definePreparedResource({
-  surface: 'api',
-  name: 'api_keys',
-  eventName: 'api_key',
-  table: 'api_keys',
-  record: z.object({ id: z.uuid(), prefix: z.string() }),
+// secret record column: the secret-column directive on `channel_credentials` below (the control-plane `api_keys` is no CRM table, [[CORE329]]; its grammar is checked in section 1 and 5 of the administration cases)
+export const okCredentials = definePreparedResource({
+  surface: 'meta',
+  name: 'channel_credentials',
+  eventName: 'channel_credential',
+  table: 'channel_credentials',
+  record: z.object({ id: z.uuid(), key_version: z.number() }),
 })
 
 // CHN140 D41: the credential's ciphertext is a secret column. Removing `channel_credentials` from SecretColumns makes the directive below unused: a typecheck failure.
@@ -275,22 +267,25 @@ export const okMemberships = definePreparedResource({
   record: membershipRecord,
   filters: { role: filter },
 })
-export const okApiKeys = definePreparedResource({
-  surface: 'api',
+// [[CORE329]] P4: the key list grammar is bound to its own column kinds, never to a CRM table type.
+export const okApiKeys = defineGrammarResource({
+  surface: 'meta',
   name: 'api_keys',
   eventName: 'api_key',
   table: 'api_keys',
+  columnKinds: API_KEY_COLUMN_KINDS,
   record: apiKeyRecord,
   filters: { agent_id: filter },
 })
 
-// 1. an api_keys record that carries the secret column
-definePreparedResource({
-  surface: 'api',
+// 1. a key grammar record that carries the secret column (key_hash is not among the grammar's columns)
+defineGrammarResource({
+  surface: 'meta',
   name: 'api_keys',
   eventName: 'api_key',
   table: 'api_keys',
-  // @ts-expect-error key_hash is a secret column of api_keys
+  columnKinds: API_KEY_COLUMN_KINDS,
+  // @ts-expect-error key_hash is not a column of the key grammar
   record: apiKeyRecord.extend({ key_hash: z.string() }),
 })
 
@@ -325,14 +320,15 @@ definePreparedResource({
   prepare: async () => ({}),
 })
 
-// 5. an unknown filter column on api_keys
-definePreparedResource({
-  surface: 'api',
+// 5. an unknown filter column on the key grammar
+defineGrammarResource({
+  surface: 'meta',
   name: 'api_keys',
   eventName: 'api_key',
   table: 'api_keys',
+  columnKinds: API_KEY_COLUMN_KINDS,
   record: apiKeyRecord,
-  // @ts-expect-error 'bogus' is not a column of api_keys
+  // @ts-expect-error 'bogus' is not a column of the key grammar
   filters: { bogus: filter },
 })
 

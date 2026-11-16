@@ -2,22 +2,19 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { StatementFailed, type ExecutionResult, type PreparedOperation, type StatementLabel } from '@vibase/storage'
 import { withFault } from '@vibase/storage/test'
 import { seedAgent, seedOrganization, seedUser } from '@vibase/db/test'
-import { generateApiKey, hashApiKey } from '../auth/api-keys.js'
-import { openAuthKit } from '../test/auth-kit.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createVibaseRegistry } from '../operations.js'
 import type { TenantOperation } from '../registry.js'
-import { seedApiKey } from '../test/keys.js'
 import { seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { openEngines, type Engine, type EngineName } from '../test/engines.js'
 import { BASE } from '../test/identity-kit.js'
 
-// Administration on both engines (CORE40 Step 2.4): agents, memberships, api keys and users through the real
+// Administration on both engines (CORE40 Step 2.4): agents, memberships and users through the real
 // registry operations (async prepare included), against Postgres and D1 with the same assertions.
 const registry = createVibaseRegistry()
 const at = (n: number) => new Date(BASE + n * 60_000)
 const iso = (n: number) => at(n).toISOString()
-const TABLES = ['principals', 'agents', 'api_keys', 'events'] as const
+const TABLES = ['principals', 'agents', 'events'] as const
 const snapshot = async (e: Engine) =>
   Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, await e.rows(t)] as const)))
 const UNKNOWN = '0190b2c4-0000-7000-8000-00000000dead'
@@ -77,7 +74,7 @@ export function engineSuite(engineName: EngineName): void {
       (await e.rows('events')).filter((x) => (prefix ? String(x.type).startsWith(prefix) : true))
     const newAgent = (body: Record<string, unknown> = {}, opts?: Opts) =>
       call('agents.create', { body: { name: 'bot', scopes: ['tasks:read'], ...body } }, opts)
-    const row = async (table: 'agents' | 'api_keys' | 'memberships' | 'principals', id: string) => {
+    const row = async (table: 'agents' | 'memberships' | 'principals', id: string) => {
       const r = (await e.rows(table)).find((x) => x.id === id)
       expect(r, `${table} row ${id}`).toBeDefined()
       return r!
@@ -281,19 +278,6 @@ export function engineSuite(engineName: EngineName): void {
             updated_at: iso(3),
           })
           expect(await agentEvents()).toHaveLength(2)
-        })
-
-        it('removing a stored scope takes effect on the agent next request (the existing missing-scope refusal)', async () => {
-          const a = await twoScopes()
-          const kit = await openAuthKit(e)
-          const { key, hash, prefix } = await generateApiKey(() => crypto.getRandomValues(new Uint8Array(32)))
-          await e.insert('api_keys', { agent_id: a.id, key_hash: hash, prefix })
-          const post = async () =>
-            (await kit.keyCall('/api/v1/tasks', key, { method: 'POST', body: { title: 'x' } })).status
-          expect(await post()).toBe(201)
-          await update(a.id, { remove_scopes: ['tasks:write'] }, { now: at(2) })
-          const res = await kit.keyCall('/api/v1/tasks', key, { method: 'POST', body: { title: 'y' } })
-          expect([res.status, (await res.json()).error.code]).toEqual([403, 'insufficient_scope'])
         })
 
         describe('refusals write nothing', () => {

@@ -1,15 +1,14 @@
-import { COLUMN_KINDS, codecs, type ColumnKind } from '@vibase/storage'
+import { codecs, type ColumnKind } from '@vibase/storage'
 import type { Actor } from '../auth/types.js'
 import { ApiError } from '../errors.js'
 import { parseInput, parseListQuery } from '../resources/define.js'
 import type { SortRequest } from '../resources/sort-cursor.js'
-import { physicalTable, type PreparedResource, type Values } from './definition.js'
+import { columnKindsOf, type PreparedResource, type Values } from './definition.js'
 
 // Pure preparation of a write or a list query: validation, the agent-field check and normalization.
 // No I/O, no clock, synchronous ([[CORE35]] D3 extension 1). Messages and statuses are the old ones.
 
-const kindsOf = (def: PreparedResource): Record<string, ColumnKind> =>
-  COLUMN_KINDS[physicalTable(def)] as Record<string, ColumnKind>
+const kindsOf = (def: PreparedResource): Record<string, ColumnKind> => columnKindsOf(def) as Record<string, ColumnKind>
 
 /** Canonical stored forms: lowercase UUID text, ISO-8601 UTC timestamps. Other values are untouched. */
 function normalize(def: PreparedResource, values: Values): Values {

@@ -79,12 +79,11 @@ export const CONTACT_NON_FK_REFERENCES: readonly { table: string; columns: reado
     },
   ]
 /**
- * Polymorphic ids that merge must not touch: the audit log names records as they were, and a webhook delivery's `event_id` ([[API219]]; its `event_type` makes it look like a typed
- * reference to the scan) is a position in that log, never a contact.
+ * Polymorphic ids that merge must not touch: the audit log names records as they were. (A webhook delivery's `event_id` was a second entry until [[CORE329]] dropped the CRM table; the control plane's
+ * copy is never scanned.)
  */
 export const CONTACT_NON_FK_EXEMPTIONS: readonly { table: string; column: string }[] = [
   { table: 'events', column: 'resource_id' },
-  { table: 'webhook_deliveries', column: 'event_id' },
 ]
 
 /** FKs to contacts(id) that merge must NOT re-point: the tombstone pointer itself (D10). */

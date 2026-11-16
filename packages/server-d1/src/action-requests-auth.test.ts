@@ -99,7 +99,8 @@ async function seedKey(org: string, scopes: string[]): Promise<string> {
     .bind(agentId, at, at, org, 'keyed', JSON.stringify(scopes), system)
     .run()
   const secret = await generateApiKey((n) => crypto.getRandomValues(new Uint8Array(n)))
-  await w.d1
+  // [[CORE329]]: keys live in the control plane only.
+  await w.control
     .prepare(
       'insert into api_keys (id, created_at, updated_at, organization_id, agent_id, key_hash, prefix, created_by) values (?, ?, ?, ?, ?, ?, ?, ?)',
     )

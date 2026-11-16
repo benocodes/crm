@@ -53,7 +53,6 @@ describe('bootstrap local, through the real wrangler.jsonc bindings', () => {
           await runBootstrap({ mode: 'local', values: { org: 'Local', agent: 'op', ...extra }, authOrgId }, proxy, i),
           i.errors.join('\n'),
         ).toBe(0)
-        expect(await count(proxy.env.DB, 'api_keys')).toBe(0)
         expect(await count(proxy.env.CONTROL_DB, 'api_keys')).toBe(1)
         expect(await count(proxy.env.CONTROL_DB, 'control_audit')).toBe(1)
         const printed = i.logs.find((l) => l.startsWith('api_key:'))
@@ -104,7 +103,6 @@ describe('bootstrap --remote through its fake proxy', () => {
     const i = io()
     expect(await run(i), i.errors.join('\n')).toBe(0)
     expect(i.env.text).toMatch(/^OP_KEY=vk_\S+$/m)
-    expect(await count(pair.d1, 'api_keys')).toBe(0)
     expect(await count(pair.control, 'api_keys')).toBe(1)
     expect(await count(pair.control, 'control_audit')).toBe(1)
     expect(i.logs.join('\n')).not.toContain(/^OP_KEY=(\S+)$/m.exec(i.env.text)![1]!)

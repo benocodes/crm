@@ -1,6 +1,6 @@
-import { COLUMN_KINDS, type ColumnKind } from '@vibase/storage'
+import type { ColumnKind } from '@vibase/storage'
 import type { SortKind } from '../resources/sort-cursor.js'
-import type { PreparedResource } from './definition.js'
+import { columnKindsOf, type PreparedResource } from './definition.js'
 
 export interface SortMetadata {
   readonly name: string
@@ -40,7 +40,7 @@ export function withColumnSorts<T extends PreparedResource>(
 ): T & { readonly sortKinds: Readonly<Record<string, SortKind>>; readonly sorts: readonly string[] } {
   const sortKinds = resolveSorts({
     ...def,
-    columns: COLUMN_KINDS[def.table as keyof typeof COLUMN_KINDS],
+    columns: columnKindsOf(def),
     sorts: names,
   })
   for (const key of ['sort', 'order']) {

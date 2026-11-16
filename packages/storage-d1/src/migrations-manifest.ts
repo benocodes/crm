@@ -21,4 +21,8 @@ export const MIGRATIONS: readonly { readonly name: string; readonly sha256: stri
   { name: '0017_webhook_deliveries.sql', sha256: '35d3550e1f5837d29f756dcc593599c9eb2a4a90cdb228b64ec7b397dd178293' },
   { name: '0018_auth_tables.sql', sha256: 'f137071da09fcd78880950efb157a38d05dd2f703d5d2f8681cd279c3c058967' },
   { name: '0019_drop_auth_tables.sql', sha256: '292bcca70d8df37eb19ee2a4ccdd81242bd719fe4f46082377bf091bfaa81376' },
+  {
+    name: '0020_drop_api_key_webhook_tables.sql',
+    sha256: '78cd4521ef983fff9f848e4444e035dcf0a893d369629ca443d3467c03ad2177',
+  },
 ]

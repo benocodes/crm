@@ -451,8 +451,6 @@ describe('the administration slice (CORE40 C2)', () => {
   const membership = (n: number, userId: string, over: Record<string, unknown> = {}) =>
     base(n, { user_id: userId, role: 'member', ...over })
   const agent = (n: number, over: Record<string, unknown> = {}) => base(n, { name: 'a', ...over })
-  const key = (n: number, over: Record<string, unknown> = {}) =>
-    base(n, { agent_id: AGENT, key_hash: `hash-${n}`, prefix: 'vk_xxxxxxxx', ...over })
   const count = async (table: string) => (await all<{ n: number }>(`SELECT count(*) AS n FROM ${table}`))[0]!.n
 
   beforeEach(async () => {
@@ -467,7 +465,8 @@ describe('the administration slice (CORE40 C2)', () => {
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'",
       )
     ).map((r) => r.name)
-    expect(names).toEqual(expect.arrayContaining(['memberships', 'agents', 'api_keys']))
+    expect(names).toEqual(expect.arrayContaining(['memberships', 'agents']))
+    expect(names).not.toContain('api_keys') // dropped by 0020 ([[CORE329]])
   })
 
   it('has the columns and nullability of the Postgres tables', async () => {
@@ -490,15 +489,6 @@ describe('the administration slice (CORE40 C2)', () => {
       auth_client_id: false,
       delegated_by: false,
     })
-    expect(await shape('api_keys')).toEqual({
-      ...common,
-      agent_id: true,
-      key_hash: true,
-      prefix: true,
-      last_used_at: false,
-      revoked_at: false,
-      expires_at: false,
-    })
   })
 
   it('keeps the plain foreign keys, all cascading where Postgres cascades', async () => {
@@ -515,11 +505,6 @@ describe('the administration slice (CORE40 C2)', () => {
       'created_by->principals.id:NO ACTION',
       'delegated_by->users.id:NO ACTION',
       'id->principals.id:CASCADE',
-      'organization_id->organizations.id:CASCADE',
-    ])
-    expect(await fks('api_keys')).toEqual([
-      'agent_id->agents.id:CASCADE',
-      'created_by->principals.id:NO ACTION',
       'organization_id->organizations.id:CASCADE',
     ])
   })
@@ -549,33 +534,20 @@ describe('the administration slice (CORE40 C2)', () => {
     expect((await all<{ scopes: string }>('SELECT scopes FROM agents'))[0]!.scopes).toBe('[]')
   })
 
-  it('keeps key hashes unique', async () => {
-    await insertOk('agents', agent(1, { id: AGENT }))
-    await insertOk('api_keys', key(2, { key_hash: 'same' }))
-    expect(await insertInto('api_keys', key(3, { key_hash: 'same' }))).toMatch(/UNIQUE/i)
-  })
-
   it('checks the shape of the optional timestamps', async () => {
     await insertOk('agents', agent(1, { id: AGENT }))
     await seedPrincipal(d1, { id: id(602), kind: 'agent' })
     expect(await insertInto('agents', agent(9, { id: id(602), disabled_at: '2026-10-22' }))).toMatch(/CHECK/i)
-    expect(await insertInto('api_keys', key(2, { revoked_at: 'yesterday' }))).toMatch(/CHECK/i)
-    expect(await insertInto('api_keys', key(3, { expires_at: '2026-10-22 09:00:00' }))).toMatch(/CHECK/i)
-    expect(await insertInto('api_keys', key(4, { last_used_at: '2026' }))).toMatch(/CHECK/i)
-    await insertOk('api_keys', key(5, { revoked_at: AT, expires_at: AT, last_used_at: AT }))
   })
 
-  it('refuses a key for an agent that does not exist, and a membership for a user that does not exist', async () => {
-    expect(await insertInto('api_keys', key(1, { agent_id: id(699) }))).toMatch(/FOREIGN KEY/i)
+  it('refuses a membership for a user that does not exist', async () => {
     expect(await insertInto('memberships', membership(2, id(698)))).toMatch(/FOREIGN KEY/i)
   })
 
-  it("deleting a principal removes its agent row and that agent's keys", async () => {
+  it('deleting a principal removes its agent row', async () => {
     await insertOk('agents', agent(1, { id: AGENT }))
-    await insertOk('api_keys', key(2))
     await d1.prepare('DELETE FROM principals WHERE id = ?').bind(AGENT).run()
     expect(await count('agents')).toBe(0)
-    expect(await count('api_keys')).toBe(0)
   })
 })
 
@@ -798,15 +770,10 @@ describe('the messaging slice (CORE25 C1)', () => {
     const trg = await all<{ name: string; tbl_name: string }>(
       "SELECT name, tbl_name FROM sqlite_master WHERE type = 'trigger'",
     )
-    // the eight capture append-only triggers, the events one (API105 D15), the CORE194 search-index triggers (three per indexed resource), and the webhook secrets one (API7 D12); nothing else
+    // the eight capture append-only triggers, the events one (API105 D15), the CORE194 search-index triggers (three per indexed resource); nothing else (the webhook secrets one went with its table, [[CORE329]])
     const search = ['companies', 'notes', 'tasks'].flatMap((t) => ['ai', 'au', 'ad'].map((k) => `${t}_search_${k}`))
     expect(trg.map((t) => t.name).sort()).toEqual(
-      [
-        ...CAPTURE.map((t) => `${t}_append_only`),
-        'events_append_only',
-        'webhook_secrets_append_only',
-        ...search,
-      ].sort(),
+      [...CAPTURE.map((t) => `${t}_append_only`), 'events_append_only', ...search].sort(),
     )
     for (const t of trg.filter((x) => x.name.endsWith('_append_only'))) expect(t.name).toBe(`${t.tbl_name}_append_only`)
     for (const t of LINKS) expect(trg.some((x) => x.tbl_name === t)).toBe(false)
