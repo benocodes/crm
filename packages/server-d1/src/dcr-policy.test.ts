@@ -57,10 +57,9 @@ describe('DCR policy (P6)', () => {
     expect(links).toEqual([AUTH_BASE, `${AUTH_BASE}/mcp`])
   })
 
-  it('refused: a confidential auth method, a human-only scope, a foreign resource; each leaves no client row', async () => {
+  it('refused: an unknown auth method, a human-only scope, a foreign resource; each leaves no client row', async () => {
     const cases: Array<[string, unknown]> = [
-      ['client_secret_basic', meta({ token_endpoint_auth_method: 'client_secret_basic' })],
-      ['client_secret_post', meta({ token_endpoint_auth_method: 'client_secret_post' })],
+      ['private_key_jwt', meta({ token_endpoint_auth_method: 'private_key_jwt' })],
       ['human-only scope', meta({ scope: `openid ${humanOnly[0]}` })],
       ['foreign resource', meta({ resources: ['https://evil.test'] })],
     ]
@@ -78,6 +77,16 @@ describe('DCR policy (P6)', () => {
     const body = (await res.json()) as Record<string, any>
     expect(body.client_secret).toBeUndefined()
     expect(body.token_endpoint_auth_method).toBe('none')
+  })
+
+  it('a secret-based request is registered as a public client and answered as such (Claude web asks for client_secret_post, OPS252): 201, none, no secret', async () => {
+    for (const method of ['client_secret_post', 'client_secret_basic']) {
+      const res = await register(meta({ token_endpoint_auth_method: method }))
+      expect(res.status, `${method}: ${await res.clone().text()}`).toBe(201)
+      const body = (await res.json()) as Record<string, any>
+      expect(body.client_secret, method).toBeUndefined()
+      expect(body.token_endpoint_auth_method, method).toBe('none')
+    }
   })
 
   it('a resource the policy names is accepted explicitly', async () => {

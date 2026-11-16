@@ -375,6 +375,14 @@ const endpointGate = (
     )
     // RFC 7591 s2: an omitted `token_endpoint_auth_method` defaults to a secret-based method, but this server registers public clients only, so omitted means `none` (Claude web's registration, OPS252).
     if (body && body.token_endpoint_auth_method === undefined) body.token_endpoint_auth_method = 'none'
+    // RFC 7591 s3.2.1: the server may replace a requested value and answers with the one it registered. Claude web asks for `client_secret_post` whatever the metadata lists, so a
+    // secret-based request is registered as the public client this server admits (`none`, no secret, PKCE), and the response says so.
+    if (
+      body &&
+      (body.token_endpoint_auth_method === 'client_secret_post' ||
+        body.token_endpoint_auth_method === 'client_secret_basic')
+    )
+      body.token_endpoint_auth_method = 'none'
     const method = body?.token_endpoint_auth_method
     if (method !== 'none')
       throw new APIError('BAD_REQUEST', {
