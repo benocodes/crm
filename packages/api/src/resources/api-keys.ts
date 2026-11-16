@@ -28,6 +28,7 @@ export const apiKeys = withColumnFilters(
       notProposable: 'credentials are not proposable',
       surface: 'meta',
       name: 'api_keys',
+      // Required by the definition type; nothing emits it and it is not in the event-type map ([[CORE357]]): key changes are audit rows (`audit.list`), not events.
       eventName: 'api_key',
       table: 'api_keys',
       scopeResource: 'agents',

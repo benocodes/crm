@@ -212,6 +212,8 @@ export function apiKeyOperations(port: ApiKeyStorePort | null): ControlOperation
       ...base,
       name: 'api_keys.create',
       summary: 'Issue an API key for an agent; the key is shown once',
+      description:
+        'The key is returned once and never again. Issuing it is recorded in the audit log, not in the event feed: read it with audit.list (audit:read).',
       method: 'post',
       path: '/api-keys',
       scope: { resource: 'agents', action: 'write' },
@@ -224,6 +226,8 @@ export function apiKeyOperations(port: ApiKeyStorePort | null): ControlOperation
       ...base,
       name: 'api_keys.revoke',
       summary: 'Revoke an API key',
+      description:
+        'Revoking is recorded in the audit log, not in the event feed: read it with audit.list (audit:read). Revoking a revoked key returns it unchanged.',
       method: 'post',
       path: '/api-keys/{id}/revoke',
       scope: { resource: 'agents', action: 'write' },
