@@ -131,7 +131,10 @@ Next Action) and tells the user before any of these, and never works around one:
   force-pushing, deleting branches the sprint didn't create.
 
 It also stops when the fix loop exhausts its two coder rounds, when an agent is blocked on something no other
-agent can resolve, and when the sprint is finished.
+agent can resolve, when the sprint is too full to finish its milestone (`sprint-planning`, `rollover`: the
+user decides the cut), and when the sprint is finished. Milestones are ranked by the user in SPRINT.md and
+agents pick work in that order; new work (a milestone, or a spec no milestone lists) joins a running sprint
+only by the user's ruling on what waits for it (`sprint-planning`, `admit`).
 
 ### Environments
 

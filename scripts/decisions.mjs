@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The sprint decisions log (#359): `knowledge/decisions/sprint-NNN.jsonl`, append-only, one decision per row, each row
 // naming its issue and spec. `add` is what the planner and the coder run as they work; `find` answers "what was decided
-// for this issue, and around it"; `status` and `rotate` are the orchestrator's. `add` and `find` never print how full the
+// for this issue, and around it"; `status`, `rotate` and `size` are the orchestrator's. `add` and `find` never print how full the
 // sprint is: the agents recording decisions must have no reason to record fewer of them. No dependencies.
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -27,6 +27,7 @@ const USAGE = `usage:
   decisions find <issue number | spec ID> [--related] [--wide] [--json]
   decisions status
   decisions rotate [--force]
+  decisions size
 `
 
 class UsageError extends Error {}
@@ -283,6 +284,55 @@ function status() {
   }
 }
 
+/** `### Milestone X — title` sections of SPRINT.md, in the file's order, with the specs and issues each one names. */
+function readMilestones(knowledge) {
+  const sprintFile = join(knowledge, 'SPRINT.md')
+  if (!existsSync(sprintFile)) return []
+  const milestones = []
+  for (const line of readFileSync(sprintFile, 'utf8').split('\n')) {
+    const heading = /^### (Milestone .+)$/.exec(line)?.[1]
+    if (heading) milestones.push({ name: heading.trim(), text: '' })
+    else if (/^##+ /.test(line)) milestones.push(null)
+    else if (milestones.at(-1)) milestones.at(-1).text += `${line}\n`
+  }
+  return milestones
+    .filter((m) => m !== null)
+    .map(({ name, text }) => ({ name, specs: new Set(links(text).specs), issues: new Set(links(text).issues) }))
+}
+
+/** The current sprint's decisions grouped by the milestone whose table names their issue, spec or a spec it implements. */
+function size() {
+  const knowledge = knowledgeDir()
+  const dir = join(knowledge, 'decisions')
+  const { file } = currentSprint(dir)
+  if (!file) fail('no decisions recorded yet')
+  const specs = readSpecs(knowledge)
+  const milestones = readMilestones(knowledge)
+  const lineage = (row) => {
+    const ids = [row.spec, row.parent].filter(Boolean)
+    for (let spec = specs.get(ids.at(-1)); spec && ids.length < 6; spec = specs.get(ids.at(-1))) {
+      const parent = parentOf(spec)
+      if (!parent || ids.includes(parent)) break
+      ids.push(parent)
+    }
+    return ids
+  }
+  const NONE = 'no milestone'
+  const counts = new Map([...milestones.map((m) => [m.name, 0]), [NONE, 0]])
+  const rows = readRows(dir).filter((row) => row.file === file)
+  for (const row of rows) {
+    const ids = lineage(row)
+    const owner = milestones.find((m) => m.issues.has(row.issue) || ids.some((id) => m.specs.has(id)))
+    counts.set(owner?.name ?? NONE, counts.get(owner?.name ?? NONE) + 1)
+  }
+  process.stdout.write(`${file}: ${rows.length} decisions\n`)
+  for (const [name, count] of counts) {
+    if (name === NONE && count === 0) continue
+    const share = rows.length === 0 ? 0 : Math.round((count / rows.length) * 100)
+    process.stdout.write(`  ${String(count).padStart(4)}  ${String(share).padStart(3)}%  ${name}\n`)
+  }
+}
+
 function rotate(argv) {
   const { values } = parseArgs({ args: argv, options: { force: { type: 'boolean' } } })
   const dir = join(knowledgeDir(), 'decisions')
@@ -302,6 +352,7 @@ try {
   if (command === 'add') add(rest)
   else if (command === 'find') find(rest)
   else if (command === 'status') status()
+  else if (command === 'size') size()
   else if (command === 'rotate') rotate(rest)
   else {
     process.stderr.write(USAGE)
