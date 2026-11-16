@@ -432,7 +432,9 @@ tracker inside its own database. No foreign key or trigger crosses them; they li
   through `pragma_table_list` (`type in ('virtual','shadow')`), which works on remote D1 too. A test that lists every table or every
   trigger must account for them.
 - **`wrangler d1 export` refuses a database holding FTS5 tables** (`cannot export databases with Virtual Tables (fts5)`); a plain
-  table exports with `--table`. Time Travel is the backup.
+  table exports with `--table`. Time Travel is the backup: `wrangler d1 time-travel info <database name> --env <env> --json`
+  prints `{"bookmark": "..."}` (read-only, confirmed on `smoked1` by [[OPS365]]); a tool that restores two databases
+  (CRM and control) reads one bookmark per database name before its first row read.
 - **Scripts that replay migrations up to a cut-off** pin it by name and then apply every later file, so a new migration does not
   leave the database `behind` (`packages/server-d1/scripts/e2e-gmail-send.ts`).
 

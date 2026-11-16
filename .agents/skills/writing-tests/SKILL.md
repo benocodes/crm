@@ -255,6 +255,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   (`packages/api/src/test/recorded-honesty.ts`, [[CHN153b]] review). The check catches content in prose, header and error
   fields; for ids, the protection is the recorder's pseudonymisation, so a reviewer compares each committed recorded file
   verbatim (deep-equal) against the pulled object it came from.
+- **A recording shows only states the provider lets you create.** Clerk's Backend API creates every admin-added email
+  address already verified, so an unverified primary cannot be recorded on the dev instance. Derive such a case from a
+  recorded body by changing only the one field (`verification.status: 'unverified'`), and say in RESULT.md which cases
+  are recorded and which are derived ([[OPS365]], `packages/server-d1/scripts/fixtures/clerk-users.json`).
 - **A read-modify-write must not treat a failed read as absent.** `read().catch(() => [])` before a write overwrites good
   state after one transient error. Absent (the store answers null) is empty; a throw, timeout or unparsable value skips the
   write. Test all three ([[CHN153]] review, `packages/api/src/channels/gmail/recorder.ts`).
@@ -512,6 +516,11 @@ One program, two engines: the same assertions run on Postgres and D1.
   token. It failed auth and wrote nothing, but it reached Cloudflare. To make resolution fail, plant a nearer
   `node_modules/<tool>/package.json` with no `bin` (`packages/server-d1/scripts/instance/main.test.ts`), and check
   the red run's output for a real child's stderr before you trust it.
+- **A refusal test that aims a write at the checkout removes that path in `afterEach`**, even though the code under
+  test should refuse it. Its own absence mutation (or a regression) does write the file, and the stray file then fails
+  every later run for an unrelated reason: [[OPS365]]'s M2 (drop the "inside the repo and not git-ignored" check) left
+  `packages/auth-plan-ops365-test.json` behind and the rest of the first mutation pass was void
+  (`packages/server-d1/scripts/auth-migrate-remote.test.ts`). Run `git status --short` after a mutation pass.
 - Clean up in `afterEach`, delete only the exact rows this test seeded by their own ids, never a "nothing
   references it" query against shared reference data (`db-schema-and-migrations`).
 
