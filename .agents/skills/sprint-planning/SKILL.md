@@ -133,12 +133,19 @@ There is exactly **one** live sprint: `knowledge/SPRINT.md`, plus its append-onl
 `knowledge/sprint-archive.md`. Checkpointing rewrites the live file in place. Don't version it and don't keep
 two; `git log -- knowledge/SPRINT.md` serves anyone who wants the history.
 
-**Decisions are not in either file.** They live in the decisions log, `knowledge/decisions/sprint-NNN.jsonl`:
-append-only, one row per decision, keyed by issue, written by the agent that decided
-(`node scripts/decisions.mjs add`) and read back per issue (`node scripts/decisions.mjs find <issue>`, which
-also lists the parent spec, sibling cycles and specs the cycle's header names). Nobody reads it whole, so it
-costs no context. One file per sprint, so one file per milestone; it is kept when the sprint closes and is the
-user's batch of decisions to review.
+**Decisions are not in either file.** They live in the decisions log, one file per milestone:
+`knowledge/decisions/milestone-<letter>.jsonl`, append-only, one row per decision, keyed by issue, written by
+the agent that decided (`node scripts/decisions.mjs add`) and read back per issue
+(`node scripts/decisions.mjs find <issue>`, which also lists the parent spec, sibling cycles and specs the
+cycle's header names). Nobody reads a file whole, so it costs no context.
+
+**A row is filed by what it concerns, not by when it was written.** `add` puts it in the file of the milestone
+whose Needed table names its issue, its spec or a spec it implements, so a late fix to a built milestone lands
+in that milestone's file and does not count against the one in flight. A row no table names goes to the
+active milestone (a cycle its note does not list yet: add the row at the next checkpoint), or to
+`decisions/board.jsonl` when no milestone is active. There is no file to switch when a sprint opens or closes.
+A milestone's file is the user's batch of decisions to review when it closes. The `sprint-NNN.jsonl` files are
+the log from before #383: `find` reads them, nothing writes them.
 
 ---
 
@@ -162,10 +169,9 @@ Run when no milestone is `active` or `paused`. Not a stop: the orchestrator does
    sits. Stub, don't draft: write the problem and leave the solution empty, or the next agent reads a
    speculation as a decision. Set the repo milestone on every spec issue.
 4. Set the note's `status: active` and fill the Spec column.
-5. **Start a fresh decisions file** if the current one holds rows: `node scripts/decisions.mjs rotate --force`.
-6. **Write `knowledge/SPRINT.md`** from the template below, with the ordering rationale per edge in Now / Next.
+5. **Write `knowledge/SPRINT.md`** from the template below, with the ordering rationale per edge in Now / Next.
    "B needs A" is not enough: name the mechanism.
-7. Commit `milestones`, `specs`, `SPRINT.md` and `decisions` together (`docs(sprint): open Milestone G`) and
+6. Commit `milestones`, `specs`, `SPRINT.md` and `decisions` together (`docs(sprint): open Milestone G`) and
    tell the user in two lines which milestone opened and what its first item is.
 
 ### (bare) — checkpoint
@@ -222,7 +228,7 @@ with a seq where you think it belongs, and ask the user one question: **where do
 rename the seq, set `rank: user, <date>`, create the repo milestone and record the ruling.
 
 **A new row** in the active milestone is scope growth. Run `node scripts/decisions.mjs status` and
-`node scripts/decisions.mjs size`, then ask the user one question with the result: **does the milestone still
+`node scripts/decisions.mjs size` (the milestone's decisions by spec), then ask the user one question with the result: **does the milestone still
 demonstrate its Pass without it?** If yes, it is not this milestone's: it becomes a row of another milestone,
 or a new one. If no, it joins, unless the status is `DUE` or `OVERDUE`: then the milestone is already at its
 budget and the question becomes a `cut`.
@@ -281,11 +287,10 @@ PR), so one cycle's decisions never straddle two files.
 3. Set the note's `status: built` and write Left: the demo run and anything else the user owes for it. If the
    demo has already run, set `done` instead, `git mv` the folder to `milestones/done/<letter>-<slug>/` and
    close the repo milestone.
-4. `node scripts/decisions.mjs rotate --force`: closes this sprint's decisions file and opens the next.
-5. Remove `knowledge/SPRINT.md` (the next `open` writes a new one). Keep `sprint-archive.md` and `decisions/`.
-6. Commit (`docs(sprint): close Milestone G`) and tell the user: the milestone that closed, the demo it now
-   waits for, and the path of its decisions file.
-7. Run `open`. It stops by itself if the backlog is empty or the next rank is only proposed.
+4. Remove `knowledge/SPRINT.md` (the next `open` writes a new one). Keep `sprint-archive.md` and `decisions/`.
+5. Commit (`docs(sprint): close Milestone G`) and tell the user: the milestone that closed, the demo it now
+   waits for, and the path of its decisions file (`decisions/milestone-G.jsonl`).
+6. Run `open`. It stops by itself if the backlog is empty or the next rank is only proposed.
 
 When the user reports a demo run later, set that milestone `done` as in step 3; that needs no sprint.
 
@@ -302,7 +307,7 @@ should sit well below that. Sections, in this order:
 ```markdown
 # Milestone {G} — {title} — sprint
 
-**Milestone:** [[milestone-{G}]] · **Updated:** {YYYY-MM-DD} · **Decisions:** `decisions/sprint-{NNN}.jsonl` (`node scripts/decisions.mjs find <issue>`) · **Archive:** [sprint-archive.md](sprint-archive.md)
+**Milestone:** [[milestone-{G}]] · **Updated:** {YYYY-MM-DD} · **Decisions:** `decisions/milestone-{G}.jsonl` (`node scripts/decisions.mjs find <issue>`) · **Archive:** [sprint-archive.md](sprint-archive.md)
 
 ## Status at a glance
 

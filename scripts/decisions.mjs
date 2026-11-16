@@ -1,7 +1,9 @@
 #!/usr/bin/env node
-// The sprint decisions log (#359): `knowledge/decisions/sprint-NNN.jsonl`, append-only, one decision per row, each row
-// naming its issue and spec. `add` is what the planner and the coder run as they work; `find` answers "what was decided
-// for this issue, and around it"; `status`, `rotate` and `size` are the orchestrator's. `add` and `find` never print how full the
+// The decisions log (#359, #383): `knowledge/decisions/milestone-<letter>.jsonl`, append-only, one decision per row,
+// each row naming its issue and spec, one file per milestone (a sprint is one milestone, #372). A row is filed under the
+// milestone whose note names its issue or spec, so there is no file to switch. `sprint-NNN.jsonl` files are the log as
+// it was before #383: read, never written. `add` is what the planner and the coder run as they work; `find` answers
+// "what was decided for this issue, and around it"; `status` and `size` are the orchestrator's. `add` and `find` never print how full the
 // sprint is: the agents recording decisions must have no reason to record fewer of them. No dependencies.
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -9,8 +11,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
-// A sprint is one milestone (#372). At this many decisions the milestone is at its budget: it takes on no new scope
-// (`sprint-planning`, "admit") and is finished as it stands.
+// At this many decisions the active milestone is at its budget: it takes on no new scope (`sprint-planning`, "admit")
+// and is finished as it stands.
 const SPRINT_DECISION_CAP = 250
 // Past this the milestone is too big for one sprint: the orchestrator stops and asks the user how to cut it.
 const SPRINT_DECISION_HARD_LIMIT = 300
@@ -26,7 +28,6 @@ const USAGE = `usage:
                 [--id <D3>] [--revisit-if <text>] [--supersedes <ref>] "<the decision, one sentence>"
   decisions find <issue number | spec ID> [--related] [--wide] [--json]
   decisions status
-  decisions rotate [--force]
   decisions size
 `
 
@@ -46,17 +47,23 @@ function knowledgeDir() {
   return join(dirname(commonDir), 'knowledge')
 }
 
-const sprintFileName = (n) => `sprint-${String(n).padStart(3, '0')}.jsonl`
+const milestoneFile = (letter) => `milestone-${letter}.jsonl`
+// Rows written while no milestone is active and that no milestone's note names: work delivered from the board.
+const BOARD_FILE = 'board.jsonl'
 
-function sprintFiles(dir) {
+/** Every file of the log, oldest first: the numbered sprint files from before #383, then the milestone files, then the board's. */
+function logFiles(dir) {
   if (!existsSync(dir)) return []
-  return readdirSync(dir)
-    .filter((name) => /^sprint-\d{3}\.jsonl$/.test(name))
-    .sort()
+  const names = readdirSync(dir).sort()
+  return [
+    ...names.filter((name) => /^sprint-\d{3}\.jsonl$/.test(name)),
+    ...names.filter((name) => /^milestone-[A-Z]+\.jsonl$/.test(name)),
+    ...names.filter((name) => name === BOARD_FILE),
+  ]
 }
 
 function readRows(dir) {
-  return sprintFiles(dir).flatMap((file) =>
+  return logFiles(dir).flatMap((file) =>
     readFileSync(join(dir, file), 'utf8')
       .split('\n')
       .filter((line) => line.trim() !== '')
@@ -140,7 +147,8 @@ function add(argv) {
   if (values.supersedes && !rows.some((row) => row.ref === values.supersedes)) {
     fail(`--supersedes ${values.supersedes}: no such decision`)
   }
-  const spec = specForIssue(readSpecs(knowledge), issue)
+  const specs = readSpecs(knowledge)
+  const spec = specForIssue(specs, issue)
   const row = {
     ref: `${issue}.${rows.filter((r) => r.issue === issue).length + 1}`,
     date,
@@ -155,8 +163,7 @@ function add(argv) {
     ...(values.supersedes ? { supersedes: values.supersedes } : {}),
   }
   mkdirSync(dir, { recursive: true })
-  const file = sprintFiles(dir).at(-1) ?? sprintFileName(1)
-  appendFileSync(join(dir, file), `${JSON.stringify(row)}\n`)
+  appendFileSync(join(dir, fileFor(row, specs, readMilestones(knowledge))), `${JSON.stringify(row)}\n`)
   process.stdout.write(`recorded ${row.ref}\n`)
 }
 
@@ -260,20 +267,23 @@ function find(argv) {
   }
 }
 
-function currentSprint(dir) {
-  const file = sprintFiles(dir).at(-1)
-  if (!file) return { file: null, count: 0 }
-  const count = readFileSync(join(dir, file), 'utf8')
-    .split('\n')
-    .filter((line) => line.trim() !== '').length
-  return { file, count }
-}
+const countRows = (dir, file) =>
+  existsSync(join(dir, file))
+    ? readFileSync(join(dir, file), 'utf8')
+        .split('\n')
+        .filter((line) => line.trim() !== '').length
+    : 0
 
 function status() {
   const knowledge = knowledgeDir()
-  const { file, count } = currentSprint(join(knowledge, 'decisions'))
-  const rollover = count >= SPRINT_DECISION_HARD_LIMIT ? 'OVERDUE' : count >= SPRINT_DECISION_CAP ? 'DUE' : 'not due'
-  process.stdout.write(`decisions: ${file ?? 'none recorded yet'}, rollover ${rollover}\n`)
+  const active = readMilestones(knowledge).find((m) => m.active)
+  if (active) {
+    const count = countRows(join(knowledge, 'decisions'), milestoneFile(active.letter))
+    const budget = count >= SPRINT_DECISION_HARD_LIMIT ? 'OVERDUE' : count >= SPRINT_DECISION_CAP ? 'DUE' : 'not due'
+    process.stdout.write(`decisions: ${milestoneFile(active.letter)}, budget ${budget}\n`)
+  } else {
+    process.stdout.write('decisions: no milestone is active\n')
+  }
   const sprintFile = join(knowledge, 'SPRINT.md')
   if (existsSync(sprintFile)) {
     const lines = readFileSync(sprintFile, 'utf8').split('\n').length
@@ -305,56 +315,57 @@ function readMilestones(knowledge) {
     if (!existsSync(file)) return []
     const text = readFileSync(file, 'utf8')
     const title = /^title:\s*(.+)$/m.exec(/^---\n([\s\S]*?)\n---/.exec(text)?.[1] ?? '')?.[1]
+    const frontmatter = /^---\n([\s\S]*?)\n---/.exec(text)?.[1] ?? ''
     const name = `Milestone ${letter}${title ? ` — ${title.trim().replace(/^["']|["']$/g, '')}` : ''}`
-    return [{ name, specs: new Set(links(text).specs), issues: new Set(links(text).issues) }]
+    const active = /^status:\s*(active|paused)\b/m.test(frontmatter)
+    // Membership is the Needed table: the rest of the note may name other milestones' work.
+    const needed = links(/^## Needed\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(text)?.[1] ?? text)
+    return [{ letter, name, active, specs: new Set(needed.specs), issues: new Set(needed.issues) }]
   })
 }
 
-/** The current sprint's decisions grouped by the milestone whose file names their issue, spec or a spec it implements. */
-function size() {
-  const knowledge = knowledgeDir()
-  const dir = join(knowledge, 'decisions')
-  const { file } = currentSprint(dir)
-  if (!file) fail('no decisions recorded yet')
-  const specs = readSpecs(knowledge)
-  const milestones = readMilestones(knowledge)
-  const lineage = (row) => {
-    const ids = [row.spec, row.parent].filter(Boolean)
-    for (let spec = specs.get(ids.at(-1)); spec && ids.length < 6; spec = specs.get(ids.at(-1))) {
-      const parent = parentOf(spec)
-      if (!parent || ids.includes(parent)) break
-      ids.push(parent)
-    }
-    return ids
+/** A row's spec, its parent and that spec's parents in turn: the cycle, the spec it implements, and so on up. */
+function lineage(row, specs) {
+  const ids = [row.spec, row.parent].filter(Boolean)
+  for (let spec = specs.get(ids.at(-1)); spec && ids.length < 6; spec = specs.get(ids.at(-1))) {
+    const parent = parentOf(spec)
+    if (!parent || ids.includes(parent)) break
+    ids.push(parent)
   }
-  const NONE = 'no milestone'
-  const counts = new Map([...milestones.map((m) => [m.name, 0]), [NONE, 0]])
-  const rows = readRows(dir).filter((row) => row.file === file)
-  for (const row of rows) {
-    const ids = lineage(row)
-    const owner = milestones.find((m) => m.issues.has(row.issue) || ids.some((id) => m.specs.has(id)))
-    counts.set(owner?.name ?? NONE, counts.get(owner?.name ?? NONE) + 1)
-  }
-  process.stdout.write(`${file}: ${rows.length} decisions\n`)
-  for (const [name, count] of counts) {
-    if (name === NONE && count === 0) continue
-    const share = rows.length === 0 ? 0 : Math.round((count / rows.length) * 100)
-    process.stdout.write(`  ${String(count).padStart(4)}  ${String(share).padStart(3)}%  ${name}\n`)
-  }
+  return ids
 }
 
-function rotate(argv) {
-  const { values } = parseArgs({ args: argv, options: { force: { type: 'boolean' } } })
-  const dir = join(knowledgeDir(), 'decisions')
-  const { file, count } = currentSprint(dir)
-  if (!file) fail('nothing to rotate: no decisions recorded yet')
-  if (count === 0) fail(`${file} is empty: it is already the new sprint's file`)
-  if (count < SPRINT_DECISION_CAP && !values.force) {
-    fail('rollover is not due (`decisions status`); pass --force to close the sprint early')
+/**
+ * The file a row belongs in: the milestone whose Needed table names its issue, its spec or a spec it implements;
+ * failing that the active milestone (a cycle its note does not list yet); failing that the board's file.
+ */
+function fileFor(row, specs, milestones) {
+  const ids = lineage(row, specs)
+  const names = (m) => m.issues.has(row.issue) || ids.some((id) => m.specs.has(id))
+  const active = milestones.find((m) => m.active)
+  // The active milestone first: a row cut from an earlier milestone may still be listed in that one's table.
+  const owner = (active && names(active) ? active : milestones.find(names)) ?? active
+  return owner ? milestoneFile(owner.letter) : BOARD_FILE
+}
+
+/** The active milestone's decisions grouped by the spec they belong to (a cycle counts under the spec it implements). */
+function size() {
+  const knowledge = knowledgeDir()
+  const active = readMilestones(knowledge).find((m) => m.active)
+  if (!active) fail('no milestone is active')
+  const specs = readSpecs(knowledge)
+  const file = milestoneFile(active.letter)
+  const rows = readRows(join(knowledge, 'decisions')).filter((row) => row.file === file)
+  const counts = new Map()
+  for (const row of rows) {
+    const key = lineage(row, specs).at(-1) ?? `#${row.issue}`
+    counts.set(key, (counts.get(key) ?? 0) + 1)
   }
-  const next = sprintFileName(Number(/\d{3}/.exec(file)[0]) + 1)
-  writeFileSync(join(dir, next), '', { flag: 'wx' })
-  process.stdout.write(`closed decisions/${file}\nopened decisions/${next}\n`)
+  process.stdout.write(`${active.name}: ${rows.length} decisions\n`)
+  for (const [key, count] of [...counts].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]))) {
+    const share = Math.round((count / rows.length) * 100)
+    process.stdout.write(`  ${String(count).padStart(4)}  ${String(share).padStart(3)}%  ${key}\n`)
+  }
 }
 
 const [command, ...rest] = process.argv.slice(2)
@@ -363,7 +374,6 @@ try {
   else if (command === 'find') find(rest)
   else if (command === 'status') status()
   else if (command === 'size') size()
-  else if (command === 'rotate') rotate(rest)
   else {
     process.stderr.write(USAGE)
     process.exit(command === undefined || command === '--help' ? 0 : 2)

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-// The sprint decisions log (#359), run as the agents run it, against a throwaway knowledge folder.
+// The decisions log (#359, #383), run as the agents run it, against a throwaway knowledge folder.
 const SCRIPT = new URL('./decisions.mjs', import.meta.url).pathname
 let knowledge: string
 
@@ -61,7 +61,7 @@ describe('decisions add', () => {
     const out = run(...addArgs('351', 'list reads control only', '--id', 'P3', '--revisit-if', 'owners need old keys'))
     expect(out.status).toBe(0)
     expect(out.stdout).toBe('recorded 351.1\n')
-    expect(rowsOf('sprint-001.jsonl')).toEqual([
+    expect(rowsOf('board.jsonl')).toEqual([
       {
         ref: '351.1',
         date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
@@ -81,16 +81,16 @@ describe('decisions add', () => {
     run(...addArgs('351', 'one'))
     run(...addArgs('999', 'no spec yet'))
     expect(run(...addArgs('351', 'two')).stdout).toBe('recorded 351.2\n')
-    expect(rowsOf('sprint-001.jsonl')[1]).toMatchObject({ ref: '999.1', spec: null, parent: null })
+    expect(rowsOf('board.jsonl')[1]).toMatchObject({ ref: '999.1', spec: null, parent: null })
   })
 
-  it('never tells the recording agent how full the sprint is', () => {
+  it('never tells the recording agent how full the milestone is', () => {
     mkdirSync(join(knowledge, 'decisions'))
-    fill('sprint-001.jsonl', 400)
+    fill('board.jsonl', 400)
     const out = run(...addArgs('351', 'one more'))
     expect(out.status).toBe(0)
     expect(out.stdout + out.stderr).toBe('recorded 351.1\n')
-    expect(rowsOf('sprint-001.jsonl')).toHaveLength(401)
+    expect(rowsOf('board.jsonl')).toHaveLength(401)
   })
 
   it.each([
@@ -106,7 +106,7 @@ describe('decisions add', () => {
     const out = run(...args)
     expect(out.status).toBe(2)
     expect(out.stderr).toMatch(/^decisions: /)
-    expect(existsSync(join(knowledge, 'decisions', 'sprint-001.jsonl'))).toBe(false)
+    expect(existsSync(join(knowledge, 'decisions', 'board.jsonl'))).toBe(false)
   })
 })
 
@@ -157,62 +157,102 @@ describe('decisions find', () => {
     ])
   })
 
-  it('prints related decisions in full with --related, across closed sprint files', () => {
-    writeFileSync(join(knowledge, 'decisions', 'sprint-002.jsonl'), '')
-    run(...addArgs('350', 'a later sprint decision'))
+  it('prints related decisions in full with --related, across the files of the log', () => {
+    writeFileSync(
+      join(knowledge, 'decisions', 'sprint-001.jsonl'),
+      `${JSON.stringify({ ref: '328.1', issue: 328, spec: 'CORE328', parent: 'CORE259', decision: 'from before the milestone files' })}\n`,
+    )
+    run(...addArgs('350', 'a later decision'))
     const out = run('find', '351', '--related').stdout
     expect(out).toContain('control decides first')
-    expect(out).toContain('a later sprint decision')
-    expect(rowsOf('sprint-002.jsonl')).toMatchObject([{ ref: '350.2' }])
+    expect(out).toContain('from before the milestone files')
+    expect(out).toContain('a later decision')
+    expect(rowsOf('sprint-001.jsonl')).toHaveLength(1)
+    expect(rowsOf('board.jsonl').at(-1)).toMatchObject({ ref: '350.2' })
+  })
+})
+
+const milestone = (folder: string, letter: string, lines: string[]) => {
+  mkdirSync(join(knowledge, 'milestones', folder), { recursive: true })
+  writeFileSync(join(knowledge, 'milestones', folder, `milestone-${letter}.md`), lines.join('\n'))
+}
+const note = (letter: string, status: string, needed: string[], left: string[] = []) => [
+  '---',
+  `id: ${letter}`,
+  `status: ${status}`,
+  `title: milestone ${letter.toLowerCase()}`,
+  '---',
+  '## Needed',
+  ...needed,
+  '## Left',
+  ...left,
+]
+
+describe('decisions add, filing by milestone', () => {
+  beforeEach(() => {
+    // G is built and still lists a row that was cut into H; H is active; D is finished.
+    milestone('010-G-auth', 'G', note('G', 'built', ['| Store | [[CORE328]] |', '| Cut to H | #700 |']))
+    milestone(
+      '020-H-hq',
+      'H',
+      note('H', 'active', ['| Control plane | [[CORE259]] |', '| Cut | #700 |'], ['Not here: #800']),
+    )
+    milestone('done/D-webhooks', 'D', note('D', 'done', ['| Gmail | [[CHN5]] |']))
+  })
+
+  it('files a row under the milestone whose Needed table names its issue, its spec or a spec it implements', () => {
+    run(...addArgs('259', 'the spec itself'))
+    run(...addArgs('351', 'a cycle of the control plane'))
+    run(...addArgs('5', 'a finished milestone, written while H is active'))
+    expect(rowsOf('milestone-H.jsonl').map((row) => row.ref)).toEqual(['259.1', '351.1'])
+    expect(rowsOf('milestone-D.jsonl').map((row) => row.ref)).toEqual(['5.1'])
+  })
+
+  it('prefers the active milestone when an earlier one still lists the row', () => {
+    run(...addArgs('700', 'cut from G into H'))
+    expect(rowsOf('milestone-H.jsonl')).toHaveLength(1)
+    expect(existsSync(join(knowledge, 'decisions', 'milestone-G.jsonl'))).toBe(false)
+  })
+
+  it('files a row no table names under the active milestone, and under the board when none is active', () => {
+    run(...addArgs('800', 'named only outside a Needed table'))
+    expect(rowsOf('milestone-H.jsonl').map((row) => row.ref)).toEqual(['800.1'])
+    milestone('020-H-hq', 'H', note('H', 'built', ['| Control plane | [[CORE259]] |']))
+    run(...addArgs('801', 'between milestones'))
+    run(...addArgs('259', 'still H, though H is built'))
+    expect(rowsOf('board.jsonl').map((row) => row.ref)).toEqual(['801.1'])
+    expect(rowsOf('milestone-H.jsonl').map((row) => row.ref)).toEqual(['800.1', '259.1'])
+  })
+
+  it('never writes to a numbered sprint file from before the milestone files', () => {
+    mkdirSync(join(knowledge, 'decisions'))
+    fill('sprint-003.jsonl', 3)
+    run(...addArgs('259', 'after the change'))
+    expect(rowsOf('sprint-003.jsonl')).toHaveLength(3)
+    expect(rowsOf('milestone-H.jsonl')).toHaveLength(1)
   })
 })
 
 describe('decisions size', () => {
-  it('groups the current sprint by the milestone file that names the issue, the spec or a spec it implements', () => {
-    const milestone = (folder: string, letter: string, lines: string[]) => {
-      mkdirSync(join(knowledge, 'milestones', folder), { recursive: true })
-      writeFileSync(join(knowledge, 'milestones', folder, `milestone-${letter}.md`), lines.join('\n'))
-    }
-    // Rank order is the seq prefix, not the letter; a finished milestone comes last.
-    milestone('010-G-built-in-auth', 'G', [
-      '---',
-      'id: G',
-      'title: built-in auth',
-      '---',
-      '| Control plane | [[CORE259]] | in flight |',
-      '| Follow-up | #999 | not started |',
-    ])
-    milestone('done/D-webhooks', 'D', ['---', 'id: D', 'title: webhooks', '---', '| Gmail | [[CHN5]] | ✅ |'])
-    writeFileSync(join(knowledge, 'SPRINT.md'), 'Mentions [[CORE351]] and #5 outside any milestone file.')
+  it('groups the active milestone by the spec its rows belong to, largest first', () => {
+    milestone('020-H-hq', 'H', note('H', 'active', ['| Control plane | [[CORE259]] |', '| Follow-up | #999 |']))
+    milestone('done/D-webhooks', 'D', note('D', 'done', ['| Gmail | [[CHN5]] |']))
     run(...addArgs('351', 'a cycle of the control plane'))
+    run(...addArgs('350', 'another cycle'))
     run(...addArgs('259', 'the spec itself'))
     run(...addArgs('999', 'an issue with no spec'))
-    run(...addArgs('5', 'gmail'))
-    run(...addArgs('777', 'named nowhere'))
-    run('rotate', '--force')
-    run(...addArgs('350', 'the only row of the new sprint'))
+    run(...addArgs('5', 'another milestone, not counted'))
     expect(run('size').stdout).toBe(
-      [
-        'sprint-002.jsonl: 1 decisions',
-        '     1  100%  Milestone G — built-in auth',
-        '     0    0%  Milestone D — webhooks',
-        '',
-      ].join('\n'),
+      ['Milestone H — milestone h: 4 decisions', '     3   75%  CORE259', '     1   25%  #999', ''].join('\n'),
     )
-    rmSync(join(knowledge, 'decisions', 'sprint-002.jsonl'))
-    expect(run('size').stdout).toBe(
-      [
-        'sprint-001.jsonl: 5 decisions',
-        '     3   60%  Milestone G — built-in auth',
-        '     1   20%  Milestone D — webhooks',
-        '     1   20%  no milestone',
-        '',
-      ].join('\n'),
-    )
+  })
+
+  it('refuses when no milestone is active', () => {
+    expect(run('size').status).toBe(2)
   })
 })
 
-describe('decisions status and rotate', () => {
+describe('decisions status', () => {
   beforeEach(() => mkdirSync(join(knowledge, 'decisions')))
 
   it.each([
@@ -220,9 +260,18 @@ describe('decisions status and rotate', () => {
     [250, 'DUE'],
     [299, 'DUE'],
     [300, 'OVERDUE'],
-  ])('reports a sprint of %i decisions as rollover %s, without printing a count', (count, word) => {
-    fill('sprint-001.jsonl', count)
-    expect(run('status').stdout).toBe(`decisions: sprint-001.jsonl, rollover ${word}\n`)
+  ])('reports an active milestone of %i decisions as budget %s, without printing a count', (count, word) => {
+    milestone('020-H-hq', 'H', note('H', 'active', []))
+    fill('milestone-H.jsonl', count)
+    fill('milestone-G.jsonl', 400)
+    expect(run('status').stdout).toBe(`decisions: milestone-H.jsonl, budget ${word}\n`)
+  })
+
+  it('measures a paused milestone, and says so when none is active', () => {
+    milestone('020-H-hq', 'H', note('H', 'paused', []))
+    expect(run('status').stdout).toBe('decisions: milestone-H.jsonl, budget not due\n')
+    milestone('020-H-hq', 'H', note('H', 'built', []))
+    expect(run('status').stdout).toBe('decisions: no milestone is active\n')
   })
 
   it('reports SPRINT.md against its line budget', () => {
@@ -232,22 +281,7 @@ describe('decisions status and rotate', () => {
     expect(run('status').stdout).toContain('SPRINT.md: 401 lines, budget 150, OVER')
   })
 
-  it('rotates a full sprint, keeps the closed file, and sends later rows to the new one', () => {
-    fill('sprint-001.jsonl', 250)
-    const out = run('rotate')
-    expect(out.stdout).toBe('closed decisions/sprint-001.jsonl\nopened decisions/sprint-002.jsonl\n')
-    run(...addArgs('351', 'first of the new sprint'))
-    expect(rowsOf('sprint-001.jsonl')).toHaveLength(250)
-    expect(rowsOf('sprint-002.jsonl')).toHaveLength(1)
-    expect(run('status').stdout).toBe('decisions: sprint-002.jsonl, rollover not due\n')
-  })
-
-  it('refuses to rotate before the cap unless forced, and never rotates an empty file', () => {
-    fill('sprint-001.jsonl', 10)
+  it('has no rotate command any more', () => {
     expect(run('rotate').status).toBe(2)
-    expect(existsSync(join(knowledge, 'decisions', 'sprint-002.jsonl'))).toBe(false)
-    expect(run('rotate', '--force').status).toBe(0)
-    expect(run('rotate', '--force').status).toBe(2)
-    expect(existsSync(join(knowledge, 'decisions', 'sprint-003.jsonl'))).toBe(false)
   })
 })
