@@ -135,7 +135,9 @@ test('3. the invited address signs up (case-insensitive) and lands on the signed
   await page.getByLabel('Email').fill('Owner@E2E.test')
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Create account' }).click()
-  await page.waitForURL('**/sign-in')
+  // A finished sign-up lands on /connect (the default target since #375), where the person is signed in; /sign-in then shows the signed-in view.
+  await page.waitForURL('**/connect')
+  await visit('/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
   await axeBoth(page, 'sign-in-signed-in')
 })
@@ -220,6 +222,9 @@ test('6. a wrong password is the one message; the right one signs in', async () 
     await page.waitForTimeout(11_000)
     await attempt(PASSWORD)
   }
+  // With no return_to a finished sign-in continues to /connect (#375); /sign-in then shows the signed-in view.
+  await page.waitForURL('**/connect')
+  await visit('/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
 })
 

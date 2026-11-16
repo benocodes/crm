@@ -70,7 +70,9 @@ function SignedIn({ user, target, onSignedOut }: { user: SessionUser; target: st
     >
       {error ? <Alert variant="error">{error}</Alert> : null}
       <p>{`Signed in as ${user.email}`}</p>
-      <a href={target}>Continue</a>
+      <a className="vb-link" href={target}>
+        Continue
+      </a>
     </Card>
   )
 }
