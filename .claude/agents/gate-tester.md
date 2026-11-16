@@ -17,7 +17,7 @@ only as far as you need (the D1 gate section); the brief names the worktree, bra
    match, wait again instead of replying. In [[CORE337]] the gate-tester handed back before `gate.status`
    existed, more than once, and the orchestrator had to resume it.
 3. Read `gate.status` (its first lines are the stamp `GATE_SHA=<sha>` and `GATE_TREE=clean|dirty`, #342; quote both in the report, and say `dirty` or a sha that is not the pushed sha as a defect of the run), then for each step the log's final summary lines (vitest's `Test Files`/`Tests`
-   lines, the first error for a failing step; `packages.log` holds one `Test Files`/`Tests` pair per package, about eleven, so sum them all: OPS340's report quoted only server-d1's and cli's and undercounted the stage). That is all you read, plus one
+   lines, the first error for a failing step; `packages.log` holds one `Test Files`/`Tests` pair per package, about eleven, so take them with `grep -E 'Test Files|Tests ' packages.log`, never `tail`, and sum them all: OPS340's report quoted only server-d1's and cli's, and OPS250's first round-1 report lost one package to a `tail` cut; both undercounted the stage). That is all you read, plus one
    `grep -l -E 'ENOSPC|SQLITE_FULL|SQLITE_IOERR|no space left' <log-dir>/*.log`: any hit makes the run
    **invalid**, not red (a full disk fails tests that are fine; [[CORE248]]'s gate was once invalid this way).
    Report `Overall: invalid (disk)`; the orchestrator frees space and reruns, and it is not a coder round.

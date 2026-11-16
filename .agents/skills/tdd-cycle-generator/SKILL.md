@@ -234,6 +234,13 @@ did the write during resolution, before later refusals. When a rule mixes a read
 the write runs after every refusal and a passing preflight, and asks for a "no write" case per later refusal. The charter
 also said "the Google redirect URI" where an instance has two (Better Auth sign-in `/auth/callback/google`, the Gmail
 connector's `/oauth/google/callback`): name each URI a consequence line must carry.
+**OPS250** (`knowledge/specs/015-OPS250-auth-migration/RETRO.md`): 5 groups (1 matrix), 2 decisions + 4 planner rules,
+scripts-only, one front-end. It cost ~196k / 57 calls over two runs (+121 code / +300 test lines, 11 files), one review round.
+The budget holds; the round came from the charter. It listed the resource kinds a rebuilt env block must cover from setup's
+record reader ("the Workflow too if the coder finds the record reads it"), and the reader shares setup's blind spot: the real
+`smoked1`/`hq` blocks carry a hand-added `MAIL_SYNC` Workflow that no setup path writes (#368). When a charter rebuilds,
+replaces or compares an env block, diff a real recorded block in `wrangler.jsonc` against what setup writes at plan time and
+name every binding the real one holds, each with an obligation.
 **CORE302** (`knowledge/specs/015-CORE302-readmit-removed-member/RETRO.md`): 5 groups (1 matrix), 2 decisions + 6 planner
 rules, no migration, 1 local E2E part (+224 code / +546 test lines, 12 files), two review rounds (the cap). The budget
 holds; the rounds came from the spec. P1 said which token re-admits but not *when* it must have been issued, so the
