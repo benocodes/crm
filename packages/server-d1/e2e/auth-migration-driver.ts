@@ -1,7 +1,11 @@
-// The test-only driver of the auth migration E2E ([[OPS397]]): the REAL `plan`, `apply` and `claim` code (`runAuthMigrate`) driven against a local Worker and a local D1 pair, with the three dependencies that only exist remotely swapped:
+// The test-only driver of the auth migration E2E ([[OPS397]]): the REAL `plan`, `apply` and `claim` code (`runAuthMigrate`) driven against a local Worker and a local D1 pair. It swaps EVERY dependency that only exists remotely or on the operator's machine:
 //  - `withDatabases` opens the local Worker's persisted D1 pair (`getPlatformProxy` over the persist directory);
 //  - `exec` answers `time-travel info` with a fixed bookmark and runs the export's SELECTs with `wrangler d1 execute --local`;
-//  - `deploy` (and `wrangler secret put AUTH_SECRET`) switch the local Worker from Clerk to Better Auth: it is started again, on the new variables, once the command has closed its databases.
+//  - `deploy` and `run` (`wrangler secret put AUTH_SECRET` is captured, not run) switch the local Worker from Clerk to Better Auth: it is started again, on the new variables, once the command has closed its databases;
+//  - `readConfig` returns an in-memory record (a `clerk` block for `plan`, a `better-auth` one for `apply` and `claim`) instead of reading the committed env block of `wrangler.jsonc`;
+//  - `git` answers a clean tree, so apply's clean-tree check never sees a real tree;
+//  - `appendEnvVar` and `readInstanceEnv` use a temp env file (`.env.e2e`), not the instance's `.env.<env>`.
+// `loadEnv`, `fetch` (the real Clerk Backend API), `now`, `newId` and the file deps are the real ones. The Worker runs on plain `http://localhost:<port>` (Better Auth accepts `http://localhost`; no CLI login is run here, so the HTTPS recipe of `writing-tests` section 7 is not needed), started with `--env-file`.
 // Why the Worker is stopped around every command: it and the command would otherwise open the same SQLite files in two processes. The shipped command gets no `--local` flag; everything else it does is its own code.
 // Nothing here is part of the shipped package: it lives under `e2e/`, outside the gate.
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'

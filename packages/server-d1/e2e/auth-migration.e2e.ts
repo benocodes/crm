@@ -1,5 +1,5 @@
 // [[OPS397]] E2E: the whole hq auth migration, locally: plan, apply, claim, sign in, and an old event keeps its actor. One serial scenario.
-// What is real: the script's own `plan`, `apply` and `claim` code (`e2e/auth-migration-driver.ts` swaps only `withDatabases`, `exec` and `deploy`, see its header), the Clerk DEVELOPMENT instance (Backend API: users, sessions, the export), the local Worker
+// What is real: the script's own `plan`, `apply` and `claim` code (`e2e/auth-migration-driver.ts` swaps `withDatabases`, `exec`, `deploy`, `run`, `readConfig`, `git`, `appendEnvVar` and `readInstanceEnv`, and the Worker runs on plain http://localhost; see its header), the Clerk DEVELOPMENT instance (Backend API: users, sessions, the export), the local Worker
 // (first on Clerk, then, after `apply`, on Better Auth) and the browser that opens a claim link. Keys come from `.env.dev` only (`playwright.auth-migration.config.ts`); nothing reads the root `.env` or an `.env.hq*` file.
 // Prerequisites: `pnpm -C packages/server-d1 build` (the auth pages), and a free port (E2E_PORT, default 8787). No other setup: the spec migrates and bootstraps its own local state in a temp directory and removes it, and deletes its Clerk test users, even when it fails.
 // Run: E2E_DEV_ENV_FILE=<path to .env.dev> [E2E_BROWSER_CHANNEL=chrome] pnpm -C packages/server-d1 e2e:auth-migration

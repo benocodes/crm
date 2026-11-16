@@ -477,21 +477,29 @@ describe('refused before any write (P5)', () => {
   it('the inherited guards: no CONFIRM_REMOTE, no --env, a missing plan file, a plan made for another env', async () => {
     const c = await setup()
     const crm = await crmDump()
-    const run = (argv: string[], env: NodeJS.ProcessEnv = GOOD, planPath = c.planPath) =>
-      runClaimRaw(c, argv, env, planPath)
-    expect((await runClaim(c, { env: {} })).err.join('\n')).toMatch(/set CONFIRM_REMOTE=1/)
-    expect((await run(['claim'])).err.join('\n')).toMatch(/--env <name> is required/)
-    expect((await runClaim(c, { planPath: join(c.dir, 'missing.json') })).err.join('\n')).toMatch(
-      /plan file .* is missing or unreadable/,
-    )
+    const verifs = await verifications()
     const other = join(c.dir, 'other.json')
     writeFileSync(other, JSON.stringify({ ...c.plan, env: 'smoked1' }))
-    expect((await runClaim(c, { planPath: other })).err.join('\n')).toMatch(/made for env smoked1, not hq/)
-    expect(await audits()).toEqual([])
-    expect(await crmDump()).toBe(crm)
+    const cases: Array<[string, () => Promise<{ code: number; err: string[] }>, RegExp]> = [
+      ['no CONFIRM_REMOTE', () => runClaim(c, { env: {} }), /set CONFIRM_REMOTE=1/],
+      ['no --env', () => runClaimRaw(c, ['claim'], GOOD), /--env <name> is required/],
+      [
+        'a missing plan file',
+        () => runClaim(c, { planPath: join(c.dir, 'missing.json') }),
+        /plan file .* is missing or unreadable/,
+      ],
+      ['a plan made for another env', () => runClaim(c, { planPath: other }), /made for env smoked1, not hq/],
+    ]
+    for (const [name, run, phrase] of cases) {
+      const r = await run()
+      expect([name, r.code, r.err.join('\n')]).toEqual([name, 1, expect.stringMatching(phrase)])
+      expect([name, await verifications()]).toEqual([name, verifs])
+      expect([name, await audits()]).toEqual([name, []])
+      expect([name, await crmDump()]).toEqual([name, crm])
+    }
   })
 })
-async function runClaimRaw(c: Ctx, argv: string[], env: NodeJS.ProcessEnv, _planPath: string) {
+async function runClaimRaw(c: Ctx, argv: string[], env: NodeJS.ProcessEnv) {
   const err: string[] = []
   const code = await runAuthMigrate(argv, env, {
     ...(await depsStub(c)),
