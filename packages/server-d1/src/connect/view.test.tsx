@@ -29,10 +29,10 @@ const agent = (over: Partial<AgentRecord> = {}): AgentRecord => ({
   delegated_by: null,
   ...over,
 })
-const handlers = (): Handlers & { signIn: ReturnType<typeof vi.fn>; signOut: ReturnType<typeof vi.fn>; toggle: ReturnType<typeof vi.fn> } => ({
-  signIn: vi.fn(),
-  signOut: vi.fn(),
-  toggle: vi.fn(),
+const handlers = () => ({
+  signIn: vi.fn<() => void>(),
+  signOut: vi.fn<() => void>(),
+  toggle: vi.fn<(id: string, disabled: boolean) => void>(),
 })
 type Ctx = { mcpUrl?: string | null; profileUrl?: string | null }
 const view = (state: PageState, ctx: Ctx = {}) => buildView(state, { origin: ORIGIN, ...ctx })
@@ -40,9 +40,9 @@ const show = (state: PageState, ctx: Ctx = {}, h: Handlers = handlers()) => {
   const r = render(<ConnectView vm={view(state, ctx)} handlers={h} />)
   return { ...r, h, vm: (s: PageState, c: Ctx = {}) => r.rerender(<ConnectView vm={view(s, c)} handlers={h} />) }
 }
-const sections = (c: HTMLElement) => [...c.querySelectorAll('[data-section]')].map((s) => s.getAttribute('data-section'))
-const headings = (c: HTMLElement) => [...c.querySelectorAll('h1, h2, h3')].map((h) => h.textContent)
-const buttons = (c: HTMLElement) => [...c.querySelectorAll('button')].map((b) => b.textContent)
+const sections = (c: Element) => [...c.querySelectorAll('[data-section]')].map((s) => s.getAttribute('data-section'))
+const headings = (c: Element) => [...c.querySelectorAll('h1, h2, h3')].map((h) => h.textContent)
+const buttons = (c: Element) => [...c.querySelectorAll('button')].map((b) => b.textContent)
 
 beforeEach(() => vi.clearAllMocks())
 afterEach(cleanup)
@@ -118,7 +118,9 @@ describe('every view state renders its content (matrix)', () => {
     })
     const rows = [...container.querySelectorAll<HTMLElement>('li.agent')]
     expect(rows.map((r) => r.getAttribute('data-agent'))).toEqual([ID(10), ID(11)])
-    expect(rows[0]!.textContent).toContain(`vibase agents update ${ID(10)} --scopes '["contacts:read","contacts:write"]'`)
+    expect(rows[0]!.textContent).toContain(
+      `vibase agents update ${ID(10)} --scopes '["contacts:read","contacts:write"]'`,
+    )
     expect(rows[0]!.classList.contains('disabled')).toBe(false)
     expect(rows[1]!.classList.contains('disabled')).toBe(true)
     expect(rows[1]!.textContent).toContain('Created c; disabled D')
@@ -186,7 +188,11 @@ describe('the handlers stay wired', () => {
 
   it('after a re-render with a changed agent list, each button still names its own row', () => {
     const h = handlers()
-    const r = show({ kind: 'signed-in', me: me(), agents: [agent({ id: ID(10), name: 'one' }), agent({ id: ID(11), name: 'two' })] }, {}, h)
+    const r = show(
+      { kind: 'signed-in', me: me(), agents: [agent({ id: ID(10), name: 'one' }), agent({ id: ID(11), name: 'two' })] },
+      {},
+      h,
+    )
     // the first agent is gone, a new one is first; the DOM nodes of row 1 and 2 are reused by position
     r.vm({
       kind: 'signed-in',
@@ -242,7 +248,10 @@ describe('text, never markup (UI30 D10)', () => {
       expect(container.querySelectorAll('a').length, bad).toBe(0)
       cleanup()
     }
-    const { container } = show({ kind: 'signed-in', me: me(), agents: [] }, { profileUrl: 'https://accounts.example/user' })
+    const { container } = show(
+      { kind: 'signed-in', me: me(), agents: [] },
+      { profileUrl: 'https://accounts.example/user' },
+    )
     expect(container.querySelectorAll('a').length).toBe(1)
   })
 })

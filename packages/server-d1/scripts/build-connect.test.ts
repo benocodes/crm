@@ -13,7 +13,7 @@ let out: string
 let metafile: { inputs: Record<string, unknown> }
 beforeAll(async () => {
   out = mkdtempSync(join(tmpdir(), 'connect-build-'))
-  metafile = (await buildConnect(out)) as unknown as { inputs: Record<string, unknown> }
+  metafile = await buildConnect(out)
 })
 afterAll(() => rmSync(out, { recursive: true, force: true }))
 
@@ -41,7 +41,9 @@ describe('buildConnect', () => {
     expect(readFileSync(join(out, 'connect/ui.css'), 'utf8')).toBe(
       readFileSync(fileURLToPath(new URL('../../ui/src/ui.css', import.meta.url)), 'utf8'),
     )
-    expect(readFileSync(join(out, 'connect/connect-page.css'), 'utf8')).not.toMatch(/#[0-9a-f]{3,8}\b|\brgba?\(|\bhsla?\(/i)
+    expect(readFileSync(join(out, 'connect/connect-page.css'), 'utf8')).not.toMatch(
+      /#[0-9a-f]{3,8}\b|\brgba?\(|\bhsla?\(/i,
+    )
   })
 
   it('every file the HTML references exists in the build', () => {
