@@ -1,7 +1,7 @@
-import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { defaultPlanPath, realFileDeps, runAuthMigrate, type PlanDeps } from './auth-migrate-remote.js'
 import {
   CLERK_SECRET,
@@ -63,6 +63,9 @@ function kit(
   return { dir, plan, deps, wrangler, clerk, out, err, calls }
 }
 const GOOD = { CONFIRM_REMOTE: '1' }
+const IN_REPO = join(REPO_ROOT, 'packages', 'auth-plan-ops365-test.json')
+// a broken ignore check would write here: never leave it behind
+afterEach(() => rmSync(IN_REPO, { force: true }))
 
 // [[OPS365]] group 1: every refusal happens before any call, exits 1 and writes nothing.
 describe('auth:migrate:remote plan refuses first', () => {
@@ -156,7 +159,7 @@ describe('auth:migrate:remote plan refuses first', () => {
       () => {
         const k2 = kit()
         return {
-          argv: ['plan', '--env', 'hq', '--plan', join(REPO_ROOT, 'packages', 'auth-plan-ops365-test.json')],
+          argv: ['plan', '--env', 'hq', '--plan', IN_REPO],
           env: GOOD,
           k: k2,
         }
@@ -182,7 +185,7 @@ describe('auth:migrate:remote plan refuses first', () => {
       expect(k.clerk.calls).toEqual([])
       expect(readdirSync(k.dir)).toEqual(before) // the existing file, if the case made one, is untouched
       if (title.startsWith('a plan path that already exists')) expect(readFileSync(k.plan, 'utf8')).toBe('precious')
-      expect(existsSync(join(REPO_ROOT, 'packages', 'auth-plan-ops365-test.json'))).toBe(false)
+      expect(existsSync(IN_REPO)).toBe(false)
       expect([...k.out, ...k.err].join('\n')).not.toContain(CLERK_SECRET)
     })
   }
