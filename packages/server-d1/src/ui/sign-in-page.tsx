@@ -7,6 +7,9 @@ import { emailError, goTo, type PageProps } from './page.js'
 import { GoogleButton, useGoogleEnabled } from './google-button.js'
 import { ResetRequest, useSelfServiceReset } from './reset-request.js'
 
+/** A finished sign-in with no valid `return_to` continues here: the page that lists the agents and how to connect one. */
+const DEFAULT_TARGET = '/connect'
+
 /**
  * [[UI246]] D5. A session is the signed-in view (the email as text) with sign-out; no session is the form. No sign-up link (admission is the invitation), a "Forgot password?" request when discovery says `self_service_reset` ([[CORE304]] D7), otherwise a line saying
  * to ask an owner. [[UI247]] D6 adds the continuation: a signed OAuth query (`sig`) is forwarded as `oauth_query` and the form shows even with a session; otherwise a `return_to` of `/device` or
@@ -33,15 +36,14 @@ export function SignInPage({ navigate = goTo }: PageProps) {
 
   if (session === undefined) return null
   return session ? (
-    <SignedIn user={session} target={target} onSignedOut={() => setSession(null)} />
+    <SignedIn user={session} target={target ?? DEFAULT_TARGET} onSignedOut={() => setSession(null)} />
   ) : (
     <SignInForm
       oauthQuery={oauthQuery}
       navigate={navigate}
       onSignedIn={(user, redirect) => {
         if (redirect !== undefined) return navigate(redirect)
-        if (target !== null) return navigate(target)
-        setSession(user)
+        navigate(target ?? DEFAULT_TARGET)
       }}
     />
   )
@@ -53,7 +55,7 @@ function SignedIn({
   onSignedOut,
 }: {
   user: SessionUser
-  target: string | null
+  target: string
   onSignedOut: () => void
 }) {
   const [busy, setBusy] = useState(false)
@@ -76,7 +78,7 @@ function SignedIn({
     >
       {error ? <Alert variant="error">{error}</Alert> : null}
       <p>{`Signed in as ${user.email}`}</p>
-      {target !== null ? <a href={target}>Continue</a> : null}
+      <a href={target}>Continue</a>
     </Card>
   )
 }
@@ -172,7 +174,7 @@ function SignInForm({
         error={errors.password}
         required
       />
-      {google ? <GoogleButton onError={setGoogleError} navigate={navigate} /> : null}
+      {google ? <GoogleButton callbackURL={returnTarget(location.search) ?? undefined} onError={setGoogleError} navigate={navigate} /> : null}
       {selfServiceReset ? (
         <Button variant="link" onClick={() => setResetting(true)}>
           {MESSAGES.forgotPassword}
