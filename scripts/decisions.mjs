@@ -9,8 +9,11 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
-// A sprint is full at this many decisions; the orchestrator rolls it over after the cycle that crosses the line.
+// A sprint is full at this many decisions: from there it only finishes the milestone it is on (`sprint-planning`,
+// "rollover"), and rolls over when that milestone is done.
 const SPRINT_DECISION_CAP = 250
+// Past this the milestone is too big for the sprint: the orchestrator stops and asks the user how to cut it.
+const SPRINT_DECISION_HARD_LIMIT = 300
 const SPRINT_FILE_LINE_BUDGET = 150
 const DECISION_MAX_CHARS = 300
 const BY = ['planner', 'coder', 'orchestrator', 'user']
@@ -268,8 +271,8 @@ function currentSprint(dir) {
 function status() {
   const knowledge = knowledgeDir()
   const { file, count } = currentSprint(join(knowledge, 'decisions'))
-  const due = count >= SPRINT_DECISION_CAP
-  process.stdout.write(`decisions: ${file ?? 'none recorded yet'}, rollover ${due ? 'DUE' : 'not due'}\n`)
+  const rollover = count >= SPRINT_DECISION_HARD_LIMIT ? 'OVERDUE' : count >= SPRINT_DECISION_CAP ? 'DUE' : 'not due'
+  process.stdout.write(`decisions: ${file ?? 'none recorded yet'}, rollover ${rollover}\n`)
   const sprintFile = join(knowledge, 'SPRINT.md')
   if (existsSync(sprintFile)) {
     const lines = readFileSync(sprintFile, 'utf8').split('\n').length

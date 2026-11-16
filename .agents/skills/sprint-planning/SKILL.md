@@ -41,9 +41,11 @@ also lists the parent spec, sibling cycles and specs the cycle's header names). 
 costs no context, and it is kept when the sprint closes. `SPRINT.md` holds state only: where the sprint is
 and what is next.
 
-**A sprint has a size.** The decisions log is also the sprint's measure: when the script reports a rollover
-as due, the sprint is full and `rollover` (below) starts the next one. The limit lives in the script and
-nowhere else; never state it, or how full a sprint is, in a brief, a spec or a charter. The agents that
+**A sprint has a size, and it ends on a finished milestone.** The decisions log is also the sprint's measure.
+When the script reports the rollover as `DUE`, the sprint is full: it takes on nothing new, finishes the one
+milestone it is on, and then rolls over; work from every other milestone waits for the next sprint. When the
+script reports `OVERDUE`, that milestone is too big to finish in this sprint, and the user decides how to cut
+it (`rollover`, below). The limits live in the script and nowhere else; never state it, or how full a sprint is, in a brief, a spec or a charter. The agents that
 record decisions must have no reason to record fewer.
 
 One live sprint at a time is a constraint, not a limitation: a second concurrent band of specs is a
@@ -122,11 +124,26 @@ Then rewrite, in this order:
    is not finished.
 5. **Glance test** (Quality Rule 11).
 
-### `rollover` — the sprint is full, start the next one
+### `rollover` — the sprint is full: finish the milestone, then start the next sprint
 
-Run when `node scripts/decisions.mjs status` reports the rollover as `DUE`, and only between cycles (nothing
-in flight: no agent running, no open cycle PR), so one cycle's decisions never straddle two files. It is
-mechanical and is not a stop: the unfinished work carries on in the same order.
+Run when `node scripts/decisions.mjs status` reports the rollover as `DUE` or `OVERDUE`, and only between
+cycles (nothing in flight: no agent running, no open cycle PR), so one cycle's decisions never straddle two
+files. A milestone is **finished** when every row of its table but the demo run is ✅ (the demo run is the
+user's and never holds a rollover). Which of the three steps applies depends on the state:
+
+**Narrow** (`DUE`, and the header has no **Finishing** line yet). The sprint stops taking new work and
+finishes one milestone:
+
+1. Name the milestone the sprint is on: the one that owns the item in flight or, with nothing in flight, the
+   first item of Next. Write it in the header: `**Finishing:** Milestone G`.
+2. Move every unfinished item of the *other* milestones out of Now / Next into a `## Next sprint` section
+   (after Now / Next / Later / Parked), in their existing order, each still naming its milestone. Their
+   milestone tables stay where they are. Nothing in that section is started until the sprint has rolled over.
+3. Commit, tell the user in two lines (the sprint is full, it now only finishes that milestone, what moved to
+   the next sprint), and carry on. This is not a stop.
+
+**Roll over** (the **Finishing** milestone is finished, or the status is `DUE` and no milestone has unfinished
+rows in this sprint). Mechanical, and not a stop:
 
 1. `node scripts/decisions.mjs rotate`: closes the current `decisions/sprint-NNN.jsonl` and opens the next.
    The closed file is the user's batch of decisions to review.
@@ -134,10 +151,26 @@ mechanical and is not a stop: the unfinished work carries on in the same order.
    (verbatim); unfinished rows, Now / Next / Later / Parked, Gaps, Owed by the user and open questions carry
    forward unchanged; Position restarts with one line naming the sprint that closed and its decisions file.
    A milestone whose rows are all archived keeps its heading and one line saying what is left (its demo run,
-   usually). Do not reorder Next: a rollover changes no priorities.
-3. Update the header's **Decisions** pointer to the new file and bump **Updated**.
+   usually). The `## Next sprint` items move back into Next, in their order, and the section is removed. Do
+   not reorder Next: a rollover changes no priorities.
+3. Update the header's **Decisions** pointer to the new file, remove the **Finishing** line and bump **Updated**.
 4. Commit `SPRINT.md`, `sprint-archive.md` and `decisions` together (`docs(sprint): roll over to sprint NNN`).
-5. Tell the user: which sprint closed, the path of its decisions file, and the next item.
+5. Tell the user: which sprint closed, the milestone it finished, the path of its decisions file, and the
+   next item.
+
+**Cut the milestone** (`OVERDUE` and the **Finishing** milestone is not finished). The milestone is bigger
+than a sprint. This is a **stop**, and the cut is the user's decision, never the agents':
+
+1. List the milestone's unfinished rows, in dependency order, each with its state (in review, planned, spec
+   only, no spec).
+2. Propose a cut: which rows are the smallest set that still makes the milestone demonstrable and stay in
+   it, and which rows move to a **new milestone** in the next sprint (name it, and say what it adds on top of
+   the slimmed one). Say what the slimmed milestone can no longer demonstrate.
+3. Write the proposal under Open questions, update Status at a glance and Position, commit, and stop: tell
+   the user and wait for the ruling. Do not start another cycle of the milestone meanwhile.
+4. On the ruling: record it (`node scripts/decisions.mjs add --issue <n> --by user --stage ruling "<ruling>"`),
+   add the new milestone's table to `SPRINT.md` with the moved rows, put its items in `## Next sprint`, and
+   continue: finish what is left of the slimmed milestone, or roll over at once if nothing is left.
 
 ### `close` — finish the sprint
 
@@ -167,6 +200,7 @@ checkpoint pushes it past that, archive until it fits. Sections, in this order:
 # {Goal} — sprint
 
 **Updated:** {YYYY-MM-DD} · **Archive:** [sprint-archive.md](sprint-archive.md) · **Decisions:** `decisions/sprint-{NNN}.jsonl` (`node scripts/decisions.mjs find <issue>`)
+{Only once the sprint is full (`rollover`, Narrow): **Finishing:** Milestone {X}}
 
 ## Status at a glance
 
@@ -190,6 +224,11 @@ table or in Parked; a spec in neither is a finding.}
 {Now: what is in flight. Next: a numbered list of the next items, each with the first action (spec, plan,
 code) and any blocker; say which order is ruled and which is proposed. Later: the following milestone's
 chain on one line. Parked: a table `Item | Why`, so a parked spec is visibly not a gate.}
+
+## Next sprint
+
+{Only once the sprint is full: the unfinished items of every milestone but the one being finished, in order,
+each naming its milestone. Nothing here is started before the rollover.}
 
 ## Gaps
 

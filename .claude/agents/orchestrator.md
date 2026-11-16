@@ -74,10 +74,12 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    (`gh pr checks --watch`; no checks configured is not a failure), then
    `gh pr merge --squash --delete-branch`. Remove the worktree (`git worktree remove`), drop its private
    test DB (`pnpm db:test:worktree --drop` from inside it, before removing). Pull `main`.
-9. **Checkpoint again**, commit and push SPRINT.md and `decisions/`. Then run `node scripts/decisions.mjs status`:
-   if it says the rollover is `DUE`, the sprint is full: run `/sprint-planning rollover`, tell the user in two lines
-   which decisions file closed (it is their batch to review), and carry on; this is not a stop. Never mention the
-   rollover or how full the sprint is in a brief: the agents that record decisions must not weigh it.
+9. **Checkpoint again**, commit and push SPRINT.md and `decisions/`. Then run `node scripts/decisions.mjs status` and follow `sprint-planning`'s `rollover`
+   for what it reports: `DUE` means the sprint is full, so it narrows to the one milestone it is on (other
+   milestones' items wait for the next sprint) and rolls over once that milestone is finished, neither of which
+   is a stop; `OVERDUE` with that milestone unfinished is a **stop**: propose how to cut the milestone and wait
+   for the user. While a **Finishing** line is in SPRINT.md's header, pick work from that milestone only. Never
+   mention the rollover or how full the sprint is in a brief: the agents that record decisions must not weigh it.
    Then **hand off to a fresh session**: call the
    `mcp__sprint-relay__next_cycle` tool (the `sprint-relay` mod, if it is loaded) with `outcome: "cycle_done"`
    and, only if the next orchestrator needs something SPRINT.md does not say, a short `handoff` (a few lines:
@@ -101,6 +103,8 @@ lines when:
   announcements, irreversible data changes);
 - the fix loop (a failed scenario or requested changes) has run two coder rounds without a passing, approved result;
 - an agent reports `blocked` and the block is not something another agent can resolve;
+- the sprint is full and its milestone still cannot be finished (`decisions status` says `OVERDUE`): the cut is
+  the user's (`/sprint-planning rollover`, "Cut the milestone");
 - the sprint is finished (`/sprint-planning close`).
 
 Never resolve a hard stop by working around it (for example, testing against a personal account instead

@@ -170,11 +170,14 @@ describe('decisions find', () => {
 describe('decisions status and rotate', () => {
   beforeEach(() => mkdirSync(join(knowledge, 'decisions')))
 
-  it('reports a rollover as due only at the cap, without printing a count', () => {
-    fill('sprint-001.jsonl', 249)
-    expect(run('status').stdout).toBe('decisions: sprint-001.jsonl, rollover not due\n')
-    fill('sprint-001.jsonl', 250)
-    expect(run('status').stdout).toBe('decisions: sprint-001.jsonl, rollover DUE\n')
+  it.each([
+    [249, 'not due'],
+    [250, 'DUE'],
+    [299, 'DUE'],
+    [300, 'OVERDUE'],
+  ])('reports a sprint of %i decisions as rollover %s, without printing a count', (count, word) => {
+    fill('sprint-001.jsonl', count)
+    expect(run('status').stdout).toBe(`decisions: sprint-001.jsonl, rollover ${word}\n`)
   })
 
   it('reports SPRINT.md against its line budget', () => {
