@@ -368,7 +368,13 @@ One program, two engines: the same assertions run on Postgres and D1.
     are `grantableScopes(declaredScopes())`, so a cycle that declares a scope regenerates `auth.json` by exactly those
     lines ([[CORE25]]). `schema.json` records the whole `GET /meta/v1/schema` document ([[CORE187]]), so any migration,
     catalog text, registered resource, sort or stated sort cost regenerates it. Before claiming "golden unchanged",
-    check for such derived values.
+    check for such derived values. Until #323 is fixed, `golden:check` fails on a clean `main` (committed fixtures are
+    Biome-formatted, the generator's output is not): judge drift by `golden:generate`, then `pnpm format`, then
+    `git diff -- packages/api/fixtures/golden`, and say so in RESULT.md (CORE347).
+  - A **dormant general mechanism** (kept with no production caller, e.g. the per-type `owner` predicate in the
+    event-type map after CORE347) is proven through a test-only registration on the test kit's registry, plus one
+    assertion against the real registry that no production entry uses it, so a later caller is a deliberate choice
+    (`packages/api/src/events/owner-predicate.integration.d1.test.ts`).
     Event payloads in a transcript are written in Postgres `jsonb` key order (shorter key first, then bytewise,
     `jsonbOrder` in `d1-backend.ts`), so a regeneration does not churn when a program builds a payload in a different
     order ([[CORE69]] D21 ruling).
