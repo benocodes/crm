@@ -82,11 +82,11 @@ describe('wrangler.jsonc (OPS4 C2)', () => {
     expect(c.account_id).toBeUndefined()
   })
 
-  it('smoked1 binds DB and CONTROL_DB (OPS251); hq still binds DB alone until its own cutover (OPS252)', () => {
+  it('smoked1 and hq bind DB and CONTROL_DB (OPS251, OPS252)', () => {
     const bindings = (env: string) =>
       unstable_readConfig({ config: CONFIG, env }).d1_databases.map((d: { binding: string }) => d.binding)
     expect(bindings('smoked1')).toEqual(['DB', 'CONTROL_DB'])
-    expect(bindings('hq')).toEqual(['DB'])
+    expect(bindings('hq')).toEqual(['DB', 'CONTROL_DB'])
   })
 
   it('names no reserved production hostname or environment (D23)', () => {
