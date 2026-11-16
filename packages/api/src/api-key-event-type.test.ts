@@ -32,10 +32,16 @@ describe('texts state what the code defines', () => {
     const names = new Set(ops.map((o) => o.name))
     expect(names.has('audit.list')).toBe(true)
     expect(registry.declaredScopes()).toContain('audit:read')
-    const keyOps = texts.filter(([n]) => n === 'operation api_keys.create' || n === 'operation api_keys.revoke')
-    expect(keyOps).toHaveLength(2)
-    for (const [n, t] of keyOps) {
-      expect(t, n).toMatch(/audit\.list/)
+    // every text that mentions API keys together with the audit log or the event feed names audit.list and audit:read
+    // (a text that is itself audit.list needs only audit:read)
+    const about = texts.filter(([, t]) => /\bkeys?\b/i.test(t) && /audit log|event feed/i.test(t))
+    const named = about.map(([n]) => n)
+    expect(named).toContain('operation api_keys.create')
+    expect(named).toContain('operation api_keys.revoke')
+    expect(named).toContain('operation audit.list')
+    expect(named).toContain('scenario api-keys-issue-revoke')
+    for (const [n, t] of about) {
+      if (n !== 'operation audit.list') expect(t, n).toMatch(/audit\.list/)
       expect(t, n).toMatch(/audit:read/)
     }
     const scen = texts.find(([n]) => n === 'scenario api-keys-issue-revoke')!
