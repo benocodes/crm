@@ -4,6 +4,8 @@
 //   pnpm -C packages/server-d1 exec playwright install chromium     (or E2E_BROWSER_CHANNEL=chrome)
 //   E2E_INVITE_URL=<the URL bootstrap printed> pnpm -C packages/server-d1 e2e:approvals-app
 // Worker prerequisites: see e2e/approvals-app.e2e.ts. Two `wrangler dev` processes run at once: the app's gets `--inspector-port=9230` so it does not contend for the Worker's inspector port.
+// reuseExistingServer: anything already listening on :8788 is used as is, and the `env` below is then not applied (a stray app built for another API origin
+// is tested instead). Stop stray listeners first (`lsof -i :8788`).
 import { defineConfig } from '@playwright/test'
 
 export default defineConfig({

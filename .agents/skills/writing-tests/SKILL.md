@@ -643,6 +643,16 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
   `composeD1Worker(env)`. That `fetch` resolves relative URLs against `PUBLIC_BASE_URL`, sends that origin as
   `Origin` (Better Auth checks it) and keeps `Set-Cookie` in a jar. This checks the request and response shapes the
   fake-`fetch` unit suite assumes, inside the gate. The browser E2E then only has to cover what needs a browser.
+- **A fake for the Better Auth client returns the SDK's shapes.** `better-auth/client` (1.7.22) resolves
+  `{ data, error }` on any HTTP failure (a refused sign-out is `error.status === 403`) and throws only on a network
+  failure. Drive the real `createAuthClient` + `jwtClient` over a fake `fetch` and cover both failure kinds; a
+  `try/catch`-only module passes a fake that throws and misses every refused call ([[UI388]],
+  `packages/approvals-app/src/better-auth.test.ts`).
+- **A page script is tested as a function of its effects.** Make the DOM entry `run(root, deps)` with `fetch`,
+  `location` and config passed in; only the thin entry file reads build constants. Name the environment with a
+  per-file `// @vitest-environment happy-dom` docblock so the root vitest projects run it ([[UI388]],
+  `packages/approvals-app/src/app.test.ts`). For "this library is not in the entry chunk", check a marker string on
+  the real build output and prove it with `splitting: false` as the absence mutation (`src/build.test.ts`).
 - `truncateAll(owner)` lists every `public` base table from the catalog at call time (except Kysely's two), so a new table needs no harness edit.
 - `beforeEach` is scoped to its enclosing `describe`. A second top-level `describe` in a file does not
   inherit the first one's reset; give it its own.
@@ -714,6 +724,10 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   owner invitation, so two scripts cannot share one local state. Capture outbound email with a test-only entry that
   wraps the real Worker module and replaces `env.EMAIL` with a recording binding (`src/test/entry-email.ts`, read back at
   `/__emails`).
+- **`webServer.reuseExistingServer: true` uses whatever already listens on the port**, and the block's `env` is then
+  never applied. A stray `:8788` from another run, built for a different API origin, makes `e2e:approvals-app` test
+  the wrong build. Stop stray listeners first (`lsof -i :8788`) ([[UI388]]). Two `wrangler dev` processes at once
+  need distinct inspector ports: give the second `--inspector-port=9230`.
 - **A test Worker entry that re-creates composition config passes every field `compose.ts` passes.** `src/test/entry-mint.ts`
   builds its own `/auth` handler; when it omitted `defaultScopes`, the default scope list silently fell back to the ceiling
   and its tests proved the wrong configuration ([[CORE330]]). When you add a field to the auth config in `compose.ts`, add
@@ -732,6 +746,7 @@ instance, so it is in `ship-branch`, "Command reference".
 pnpm -C packages/ui e2e:gallery                   # builds the test-only gallery, serves it on localhost, Playwright screenshots per state in light/dark (forced and emulated) into the gitignored packages/ui/e2e-screenshots/, axe zero violations, keyboard order; not in the gate. If `playwright install chromium` fails (it does on the dev Mac), run with E2E_BROWSER_CHANNEL=chrome (installed Google Chrome)
 pnpm -C packages/server-d1 e2e:oauth-pages         # Better Auth /device and /consent with the real `vibase login` and an MCP-style client (UI247); local Worker over HTTPS (`wrangler dev --local-protocol https`, recipe in the file header and writing-tests §7), no Clerk; `e2e:auth-pages` is UI246's sibling; not in the gate
 pnpm -C packages/server-d1 e2e:auth-pages-reset      # self-service reset by email on /sign-in (CORE304): its own email-on Worker from the test-only entry src/test/entry-email.ts (a recording EMAIL binding read at /__emails), over HTTPS, fresh local state (recipe in the spec file header); no Clerk; not in the gate
+pnpm -C packages/server-d1 e2e:approvals-app      # the approvals app (:8788, started by the config) signs in, approves and signs out through Better Auth against a local better-auth Worker on :8787 that the operator starts (UI388); E2E_INVITE_URL from bootstrap; recipe in e2e/approvals-app.e2e.ts; no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:connect             # Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only); not in the gate
 pnpm -C packages/server-d1 e2e:mcp-oauth          # MCP OAuth end to end (DCR, consent, delegated agent, revocation) on the Clerk dev instance; same harness, not in the gate
 ```
