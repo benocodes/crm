@@ -1,6 +1,6 @@
 // The apply side of the hq auth migration ([[OPS392]], [[OPS250]] D1, D3, D4, D13): given the plan file, a fresh export and the two databases, the control batch (inert `auth_users` rows) and then the CRM batch (the commit point:
 // users and agent accounts re-pointed to Better Auth, delegated agents disabled, memberships inserted, one unit). It refuses a plan the instance no longer matches before it writes anything.
-// The batches are reached through `applyBatches` over two `D1Like` handles; opening the remote databases and the provider switch are #393's, so the CLI's real run is dormant (P1).
+// The batches are reached through `applyBatches` over two `D1Like` handles; the CLI ([[OPS393]]) opens the remote databases and runs the secret and the deploy between the two batches (`between`).
 import { sql, type SqlBool } from 'kysely'
 import {
   CommitOutcomeUnknown,
@@ -30,7 +30,10 @@ import {
 import { createD1Runtime, type D1Like } from '@vibase/storage-d1'
 import type { AgentRow, AuthPlan, ClerkUserRow, PlanAgent, PlanPerson, Snapshot } from './types.js'
 
-/** Refused: nothing was written by this run (the control batch's read-back refusal, P4, may follow inert rows an earlier run wrote). */
+/**
+ * Refused: the CRM is untouched and nothing irreversible was written. Inert `auth_users` rows from this run or an earlier one may exist: the control batch's read-back refusal (P4) follows this run's own
+ * inserts, and no CRM row links to them. It exits 1 because its message names the remedy ([[OPS393]] P5).
+ */
 export class ApplyRefusal extends Error {}
 /** Failed after a write began: the run's outcome is the databases' state, and a re-run reads it back (P2). */
 export class ApplyFailure extends Error {}
@@ -48,6 +51,8 @@ export interface ApplyOptions {
   control: D1Like
   now(): Date
   newId(): string
+  /** Runs after the control batch and before the CRM batch ([[OPS393]] P1: the `AUTH_SECRET` and the deploy). It throws an `ApplyFailure` to stop the run. */
+  between?(): Promise<void>
 }
 export interface ApplyOutcome {
   state: ApplyState
@@ -149,6 +154,14 @@ function appliedDiffs(plan: AuthPlan, fresh: Snapshot): string[] {
   for (const m of fresh.memberships) add(shape(m), -1)
   for (const [k, n] of [...want].sort()) if (n !== 0) out.push(`membership of user ${k.split('|')[0]}`)
   return out
+}
+
+/** The deployment marker's provider is part of "applied" for a plan the CRM batch changes no row of ([[OPS393]] P6): such a plan's rows are the same before and after, so only the marker tells. */
+export function assessRun(plan: AuthPlan, fresh: Snapshot, markerProvider: string): ApplyState {
+  const state = assessState(plan, fresh)
+  const c = countsOf(plan)
+  const noRows = c.users + c.relinked + c.disabled + c.memberships === 0
+  return state === 'not_applied' && noRows && markerProvider === PROVIDER ? 'applied' : state
 }
 
 /**
@@ -287,7 +300,7 @@ const same = (_qc: QueryContext, column: string, value: string | null) =>
  * The whole CRM change as ONE unit on the storage layer ([[OPS392]] P7): each update guarded by the snapshot's values, each event gated on its write and then asserted, so a row that changed since the export aborts the whole batch.
  * `users` re-points emit no event (identity bookkeeping, D13); membership and agent writes emit today's `membership.created` and `agent.updated` (P6), attributed to the system principal.
  */
-function crmUnit(o: { plan: AuthPlan; organizationId: string; now: Date; newId: () => string }) {
+function crmUnit(o: { plan: AuthPlan; organizationId: string; markerFrom: string; now: Date; newId: () => string }) {
   const { plan } = o
   const at = codecs.timestamp.write(o.now)
   const people = migrating(plan)
@@ -304,7 +317,7 @@ function crmUnit(o: { plan: AuthPlan; organizationId: string; now: Date; newId: 
 
   return defineOperation({
     name: 'auth_migrate.apply',
-    mutates: people.length + touched.length + inserts.length > 0,
+    mutates: true, // the marker always changes (D14)
     reads: (qc) => {
       const reads: Record<string, Read> = {}
       if (needsSystem) reads[SYSTEM_PRINCIPAL_READ] = systemPrincipalRead(qc)
@@ -407,6 +420,18 @@ function crmUnit(o: { plan: AuthPlan; organizationId: string; now: Date; newId: 
         )
         events.push({ id: eventId, type: 'membership.created', resourceType: 'membership', resourceId: id })
       })
+      // D14: the deployment marker follows the provider, guarded by the value the run read; bootstrap bookkeeping, so no event
+      steps.push(
+        ...exactly(
+          qc,
+          step(
+            sql`update deployment set auth_provider = ${PROVIDER} where singleton = 1 and auth_provider = ${o.markerFrom}`.compile(
+              qc.db,
+            ),
+          ),
+          1,
+        ),
+      )
       return unit({
         steps,
         events,
@@ -428,7 +453,13 @@ function crmUnit(o: { plan: AuthPlan; organizationId: string; now: Date; newId: 
  * A refusal is an `ApplyRefusal` (exit 1); anything that fails once a write began is an `ApplyFailure` (exit 2), a drift naming itself so.
  */
 export async function applyBatches(o: ApplyOptions): Promise<ApplyOutcome> {
-  const state = assessState(o.plan, o.fresh)
+  const link = (await o.crm.prepare('select organization_id, auth_provider, auth_org_id from deployment').first()) as {
+    organization_id: string
+    auth_provider: string
+    auth_org_id: string
+  } | null
+  if (!link) throw new ApplyRefusal('the CRM database has no deployment row: it is not an initialised instance')
+  const state = assessRun(o.plan, o.fresh, link.auth_provider)
   if (state === 'applied')
     return {
       state,
@@ -439,13 +470,6 @@ export async function applyBatches(o: ApplyOptions): Promise<ApplyOutcome> {
       memberships_inserted: 0,
     }
 
-  const link = (await o.crm.prepare('select organization_id, auth_provider, auth_org_id from deployment').first()) as {
-    organization_id: string
-    auth_provider: string
-    auth_org_id: string
-  } | null
-  if (!link) throw new ApplyRefusal('the CRM database has no deployment row: it is not an initialised instance')
-
   let control: { inserted: number }
   try {
     control = await applyControlBatch(o.control, o.plan, o.now())
@@ -453,6 +477,7 @@ export async function applyBatches(o: ApplyOptions): Promise<ApplyOutcome> {
     if (e instanceof ApplyRefusal) throw e
     throw new ApplyFailure(`the control batch failed: ${e instanceof Error ? e.message : 'unknown error'}`)
   }
+  await o.between?.()
 
   const runtime = createD1Runtime(o.crm, {
     organizationId: link.organization_id,
@@ -462,7 +487,13 @@ export async function applyBatches(o: ApplyOptions): Promise<ApplyOutcome> {
   try {
     const { value } = await runtime.execute(
       { kind: 'internal', organizationId: null },
-      crmUnit({ plan: o.plan, organizationId: link.organization_id, now: o.now(), newId: o.newId }),
+      crmUnit({
+        plan: o.plan,
+        organizationId: link.organization_id,
+        markerFrom: link.auth_provider,
+        now: o.now(),
+        newId: o.newId,
+      }),
     )
     return { state, control_inserted: control.inserted, ...value }
   } catch (e) {

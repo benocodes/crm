@@ -402,7 +402,9 @@ describe('the CRM batch', () => {
     const s = await seed({ users: [], agents: [], memberships: [] })
     const crm = spyD1(pair.d1)
     const out = await run(s, { crm: crm.d1 })
-    expect(crm.log.statements.filter((q) => WRITE.test(q)).filter((q) => !/^update deployment\b/.test(q))).toEqual([])
+    expect(
+      crm.log.statements.filter((q) => WRITE.test(q)).filter((q) => !/^update deployment\b|unit_assertion/.test(q)),
+    ).toEqual([])
     expect(await rows(pair.d1, 'select auth_provider from deployment')).toEqual([{ auth_provider: 'better-auth' }])
     expect(await rows(pair.d1, 'select id from events')).toEqual([])
     expect(await rows(pair.d1, 'select id from principals')).toEqual([])

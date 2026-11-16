@@ -62,7 +62,9 @@ afterEach(async () => {
 /** wrangler's tracker, as a deployed database has it (the local test databases are migrated without one). */
 async function track(d1: D1Like, names: string[]) {
   await d1
-    .prepare('create table if not exists d1_migrations (id integer primary key autoincrement, name text unique, applied_at timestamp not null default current_timestamp)')
+    .prepare(
+      'create table if not exists d1_migrations (id integer primary key autoincrement, name text unique, applied_at timestamp not null default current_timestamp)',
+    )
     .run()
   await d1.prepare('delete from d1_migrations').run()
   for (const name of names) await d1.prepare('insert into d1_migrations (name) values (?)').bind(name).run()
@@ -70,10 +72,13 @@ async function track(d1: D1Like, names: string[]) {
 
 const TABLES = ['principals', 'users', 'agents', 'memberships', 'events', 'organizations', 'deployment']
 async function crmDump(): Promise<string> {
-  return JSON.stringify(await Promise.all(TABLES.map(async (t) => [t, await rows(pair.d1, `select * from ${t} order by 1`)])))
+  return JSON.stringify(
+    await Promise.all(TABLES.map(async (t) => [t, await rows(pair.d1, `select * from ${t} order by 1`)])),
+  )
 }
 const authUsers = () => rows(pair.control, 'select id, email from auth_users order by id')
-const controlDump = async () => JSON.stringify([await authUsers(), await rows(pair.control, 'select * from control_deployment')])
+const controlDump = async () =>
+  JSON.stringify([await authUsers(), await rows(pair.control, 'select * from control_deployment')])
 
 interface Ctx {
   dir: string
@@ -83,12 +88,20 @@ interface Ctx {
   clerk: ReturnType<typeof fakeClerk>
 }
 /** The vault seeded into the CRM database, the control database paired with it, the plan the real plan command would write, and the instance's own env file. */
-async function setup(o: { world?: World; bodies?: Array<Record<string, any>>; envText?: string; pair?: boolean } = {}): Promise<Ctx> {
+async function setup(
+  o: { world?: World; bodies?: Array<Record<string, any>>; envText?: string; pair?: boolean } = {},
+): Promise<Ctx> {
   const world = o.world ?? standardWorld()
   const bodies = o.bodies ?? standardClerk()
   await seedWorld(pair.d1, world)
-  await track(pair.d1, MIGRATIONS.map((m) => m.name))
-  await track(pair.control, CONTROL_MIGRATIONS.map((m) => m.name))
+  await track(
+    pair.d1,
+    MIGRATIONS.map((m) => m.name),
+  )
+  await track(
+    pair.control,
+    CONTROL_MIGRATIONS.map((m) => m.name),
+  )
   if (o.pair !== false) await writeControlMarker(openControlDb(pair.control), ORG_ID)
   const snapshot = await readSnapshot(pair.d1, await clerkRowsOf(bodies))
   const plan = planOf(snapshot)
@@ -190,7 +203,12 @@ async function runApply(c: Ctx, o: RunOpts = {}) {
     everything: () => [...out, ...err, ...cmds.flatMap((x) => [x.cmd.command, ...x.cmd.args])].join('\n'),
   }
 }
-const faultCrm = (match: RegExp, act: () => Promise<void> = async () => { throw new Error('D1 unavailable') }) => {
+const faultCrm = (
+  match: RegExp,
+  act: () => Promise<void> = async () => {
+    throw new Error('D1 unavailable')
+  },
+) => {
   const f: { fault?: ReturnType<typeof faultD1> } = {}
   return { f, wrap: (d1: D1Like) => (f.fault = faultD1(d1, { match, act })).d1 }
 }
@@ -198,8 +216,14 @@ const faultCrm = (match: RegExp, act: () => Promise<void> = async () => { throw 
 // ---- group 1: refused before any write, exit 1 ([[OPS393]] P2, P3) ----
 
 describe('apply refuses before any write', () => {
-  const cases: Array<[string, (c: Ctx) => Promise<RunOpts | undefined | void> | RunOpts | undefined | void, RegExp, { unpaired?: boolean }?]> = [
-    ['the env block still has clerk (the provider switch is not committed)', () => ({ cfg: config({ AUTH_PROVIDER: 'clerk' }) }), /provider switch is not committed/],
+  const cases: Array<
+    [string, (c: Ctx) => Promise<RunOpts | undefined> | RunOpts | undefined, RegExp, { unpaired?: boolean }?]
+  > = [
+    [
+      'the env block still has clerk (the provider switch is not committed)',
+      () => ({ cfg: config({ AUTH_PROVIDER: 'clerk' }) }),
+      /provider switch is not committed/,
+    ],
     [
       'the env block says better-auth but is not a Better Auth config (no PUBLIC_BASE_URL)',
       () => ({ cfg: config({ AUTH_PROVIDER: 'better-auth' }) }),
@@ -215,11 +239,19 @@ describe('apply refuses before any write', () => {
     [
       'the control database has a pending migration',
       async () => {
-        await pair.control.prepare('delete from d1_migrations where name = ?').bind(CONTROL_MIGRATIONS.at(-1)!.name).run()
+        await pair.control
+          .prepare('delete from d1_migrations where name = ?')
+          .bind(CONTROL_MIGRATIONS.at(-1)!.name)
+          .run()
       },
       /control database has pending migrations.*db:migrate:remote/,
     ],
-    ['the control database is not paired with the CRM organisation', () => undefined, /not paired with this CRM's organisation.*setup:remote/, { unpaired: true }],
+    [
+      'the control database is not paired with the CRM organisation',
+      () => undefined,
+      /not paired with this CRM's organisation.*setup:remote/,
+      { unpaired: true },
+    ],
     [
       'the instance file holds an AUTH_SECRET the Worker would refuse',
       (c) => void writeFileSync(c.envFile, `${ENV_TEXT}AUTH_SECRET=short\n`),
@@ -368,7 +400,8 @@ describe('every stopping point exits 2 and a re-run ends applied', () => {
       expect(first.code).toBe(2)
       expect(first.marks.filter((m) => m.kind === 'deploy')).toHaveLength(s.deploysBefore)
       const driftedUser = s.title.includes('drifts')
-      if (driftedUser) await pair.d1.prepare('update users set auth_subject = ? where id = ?').bind('user_scrubbeda', U(1)).run()
+      if (driftedUser)
+        await pair.d1.prepare('update users set auth_subject = ? where id = ?').bind('user_scrubbeda', U(1)).run()
       const second = await runApply(c)
       expect(second.code).toBe(0)
       expect(await authUsers()).toHaveLength(4)
@@ -425,9 +458,13 @@ describe('exit codes', () => {
   it("the control read-back refusal that follows this run's own control inserts is 1, names the address, and leaves the CRM untouched", async () => {
     const c = await setup()
     // an address the plan is about to insert is held by another id (a row of an earlier plan): the other rows go in first, then the read-back refuses
-    const held = c.plan.snapshot.users.find((u) => u.id === c.plan.people.find((p) => p.action === 'migrate')!.user_id)!.email
+    const held = c.plan.snapshot.users.find(
+      (u) => u.id === c.plan.people.find((p) => p.action === 'migrate')!.user_id,
+    )!.email
     await pair.control
-      .prepare("insert into auth_users (id, name, email, email_verified, created_at, updated_at) values ('0190aaaa-ffff-7000-8000-000000000001', 'old', ?, 0, '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')")
+      .prepare(
+        "insert into auth_users (id, name, email, email_verified, created_at, updated_at) values ('0190aaaa-ffff-7000-8000-000000000001', 'old', ?, 0, '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')",
+      )
       .bind(held)
       .run()
     const before = await crmDump()
@@ -442,9 +479,9 @@ describe('exit codes', () => {
 
   it("ApplyRefusal's docstring says what holds: the CRM is untouched, inert auth_users rows may exist", () => {
     const src = readFileSync(new URL('./auth-migrate/apply.ts', import.meta.url), 'utf8')
-    const doc = /\/\*\*([^]*?)\*\/\s*export class ApplyRefusal/.exec(src)?.[1] ?? ''
+    const doc = /\/\*\*([\s\S]*?)\*\/\s*export class ApplyRefusal/.exec(src)?.[1] ?? ''
     expect(doc).toMatch(/CRM is untouched/)
-    expect(doc).toMatch(/inert/)
+    expect(doc).toMatch(/inert/i)
     expect(doc).not.toMatch(/nothing was written by this run/)
   })
 })

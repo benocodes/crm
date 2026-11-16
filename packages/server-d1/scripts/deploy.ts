@@ -30,7 +30,7 @@ export interface DeployDeps {
   log(line: string): void
 }
 
-const realDeps: DeployDeps = {
+export const realDeployDeps: DeployDeps = {
   git,
   loadEnv: (envName) => loadRemoteEnv(envName),
   readConfig: (envName) => unstable_readConfig({ config: CONFIG_PATH, env: envName }) as unknown as ConfigLike,
@@ -66,7 +66,7 @@ export function runDeploy(argv: string[], procEnv: NodeJS.ProcessEnv, deps: Depl
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   try {
-    process.exitCode = runDeploy(process.argv.slice(2), process.env, realDeps)
+    process.exitCode = runDeploy(process.argv.slice(2), process.env, realDeployDeps)
   } catch (err) {
     if (!(err instanceof RemoteRefusal)) throw err
     console.error(`deploy: ${err.message}`)
