@@ -22,7 +22,7 @@ export default {
       (path === '/auth' || path.startsWith('/auth/'))
     ) {
       // The same parse the Worker uses, so the mint handler trusts exactly the origins the real composition does ([[UI255]] D3); a Google client when the test binds one.
-      const parsed = parseBuiltInAuthConfig({ ...env } as Record<string, string | undefined>)
+      const parsed = parseBuiltInAuthConfig({ ...env } as unknown as Record<string, string | undefined>)
       handler ??= createAuthHandler(
         env.CONTROL_DB as never,
         {

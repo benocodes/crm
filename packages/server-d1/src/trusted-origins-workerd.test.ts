@@ -96,7 +96,7 @@ describe('group 3: credentialed CORS on /auth (D7, P1)', () => {
   })
 
   it('an unlisted origin and no Origin get no CORS header, as today', async () => {
-    for (const headers of [{ origin: 'https://evil.example' }, {}]) {
+    for (const headers of [{ origin: 'https://evil.example' }, {}] as Record<string, string>[]) {
       const res = await real(w, '/auth/get-session', { headers })
       expect(res.headers.get('access-control-allow-origin')).toBeNull()
       expect(res.headers.get('access-control-allow-credentials')).toBeNull()
