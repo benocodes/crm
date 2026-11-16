@@ -59,11 +59,11 @@ describe('no session', () => {
 
 describe('signed in: the code form', () => {
   it('shows "Signed in as <email>" and the code input prefilled from ?user_code= as XXXX-XXXX', async () => {
-    history.replaceState(null, '', '/device?user_code=abcdefgh')
+    history.replaceState(null, '', '/device?user_code=abcdefg')
     fakeFetch(happyRoutes())
     render(<DevicePage />)
     expect(await screen.findByText('Signed in as ann@x.test')).toBeTruthy()
-    expect((screen.getByLabelText(MESSAGES.deviceCodeLabel) as HTMLInputElement).value).toBe('ABCD-EFGH')
+    expect((screen.getByLabelText(MESSAGES.deviceCodeLabel) as HTMLInputElement).value).toBe('ABCD-EFG')
   })
 
   it('without ?user_code= the input is empty', async () => {
@@ -364,7 +364,7 @@ describe('where the page does not claim by itself', () => {
     const f = fakeFetch(happyRoutes())
     render(<DevicePage />)
     const user = userEvent.setup()
-    expect((await screen.findByLabelText(MESSAGES.deviceCodeLabel) as HTMLInputElement).value).toBe('ABCD')
+    expect(((await screen.findByLabelText(MESSAGES.deviceCodeLabel)) as HTMLInputElement).value).toBe('ABCD')
     await user.type(screen.getByLabelText(MESSAGES.deviceCodeLabel), 'efgh')
     await user.click(screen.getByRole('button', { name: /check code/i }))
     expect(await screen.findByRole('button', { name: /approve/i })).toBeTruthy()

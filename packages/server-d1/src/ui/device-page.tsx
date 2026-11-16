@@ -10,6 +10,7 @@ import {
   type ApiFailure,
   type SessionUser,
 } from './auth-api.js'
+import { isCompleteDeviceCode } from './device-code.js'
 import { MESSAGES, genericFailure } from './messages.js'
 import { goTo, type PageProps } from './page.js'
 import { scopeItems } from './scope-text.js'
@@ -34,7 +35,7 @@ interface Review {
 type Outcome = 'approved' | 'denied' | undefined
 
 /**
- * [[UI247]] D3. No session goes to sign-in and back; a session shows the code form (prefilled from `?user_code=`), the claim (`GET /auth/device`), the review (app, code, warning, scopes) and
+ * [[UI247]] D3, [[UI381]] D9. No session goes to sign-in and back; a session shows the code form (prefilled from `?user_code=`), the claim (`GET /auth/device`), the review (app, code, warning, scopes) and
  * Approve / Deny. The page never decides anything: Better Auth does, and every answer is one of this page's own messages.
  */
 export function DevicePage({ navigate = goTo }: PageProps) {
@@ -63,6 +64,9 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
   const [error, setError] = useState<string | undefined>(undefined)
   const [busy, setBusy] = useState<'claim' | 'approve' | 'deny' | 'out' | undefined>(undefined)
   const alertRef = useRef<HTMLDivElement>(null)
+  // D9: a complete code in the link is claimed once on load; a ref (not the code state) keeps it to once per load, and a failure is never retried.
+  const autoClaimed = useRef(false)
+  const [autoClaiming, setAutoClaiming] = useState(() => isCompleteDeviceCode(code))
 
   const fail = (message: string) => {
     setError(message)
@@ -103,6 +107,12 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
     return undefined
   }
 
+  useEffect(() => {
+    if (autoClaimed.current || !isCompleteDeviceCode(code)) return
+    autoClaimed.current = true
+    void claim().finally(() => setAutoClaiming(false))
+  }, [])
+
   const decide = async (accept: boolean) => {
     setError(undefined)
     setBusy(accept ? 'approve' : 'deny')
@@ -141,6 +151,13 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
       </Button>
     </div>
   )
+
+  if (autoClaiming)
+    return (
+      <Card title="Sign in from your terminal">
+        <p role="status">{MESSAGES.deviceChecking}</p>
+      </Card>
+    )
 
   if (review) {
     return (

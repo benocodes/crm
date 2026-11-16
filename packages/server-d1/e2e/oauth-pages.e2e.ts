@@ -9,6 +9,7 @@ import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { SCOPE_DESCRIPTIONS } from '@vibase/api/scope-descriptions'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 
@@ -44,6 +45,26 @@ const axeAndShot = async (name: string, scheme: 'light' | 'dark') => {
     results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
     `axe ${name} ${scheme}`,
   ).toEqual([])
+}
+/** [[UI381]] D10: at 1280x720 and 390x844 the decision button is inside the viewport with the page unscrolled; when the list overflows its region, the region scrolls on its own. */
+const foldCheck = async (button: string, expectScroll = false) => {
+  for (const size of [
+    { width: 1280, height: 720 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(size)
+    await page.evaluate(() => window.scrollTo(0, 0))
+    const box = await page.getByRole('button', { name: button, exact: true }).boundingBox()
+    expect(box, `${button} at ${size.width}x${size.height}`).not.toBeNull()
+    expect(box!.y + box!.height, `${button} inside the fold at ${size.width}x${size.height}`).toBeLessThanOrEqual(
+      size.height,
+    )
+    const region = page.getByRole('region', { name: 'Requested permissions' })
+    await expect(region).toHaveAttribute('tabindex', '0')
+    if (expectScroll)
+      expect(await region.evaluate((el) => el.scrollHeight > el.clientHeight), 'the scope region scrolls').toBe(true)
+  }
+  await page.setViewportSize({ width: 1280, height: 720 })
 }
 const axeBoth = async (name: string) => {
   await axeAndShot(name, 'light')
@@ -117,13 +138,12 @@ test('1. device: the printed URL leads through sign-in to the code, the review a
   await page.waitForURL(/\/sign-in\?return_to=/)
   await signInHere()
   await page.waitForURL(/\/device\?user_code=/)
-  const input = page.getByLabel('Code from your terminal')
-  await expect(input).toHaveValue(`${code.slice(0, 4)}-${code.slice(4)}`)
-  await axeBoth('device-code')
-  await page.getByRole('button', { name: 'Check code' }).click()
+  // [[UI381]] D9: the link is claimed on load; the review is there with no Check click
   await expect(page.getByText('Vibase CLI')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Check code' })).toHaveCount(0)
   await expect(page.getByText(`${code.slice(0, 4)}-${code.slice(4)}`)).toBeVisible()
   await expect(page.getByText('Approve only if you started this sign-in yourself')).toBeVisible()
+  await foldCheck('Approve')
   await axeBoth('device-review')
   await page.getByRole('button', { name: 'Approve' }).click()
   await expect(page.getByText('You can return to your terminal')).toBeVisible()
@@ -155,14 +175,27 @@ test('1. device: the printed URL leads through sign-in to the code, the review a
 test('2. device: Deny ends the CLI with its denial message', async () => {
   const login = await startLogin()
   await visit(login.url)
-  // the session of step 1 is still live: straight to the code form
-  await expect(page.getByLabel('Code from your terminal')).toBeVisible()
-  await page.getByRole('button', { name: 'Check code' }).click()
+  // the session of step 1 is still live: the link opens straight on the review
+  await expect(page.getByText('Vibase CLI')).toBeVisible()
   await page.getByRole('button', { name: 'Deny' }).click()
   await expect(page.getByText(/Denied/).first()).toBeVisible()
   const result = await login.done
   expect(result.code).not.toBe(0)
   expect(result.stderr.toLowerCase()).toMatch(/denied/)
+})
+
+test('2b. device: a typed code still goes through Check code (the code form keeps its axe pass)', async () => {
+  const login = await startLogin()
+  const code = new URL(login.url).searchParams.get('user_code')!
+  await visit(`${BASE}/device`)
+  await expect(page.getByLabel('Code from your terminal')).toBeVisible()
+  await axeBoth('device-code')
+  await page.getByLabel('Code from your terminal').fill(code)
+  await page.getByRole('button', { name: 'Check code' }).click()
+  await expect(page.getByText('Vibase CLI')).toBeVisible()
+  await page.getByRole('button', { name: 'Deny' }).click()
+  await expect(page.getByText(/Denied/).first()).toBeVisible()
+  await login.done
 })
 
 const pkce = () => {
@@ -184,8 +217,8 @@ async function register(name: string): Promise<string> {
   expect(res.status(), await res.text()).toBe(201)
   return ((await res.json()) as { client_id: string }).client_id
 }
-const authorizeUrl = (clientId: string, challenge: string, state: string) =>
-  `${BASE}/auth/oauth2/authorize?${new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: CALLBACK, scope: 'openid contacts:read', state, code_challenge: challenge, code_challenge_method: 'S256', resource: `${BASE}/mcp` })}`
+const authorizeUrl = (clientId: string, challenge: string, state: string, scope = 'openid contacts:read') =>
+  `${BASE}/auth/oauth2/authorize?${new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: CALLBACK, scope, state, code_challenge: challenge, code_challenge_method: 'S256', resource: `${BASE}/mcp` })}`
 
 /** Catches the browser's redirect to the loopback callback (nothing listens there) and returns its URL. */
 async function callbackOf(action: () => Promise<void>): Promise<URL> {
@@ -214,6 +247,7 @@ test('3. MCP-style client: sign-in resumes the flow, /consent shows the app, All
     await expect(page.getByText('This name is chosen by the app and not verified by Vibase')).toBeVisible()
     await expect(page.getByText('After you allow, you go back to 127.0.0.1:33999')).toBeVisible()
     await expect(page.getByText('contacts:read')).toBeVisible()
+    await foldCheck('Allow')
     await axeBoth('consent')
     await page.getByRole('button', { name: 'Allow' }).click()
   })
@@ -238,6 +272,29 @@ test('3. MCP-style client: sign-in resumes the flow, /consent shows the app, All
     data: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
   })
   expect(mcp.status(), await mcp.text()).toBe(200)
+})
+
+test('3b. /consent with a long scope set: Allow stays in the fold and the scope region scrolls', async () => {
+  const scopes = ['openid', ...Object.keys(SCOPE_DESCRIPTIONS).slice(0, 14)].join(' ')
+  const res = await page.request.post('/auth/oauth2/register', {
+    headers: { origin: BASE },
+    data: {
+      client_name: 'E2E Long Scopes',
+      token_endpoint_auth_method: 'none',
+      grant_types: ['authorization_code'],
+      response_types: ['code'],
+      redirect_uris: [CALLBACK],
+      scope: scopes,
+    },
+  })
+  expect(res.status(), await res.text()).toBe(201)
+  const id = ((await res.json()) as { client_id: string }).client_id
+  const { challenge } = pkce()
+  await visit(authorizeUrl(id, challenge, 'state-long', scopes))
+  await page.waitForURL(/\/consent\?/)
+  await expect(page.getByText('E2E Long Scopes')).toBeVisible()
+  await foldCheck('Allow', true)
+  await axeBoth('consent-long')
 })
 
 test('4. MCP-style client: Deny reaches the callback with error=access_denied', async () => {
