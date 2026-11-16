@@ -73,7 +73,7 @@ describe('the webhooks guide states what the code defines', () => {
     const ops = createVibaseRegistry().operations()
     const audit = ops.find((o) => o.name === 'audit.list')
     expect(audit, 'audit.list is registered').toBeDefined()
-    expect(audit!.scope).toEqual({ resource: 'audit', action: 'read' })
+    expect('scope' in audit! ? audit.scope : undefined).toEqual({ resource: 'audit', action: 'read' })
     expect(guide).toContain('`audit.list`')
     expect(guide).toContain('`audit:read`')
     expect(guide).toMatch(/audit log/i)
