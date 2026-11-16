@@ -490,6 +490,8 @@ export function composeD1Worker(
         defaultScopes: defaultGrantScopes(discovery.declaredScopes),
       },
       {
+        // OPS252: the request that builds the provider stays alive until its initialisation settles (see `keepAlive`).
+        ...(deps.waitUntil ? { keepAlive: deps.waitUntil } : {}),
         // [[CORE304]] D4: with email on, a reset requested over HTTP is built into the reset message and SCHEDULED (never awaited: the answer's timing must not reveal whether the address has an account). A failure is
         // logged by event name and error code only (P2). Owner-issued links never reach here (P1).
         ...(emailFrom !== undefined && env.EMAIL

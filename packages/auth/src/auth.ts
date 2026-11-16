@@ -91,6 +91,12 @@ export interface InvitationAdmission {
 
 export interface CreateAuthOptions {
   /**
+   * Keeps the request that built this instance alive until Better Auth's own initialisation settles (the runtime's `waitUntil`). The library starts that initialisation when the
+   * instance is built, and workerd lets a promise settle only in the request that created it: a first request that ends before it settles (the metadata answer no longer waits
+   * on the database) leaves every later request awaiting a promise that never settles, which was a 500 on `/auth/oauth2/authorize` (OPS252).
+   */
+  keepAlive?: (settled: Promise<unknown>) => void
+  /**
    * TEST ONLY. Admits email sign-up with no invitation. The shipped composition never passes it: `/auth` admits an account only through `admission` ([[CORE243]] P1, [[CORE287]]).
    * Dynamic client registration is open under the policy of [[CORE283]] P6 whatever this says.
    */
@@ -625,6 +631,7 @@ function staticMetadataResponse(baseURL: string, vaultScopes: readonly string[])
 export function createAuth(db: AuthDatabaseLike, config: AuthRuntimeConfig, opts: CreateAuthOptions = {}): AuthService {
   const captures: ResetCaptures = opts.resetCaptures ?? new Map()
   const auth = betterAuth(authOptions(db, config, { ...opts, resetCaptures: captures }))
+  opts.keepAlive?.(Promise.resolve(auth.$context).catch(() => undefined))
   // RFC 8414 path insertion ([[CORE283]] D12): the library mounts its metadata under `/auth`; the standard URL for the issuer `<base>/auth` is outside the base path.
   const lanes = new Map<string, Promise<unknown>>()
   return {
@@ -666,6 +673,7 @@ export function createAuthHandler(
   opts: CreateAuthOptions = {},
 ): (req: Request) => Promise<Response> {
   const auth = betterAuth(authOptions(db, config, opts))
+  opts.keepAlive?.(Promise.resolve(auth.$context).catch(() => undefined))
   return (req) =>
     Promise.resolve(
       new URL(req.url).pathname === AUTH_SERVER_METADATA_PATH
