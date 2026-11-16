@@ -124,14 +124,26 @@ The skill tables in `AGENTS.md` ("Workflow (skills)" and "Domain skills") and `k
 must match `ls .agents/skills/`. A skill that exists but isn't listed won't get read; a listed skill that
 doesn't exist misleads.
 
-### 8. A sprint that should have been closed
+### 8. Milestones and the sprint
 
-If `knowledge/SPRINT.md` exists, every spec in its band should still have work outstanding. If **all** are
-`shipped`, nobody ran `/sprint-planning close`, so a stale planning file reads as current. Report it; don't
-delete it (closing has verification steps; see [[sprint-planning]]). The reverse also holds: a `SPRINT.md`
-whose milestone tables disagree with the specs' real `status:` is a stale checkpoint. Run
-`node scripts/decisions.mjs status` too: a `SPRINT.md` over its line budget, or a rollover that is `DUE` and
-was not run, is a finding (see [[sprint-planning]], `rollover`).
+A sprint is one milestone ([[sprint-planning]]). Check `knowledge/milestones/` and `knowledge/SPRINT.md`
+against each other and against the specs:
+
+- every ranked folder is `<seq>-<letter>-<slug>/` holding `milestone-<letter>.md` whose `id` is that letter;
+  no letter appears twice (ranked or under `done/`), and no two ranked folders share a seq;
+- at most one note has `status: active` or `paused`. `SPRINT.md` exists exactly when one does, and its header
+  names that milestone;
+- a note whose Needed rows are all ✅ but which is still `active` was never closed
+  (`/sprint-planning close`); a `done` note still in a ranked folder was never moved; a `rank: proposed` note
+  is an open question for the user;
+- a State cell that disagrees with the spec's real `status:` is a stale checkpoint;
+- a milestone referred to by its seq-prefixed folder anywhere (use `[[milestone-G]]`);
+- `SPRINT.md` repeating a milestone's table, a ranking, or holding a "Next sprint" section;
+- each ranked note's `github_milestone` exists in `gh api repos/benocodes/crm/milestones` with the title
+  `<letter>: <title>`, and the open issues its Needed table names carry it.
+
+Run `node scripts/decisions.mjs status` too: a `SPRINT.md` over its line budget, or an `OVERDUE` sprint that
+was not cut, is a finding. Report these; don't close, re-rank or cut anything here.
 
 ### 9. Board and skill drift
 

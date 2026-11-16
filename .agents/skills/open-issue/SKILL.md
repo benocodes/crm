@@ -28,6 +28,6 @@ unless the user explicitly asks. **One exception:** if you are filing the issue 
 spec yourself, add `--label self-triaged` so `triage-issues` leaves it alone and nothing drafts a
 competing spec for the same ID (see `spec-author` §1).
 
-**Milestones.** If the issue is a task that gates a milestone in `knowledge/SPRINT.md` (A or B) and the user
-says so, pass `--milestone "<title>"` (titles are in the `board` skill); otherwise leave it for
+**Milestones.** If the issue is a spec, a cycle or a user task of a milestone in `knowledge/milestones/` and
+you know which, pass `--milestone "<letter>: <title>"` (the `board` skill lists them); otherwise leave it for
 `triage-issues`, which owns the decision.

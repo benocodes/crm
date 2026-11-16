@@ -17,12 +17,22 @@ Status   PVTSSF_lAHOBiXMOs4BnhC1zhmFSuI   Backlog=f75ad846 Ready=61e4505c "In pr
 Priority PVTSSF_lAHOBiXMOs4BnhC1zhmFS5g   P0=79628723 P1=0a877460 P2=da944a9c
 Size     PVTSSF_lAHOBiXMOs4BnhC1zhmFS5k   XS=6c6483d2 S=f784b110 M=7515a9f1 L=817d0097 XL=db339eb2
 Spec     PVTF_lAHOBiXMOs4BnhC1zhmFTUw     (text)
-Milestone PVTF_lAHOBiXMOs4BnhC1zhmFSuU    (built in; set it on the issue: `gh api repos/benocodes/crm/issues/<N> -X PATCH -F milestone=<n>`)
+Milestone PVTF_lAHOBiXMOs4BnhC1zhmFSuU    (built in: the issue's repo milestone, set on the issue, see below)
 ```
 
-**Milestones** are GitHub repo milestones, mirroring `knowledge/SPRINT.md`: **1 = `A: independent agents operate a shared
-CRM`**, **2 = `B: Vibase runs a real workflow`** (exact titles; use them with `--milestone`). Set one only on work that gates that milestone. The user's own tasks are the
-issues assigned to `benocodes`, so "my tasks blocking a milestone" is `assignee:benocodes milestone:"A: ..."`.
+**Milestones** are GitHub repo milestones, one per folder of `knowledge/milestones/` (`sprint-planning`,
+"GitHub milestones"). The title is `<letter>: <title>` and the number is the `github_milestone` of the
+milestone's note; this file keeps no copy of the list. Every spec issue and cycle issue of a milestone carries
+it, and so does a user task its demo needs; work no milestone needs carries none. The user's own tasks are the
+issues assigned to `benocodes`, so "my tasks blocking a milestone" is `assignee:benocodes milestone:"G: ..."`.
+
+```bash
+gh api repos/benocodes/crm/milestones --jq '.[] | "\(.number) \(.title) open=\(.open_issues)"'      # the list (add -f state=all for closed)
+scripts/gh-zooidbot api repos/benocodes/crm/milestones -f title='H: hq on built-in auth'             # create; prints its number
+scripts/gh-zooidbot api repos/benocodes/crm/issues/<N> -X PATCH -F milestone=<number>                # set on an issue
+scripts/gh-zooidbot api repos/benocodes/crm/milestones/<number> -X PATCH -f state=closed             # the demo has run
+gh issue list -R benocodes/crm --milestone "G: built-in auth" --state open                           # what is left
+```
 
 Each board item has its own id (`PVTI_…`), distinct from the issue number; that is the `--id` for edits.
 
