@@ -19,6 +19,9 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
   goal. The files carry the content, not your prompt.
 - If an agent's report is long or vague, ask it (SendMessage) for the specific fact you need; don't go
   and look yourself.
+- Never read the decisions log (`knowledge/decisions/`) whole. The planner and the coder write it; when you
+  need what was decided for an issue, `node scripts/decisions.mjs find <issue>` prints just that. A ruling
+  the user gives you is yours to record: `node scripts/decisions.mjs add --issue <n> --by user --stage ruling "<ruling>"`.
 
 ## The loop
 
@@ -30,7 +33,7 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    the Clerk dev-instance exception that PR #81 had already added. A session started before the pull keeps
    the old text; tell the user if the main session itself needs a restart.
 2. **Spec.** If the spec is a stub or `draft`: planner, mode `spec`. It drafts, decides, marks
-   `approved`, and adds one line per material decision to SPRINT.md's Ledger.
+   `approved`, and records each material decision in the decisions log itself.
 3. **Plan.** planner, mode `plan`: it runs `tdd-cycle-generator` and writes a short charter: what this
    cycle delivers versus what is deferred (opening the deferred cycles' issues), what must be tested
    before review, and the E2E decision. Check the charter's **Size** line against the budget in
@@ -42,8 +45,8 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    completion notification, and pass the totals to the retro brief (step 7).
 4. **Code.** coder, in the cycle's worktree, following `execute-cycle`: it surveys the code, proves every
    obligation with tests on the affected files, and reports when those are green. It does **not** run the
-   full gate. It commits and pushes the branch but opens no PR. Copy each line of its report's `Decisions`
-   into SPRINT.md's Ledger.
+   full gate. It commits and pushes the branch but opens no PR. It records its own decisions in the
+   decisions log (`scripts/decisions.mjs add`); you do not copy them anywhere.
 4b. **Gate.** gate-tester, in the same worktree on the pushed sha: it runs `scripts/gate.sh` (all suites,
    typecheck, build) once, writes `GATE.md` in the cycle folder and reports counts; it never edits or
    diagnoses. Nothing else runs in that worktree meanwhile. If it reports red, send its report to the coder
@@ -71,7 +74,11 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    (`gh pr checks --watch`; no checks configured is not a failure), then
    `gh pr merge --squash --delete-branch`. Remove the worktree (`git worktree remove`), drop its private
    test DB (`pnpm db:test:worktree --drop` from inside it, before removing). Pull `main`.
-9. **Checkpoint again**, commit and push SPRINT.md, then **hand off to a fresh session**: call the
+9. **Checkpoint again**, commit and push SPRINT.md and `decisions/`. Then run `node scripts/decisions.mjs status`:
+   if it says the rollover is `DUE`, the sprint is full: run `/sprint-planning rollover`, tell the user in two lines
+   which decisions file closed (it is their batch to review), and carry on; this is not a stop. Never mention the
+   rollover or how full the sprint is in a brief: the agents that record decisions must not weigh it.
+   Then **hand off to a fresh session**: call the
    `mcp__sprint-relay__next_cycle` tool (the `sprint-relay` mod, if it is loaded) with `outcome: "cycle_done"`
    and, only if the next orchestrator needs something SPRINT.md does not say, a short `handoff` (a few lines:
    open threads, a decision in flight, a trap you hit). End your turn right after the call; the mod clears

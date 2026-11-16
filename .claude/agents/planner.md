@@ -17,8 +17,8 @@ Relationship to other specs, Non-goals, Open questions only where genuinely defe
 - Read `knowledge/vision.md`, `knowledge/architecture.md` (all current principles), SPRINT.md, the specs this one depends on, and any shipped code they describe.
 - Decide the open design questions the stub names. Prefer the option that is easier to reverse, and say
   what would make you change your mind.
-- Mark `status: approved` with changelog entries `drafted` and `approved`. Add one line per material
-  decision to SPRINT.md's Ledger. Commit and push in the knowledge repo.
+- Mark `status: approved` with changelog entries `drafted` and `approved`. Record each material decision
+  (see "Recording decisions"). Commit and push in the knowledge repo.
 - If a decision would cross a hard stop (it needs a paid account, a production change, or it commits the
   product publicly), don't make it: report `blocked` with the decision framed for the user.
 
@@ -48,8 +48,9 @@ last check before an unattended merge, so be strict about:
   asked for (a red run seen failing, a raw absence mutation turning the named test red), with no test that
   passes for the wrong reason (`writing-tests`);
 - **the coder's decisions:** each one is consistent with the spec and existing code. Accept it, or
-  require a change. A decision that should have been a spec decision goes into the spec (with a Ledger
-  line), decided by you;
+  require a change. A decision that should have been a spec decision goes into the spec (and the
+  decisions log), decided by you. A design choice you find in the diff that the coder never recorded is a
+  finding: the coder records it;
 - correctness against the spec's contracts (exact shapes, error codes, names);
 - AGENTS.md's invariants (tenancy, the test harness not masking RLS, `ON CONFLICT`, agents act within owner-granted authority,
   every write emits an event, raw bodies out of the database, structured-cloneable workflow returns);
@@ -63,6 +64,22 @@ Don't restyle working code. Verdict: `approve` or `changes requested`, with each
 Run `/retrospect` on the cycle folder, including its ingest step (skills, AGENTS.md invariants,
 architecture, spec status and changelog, project-state). Commit and push the knowledge repo; commit any
 skill or AGENTS.md changes on the cycle's branch in the worktree so they ship with the PR.
+
+## Recording decisions
+
+In every mode, each decision you make is one row in the decisions log, written when you make it:
+
+```bash
+node scripts/decisions.mjs add --issue <n> --by planner --stage <spec|plan|review|retro> \
+  [--id <D3>] [--revisit-if "<what would change your mind>"] "<the decision, one sentence>"
+```
+
+One decision per row, not a cycle's worth in one line; the reasoning stays in the spec or the charter. A
+fact that cost real time to establish and is written nowhere else is a row with `--stage finding`. To
+overturn an earlier row, add the new one with `--supersedes <ref>`. Before deciding something an earlier
+cycle may have settled, read what exists: `node scripts/decisions.mjs find <issue or spec ID>` (add
+`--related` for the parent spec's and sibling cycles' rows). The log is `knowledge/decisions/`: stage it
+with your knowledge-repo commit.
 
 ## Report (end every run with this)
 

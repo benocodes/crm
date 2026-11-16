@@ -121,8 +121,16 @@ necessary: inject the fault, see the named test turn red on the named engine, re
 output (filtered to the failing test names and messages, saying what you filtered) in `RESULT.md`.
 
 **Decisions.** Where the spec and charter are silent on something the tests pin (an error code, a
-payload field, an ordering), decide it, prefer what existing code does, and list it in `RESULT.md` and
-your report. **A decision that adds a branch needs a test that takes each side of it**, with an
+payload field, an ordering), decide it, prefer what existing code does, and record it when you make it, not at
+the end: one row per decision in the decisions log, which the reviewer and later cycles read by issue number,
+
+```bash
+node scripts/decisions.mjs add --issue <the cycle's issue> --by coder --stage code [--id D-a] "<the decision, one sentence>"
+```
+
+then list it in `RESULT.md` (with the `ref` the command printed) and your report. The script finds the knowledge
+repo from any worktree; an earlier cycle's rows are `node scripts/decisions.mjs find <issue or spec ID>`.
+**A decision that adds a branch needs a test that takes each side of it**, with an
 absence mutation per side: a recorded but untested decision is a review round ([[CHN149]] D-b: records
 without `labelIds` fetched and judged after the fetch, untested until round 2). Where the gap changes a contract another spec relies on, or a behaviour the spec states,
 don't guess: stop and report `blocked` with the question.
@@ -207,7 +215,7 @@ baseline evidence. Keep RESULT/HANDOFF current before a planned handoff so the n
 
 `RESULT.md` in the cycle folder (write it with the Write tool, not a heredoc) holds:
 
-- **Decisions** (each worth a Ledger line in a sprint);
+- **Decisions** (each already a row in the decisions log, with its `ref`);
 - **Deviations from the charter** (scope moved in or out, an obligation proven differently);
 - **Evidence**, keyed to the charter's obligations: red runs, absence mutations (raw), the gate's counts per
   suite written out in RESULT.md itself (the retro reads the folder, not the CYCLE REPORT);
