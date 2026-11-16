@@ -49,15 +49,7 @@ export function SignInPage({ navigate = goTo }: PageProps) {
   )
 }
 
-function SignedIn({
-  user,
-  target,
-  onSignedOut,
-}: {
-  user: SessionUser
-  target: string
-  onSignedOut: () => void
-}) {
+function SignedIn({ user, target, onSignedOut }: { user: SessionUser; target: string; onSignedOut: () => void }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   const out = async () => {
@@ -174,7 +166,13 @@ function SignInForm({
         error={errors.password}
         required
       />
-      {google ? <GoogleButton callbackURL={returnTarget(location.search) ?? undefined} onError={setGoogleError} navigate={navigate} /> : null}
+      {google ? (
+        <GoogleButton
+          callbackURL={returnTarget(location.search) ?? undefined}
+          onError={setGoogleError}
+          navigate={navigate}
+        />
+      ) : null}
       {selfServiceReset ? (
         <Button variant="link" onClick={() => setResetting(true)}>
           {MESSAGES.forgotPassword}
