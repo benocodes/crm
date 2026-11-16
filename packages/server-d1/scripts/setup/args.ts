@@ -70,7 +70,11 @@ export function parseSetupFlags(argv: string[], extra: Extra): FlagValues {
 
 /** Parses and validates the flags ([[OPS65]] D6, D18, D19, D20) before anything touches a network; throws `RemoteRefusal`. */
 export function parseSetupArgs(argv: string[], record?: RecordLookup): SetupOptions {
-  return buildSetupOptions(parseSetupFlags(argv, { 'clerk-env-file': { type: 'string' } }), record)
+  // `--replace-instance` is `setup:remote`'s alone ([[OPS250]] D12, P2): `vibase-server setup` does not list it, so its parser refuses it as unknown.
+  return buildSetupOptions(
+    parseSetupFlags(argv, { 'clerk-env-file': { type: 'string' }, 'replace-instance': { type: 'string' } }),
+    record,
+  )
 }
 
 /**
@@ -117,7 +121,23 @@ export function buildSetupOptions(values: FlagValues, record?: RecordLookup): Se
     throw new RemoteRefusal(
       `--auth ${flagAuth}: expected better-auth (the default for a new instance), clerk or none (API keys only)`,
     )
-  const recorded = record?.(env) ?? null
+  // [[OPS250]] D12: `--replace-instance <env>` sets the record aside (names, provider, host), so the run is judged as a new instance's; the flag's own refusals come first.
+  const replaceValue = str('replace-instance')
+  if (replaceValue !== undefined) {
+    if (replaceValue !== env)
+      throw new RemoteRefusal(`--replace-instance ${replaceValue}: must equal --env ${env} (the instance it replaces)`)
+    let hasRecord = true
+    try {
+      hasRecord = (record?.(env) ?? null) !== null
+    } catch (err) {
+      if (!(err instanceof RemoteRefusal)) throw err // a record that setup cannot read is still a record
+    }
+    if (!hasRecord)
+      throw new RemoteRefusal(
+        `--replace-instance ${env}: env ${env} has no record in wrangler.jsonc, so there is nothing to replace (use setup without the flag)`,
+      )
+  }
+  const recorded = replaceValue !== undefined ? null : (record?.(env) ?? null)
   const auth = chooseProvider(flagAuth, recorded)
   // [[OPS308]] D12, D14, P4, P6: what the host flags may do on this instance, judged against its record before any call.
   if (workersDev && auth === 'clerk')
@@ -237,6 +257,7 @@ export function buildSetupOptions(values: FlagValues, record?: RecordLookup): Se
     clerkProduction: values['clerk-production'] === true,
     noDcr: values['no-dcr'] === true,
     rotateSecrets: values['rotate-secrets'] === true,
+    ...(replaceValue !== undefined ? { replace: { old: {} } } : {}),
   }
   checkNameLengths([opts.workerName, opts.d1Name, opts.controlD1Name, opts.r2Name])
   checkDistinctDatabases(opts.d1Name, opts.controlD1Name)

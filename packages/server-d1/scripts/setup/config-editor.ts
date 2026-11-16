@@ -29,6 +29,8 @@ export interface DesiredEnv {
   authVars?: Record<string, string | undefined>
   /** The Gmail group's public vars ([[OPS150]]); only names from the allow-list ever get here. */
   gmailVars?: Record<string, string>
+  /** [[OPS250]] D12: the block of `env.<env>` is replaced as a whole by the desired one (a replaced instance), instead of reconciled against the record. */
+  replace?: boolean
 }
 export interface ReconcileResult {
   text: string
@@ -88,6 +90,10 @@ export function reconcileEnvBlock(text: string, d: DesiredEnv): ReconcileResult 
 
   if (current === undefined) {
     edits.push({ path: ['env', d.env], value: want, label: `env.${d.env}` })
+  } else if (d.replace) {
+    // The old block is the instance being replaced: its value is swapped in place, so every other block and the top level keep their text.
+    if (JSON.stringify(current) !== JSON.stringify(want))
+      edits.push({ path: ['env', d.env], value: want, label: `env.${d.env}` })
   } else if (!isObj(current)) {
     mismatches.push(`env.${d.env}`)
   } else {

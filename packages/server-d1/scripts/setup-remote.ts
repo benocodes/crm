@@ -4,6 +4,7 @@
 //   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env <name> --auth clerk --api-host <host> --owner-email <email> [flags]  (Clerk keys from .env.<name>)
 //   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env <name> --auth none --api-host <host> [flags]            (API keys only)
 //   pnpm -C packages/server-d1 setup:remote -- --env <name> (--api-host <host> | --workers-dev) --owner-email <email> --dry-run                   (reads only)
+//   CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env <name> --replace-instance <name> (--api-host <host> | --workers-dev) --owner-email <email> [flags]   (OPS250: a fresh instance on the vb- names in place of the recorded one; nothing old is touched)
 // The steps and their guards live in scripts/setup/; this file only wires the real wrangler, git, fetch, files and D1.
 import { spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'

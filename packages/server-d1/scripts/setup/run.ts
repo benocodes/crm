@@ -1,14 +1,15 @@
 // `setup:remote` ([[OPS65]] D6): parse and guard first (no subprocess, no network), then the steps in D11 order.
 import { RemoteRefusal, requireConfirm } from '../remote.js'
 import { parse } from 'jsonc-parser'
+import { parseEnv } from 'node:util'
 import { parseSetupArgs } from './args.js'
-import { applyRecordedNames, type RecordedNames } from './names.js'
+import { applyRecordedNames, replaceNames, type RecordedNames } from './names.js'
 import { loadBetterAuth, providerFromVars } from './better-auth.js'
 import { moveLines, registerPending, resolveHost } from './host.js'
 import { loadClerkKeys } from './clerk-keys.js'
 import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, loadGmail } from './gmail.js'
 import { STEPS, type Ctx } from './steps.js'
-import { CLERK_ONLY_STEPS, STEP_NAMES, type SetupDeps, type StepResult } from './types.js'
+import { CLERK_ONLY_STEPS, STEP_NAMES, type SetupDeps, type SetupOptions, type StepResult } from './types.js'
 
 export interface SetupOutcome {
   exitCode: number
@@ -25,7 +26,19 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
     // [[OPS249]] D1: the provider the env block already records wins; a differing --auth is refused here, before any step.
     const parsed = parseSetupArgs(argv, (env) => recordedAuth(readOrEmpty(deps), env))
     // [[OPS276]]: the names the env block already records win over the derivation, before any step creates anything.
-    const named = applyRecordedNames(parsed, recordedNames(readOrEmpty(deps), parsed.env), 'wrangler.jsonc')
+    // [[OPS250]] D12: with `--replace-instance` the record is set aside and only judged (equal names are refused); the old names are kept to say what is left in place.
+    const record = recordedNames(readOrEmpty(deps), parsed.env)
+    const named = parsed.replace
+      ? replaceNames(parsed, record, 'wrangler.jsonc')
+      : applyRecordedNames(parsed, record, 'wrangler.jsonc')
+    if (named.replace && named.auth === 'better-auth') {
+      // setup never overwrites a value in the instance's own file: a stale AUTH_SECRET would be put on the new Worker, so the operator removes it first.
+      const file = deps.probeEnvFile(named.clerkEnvFile, named.env)
+      if (file.text !== undefined && parseEnv(file.text).AUTH_SECRET?.trim())
+        throw new RemoteRefusal(
+          `--replace-instance: AUTH_SECRET is already set in ${file.display}; setup never overwrites it (remove the line to replace the instance)`,
+        )
+    }
     if (!named.dryRun) requireConfirm(procEnv)
     // [[OPS308]] P1, P3: the one host of this run, resolved before any write and before anything reads the base URL (the Gmail group's default and refusal, bootstrap, verify).
     const creds = deps.loadEnv()
@@ -54,6 +67,13 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
     `setup:remote env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}${opts.workersDev ? ' (workers.dev)' : ''}${opts.dryRun ? ' (dry run: reads only)' : ''}`,
   )
   for (const n of opts.hostNotes ?? []) deps.log(n)
+  if (opts.replace) {
+    const old = replacedLines(opts)
+    deps.log(
+      `replace-instance: env ${opts.env} gets Worker ${opts.workerName}, D1 ${opts.d1Name}, control D1 ${opts.controlD1Name}, R2 ${opts.r2Name} in place of the record; the old resources are not touched`,
+    )
+    if (old.length === 0) deps.log('replace-instance: the record names no resource')
+  }
   if (opts.move)
     for (const l of moveLines(opts.move.from, opts.apiHost, ctx.betterAuth?.google !== undefined, ctx.gmail != null))
       deps.log(l)
@@ -100,6 +120,13 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
     ...results.filter((r) => r.status === 'manual').map((r) => `${r.step}: ${r.detail}`),
     ...results.flatMap((r) => r.manual ?? []),
   ]
+  if (opts.replace) {
+    const old = replacedLines(opts)
+    if (old.length > 0)
+      manual.push(
+        `replace-instance: left in place, delete them yourself when you no longer need them: ${old.join(', ')}`,
+      )
+  }
   if (manual.length > 0) {
     deps.log('manual:')
     for (const m of manual) deps.log(`  ${m}`)
@@ -115,6 +142,17 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
           : 'setup: done',
   )
   return { exitCode: failed ? 1 : 0, results, stoppedAfterConfigWrite: ctx.stop === true }
+}
+
+/** The old resources a replace leaves in place, as `Worker <name>` / `D1 <name>` / `R2 <name>`; only what the record names. */
+function replacedLines(opts: SetupOptions): string[] {
+  const o = opts.replace?.old ?? {}
+  return [
+    ...(o.workerName ? [`Worker ${o.workerName}`] : []),
+    ...(o.d1Name ? [`D1 ${o.d1Name}`] : []),
+    ...(o.controlD1Name ? [`control D1 ${o.controlD1Name}`] : []),
+    ...(o.r2Name ? [`R2 ${o.r2Name}`] : []),
+  ]
 }
 
 /** The names `env.<env>` in wrangler.jsonc records: the Worker `name`, the `DB` and `CONTROL_DB` databases and the `BODIES` bucket; absent kinds are not recorded. */

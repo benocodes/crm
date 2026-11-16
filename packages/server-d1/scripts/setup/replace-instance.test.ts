@@ -58,22 +58,50 @@ const rows = async (d1: WorkerPair['d1'], q: string) =>
 const step = (o: Awaited<ReturnType<typeof runSetup>>, name: string) => o.results.find((r) => r.step === name)!
 const said = (w: World) => w.logs.join('\n')
 const block = (text: string, env = 'smoked1') => (parse(text) as { env: Record<string, any> }).env[env]
-/** Fails a wrangler command the test names, after the fake has recorded it. */
+/** Fails a wrangler command the test names: it is recorded in argv but has no effect, and exits 1. */
 function failWhen(w: World, pred: (args: string[]) => boolean): void {
   const orig = w.deps.exec
-  w.deps.exec = async (cmd) => (pred(cmd.args) ? (await orig(cmd), { status: 1, stdout: '', stderr: 'injected' }) : orig(cmd))
+  w.deps.exec = async (cmd) =>
+    pred(cmd.args)
+      ? (w.argv.push([cmd.command, ...cmd.args]), { status: 1, stdout: '', stderr: 'injected' })
+      : orig(cmd)
 }
 
 describe('1. refusals before any call (matrix)', () => {
   const FILE_SECRET = `AUTH_SECRET=${'A'.repeat(43)}\n`
   const CASES: [string, string[], Partial<WorldOptions>, RegExp][] = [
-    ['value differs from --env', [...BASE, '--replace-instance', 'acme'], {}, /--replace-instance acme.*must equal --env smoked1/],
-    ['the env has no record', ['--env', 'acme', '--api-host', 'api.acme.vibase.ai', '--owner-email', OWNER, '--replace-instance', 'acme'], {}, /no record.*without the flag/],
-    ['Worker name equals the record', [...REPLACE, '--worker-name', OLD.worker], {}, /--worker-name vault-smoked1.*Worker/],
+    [
+      'value differs from --env',
+      [...BASE, '--replace-instance', 'acme'],
+      {},
+      /--replace-instance acme.*must equal --env smoked1/,
+    ],
+    [
+      'the env has no record',
+      ['--env', 'acme', '--api-host', 'api.acme.vibase.ai', '--owner-email', OWNER, '--replace-instance', 'acme'],
+      {},
+      /no record.*without the flag/,
+    ],
+    [
+      'Worker name equals the record',
+      [...REPLACE, '--worker-name', OLD.worker],
+      {},
+      /--worker-name vault-smoked1.*Worker/,
+    ],
     ['CRM D1 name equals the record', [...REPLACE, '--d1-name', OLD.d1], {}, /--d1-name vault-smoked1.*D1 database/],
-    ['control D1 name equals the record', [...REPLACE, '--control-d1-name', 'vault-control-smoked1'], { configText: withControl }, /--control-d1-name vault-control-smoked1.*control D1/],
+    [
+      'control D1 name equals the record',
+      [...REPLACE, '--control-d1-name', 'vault-control-smoked1'],
+      { configText: withControl },
+      /--control-d1-name vault-control-smoked1.*control D1/,
+    ],
     ['R2 name equals the record', [...REPLACE, '--r2-name', OLD.r2], {}, /--r2-name vault-smoked1-bodies.*R2 bucket/],
-    ['AUTH_SECRET already assigned in the instance file', REPLACE, { clerkEnvText: FILE_SECRET }, /AUTH_SECRET.*already set in .env.smoked1.*never overwrite/],
+    [
+      'AUTH_SECRET already assigned in the instance file',
+      REPLACE,
+      { clerkEnvText: FILE_SECRET },
+      /AUTH_SECRET.*already set in .env.smoked1.*never overwrite/,
+    ],
   ]
   it.each(CASES)('%s: exit 1, zero wrangler calls, config unchanged', async (_n, argv, opts, cause) => {
     const w = world(opts)
@@ -154,6 +182,13 @@ describe('3. nothing old is named', () => {
     expect(o.exitCode, said(w)).toBe(0)
     const calls = w.argv.map((c) => c.join(' ')).join('\n')
     for (const n of oldNames) expect(calls, n).not.toContain(n)
+    if (_n === 'run') {
+      expect(calls).toContain('d1 create vb-crm-smoked1')
+      // the follow-up plain run, which reads the new record, names no old resource either
+      await run(w, BASE)
+      const all = w.argv.map((c) => c.join(' ')).join('\n')
+      for (const n of oldNames) expect(all, n).not.toContain(n)
+    }
     const manual = manualLine(w)
     expect(manual).toContain(OLD.worker)
     expect(manual).toContain(OLD.d1)
@@ -226,7 +261,7 @@ describe('5. partial runs (P1)', () => {
     w.logs.length = 0
     const refused = await run(w, REPLACE)
     expect(refused.exitCode).toBe(1)
-    expect(said(w)).toMatch(/equals the .* the record holds/)
+    expect(said(w)).toMatch(/equals the .* wrangler.jsonc records/)
     expect(w.argv.length).toBe(callsBefore)
     const fresh = world({ configText: written, d1s: w.state.d1s, r2s: w.state.r2s })
     const done = await run(fresh, BASE)

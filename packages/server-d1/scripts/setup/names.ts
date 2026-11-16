@@ -31,7 +31,7 @@ export function applyRecordedNames(opts: SetupOptions, record: RecordedNames, wh
     const given = opts.nameFlags?.[key]
     if (given !== undefined && given !== recorded) {
       throw new RemoteRefusal(
-        `${flag} ${given}: this instance already records ${label} ${recorded} in ${where}; renaming an instance is a cutover, not a setup re-run (drop the flag)`,
+        `${flag} ${given}: this instance already records ${label} ${recorded} in ${where}; renaming an instance is a cutover, not a setup re-run (drop the flag, or build a fresh instance in its place with setup:remote --replace-instance <env>, OPS250)`,
       )
     }
     out[key] = recorded
@@ -42,4 +42,19 @@ export function applyRecordedNames(opts: SetupOptions, record: RecordedNames, wh
       `${where} records the same database id ${record.d1Id} for the CRM and the control database: the control plane is its own database`,
     )
   return out
+}
+
+/**
+ * `--replace-instance` ([[OPS250]] D12): the new names are the derivation or the flags, never the record's; a name equal to one the record holds would reuse a database,
+ * bucket or Worker that holds the old instance, so it is refused before any call. Returns the options with the record's names kept in `replace.old`.
+ */
+export function replaceNames(opts: SetupOptions, record: RecordedNames, where: string): SetupOptions {
+  for (const [key, flag, label] of KINDS) {
+    const recorded = record[key]
+    if (recorded !== undefined && opts[key] === recorded)
+      throw new RemoteRefusal(
+        `--replace-instance: ${opts.nameFlags?.[key] !== undefined ? `${flag} ` : `the derived ${label} name `}${recorded} equals the ${label} ${where} records; a replace builds new resources and touches nothing old (give ${flag} a different name)`,
+      )
+  }
+  return { ...opts, replace: { old: record } }
 }
