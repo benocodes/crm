@@ -19,7 +19,13 @@ async function askedFor(defaults: string[] | undefined, email: string): Promise<
   let n = 0
   const handler = createAuthHandler(
     w.control,
-    { secret: AUTH_SECRET, baseURL: AUTH_BASE, vaultScopes: declared, grantableScopes: grantable, defaultScopes: defaults },
+    {
+      secret: AUTH_SECRET,
+      baseURL: AUTH_BASE,
+      vaultScopes: declared,
+      grantableScopes: grantable,
+      defaultScopes: defaults,
+    },
     { unsafeOpenAdmissionForTests: true },
   )
   const call = (path: string, init: { body?: unknown; form?: boolean; cookie?: string; method?: string } = {}) =>

@@ -168,7 +168,10 @@ describe('group 2: a named scope passes through untouched', () => {
 
   it('a named scope outside the provider list is still the invalid_scope redirect', async () => {
     const id = await registerNoScope()
-    const loc = await authorizeRedirect(authorizeUrl(id, 'openid nonsense:write'), (await signUp('g2-bad@x.test')).cookie)
+    const loc = await authorizeRedirect(
+      authorizeUrl(id, 'openid nonsense:write'),
+      (await signUp('g2-bad@x.test')).cookie,
+    )
     expect(loc.origin + loc.pathname).toBe(REDIRECT)
     expect(loc.searchParams.get('error')).toBe('invalid_scope')
   })

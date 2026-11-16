@@ -1005,7 +1005,9 @@ service context enforces it, so scope checks are written once.
     `defaultGrantScopes(declared)` (`src/auth/roles.ts`, list `NOT_DEFAULT_GRANT`); `scopes_supported` and the
     registration allowed list stay on `grantableScopes`, so the scope can still be named. A new such scope is one list
     entry; grep `grantableScopes(` for any new default-picking site. Better Auth 1.7.22 stores a registered client's
-    scopes as default ∪ allowed, so a scope-less authorize still asks for the full ceiling; consent is the gate (#330).
+    scopes as default ∪ allowed and, given no scope, authorizes the whole ceiling; so `endpointGate` (`packages/auth/src/auth.ts`)
+    fills an `/oauth2/authorize` scope that is absent or blank with the registration default list (`registrationScopes(...).defaults`,
+    one source) before the library reads it, for every client and both session states; a named scope is never touched (#330).
 - **Owner-granted resource authority** ([[AGT8]] D1, D30, D31; shipped in cycle 1): three actions,
   `<resource>:read`, `<resource>:request_approval`, `<resource>:write`. Write includes request_approval; read
   stays independent. A user or agent with target write authority can approve. Do not reintroduce a
