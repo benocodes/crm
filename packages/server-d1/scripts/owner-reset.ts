@@ -7,23 +7,11 @@
 //  - The reset link is Better Auth's own, issued in this process against the remote control database (D10): `issueResetToken`, then the `user.reset_link_issued` audit row, and only then is the link returned.
 //    If the audit write fails nothing is returned and the unused verification row expires (P3 a). It never writes the CRM database.
 // Nothing here prints: it returns the outcome; `AUTH_SECRET` is only ever handed to `createAuth`, and no error message holds a token or a URL.
-import {
-  INVITATION_TTL_MS,
-  invitationUrl,
-  newInvitationToken,
-  normaliseInvitationEmail,
-  passwordResetUrl,
-} from '@vibase/api'
-import { createAuth } from '@vibase/auth'
+import { INVITATION_TTL_MS, invitationUrl, newInvitationToken, normaliseInvitationEmail } from '@vibase/api'
 import { uuidv7 } from '@vibase/storage'
-import {
-  controlAuthDatabase,
-  openControlDb,
-  recordResetLinkIssued,
-  reissueOwnerInvitation,
-  type D1Like,
-} from '@vibase/storage-d1'
+import { openControlDb, reissueOwnerInvitation, type D1Like } from '@vibase/storage-d1'
 import { AUTH_SECRET_MIN_LENGTH } from '../src/auth-config.js'
+import { ResetAuditError, issueResetLink } from './reset-link.js'
 
 /** Refused before any write: nothing was changed. */
 export class OwnerResetRefusal extends Error {}
@@ -183,37 +171,34 @@ export async function ownerReset(p: OwnerResetParams): Promise<OwnerResetResult>
       const subject = target.auth_subject as string
       if (p.dryRun) return { kind: 'dry-run', action: 'reset', email: target.email }
 
-      const auth = createAuth(controlAuthDatabase(openControlDb(control)), { secret: p.authSecret, baseURL: baseUrl })
       wrote = true
-      let issued: { token: string; expiresAt: Date } | null
+      let link: Awaited<ReturnType<typeof issueResetLink>>
       try {
-        issued = await auth.issueResetToken(target.email)
+        link = await issueResetLink({
+          control,
+          baseUrl,
+          authSecret: p.authSecret,
+          email: target.email,
+          subject,
+          actorId: system,
+          via: 'owner-reset',
+          now,
+          newAuditId: newId,
+        })
       } catch (e) {
+        if (e instanceof ResetAuditError)
+          throw new OwnerResetFailure(
+            `the reset link was not recorded in the audit log (${e.message}): nothing was printed; the unused link expires, run again`,
+          )
         throw new OwnerResetFailure(
           `the reset link could not be issued (${message(e)}): nothing was printed; run again`,
         )
       }
-      if (!issued) {
+      if (!link) {
         wrote = false
         throw new OwnerResetRefusal(`no Better Auth account exists for ${target.email}: nothing was written`)
       }
-      const expiresAt = issued.expiresAt.toISOString()
-      // The audit row comes before the answer: a link nobody can account for is never returned. A failure leaves an unreturned verification row, inert until it expires.
-      try {
-        await recordResetLinkIssued(openControlDb(control), {
-          auditId: newId(),
-          actorId: system,
-          subject,
-          expiresAt,
-          now: now.toISOString(),
-          via: 'owner-reset',
-        })
-      } catch (e) {
-        throw new OwnerResetFailure(
-          `the reset link was not recorded in the audit log (${message(e)}): nothing was printed; the unused link expires, run again`,
-        )
-      }
-      return { kind: 'reset', email: target.email, url: passwordResetUrl(baseUrl, issued.token), expiresAt }
+      return { kind: 'reset', email: target.email, url: link.url, expiresAt: link.expiresAt }
     })
   } catch (e) {
     if (e instanceof OwnerResetRefusal || e instanceof OwnerResetFailure) throw e
