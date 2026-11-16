@@ -146,6 +146,8 @@
         "AUTH_CLI_CLIENT_ID": "Q5yzkwhHy7dhaYbt",
         // The approvals app (packages/approvals-app) calls this API from the browser; it takes effect when the user next deploys `hq`.
         "CORS_ALLOWED_ORIGINS": "https://app.hq.vibase.ai",
+        // [[UI255]] D9: the approvals app is a first-party app of the Better Auth session. Inert while hq runs Clerk (read only for better-auth); it takes effect when the user deploys the cutover ([[OPS252]]).
+        "AUTH_TRUSTED_ORIGINS": "https://app.hq.vibase.ai",
         "CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsuaHEudmliYXNlLmFpJA",
         "GOOGLE_CLIENT_ID": "525762252590-76slg8klsir57t6g22fgt06fpm9iot6l.apps.googleusercontent.com",
         "GMAIL_TOPIC_NAME": "projects/vibase-hq/topics/gmail.watch",

@@ -108,7 +108,7 @@ describe('group 3: credentialed CORS on /auth (D7, P1)', () => {
     expect(pre.headers.get('access-control-allow-origin')).toBeNull()
   })
 
-  it('/api: a configured origin outside CORS_ALLOWED_ORIGINS gets nothing; one inside it gets today\'s uncredentialed answer', async () => {
+  it("/api: a configured origin outside CORS_ALLOWED_ORIGINS gets nothing; one inside it gets today's uncredentialed answer", async () => {
     const pre = (origin: string) =>
       real(w, '/api/v1/contacts', {
         method: 'OPTIONS',
@@ -126,7 +126,9 @@ describe('group 3: credentialed CORS on /auth (D7, P1)', () => {
 describe('group 4 (server): sign-in returns a callbackURL only on a trusted origin (D8)', () => {
   it('email sign-in with a callbackURL on a configured origin returns it as url and sets the session cookie', async () => {
     const { email } = await account()
-    const res = await w.call('/auth/sign-in/email', { body: { email, password: 'a long enough password', callbackURL: `${APP}/` } })
+    const res = await w.call('/auth/sign-in/email', {
+      body: { email, password: 'a long enough password 123', callbackURL: `${APP}/` },
+    })
     expect(res.status, await res.clone().text()).toBe(200)
     const body = (await res.json()) as { redirect?: boolean; url?: string }
     expect(body).toMatchObject({ redirect: true, url: `${APP}/` })
@@ -136,7 +138,7 @@ describe('group 4 (server): sign-in returns a callbackURL only on a trusted orig
   it('email sign-in with a callbackURL on an unlisted origin is 403 and sets no cookie', async () => {
     const { email } = await account()
     const res = await w.call('/auth/sign-in/email', {
-      body: { email, password: 'a long enough password', callbackURL: 'https://evil.example/' },
+      body: { email, password: 'a long enough password 123', callbackURL: 'https://evil.example/' },
     })
     expect(res.status).toBe(403)
     expect(res.headers.get('set-cookie')).toBeNull()
@@ -146,7 +148,9 @@ describe('group 4 (server): sign-in returns a callbackURL only on a trusted orig
     const ok = await w.call('/auth/sign-in/social', { body: { provider: 'google', callbackURL: `${APP}/` } })
     expect(ok.status, await ok.clone().text()).toBe(200)
     expect(((await ok.json()) as { url?: string }).url).toMatch(/^https:\/\/accounts\.google\.com\//)
-    const bad = await w.call('/auth/sign-in/social', { body: { provider: 'google', callbackURL: 'https://evil.example/' } })
+    const bad = await w.call('/auth/sign-in/social', {
+      body: { provider: 'google', callbackURL: 'https://evil.example/' },
+    })
     expect(bad.status).toBe(403)
   })
 })

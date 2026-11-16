@@ -98,12 +98,19 @@ export const signIn = async (b: {
   password: string
   oauthQuery?: string
   invitationToken?: string
+  /** [[UI255]] D8: a cross-origin return target; Better Auth refuses it (403) unless its origin is trusted, and answers it as `url` when it is. */
+  callbackURL?: string
 }): Promise<ApiResult<{ user?: SessionUser; redirect?: string }>> => {
   // [[CORE302]] P1: the invitation token of a re-admission rides a header (Better Auth's sign-in body schema strips unknown fields).
   const raw = await call(
     'POST',
     '/auth/sign-in/email',
-    { email: b.email, password: b.password, ...(b.oauthQuery === undefined ? {} : { oauth_query: b.oauthQuery }) },
+    {
+      email: b.email,
+      password: b.password,
+      ...(b.oauthQuery === undefined ? {} : { oauth_query: b.oauthQuery }),
+      ...(b.callbackURL === undefined ? {} : { callbackURL: b.callbackURL }),
+    },
     b.invitationToken === undefined ? {} : { 'vibase-invitation': b.invitationToken },
   )
   const r = withUser(raw)

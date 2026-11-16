@@ -225,6 +225,7 @@ const STRING_VARS = [
   'CLERK_PUBLISHABLE_KEY',
   'CLERK_API_URL',
   'CORS_ALLOWED_ORIGINS',
+  'AUTH_TRUSTED_ORIGINS',
   'VERSION',
   'COMMIT',
   'GOOGLE_CLIENT_ID',
@@ -241,6 +242,22 @@ const STRING_VARS = [
   'WEBHOOK_ALLOW_INSECURE_URLS',
   'CRON_TICK_BUDGET',
 ] as const
+
+/**
+ * [[UI255]] D7: the request headers a credentialed preflight on `/auth/*` allows. Pinned by a test from what a real `better-auth/client` sends (get-session, sign-in, sign-out, token): only the JSON content type
+ * is not CORS-safelisted.
+ */
+export const AUTH_CORS_ALLOW_HEADERS = 'Content-Type'
+const AUTH_CORS_METHODS = 'GET, POST'
+
+/** [[UI255]] D7: a copy of `res` with the credentialed CORS headers for one trusted app origin (`Vary: Origin` added to any existing `Vary`). */
+function withAuthCors(res: Response, origin: string): Response {
+  const headers = new Headers(res.headers)
+  headers.set('access-control-allow-origin', origin)
+  headers.set('access-control-allow-credentials', 'true')
+  headers.append('vary', 'Origin')
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers })
+}
 
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
@@ -917,11 +934,35 @@ export function composeD1Worker(
         ) {
           if (!builtIn) return json(NO_SUCH_ROUTE, 404)
           if (configError || !builtInConfig) return json(INTERNAL, 500)
-          if ((await migrations()).status === 'behind') return json(MIGRATIONS_PENDING, 503)
-          const refused = await controlGate()
-          if (refused) return refused
-          // [[CORE259]] D3: Better Auth is composed on the control-plane database, never on `DB`.
-          return await builtInAuth().handler(req)
+          // [[UI255]] D7: a trusted app origin (AUTH_TRUSTED_ORIGINS) gets credentialed CORS on `/auth` only. The preflight is answered here, before the gates (P1: only the preflight short-circuits them);
+          // every other answer on this branch, the gates' own refusals included, carries the headers so the app can read why it failed. Any other origin, or none: no CORS header.
+          const origin = req.headers.get('origin')
+          const trusted =
+            origin !== null &&
+            (url.pathname === '/auth' || url.pathname.startsWith('/auth/')) &&
+            builtInConfig.trustedOrigins?.includes(origin)
+              ? origin
+              : null
+          if (trusted !== null && req.method === 'OPTIONS')
+            return new Response(null, {
+              status: 204,
+              headers: {
+                'access-control-allow-origin': trusted,
+                'access-control-allow-credentials': 'true',
+                'access-control-allow-methods': AUTH_CORS_METHODS,
+                'access-control-allow-headers': AUTH_CORS_ALLOW_HEADERS,
+                vary: 'Origin',
+              },
+            })
+          const answer = async (): Promise<Response> => {
+            if ((await migrations()).status === 'behind') return json(MIGRATIONS_PENDING, 503)
+            const refused = await controlGate()
+            if (refused) return refused
+            // [[CORE259]] D3: Better Auth is composed on the control-plane database, never on `DB`.
+            return await builtInAuth().handler(req)
+          }
+          const res = await answer()
+          return trusted === null ? res : withAuthCors(res, trusted)
         }
         // [[UI30]] D1: the connect page is static: it answers before the migration, marker and configuration gates (its own API calls meet them).
         const page = await serveConnect(req, {
@@ -964,6 +1005,3 @@ export function composeD1Worker(
     },
   }
 }
-
-/** [[UI255]] D7: the request headers a credentialed preflight on `/auth/*` allows (STUB, filled with the implementation). */
-export const AUTH_CORS_ALLOW_HEADERS = ''

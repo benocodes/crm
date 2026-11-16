@@ -23,16 +23,20 @@ const signInWith = async () => {
   await user.type(screen.getByLabelText('Password'), 'a long enough password')
   await user.click(screen.getByRole('button', { name: /sign in/i }))
 }
-const post = (f: ReturnType<typeof fakeFetch>, path: string) => f.calls.filter((c) => c.method === 'POST' && c.path === path)
+const post = (f: ReturnType<typeof fakeFetch>, path: string) =>
+  f.calls.filter((c) => c.method === 'POST' && c.path === path)
 
-describe('a cross-origin return_to is a callbackURL, never a navigation of the page\'s own', () => {
+describe("a cross-origin return_to is a callbackURL, never a navigation of the page's own", () => {
   it.each([[APP], ['http://localhost:8788/'], ['http://localhost/x']])(
     'password sign-in with return_to=%s sends it as callbackURL and navigates to the url the answer returns',
     async (target) => {
       at(target)
       const f = fakeFetch({
         'GET /auth/get-session': NO_SESSION,
-        'POST /auth/sign-in/email': { status: 200, json: { redirect: true, url: target, user: { email: 'ann@x.test' } } },
+        'POST /auth/sign-in/email': {
+          status: 200,
+          json: { redirect: true, url: target, user: { email: 'ann@x.test' } },
+        },
       })
       const go = vi.fn()
       render(<SignInPage navigate={go} />)
@@ -66,7 +70,11 @@ describe('a cross-origin return_to is a callbackURL, never a navigation of the p
     render(<SignInPage navigate={go} />)
     await userEvent.setup().click(await screen.findByRole('button', { name: MESSAGES.googleButton }))
     await waitFor(() => expect(post(f, '/auth/sign-in/social')).toHaveLength(1))
-    expect(post(f, '/auth/sign-in/social')[0]!.body).toMatchObject({ provider: 'google', callbackURL: APP, errorCallbackURL: '/sign-in' })
+    expect(post(f, '/auth/sign-in/social')[0]!.body).toMatchObject({
+      provider: 'google',
+      callbackURL: APP,
+      errorCallbackURL: '/sign-in',
+    })
     expect(go).toHaveBeenCalledWith('https://accounts.google.com/x')
   })
 })
@@ -96,7 +104,10 @@ describe('P2: the failure paths', () => {
   it('a signed-in person with a cross-origin return_to sees the signed-in state and is not redirected', async () => {
     at(APP)
     fakeFetch({
-      'GET /auth/get-session': { status: 200, json: { user: { id: 'u1', email: 'ann@x.test' }, session: { id: 's1' } } },
+      'GET /auth/get-session': {
+        status: 200,
+        json: { user: { id: 'u1', email: 'ann@x.test' }, session: { id: 's1' } },
+      },
     })
     const go = vi.fn()
     render(<SignInPage navigate={go} />)

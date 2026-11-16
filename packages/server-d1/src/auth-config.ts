@@ -35,6 +35,26 @@ export function resolveGoogleSignIn(
     : undefined
 }
 
+/**
+ * [[UI255]] D6: `AUTH_TRUSTED_ORIGINS`, a comma-separated list of first-party app origins. Each entry is an origin by `PUBLIC_BASE_URL`'s rule (`https`, or `http://localhost[:port]`; no path, query or fragment),
+ * and no wildcard. Entries are normalised to their origin, an entry equal to `baseURL` is dropped (already trusted) and repeats collapse. Empty or unset is none. A malformed entry throws a message that names the
+ * variable and never a value.
+ */
+export function parseTrustedOrigins(value: string | undefined, baseURL: string): string[] {
+  const out: string[] = []
+  for (const raw of (value ?? '').split(',')) {
+    const entry = raw.trim()
+    if (entry === '') continue
+    if (entry.includes('*') || !isValidPushVar('PUBLIC_BASE_URL', entry))
+      throw new Error(
+        'AUTH_TRUSTED_ORIGINS must be a comma-separated list of origins without a path or wildcard: https, or http://localhost for local development',
+      )
+    const origin = new URL(entry).origin
+    if (origin !== baseURL && !out.includes(origin)) out.push(origin)
+  }
+  return out
+}
+
 export function parseBuiltInAuthConfig(env: Record<string, string | undefined>): AuthRuntimeConfig {
   const secret = env.AUTH_SECRET
   if (secret === undefined || secret === '') throw new Error('AUTH_PROVIDER=better-auth requires AUTH_SECRET')
@@ -48,5 +68,11 @@ export function parseBuiltInAuthConfig(env: Record<string, string | undefined>):
       'PUBLIC_BASE_URL must be an origin without a path: https, or http://localhost for local development',
     )
   const google = resolveGoogleSignIn(env)
-  return { secret, baseURL: new URL(base.trim()).origin, ...(google ? { google } : {}) }
+  const baseURL = new URL(base.trim()).origin
+  return {
+    secret,
+    baseURL,
+    trustedOrigins: parseTrustedOrigins(env.AUTH_TRUSTED_ORIGINS, baseURL),
+    ...(google ? { google } : {}),
+  }
 }

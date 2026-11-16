@@ -26,10 +26,20 @@ const varsOf = (w: World) =>
 
 describe('setup:remote and AUTH_TRUSTED_ORIGINS', () => {
   it('a re-run over a record that holds it keeps it unchanged', async () => {
-    const vars = { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: `https://${HOST}`, CORS_ALLOWED_ORIGINS: '', AUTH_TRUSTED_ORIGINS: TRUSTED }
+    const vars = {
+      AUTH_PROVIDER: 'better-auth',
+      PUBLIC_BASE_URL: `https://${HOST}`,
+      CORS_ALLOWED_ORIGINS: '',
+      AUTH_TRUSTED_ORIGINS: TRUSTED,
+    }
     const text = applyEdits(
       fixture,
-      modify(fixture, ['env', 'acme'], { name: 'vb-acme', vars }, { formattingOptions: { insertSpaces: true, tabSize: 2 } }),
+      modify(
+        fixture,
+        ['env', 'acme'],
+        { name: 'vb-acme', vars },
+        { formattingOptions: { insertSpaces: true, tabSize: 2 } },
+      ),
     )
     const w = world(text)
     const o = await runSetup(ACME, CONFIRM, w.deps) // completes the record's env block

@@ -36,7 +36,12 @@ const recordedWith = (vars: Record<string, string>) => ({
 describe('setup and AUTH_TRUSTED_ORIGINS', () => {
   it('a re-run over a settings record that holds it keeps it unchanged (config:write ok)', async () => {
     const s = world(
-      recordedWith({ AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE, CORS_ALLOWED_ORIGINS: '', AUTH_TRUSTED_ORIGINS: TRUSTED }),
+      recordedWith({
+        AUTH_PROVIDER: 'better-auth',
+        PUBLIC_BASE_URL: BASE,
+        CORS_ALLOWED_ORIGINS: '',
+        AUTH_TRUSTED_ORIGINS: TRUSTED,
+      }),
     )
     expect(await runSetup(ARGS, s.w.deps), s.w.all()).toBe(0)
     expect(s.rows().find((r) => r.step === 'config:write')!.status).toBe('ok')

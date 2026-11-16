@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Alert, Button, Card, Field, FormLayout } from '@vibase/ui'
 import { getSession, signIn, signOut, type SessionUser } from './auth-api.js'
 import { MESSAGES, genericFailure } from './messages.js'
-import { returnTarget } from './continuation.js'
+import { crossOriginTarget, returnTarget } from './continuation.js'
 import { emailError, goTo, type PageProps } from './page.js'
 import { GoogleButton, useGoogleEnabled } from './google-button.js'
 import { ResetRequest, useSelfServiceReset } from './reset-request.js'
@@ -91,6 +91,8 @@ function SignInForm({
   onSignedIn: (user: SessionUser, redirect?: string) => void
 }) {
   const google = useGoogleEnabled()
+  // [[UI255]] D8: a cross-origin return target rides as `callbackURL`; the server's trust list decides, and only the answer's `url` is ever followed. Not with an OAuth flow in progress.
+  const appTarget = oauthQuery === undefined ? crossOriginTarget(location.search) : null
   // [[CORE304]] D7: with email on the page offers a reset request instead of the "ask an owner" line; the request form replaces the sign-in form until the person goes back.
   const selfServiceReset = useSelfServiceReset()
   const [resetting, setResetting] = useState(false)
@@ -121,7 +123,12 @@ function SignInForm({
     setErrors(found)
     if (Object.keys(found).length > 0) return MESSAGES.fixFields
     setBusy(true)
-    const r = await signIn({ email: email.trim(), password, ...(oauthQuery === undefined ? {} : { oauthQuery }) })
+    const r = await signIn({
+      email: email.trim(),
+      password,
+      ...(oauthQuery === undefined ? {} : { oauthQuery }),
+      ...(appTarget === null ? {} : { callbackURL: appTarget }),
+    })
     setBusy(false)
     if (r.ok) {
       onSignedIn(r.data.user ?? { email: email.trim() }, r.data.redirect)
@@ -168,7 +175,7 @@ function SignInForm({
       />
       {google ? (
         <GoogleButton
-          callbackURL={returnTarget(location.search) ?? undefined}
+          callbackURL={appTarget ?? returnTarget(location.search) ?? undefined}
           onError={setGoogleError}
           navigate={navigate}
         />

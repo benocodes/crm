@@ -14,7 +14,8 @@ async function captured(): Promise<string[]> {
     for (const [k, v] of req.headers) {
       if (SAFELISTED.has(k)) continue
       // content-type is safelisted only for form, plain-text and multipart values; the SDK's JSON is not.
-      if (k === 'content-type' && /^(application\/x-www-form-urlencoded|multipart\/form-data|text\/plain)/.test(v)) continue
+      if (k === 'content-type' && /^(application\/x-www-form-urlencoded|multipart\/form-data|text\/plain)/.test(v))
+        continue
       seen.add(k)
     }
     return new Response(JSON.stringify(null), { status: 200, headers: { 'content-type': 'application/json' } })

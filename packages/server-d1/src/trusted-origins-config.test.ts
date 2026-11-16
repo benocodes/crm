@@ -23,8 +23,16 @@ describe('accepted shapes', () => {
       ['https://app.example.com', 'https://pane.example.com'],
     ],
     ['http://localhost with a port', 'http://localhost:8788', ['http://localhost:8788']],
-    ['surrounding spaces', '  https://app.example.com , https://b.example.com ', ['https://app.example.com', 'https://b.example.com']],
-    ['an entry equal to PUBLIC_BASE_URL is dropped, not doubled', `${BASE},https://app.example.com`, ['https://app.example.com']],
+    [
+      'surrounding spaces',
+      '  https://app.example.com , https://b.example.com ',
+      ['https://app.example.com', 'https://b.example.com'],
+    ],
+    [
+      'an entry equal to PUBLIC_BASE_URL is dropped, not doubled',
+      `${BASE},https://app.example.com`,
+      ['https://app.example.com'],
+    ],
     ['only PUBLIC_BASE_URL leaves none', BASE, []],
     ['empty is none', '', []],
     ['unset is none', undefined, []],

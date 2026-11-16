@@ -2,6 +2,7 @@
 // Prerequisite: fresh local state, both databases migrated, `.dev.vars` with AUTH_PROVIDER=better-auth, AUTH_SECRET (32+ characters) and PUBLIC_BASE_URL=http://localhost:8787,
 // [[CORE294]] adds the Google leg (steps 2b, 5b, 5c): the same `.dev.vars` also carries DUMMY `AUTH_GOOGLE_CLIENT_ID` and `AUTH_GOOGLE_CLIENT_SECRET` (any non-empty strings, this Worker only; no request reaches Google: a Playwright route
 // answers `accounts.google.com` locally, and the callback is proven in workerd, not here). Every other step runs unchanged with Google configured.
+// [[UI255]] adds step 9: the same `.dev.vars` also carries `AUTH_TRUSTED_ORIGINS=http://localhost:8788`.
 // `bootstrap --org E2E --auth-provider better-auth --public-base-url http://localhost:8787 --owner-email owner@e2e.test` (E2E_INVITE_URL = the URL it printed), `pnpm dev` running.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
@@ -246,4 +247,66 @@ test('8. every page and the bundle carry the exact headers', async ({ request })
     expect(h['cache-control'], path).toBe('no-store')
   }
   expect((await request.get('/sign-in/', { maxRedirects: 0 })).status()).toBe(404)
+})
+
+// [[UI255]] D3, D7, D8: a trusted app origin. The Worker's `.dev.vars` also carries `AUTH_TRUSTED_ORIGINS=http://localhost:8788` (inert for every step above). The "app" is a stub page Playwright serves for
+// `http://localhost:8788/` (no second server): it reads the session from `/auth/get-session` and signs out through `POST /auth/sign-out`, both credentialed and cross-origin. localhost ports are same-site, so the
+// host-only cookie of `localhost:8787` is sent with `credentials: 'include'`.
+const APP = 'http://localhost:8788/'
+const STUB = `<!doctype html><meta charset="utf-8"><title>stub app</title><p id="who">loading</p><button id="out">Sign out</button>
+<script>
+const api = 'http://localhost:8787'
+const who = document.getElementById('who')
+const show = async () => {
+  try {
+    const r = await fetch(api + '/auth/get-session', { credentials: 'include' })
+    const s = await r.json()
+    who.textContent = s && s.user ? s.user.email : 'signed out'
+  } catch (e) { who.textContent = 'error: ' + e }
+}
+document.getElementById('out').onclick = async () => {
+  const r = await fetch(api + '/auth/sign-out', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: '{}' })
+  who.textContent = r.ok ? 'sign-out ok' : 'sign-out failed ' + r.status
+  if (r.ok) await show()
+}
+show()
+</script>`
+
+test('9. [UI255] a trusted app origin: credentialed CORS on /auth, sign-in returns to it, sign-out works; an untrusted return_to stays on /sign-in', async () => {
+  await context.route(`${APP}**`, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: STUB }))
+  await context.clearCookies()
+  await visit(APP)
+  await expect(page.locator('#who')).toHaveText('signed out')
+
+  const signInAs = async (target: string) => {
+    await visit(`/sign-in?return_to=${encodeURIComponent(target)}`)
+    await page.getByLabel('Email').fill('owner@e2e.test')
+    await page.getByLabel('Password').fill(PASSWORD)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+  }
+  await signInAs(APP)
+  if (
+    await page
+      .getByText(/Too many attempts/)
+      .isVisible()
+      .catch(() => false)
+  ) {
+    console.log('NOTE: a 429 appeared on the app sign-in; waited 11 s')
+    await page.waitForTimeout(11_000)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+  }
+  await page.waitForURL(APP)
+  await expect(page.locator('#who')).toHaveText('owner@e2e.test')
+
+  await page.locator('#out').click()
+  await expect(page.locator('#who')).toHaveText('signed out')
+
+  // An origin that is not trusted: Better Auth refuses the callbackURL, the page shows its ordinary error, stays on /sign-in, and no session exists.
+  await context.clearCookies()
+  await page.waitForTimeout(11_000) // Better Auth's 10 s sign-in window
+  await signInAs('http://localhost:9999/')
+  await expect(page.getByRole('alert')).toBeVisible()
+  expect(new URL(page.url()).pathname).toBe('/sign-in')
+  const session = await page.evaluate(async () => (await fetch('/auth/get-session')).json())
+  expect(session).toBeNull()
 })

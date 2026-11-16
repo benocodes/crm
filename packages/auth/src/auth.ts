@@ -381,8 +381,8 @@ export function authOptions(
     basePath: '/auth',
     secret: config.secret,
     database: { dialect: new D1Dialect({ database: db as never }), type: 'sqlite' },
-    // Only this origin is trusted (D23): never the request's Host.
-    trustedOrigins: [config.baseURL],
+    // Only this origin is trusted (D23): never the request's Host. With none configured the list is `[baseURL]` exactly; the extras are the operator's first-party app origins ([[UI255]] D3, D6).
+    trustedOrigins: [config.baseURL, ...(config.trustedOrigins ?? [])],
     // Admission is closed (P1) unless the composition hands in the invitation port ([[CORE287]]); sign-up is the only path that creates a user here.
     // [[UI246]] D6: a reset ends every session of that user (it answers a lost or compromised password). [[CORE288]] P6: `sendResetPassword` only hands the token to an in-process waiter (never sends, never logs).
     emailAndPassword: {
