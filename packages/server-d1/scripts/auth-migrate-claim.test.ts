@@ -118,6 +118,7 @@ async function setup(o: { world?: World; apply?: boolean; envText?: string; unpa
   return { dir, planPath, plan, envFile, bodies }
 }
 
+let idCounter = 0 // ids stay unique across runs, as uuidv7 does
 interface RunOpts {
   argv?: string[]
   env?: NodeJS.ProcessEnv
@@ -135,7 +136,6 @@ async function runClaim(c: Ctx, o: RunOpts = {}) {
   const cmds: unknown[] = []
   let opened = 0
   const clerk = fakeClerk(c.bodies, 500)
-  let n = 0
   const deps: PlanDeps = {
     loadEnv: () => {},
     readConfig: () => o.cfg ?? config(),
@@ -167,7 +167,7 @@ async function runClaim(c: Ctx, o: RunOpts = {}) {
       throw new Error('claim deploys nothing')
     },
     now: () => new Date('2026-11-17T10:00:00.000Z'),
-    newId: () => `0190ffff-0000-7000-8000-${String(++n).padStart(12, '0')}`,
+    newId: () => `0190ffff-0000-7000-8000-${String(++idCounter).padStart(12, '0')}`,
     log: (l) => void out.push(l),
     error: (l) => void err.push(l),
   }
@@ -306,11 +306,11 @@ describe('targets and links (P2, P3)', () => {
     expect({ audits: (await audits()).length, verifs: (await verifications()).length }).toEqual(before)
   })
 
-  it('a plan with no targets exits 0, writes nothing and still prints the caps; so does a run where every target is claimed', async () => {
+  it('a plan with no targets exits 0, writes nothing and still prints the caps', async () => {
     const world = standardWorld()
     world.users = [world.users[4]!]
     world.memberships = []
-    world.agents = world.agents.filter((a) => ['plain key', 'delegated'].includes(a.name))
+    world.agents = world.agents.filter((a) => ['plain key', 'delegated'].includes(a.name)).map((a) => (a.delegated_by ? { ...a, delegated_by: U(5) } : a))
     const c = await setup({ world })
     expect(targetEmails(c)).toEqual([])
     const r = await runClaim(c)
@@ -320,7 +320,9 @@ describe('targets and links (P2, P3)', () => {
     expect(r.out.join('\n')).toContain(A(3))
     expect(r.controlWrites()).toEqual([])
     expect(await audits()).toEqual([])
+  })
 
+  it('a run where every target is claimed exits 0 with nothing to issue', async () => {
     const d = await setup()
     for (const l of urlsIn((await runClaim(d)).out)) expect((await setPassword(l.token)).status).toBe(200)
     const done = await runClaim(d)
@@ -509,9 +511,12 @@ describe('partial failure and re-run (P6)', () => {
     const r = await runClaim(c, { control: (d1) => failingNth(d1, /user\.reset_link_issued/, 2) })
     expect(r.code).toBe(2)
     expect(urlsIn(r.out)).toHaveLength(1)
-    expect(r.text()).not.toContain((await verifications()).map((v) => v.identifier.replace('reset-password:', ''))[1] ?? 'unreachable')
     expect(await audits()).toHaveLength(1)
-    expect(await verifications()).toHaveLength(2) // 1 printed, 2 issued but never printed
+    const issuedTokens = (await verifications()).map((v) => v.identifier.replace('reset-password:', ''))
+    expect(issuedTokens).toHaveLength(2) // 1 printed, 1 issued but never printed
+    const unprinted = issuedTokens.filter((t) => t !== urlsIn(r.out)[0]!.token)
+    expect(unprinted).toHaveLength(1)
+    expect(r.text()).not.toContain(unprinted[0]!)
     expect(r.err.join('\n')).toMatch(/not recorded in the audit log/)
     expect(r.err.join('\n')).toContain(targets[1]!)
     const subjects = (await audits()).map((a) => a.target_id)
