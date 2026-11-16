@@ -3,11 +3,10 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { uuidv7 } from '@vibase/storage'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { MIGRATIONS, createInvitation, openControlDb, revokeInvitation, type D1Like } from '@vibase/storage-d1'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { resolveGoogleSignIn } from './auth-config.js'
 import { AUTH_BASE, AUTH_SECRET } from './test/auth-kit.js'
-import { openWorkerPair, type WorkerPair } from './test/kit.js'
+import { bootstrapD1, openWorkerPair, type WorkerPair } from './test/kit.js'
 
 // [[CORE294]] D7, D8, P2-P5 through the real Worker composition (`better-auth`, the real invitation port): configuration and discovery, Google sign-up only through a live invitation for a Google-verified
 // email, linking of an existing account by a Google-verified equal email. Google itself is a fake: the process's `fetch` answers only the token endpoint (the profile is read from the ID token it mints) and

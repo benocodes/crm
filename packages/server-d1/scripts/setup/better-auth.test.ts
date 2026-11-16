@@ -13,7 +13,7 @@ import { seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { bootstrapD1 } from '../../src/bootstrap-d1.js'
 import { openWorkerPair, type WorkerPair } from '../../src/test/kit.js'
 import { runSetup } from './run.js'
-import { FIXTURE_CONFIG_PATH, makeWorld, type World, type WorldOptions } from './test/world.js'
+import { FIXTURE_CONFIG_PATH, makeWorld, memoryControl, type World, type WorldOptions } from './test/world.js'
 
 const CONFIRM = { CONFIRM_REMOTE: '1' }
 const HOST = 'api.acme.vibase.ai'
@@ -384,7 +384,8 @@ describe('5. the bootstrap step on better-auth (D6)', () => {
     ['none', { authProvider: 'none', authOrgId: 'acme', email: 'x@example.com', agentName: 'a' }],
     ['clerk', { authProvider: 'clerk', authOrgId: 'https://c.example.com' }],
   ])('a %s: marker is refused, whatever else is in the database', async (provider, link) => {
-    await bootstrapD1(pair.d1, { organizationName: 'Acme', ...link })
+    // The agent's key needs a control database; a scratch one keeps the real pair's marker untouched.
+    await bootstrapD1(pair.d1, { organizationName: 'Acme', ...link }, { control: openControlDb(memoryControl()) })
     const w = world()
     await firstRun(w)
     w.logs.length = 0

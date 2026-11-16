@@ -5,10 +5,9 @@ import { MIGRATIONS, openControlDb } from '@vibase/storage-d1'
 import { seedAgent, seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { SESSION_TOKEN_CLAIM, SESSION_TOKEN_VALUE, createVibaseRegistry, scopesForRole } from '@vibase/api'
 import * as provider from '@vibase/auth'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET, authKit, renameClient, type AuthKit } from './test/auth-kit.js'
-import { NOW, openWorkerPair, spyD1, type WorkerPair } from './test/kit.js'
+import { bootstrapD1, NOW, openWorkerPair, spyD1, type WorkerPair } from './test/kit.js'
 
 // [[CORE244]] D7, D8, D9, D19, D20 (agent half), D23, P1, P2, P3 through the composition: the REAL Better Auth (test admission) mints the tokens on the control-plane database, the Worker
 // under test (composeD1Worker, `better-auth`) verifies them in-process and resolves them against the vault's own rows.

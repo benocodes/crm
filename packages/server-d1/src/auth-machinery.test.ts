@@ -6,9 +6,8 @@ import { uuidv7 } from '@vibase/storage'
 import { AUTH_TABLES } from '@vibase/auth'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { MIGRATIONS, openControlDb } from '@vibase/storage-d1'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker } from './compose.js'
-import { NOW, openWorkerPair, type WorkerPair } from './test/kit.js'
+import { bootstrapD1, NOW, openWorkerPair, type WorkerPair } from './test/kit.js'
 
 // [[CORE243]] D5: the auth tables are machinery. They live in the control-plane database (control 0001; the CRM copy of 0018 is dropped by 0019, [[OPS260]]), and nothing the vault shows or does knows them.
 let w: WorkerPair

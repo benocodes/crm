@@ -9,10 +9,9 @@ import {
   writeControlMarker,
   type D1Like,
 } from '@vibase/storage-d1'
-import { createMigrationTracker, openLocalD1, recordMigrations, type LocalD1 } from '@vibase/storage-d1/test'
-import { bootstrapD1 } from './bootstrap-d1.js'
+import { clearD1, createMigrationTracker, openLocalD1, recordMigrations, type LocalD1 } from '@vibase/storage-d1/test'
 import { composeD1Worker, MIGRATIONS_PENDING, NOT_INITIALISED, type D1WorkerEnv } from './compose.js'
-import { NOW, clerkKit, openWorkerPair, spyD1, type WorkerPair } from './test/kit.js'
+import { bootstrapD1, NOW, clerkKit, openWorkerPair, spyD1, type WorkerPair } from './test/kit.js'
 
 // [[CORE259]] D6, D7: the Worker's fail-closed gate on the control-plane database. Provider x control state, every row asserted by status, exact envelope and, where the spec names it, the log line.
 const BASE = 'http://localhost:8787'
@@ -22,18 +21,23 @@ const SECRET = 'test-auth-secret-0123456789-abcdefghij-klmnop'
 
 let w: WorkerPair
 let bare: LocalD1
+let scratch: LocalD1
 let orgId: string
 let errors: ReturnType<typeof vi.spyOn>
 beforeAll(async () => {
   w = await openWorkerPair()
   bare = await openLocalD1(['U'], { migrate: false })
+  // [[CORE356]]: the seed's key is minted on a control database of its own, so the matrix below still varies only the control plane the Worker gets.
+  scratch = await openLocalD1(['S'], { control: ['S'] })
 })
 afterAll(async () => {
   await w.dispose()
   await bare.dispose()
+  await scratch.dispose()
 })
 beforeEach(async () => {
   await w.reset()
+  await clearD1(scratch.bindings.S!)
   errors = vi.spyOn(console, 'error').mockImplementation(() => undefined)
   // The CRM database is migrated, tracked and bootstrapped in every row: only the control plane varies.
   await w.d1.prepare('drop table if exists d1_migrations').run()
@@ -45,7 +49,7 @@ beforeEach(async () => {
   const r = await bootstrapD1(
     w.d1,
     { organizationName: 'Acme', email: 'o@x.test', agentName: 'bot', authOrgId: 'org_acme', authProvider: 'none' },
-    { now: NOW, newId: () => uuidv7(NOW) },
+    { now: NOW, newId: () => uuidv7(NOW), control: openControlDb(scratch.bindings.S!) },
   )
   orgId = r.organizationId
 })

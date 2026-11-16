@@ -35,29 +35,36 @@ describe('bootstrap local, through the real wrangler.jsonc bindings', () => {
   it.each([
     ['none', { 'auth-provider': 'none', 'auth-org-id': 'demo', email: 'owner@example.com' }],
     ['clerk', { issuer: 'https://clerk.test.example' }],
-  ] as const)('%s: the key is in CONTROL_DB with its audit row and DB has none', async (_n, extra) => {
-    const dir = mkdtempSync(join(tmpdir(), 'wrangler-keys-'))
-    const proxy = await getPlatformProxy<{ DB: D1Like; CONTROL_DB: D1Like }>({
-      configPath: CONFIG,
-      persist: { path: dir },
-      remoteBindings: false,
-    })
-    try {
-      await applyMigrations(proxy.env.DB)
-      await applyControlMigrations(proxy.env.CONTROL_DB)
-      const i = io()
-      const authOrgId = 'issuer' in extra ? extra.issuer : 'demo'
-      expect(await runBootstrap({ mode: 'local', values: { org: 'Local', agent: 'op', ...extra }, authOrgId }, proxy, i), i.errors.join('\n')).toBe(0)
-      expect(await count(proxy.env.DB, 'api_keys')).toBe(0)
-      expect(await count(proxy.env.CONTROL_DB, 'api_keys')).toBe(1)
-      expect(await count(proxy.env.CONTROL_DB, 'control_audit')).toBe(1)
-      const printed = i.logs.find((l) => l.startsWith('api_key:'))
-      expect(printed).toMatch(/vk_/)
-    } finally {
-      await proxy.dispose()
-      rmSync(dir, { recursive: true, force: true })
-    }
-  }, 120_000)
+  ] as const)(
+    '%s: the key is in CONTROL_DB with its audit row and DB has none',
+    async (_n, extra) => {
+      const dir = mkdtempSync(join(tmpdir(), 'wrangler-keys-'))
+      const proxy = await getPlatformProxy<{ DB: D1Like; CONTROL_DB: D1Like }>({
+        configPath: CONFIG,
+        persist: { path: dir },
+        remoteBindings: false,
+      })
+      try {
+        await applyMigrations(proxy.env.DB)
+        await applyControlMigrations(proxy.env.CONTROL_DB)
+        const i = io()
+        const authOrgId = 'issuer' in extra ? extra.issuer : 'demo'
+        expect(
+          await runBootstrap({ mode: 'local', values: { org: 'Local', agent: 'op', ...extra }, authOrgId }, proxy, i),
+          i.errors.join('\n'),
+        ).toBe(0)
+        expect(await count(proxy.env.DB, 'api_keys')).toBe(0)
+        expect(await count(proxy.env.CONTROL_DB, 'api_keys')).toBe(1)
+        expect(await count(proxy.env.CONTROL_DB, 'control_audit')).toBe(1)
+        const printed = i.logs.find((l) => l.startsWith('api_key:'))
+        expect(printed).toMatch(/vk_/)
+      } finally {
+        await proxy.dispose()
+        rmSync(dir, { recursive: true, force: true })
+      }
+    },
+    120_000,
+  )
 })
 
 describe('bootstrap --remote through its fake proxy', () => {
@@ -79,7 +86,13 @@ describe('bootstrap --remote through its fake proxy', () => {
       {
         mode: 'remote',
         keyEnv: 'OP_KEY',
-        values: { org: 'demo', agent: 'op', email: 'owner@example.com', 'auth-provider': 'none', 'auth-org-id': 'demo' },
+        values: {
+          org: 'demo',
+          agent: 'op',
+          email: 'owner@example.com',
+          'auth-provider': 'none',
+          'auth-org-id': 'demo',
+        },
         authOrgId: 'demo',
         target,
       },

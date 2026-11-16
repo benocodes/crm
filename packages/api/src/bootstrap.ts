@@ -13,6 +13,7 @@ import {
   type Read,
   type StorageBinding,
 } from '@vibase/storage'
+import type { ApiKeyStorePort } from './admin/api-key-port.js'
 import { generateApiKey } from './auth/api-keys.js'
 import { assertAgentGrantable, defaultGrantScopes } from './auth/roles.js'
 import { ApiError } from './errors.js'
@@ -37,8 +38,12 @@ export type BootstrapArgs = {
   ids: { user: string; membership: string; agent: string; apiKey: string }
   /** The made key. Its plaintext appears only in the result, never in a statement. */
   secret: { key: string; hash: string; prefix: string }
+  /** Postgres only ([[CORE356]] P4): the unit also writes the CRM `api_keys` row. D1 mints the key on the control plane after the unit. */
+  crmKey: boolean
   now: Date
 }
+/** The control plane's key writer ([[CORE356]] P1): the `create` of the store the four key operations use, which writes the key and its `api_key.created` audit row in one batch. */
+export type BootstrapKeyStore = Pick<ApiKeyStorePort, 'create'>
 
 const USER = 'bs:user'
 const HOLDER = 'bs:holder'
@@ -177,22 +182,27 @@ export function bootstrapOperation(a: BootstrapArgs): PreparedOperation<Bootstra
             created_by: userId,
           }),
         ),
-        step(
-          qc.db.insertInto('api_keys').values({
-            id: a.ids.apiKey,
-            created_at: at,
-            updated_at: at,
-            organization_id: a.organizationId,
-            agent_id: a.ids.agent,
-            key_hash: a.secret.hash,
-            prefix: a.secret.prefix,
-            last_used_at: null,
-            revoked_at: null,
-            expires_at: null,
-            created_by: userId,
-          }),
-        ),
       )
+      // Postgres only ([[CORE356]] P4): D1's key is minted on the control plane by `bootstrap` after this unit commits.
+      if (a.crmKey) {
+        steps.push(
+          step(
+            qc.db.insertInto('api_keys').values({
+              id: a.ids.apiKey,
+              created_at: at,
+              updated_at: at,
+              organization_id: a.organizationId,
+              agent_id: a.ids.agent,
+              key_hash: a.secret.hash,
+              prefix: a.secret.prefix,
+              last_used_at: null,
+              revoked_at: null,
+              expires_at: null,
+              created_by: userId,
+            }),
+          ),
+        )
+      }
       return unit({
         steps,
         events: [],
@@ -226,8 +236,17 @@ export async function bootstrap(
     authProvider?: string
     authSubject?: string
   },
-  env: { now?: Date; newId?: () => string; randomBytes?: (n: number) => Uint8Array } = {},
+  env: {
+    now?: Date
+    newId?: () => string
+    randomBytes?: (n: number) => Uint8Array
+    /** Required on D1 ([[CORE356]] P1, P3): the key is minted on the control plane. Ignored on Postgres, whose key stays a CRM row (P4). */
+    keyStore?: BootstrapKeyStore
+  } = {},
 ): Promise<BootstrapResult> {
+  // P3: refused before either store is written.
+  if (storage.kind === 'd1' && !env.keyStore)
+    throw new Error('a D1 bootstrap mints its API key on the control plane: pass the control database (keyStore)')
   const declared = createVibaseRegistry().declaredScopes()
   const scopes = opts.scopes ? ScopeSet.parse(opts.scopes).toStrings() : defaultGrantScopes(declared)
   for (const s of scopes) if (!declared.includes(s)) throw new Error(`unknown scope: ${s}`)
@@ -257,7 +276,61 @@ export async function bootstrap(
     scopes,
     ids: { user: newId(), membership: newId(), agent: newId(), apiKey: newId() },
     secret,
+    crmKey: storage.kind !== 'd1',
     now,
   })
-  return (await execute(storage, { kind: 'internal', organizationId: null }, op)).value
+  // P1: the CRM unit first (every refusal happens in it), then one control batch (key and audit row).
+  const result = (await execute(storage, { kind: 'internal', organizationId: null }, op)).value
+  if (storage.kind === 'd1') {
+    await mintControlKey(env.keyStore!, {
+      id: result.apiKeyId,
+      auditId: newId(),
+      actorId: result.userId,
+      organizationId: result.organizationId,
+      agentId: result.agentId,
+      secret,
+      now,
+    })
+  }
+  return result
+}
+
+/**
+ * [[CORE356]] P1, P2 (b): the control write of a D1 bootstrap. A throw or a `duplicate` after the CRM unit committed fails the run naming the organisation, the agent and the recovery; nothing is resumed. The
+ * plaintext key never appears in the message.
+ */
+export async function mintControlKey(
+  store: BootstrapKeyStore,
+  a: {
+    id: string
+    auditId: string
+    actorId: string
+    organizationId: string
+    agentId: string
+    secret: { hash: string; prefix: string }
+    now: Date
+  },
+): Promise<void> {
+  let outcome: 'created' | 'duplicate' | Error
+  try {
+    outcome = await store.create({
+      id: a.id,
+      auditId: a.auditId,
+      actorId: a.actorId,
+      organizationId: a.organizationId,
+      agentId: a.agentId,
+      keyHash: a.secret.hash,
+      prefix: a.secret.prefix,
+      expiresAt: null,
+      now: a.now.toISOString(),
+    })
+  } catch (err) {
+    outcome = err instanceof Error ? err : new Error(String(err))
+  }
+  if (outcome === 'created') return
+  throw new Error(
+    `organization ${a.organizationId} was created, but its API key could not be written to the control plane (${
+      outcome === 'duplicate' ? 'duplicate key' : outcome.message
+    }): agent ${a.agentId} has no key: create one with api_keys.create`,
+  )
 }

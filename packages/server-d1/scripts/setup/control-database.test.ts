@@ -307,13 +307,17 @@ describe('the control marker in the bootstrap step (D7, D9)', () => {
   it('an instance bootstrapped before this cycle (CRM row present, control marker missing) gets the marker, and a second run is ok with no write', async () => {
     const w = ready()
     await firstRun(w)
-    await bootstrapD1(db.d1, {
-      organizationName: 'acme',
-      authProvider: 'none',
-      authOrgId: 'acme',
-      email: 'owner@example.com',
-      agentName: 'op',
-    })
+    await bootstrapD1(
+      db.d1,
+      {
+        organizationName: 'acme',
+        authProvider: 'none',
+        authOrgId: 'acme',
+        email: 'owner@example.com',
+        agentName: 'op',
+      },
+      { control: openControlDb(memoryControl()) },
+    )
     expect(await readControlMarker(control(w))).toBeNull()
     const o = await run(w)
     expect(o.exitCode).toBe(0)
@@ -364,13 +368,17 @@ describe('the control marker in the bootstrap step (D7, D9)', () => {
   it('a control marker naming another organisation than the CRM row is refused (CRM row present)', async () => {
     const w = ready()
     await firstRun(w)
-    await bootstrapD1(db.d1, {
-      organizationName: 'acme',
-      authProvider: 'none',
-      authOrgId: 'acme',
-      email: 'owner@example.com',
-      agentName: 'op',
-    })
+    await bootstrapD1(
+      db.d1,
+      {
+        organizationName: 'acme',
+        authProvider: 'none',
+        authOrgId: 'acme',
+        email: 'owner@example.com',
+        agentName: 'op',
+      },
+      { control: openControlDb(memoryControl()) },
+    )
     await writeControlMarker(control(w), OTHER)
     const o = await run(w)
     expect(rowOf(o, 'bootstrap').status).toBe('fail')
@@ -380,13 +388,17 @@ describe('the control marker in the bootstrap step (D7, D9)', () => {
   it('--dry-run reports the control marker it would write and writes nothing', async () => {
     const w = ready()
     await firstRun(w)
-    await bootstrapD1(db.d1, {
-      organizationName: 'acme',
-      authProvider: 'none',
-      authOrgId: 'acme',
-      email: 'owner@example.com',
-      agentName: 'op',
-    })
+    await bootstrapD1(
+      db.d1,
+      {
+        organizationName: 'acme',
+        authProvider: 'none',
+        authOrgId: 'acme',
+        email: 'owner@example.com',
+        agentName: 'op',
+      },
+      { control: openControlDb(memoryControl()) },
+    )
     const o = await runSetup([...ACME, '--dry-run'], {}, w.deps)
     expect(rowOf(o, 'bootstrap').status).toBe('create')
     expect(rowOf(o, 'bootstrap').detail).toMatch(/control/)

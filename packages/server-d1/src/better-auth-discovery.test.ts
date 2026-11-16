@@ -3,10 +3,9 @@ import { uuidv7 } from '@vibase/storage'
 import { MIGRATIONS, openControlDb } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { createVibaseRegistry, grantableScopes } from '@vibase/api'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET } from './test/auth-kit.js'
-import { NOW, openWorkerPair, type WorkerPair } from './test/kit.js'
+import { bootstrapD1, NOW, openWorkerPair, type WorkerPair } from './test/kit.js'
 
 // [[CORE283]] D12, D23, P3: discovery on `better-auth`. Every auth URL in the documents comes from PUBLIC_BASE_URL, never the request host; `api`, `mcp` and `openapi` stay request-origin.
 let w: WorkerPair

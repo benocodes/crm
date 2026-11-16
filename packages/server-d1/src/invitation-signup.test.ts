@@ -11,10 +11,9 @@ import {
   type D1PreparedLike,
 } from '@vibase/storage-d1'
 import { createVibaseRegistry, scopesForRole } from '@vibase/api'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET, authKit, type AuthKit } from './test/auth-kit.js'
-import { openWorkerPair, type WorkerPair } from './test/kit.js'
+import { bootstrapD1, openWorkerPair, type WorkerPair } from './test/kit.js'
 
 // [[CORE287]] P1-P7 through the real Worker composition (`better-auth`, no test admission): the sign-up gate, acceptance per role, the commit order, repair on sign-in and the paths
 // that must stay as they were. The accounts come from the REAL Better Auth handler on the control-plane database; the CRM database is the real migrated D1.

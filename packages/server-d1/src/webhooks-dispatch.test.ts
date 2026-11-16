@@ -2,8 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { uuidv7 } from '@vibase/storage'
 import { MIGRATIONS } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
-import { bootstrapD1 } from './bootstrap-d1.js'
-import { NOW, inheritPairing, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
+import { bootstrapD1, NOW, inheritPairing, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // API219 (D6, dispatch half): the per-minute expression runs webhook dispatch after the rail's sweeps, behind the migration gate; the real bundle does it in workerd (`pnpm smoke:worker`).
 // Dispatch's own behaviour is proven in @vibase/api; here only the composition: the one handler, its order, its gate and its log line.

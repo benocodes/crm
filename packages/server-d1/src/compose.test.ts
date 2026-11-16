@@ -5,9 +5,17 @@ import { fakeR2Bucket } from '@vibase/api/test/objects'
 import { messageBodyKey } from '@vibase/api'
 import { mintClerkToken, orgClaim } from '@vibase/api/test/clerk'
 import { MIGRATIONS } from '@vibase/storage-d1'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { NOT_INITIALISED, type D1WorkerEnv } from './compose.js'
-import { NOW, clerkKit, openWorkerD1, spyD1, type ClerkKit, type WorkerD1, composeD1Worker } from './test/kit.js'
+import {
+  bootstrapD1,
+  NOW,
+  clerkKit,
+  openWorkerD1,
+  spyD1,
+  type ClerkKit,
+  type WorkerD1,
+  composeD1Worker,
+} from './test/kit.js'
 
 let w: WorkerD1
 let kit: ClerkKit

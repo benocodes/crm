@@ -4,12 +4,11 @@ import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/tes
 import { MIGRATIONS, openControlDb } from '@vibase/storage-d1'
 import { seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { createVibaseRegistry } from '@vibase/api'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { createApi } from './connect/api.js'
 import { betterAuthSession } from './connect/better-auth-session.js'
 import { AUTH_BASE, AUTH_SECRET, authKit, type AuthKit } from './test/auth-kit.js'
-import { NOW, openWorkerPair, type WorkerPair } from './test/kit.js'
+import { bootstrapD1, NOW, openWorkerPair, type WorkerPair } from './test/kit.js'
 
 // [[UI297]] D7 against the real handler: the seam's own code, over a `fetch` bound to the composed Worker (a cookie jar and the page origin), shows the shapes the fake `fetch` of better-auth-session.test.ts assumes.
 let w: WorkerPair

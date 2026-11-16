@@ -10,8 +10,15 @@ import { mintOAuthToken } from '@vibase/api/test/clerk'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { MIGRATIONS } from '@vibase/storage-d1'
 import { mintClerkToken } from '@vibase/api/test/clerk'
-import { bootstrapD1 } from './bootstrap-d1.js'
-import { clerkKit, openWorkerD1, meterD1, type WorkerD1, type ClerkKit, composeD1Worker } from './test/kit.js'
+import {
+  bootstrapD1,
+  clerkKit,
+  openWorkerD1,
+  meterD1,
+  type WorkerD1,
+  type ClerkKit,
+  composeD1Worker,
+} from './test/kit.js'
 import { d1Binding } from '@vibase/storage-d1'
 import { runGmailSync } from '@vibase/api/test/gmail-sync'
 import { nodeStreams } from '@vibase/api/test/streams'

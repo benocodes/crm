@@ -1271,7 +1271,8 @@ try {
   const pipelineBase = await pipelineMf.ready
   const pd1 = (await pipelineMf.getD1Database('DB')) as unknown as D1Like
   await applyMigrations(pd1)
-  await bootstrapD1(pd1, { organizationName: 'Pipeline', agentName: 'pipeline-bot', authOrgId: 'org_pipeline' })
+  // No operator agent: a key would need the control database, which this pipeline smoke does not bind ([[CORE356]] P3).
+  await bootstrapD1(pd1, { organizationName: 'Pipeline', authOrgId: 'org_pipeline' })
   const pBodies = (await pipelineMf.getR2Bucket('BODIES')) as unknown as {
     list(o: { prefix: string }): Promise<{ objects: Array<{ key: string; size: number }> }>
   }

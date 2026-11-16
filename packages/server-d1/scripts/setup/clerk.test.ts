@@ -22,6 +22,7 @@ import {
   type ClerkOptions,
   type FakeClerk,
 } from './test/clerk-world.js'
+import { openControlDb } from '@vibase/storage-d1'
 import {
   EXPECTED_MIGRATIONS,
   FIXTURE_CONFIG_PATH,
@@ -877,13 +878,17 @@ describe('12. verify (D21) and 13. the repair hint (D39)', () => {
       applied: [...EXPECTED_MIGRATIONS],
       deployedSha: SHA,
     })
-    await bootstrapD1(db.d1, {
-      organizationName: 'smoked1',
-      email: 'o@example.com',
-      agentName: 'a',
-      authProvider: 'none',
-      authOrgId: 'smoked1',
-    })
+    await bootstrapD1(
+      db.d1,
+      {
+        organizationName: 'smoked1',
+        email: 'o@example.com',
+        agentName: 'a',
+        authProvider: 'none',
+        authOrgId: 'smoked1',
+      },
+      { control: openControlDb(memoryControl()) },
+    )
     const o = await runSetup(
       ['--env', 'smoked1', '--auth', 'none', '--api-host', 'api.smoked1.vibase.ai', '--only', 'verify'],
       CONFIRM,

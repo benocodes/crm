@@ -4,11 +4,10 @@ import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/tes
 import { MIGRATIONS, openControlDb, type D1Like, type D1PreparedLike } from '@vibase/storage-d1'
 import { seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { createVibaseRegistry } from '@vibase/api'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET, authKit, type AuthKit } from './test/auth-kit.js'
 import { fakeEmail, type FakeEmail } from './test/fake-email.js'
-import { NOW, openWorkerPair, type WorkerPair } from './test/kit.js'
+import { bootstrapD1, NOW, openWorkerPair, type WorkerPair } from './test/kit.js'
 
 // [[CORE248]] D3, D5, D6, D8 through the real Worker composition: the owner creates invitations on REST, a fake `EMAIL` binding records what would be sent, and the recorded link is accepted through a real sign-up.
 let w: WorkerPair

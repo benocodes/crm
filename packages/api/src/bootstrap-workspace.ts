@@ -12,6 +12,7 @@ import {
   type StorageBinding,
 } from '@vibase/storage'
 import { generateApiKey } from './auth/api-keys.js'
+import { mintControlKey, type BootstrapKeyStore } from './bootstrap.js'
 import { assertAgentGrantable, defaultGrantScopes } from './auth/roles.js'
 import { SYSTEM_PRINCIPAL_READ, systemPrincipalRead, systemPrincipalSteps } from './directory/system-principal.js'
 import { createVibaseRegistry } from './operations.js'
@@ -48,9 +49,11 @@ const ORG = 'bsw:org'
  * when absent, [[CORE3]] D22). No events: the same named exception as `bootstrapOperation` ([[CORE15]]). The first owner is the person
  * whose Clerk invitation carries `vibase_role: owner`, and they arrive through first sight.
  */
-export function bootstrapWorkspaceOperation(a: WorkspaceBootstrapArgs): PreparedOperation<WorkspaceBootstrapResult> {
+export function bootstrapWorkspaceOperation(
+  a: WorkspaceBootstrapArgs,
+): PreparedOperation<WorkspaceBootstrapResult & { createdBy: string }> {
   const at = codecs.timestamp.write(a.now)
-  return defineOperation<WorkspaceBootstrapResult>({
+  return defineOperation<WorkspaceBootstrapResult & { createdBy: string }>({
     name: 'ops.bootstrap_workspace',
     mutates: true,
     reads: (qc) => {
@@ -92,21 +95,6 @@ export function bootstrapWorkspaceOperation(a: WorkspaceBootstrapArgs): Prepared
               created_by: sys.id,
             }),
           ),
-          step(
-            qc.db.insertInto('api_keys').values({
-              id: a.agent.ids.apiKey,
-              created_at: at,
-              updated_at: at,
-              organization_id: a.organizationId,
-              agent_id: a.agent.ids.agent,
-              key_hash: a.agent.secret.hash,
-              prefix: a.agent.secret.prefix,
-              last_used_at: null,
-              revoked_at: null,
-              expires_at: null,
-              created_by: sys.id,
-            }),
-          ),
         )
       }
       const labelled = steps.map((s, i) => (i === 0 ? { ...s, label: 'first-mutation' as const } : s))
@@ -118,6 +106,7 @@ export function bootstrapWorkspaceOperation(a: WorkspaceBootstrapArgs): Prepared
           agentId: a.agent?.ids.agent ?? null,
           apiKeyId: a.agent?.ids.apiKey ?? null,
           key: a.agent?.secret.key ?? null,
+          createdBy: sys.id,
         }),
       })
     },
@@ -131,9 +120,17 @@ export function bootstrapWorkspaceOperation(a: WorkspaceBootstrapArgs): Prepared
 export async function bootstrapWorkspace(
   storage: StorageBinding,
   opts: { organizationName: string; agentName?: string; scopes?: readonly string[] },
-  env: { now?: Date; newId?: () => string; randomBytes?: (n: number) => Uint8Array } = {},
+  env: {
+    now?: Date
+    newId?: () => string
+    randomBytes?: (n: number) => Uint8Array
+    /** Required when `agentName` is given ([[CORE356]] P1, P3): the key is minted on the control plane after the CRM unit. */
+    keyStore?: BootstrapKeyStore
+  } = {},
 ): Promise<WorkspaceBootstrapResult> {
   if (storage.kind !== 'd1') throw new Error('a workspace bootstrap serves a D1 deployment only')
+  if (opts.agentName !== undefined && !env.keyStore)
+    throw new Error('a D1 bootstrap mints its API key on the control plane: pass the control database (keyStore)')
   const declared = createVibaseRegistry().declaredScopes()
   const scopes = opts.scopes ? ScopeSet.parse(opts.scopes).toStrings() : defaultGrantScopes(declared)
   for (const s of scopes) if (!declared.includes(s)) throw new Error(`unknown scope: ${s}`)
@@ -155,5 +152,18 @@ export async function bootstrapWorkspace(
     systemId: newId(),
     now,
   })
-  return (await execute(storage, { kind: 'internal', organizationId: null }, op)).value
+  const { createdBy, ...result } = (await execute(storage, { kind: 'internal', organizationId: null }, op)).value
+  if (secret && result.agentId && result.apiKeyId) {
+    // P1: after the CRM unit; the actor is the system principal the unit attributed the agent to.
+    await mintControlKey(env.keyStore!, {
+      id: result.apiKeyId,
+      auditId: newId(),
+      actorId: createdBy,
+      organizationId: result.organizationId,
+      agentId: result.agentId,
+      secret,
+      now,
+    })
+  }
+  return result
 }

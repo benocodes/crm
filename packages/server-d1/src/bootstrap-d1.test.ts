@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { execute, uuidv7 } from '@vibase/storage'
-import { d1Binding, openControlDb, readControlMarker, writeControlMarker } from '@vibase/storage-d1'
-import { authenticateApiKey, createVibaseRegistry, defaultGrantScopes, hashApiKey } from '@vibase/api'
+import { apiKeyStore, d1Binding, openControlDb, readControlMarker, writeControlMarker } from '@vibase/storage-d1'
+import { createApiKeyAuthenticator, createVibaseRegistry, defaultGrantScopes, hashApiKey } from '@vibase/api'
 import { bootstrapD1, probeBatchAtomicity } from './bootstrap-d1.js'
 import { initDeploymentOperation, readDeployment } from './init-deployment.js'
 import { openLocalD1 } from '@vibase/storage-d1/test'
@@ -22,7 +22,7 @@ const base = {
   authOrgId: 'org_acme',
   authProvider: 'none',
 }
-const env = () => ({ now: NOW, newId: () => uuidv7(NOW) })
+const env = () => ({ now: NOW, newId: () => uuidv7(NOW), control: openControlDb(w.control) })
 const all = async (table: string) =>
   (await w.d1.prepare(`select * from "${table}"`).all()).results as Array<Record<string, unknown>>
 const counts = async () =>
@@ -58,7 +58,11 @@ describe('bootstrapD1 (P7)', () => {
       { user_id: r.userId, organization_id: r.organizationId, role: 'owner' },
     ])
     expect(await all('agents')).toMatchObject([{ id: r.agentId, organization_id: r.organizationId }])
-    const [key] = await all('api_keys')
+    // [[CORE356]]: the key is a control key; the CRM database holds none.
+    expect(await all('api_keys')).toEqual([])
+    const [key] = ((await w.control.prepare('select * from api_keys').all()).results ?? []) as Array<
+      Record<string, any>
+    >
     expect(key).toMatchObject({ id: r.apiKeyId, agent_id: r.agentId })
     expect(key!.key_hash).toBe(await hashApiKey(r.key))
     expect(r.key).toMatch(/^vk_/)
@@ -69,7 +73,10 @@ describe('bootstrapD1 (P7)', () => {
   it('the key authenticates as the agent', async () => {
     const r = await bootstrapD1(w.d1, base, env())
     const binding = d1Binding(w.d1, { organizationId: r.organizationId, authProvider: 'none', authOrgId: 'org_acme' })
-    const principal = await authenticateApiKey(binding, r.key, { now: NOW, newId: testId })
+    const principal = await createApiKeyAuthenticator({ port: apiKeyStore(openControlDb(w.control)) })(binding, r.key, {
+      now: NOW,
+      newId: testId,
+    })
     expect(principal).toMatchObject({ actor: { id: r.agentId, kind: 'agent' }, organizationId: r.organizationId })
   })
 
@@ -229,9 +236,17 @@ describe('bootstrapD1 pairs the control database (CORE259 D7)', () => {
     }
   })
 
-  it('without a control database (a remote or Clerk instance that has none yet) bootstrap behaves as before', async () => {
-    const r = await bootstrapD1(w.d1, base, env())
-    expect(r.deployment).toBe('created')
+  it('without a control database an agent bootstrap is refused before either database is written ([[CORE356]] P3)', async () => {
+    const { control: _c, ...noControl } = env()
+    await expect(bootstrapD1(w.d1, base, noControl)).rejects.toThrow(/control database/)
+    expect(Object.values(await counts()).every((n) => n === 0)).toBe(true)
+    expect(await readControlMarker(control())).toBeNull()
+  })
+
+  it('without a control database a Clerk bootstrap with no agent still writes the CRM rows (no key to mint)', async () => {
+    const { control: _c, ...noControl } = env()
+    const r = await bootstrapD1(w.d1, { organizationName: 'Acme', authOrgId: 'https://c.example.com' }, noControl)
+    expect(r).toMatchObject({ deployment: 'created', agentId: null, key: null })
     expect(await readControlMarker(control())).toBeNull()
   })
 })

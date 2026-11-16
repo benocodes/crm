@@ -4,9 +4,17 @@ import { MIGRATIONS } from '@vibase/storage-d1'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { createVibaseRegistry, toProviderScope, scopesForRole } from '@vibase/api'
 import { mintClerkToken } from '@vibase/api/test/clerk'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { type D1WorkerEnv } from './compose.js'
-import { NOW, clerkKit, clerkUser, openWorkerD1, type ClerkKit, type WorkerD1, composeD1Worker } from './test/kit.js'
+import {
+  bootstrapD1,
+  NOW,
+  clerkKit,
+  clerkUser,
+  openWorkerD1,
+  type ClerkKit,
+  type WorkerD1,
+  composeD1Worker,
+} from './test/kit.js'
 
 // [[CORE84]]: OAuth discovery on D1 ([[CORE64]] D21, D22). Two public documents that answer before bootstrap and migrations, and a
 // `WWW-Authenticate` challenge on every 401 when a provider is configured.

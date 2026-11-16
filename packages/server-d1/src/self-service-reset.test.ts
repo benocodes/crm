@@ -5,11 +5,10 @@ import { MIGRATIONS, openControlDb, type D1Like } from '@vibase/storage-d1'
 import { seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { createVibaseRegistry } from '@vibase/api'
 import { createAuth } from '@vibase/auth'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET, authKit, type AuthKit } from './test/auth-kit.js'
 import { fakeEmail, type FakeEmail } from './test/fake-email.js'
-import { NOW, openWorkerPair, type WorkerPair } from './test/kit.js'
+import { bootstrapD1, NOW, openWorkerPair, type WorkerPair } from './test/kit.js'
 
 // [[CORE304]] D4, D6, D2 and the P1-P3 rules through the real Worker composition: the real Better Auth on a control-plane D1 (Miniflare), a fake `EMAIL` binding that records the message objects, an injected `waitUntil`
 // recorder. The HTTP reset request is real (`POST /auth/request-password-reset`), and so are the owner-issued link (`users.issue_reset_link`) and the reset the emailed link completes.

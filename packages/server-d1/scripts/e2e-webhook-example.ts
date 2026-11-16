@@ -19,12 +19,13 @@ import {
   recordMigrations,
 } from '@vibase/storage-d1/test'
 import { seedAgent } from '@vibase/storage-d1/test/seed'
-import { ScopeSet, sealToken, hashApiKey } from '@vibase/api'
+import { ScopeSet, sealToken } from '@vibase/api'
 import { connectOperation } from '../../api/src/connections/connect.js'
 import { FakeGmail } from '@vibase/api/test/gmail'
 import { gmailFixture } from '@vibase/api/test/gmail-fixtures'
 import { API_URL, SECRET_KEY, clerkUser, fakeClerkFetch, mintClerkToken, testIssuer } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from '../src/bootstrap-d1.js'
+import { mintControlKey } from './e2e-keys.js'
 
 const dir = mkdtempSync(join(tmpdir(), 'vb-webhook-example-e2e-'))
 const vibaseBundle = join(dir, 'vibase.mjs'),
@@ -224,12 +225,8 @@ try {
       'connections:read',
     ],
   })
-  await d1
-    .prepare(
-      'insert into api_keys (id,created_at,updated_at,organization_id,created_by,agent_id,prefix,key_hash) values (?,?,?,?,?,?,?,?)',
-    )
-    .bind(uuidv7(), at, at, org, owner, agentId, agentKey.slice(0, 11), await hashApiKey(agentKey))
-    .run()
+  // [[CORE356]] P5: the key is minted on CONTROL_DB through the control store.
+  await mintControlKey(control, { organizationId: org, agentId, actorId: owner, key: agentKey })
   const poll = async (label: string, check: () => Promise<boolean>, timeout = 60000) => {
     const stop = Date.now() + timeout
     while (Date.now() < stop) {

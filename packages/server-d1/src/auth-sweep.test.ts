@@ -18,10 +18,9 @@ import {
 } from '@vibase/storage-d1'
 import { seedAgent, seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { RAIL_CRON, createVibaseRegistry } from '@vibase/api'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET, authKit, type AuthKit } from './test/auth-kit.js'
-import { NOW, faultD1, openWorkerPair, type WorkerPair } from './test/kit.js'
+import { bootstrapD1, NOW, faultD1, openWorkerPair, type WorkerPair } from './test/kit.js'
 
 // [[CORE289]] (the repair sweep, [[CORE259]] D10) through the composed Worker's `scheduled` handler on the rail cron: the REAL Better Auth writes the accounts, sessions, tokens and device
 // codes on a real control-plane D1 (Miniflare); the CRM is the real migrated D1. Time is real plus a skew the test chooses, because Better Auth stamps its rows with the real clock.

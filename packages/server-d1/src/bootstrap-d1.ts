@@ -9,6 +9,7 @@ import {
 import { seedFirstPartyClient } from '@vibase/auth'
 import { execute, uuidv7 } from '@vibase/storage'
 import {
+  apiKeyStore,
   controlAuthDatabase,
   d1Binding,
   readControlMarker,
@@ -94,6 +95,11 @@ export async function bootstrapD1(
   env: BootstrapD1Env = {},
 ): Promise<BootstrapD1Result> {
   const builtIn = opts.authProvider === 'better-auth'
+  // [[CORE356]] P3: a key is minted on the control plane, so an agent without a control database is refused before either database is written.
+  if (opts.agentName !== undefined && !env.control)
+    throw new Error(
+      'a bootstrap with an agent mints its API key on the control plane: it requires the control database (CONTROL_DB)',
+    )
   if (opts.ownerEmail !== undefined && !builtIn)
     throw new Error(
       '--owner-email applies to --auth-provider better-auth only: Clerk keeps its own invitations and the none provider creates its owner from --email',
@@ -214,7 +220,7 @@ export async function bootstrapD1(
     const w = await bootstrapWorkspace(
       d1Binding(d1, link),
       { organizationName: opts.organizationName, agentName: opts.agentName, scopes: opts.scopes },
-      { now, newId, randomBytes: env.randomBytes },
+      { now, newId, randomBytes: env.randomBytes, keyStore: env.control ? apiKeyStore(env.control) : undefined },
     )
     return {
       organizationId: w.organizationId,
@@ -237,7 +243,7 @@ export async function bootstrapD1(
       authProvider: link.authProvider,
       authSubject: opts.authSubject,
     },
-    { now, newId, randomBytes: env.randomBytes },
+    { now, newId, randomBytes: env.randomBytes, keyStore: env.control ? apiKeyStore(env.control) : undefined },
   )
   return {
     organizationId: r.organizationId,

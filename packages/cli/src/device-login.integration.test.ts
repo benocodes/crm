@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { bootstrapD1 } from '@vibase/server-d1/bootstrap'
 import {
+  bootstrapD1,
   composeD1Worker,
   clerkKit,
   clerkUser,

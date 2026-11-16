@@ -52,14 +52,19 @@ export function engineSuite(engineName: EngineName): void {
     afterEach(() => vi.restoreAllMocks())
 
     const ctl = async (table: string) =>
-      control ? (((await control.prepare(`select * from ${table}`).all()).results ?? []) as Array<Record<string, any>>) : []
+      control
+        ? (((await control.prepare(`select * from ${table}`).all()).results ?? []) as Array<Record<string, any>>)
+        : []
     const state = async () => ({
-      ...Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, await e.rows(t)] as const))),
+      ...(Object.fromEntries(await Promise.all(TABLES.map(async (t) => [t, await e.rows(t)] as const))) as Record<
+        (typeof TABLES)[number],
+        Array<Record<string, any>>
+      >),
       ctl_api_keys: await ctl('api_keys'),
       ctl_audit: await ctl('control_audit'),
     })
     let n = 0
-    const env = (keyStore: { create: NonNullable<typeof store>['create'] } | undefined = store) => ({
+    const env = (keyStore: { create: NonNullable<typeof store>['create'] } | null | undefined = store) => ({
       now: NOW,
       newId: () => uuidv7(NOW),
       randomBytes: (k: number) => new Uint8Array(k).fill(++n),
@@ -229,29 +234,32 @@ export function engineSuite(engineName: EngineName): void {
     if (name === 'd1') {
       it('no control key store is refused before either store is written (D1, CORE356 P3)', async () => {
         const before = await state()
-        await expect(bootstrap(e.binding, OPTS, env(undefined))).rejects.toThrow(/control/i)
+        await expect(bootstrap(e.binding, OPTS, env(null))).rejects.toThrow(/control/i)
         expect(await state()).toEqual(before)
       })
       it.each([
         ['throws', async () => Promise.reject(new Error('control is down'))],
         ['answers duplicate', async () => 'duplicate' as const],
-      ])('a control insert that %s after the CRM commit fails with the recovery message (D1, CORE356 P2 b)', async (_n, create) => {
-        await expect(bootstrap(e.binding, OPTS, env({ create }))).rejects.toThrow(
-          new RegExp(`${e.organizationId}.*no key.*api_keys\\.create`, 's'),
-        )
-        const s = await state()
-        // The CRM unit committed (the organisation and the agent exist), the control plane holds nothing.
-        expect(s.organizations).toHaveLength(1)
-        expect(s.agents).toHaveLength(1)
-        expect(s.api_keys).toEqual([])
-        expect(s.ctl_api_keys).toEqual([])
-        expect(s.ctl_audit).toEqual([])
-        // A re-run is refused as today and writes nothing to control.
-        await expect(bootstrap(e.binding, { ...OPTS, email: 'second@acme.test' }, env())).rejects.toThrow(
-          `organization ${e.organizationId} is already initialised`,
-        )
-        expect((await state()).ctl_api_keys).toEqual([])
-      })
+      ])(
+        'a control insert that %s after the CRM commit fails with the recovery message (D1, CORE356 P2 b)',
+        async (_n, create) => {
+          await expect(bootstrap(e.binding, OPTS, env({ create }))).rejects.toThrow(
+            new RegExp(`${e.organizationId}.*no key.*api_keys\\.create`, 's'),
+          )
+          const s = await state()
+          // The CRM unit committed (the organisation and the agent exist), the control plane holds nothing.
+          expect(s.organizations).toHaveLength(1)
+          expect(s.agents).toHaveLength(1)
+          expect(s.api_keys).toEqual([])
+          expect(s.ctl_api_keys).toEqual([])
+          expect(s.ctl_audit).toEqual([])
+          // A re-run is refused as today and writes nothing to control.
+          await expect(bootstrap(e.binding, { ...OPTS, email: 'second@acme.test' }, env())).rejects.toThrow(
+            `organization ${e.organizationId} is already initialised`,
+          )
+          expect((await state()).ctl_api_keys).toEqual([])
+        },
+      )
       it('an organisation row that already exists is refused and nothing is written (D1)', async () => {
         await bootstrap(e.binding, OPTS, env())
         const before = await state()

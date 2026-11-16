@@ -1,9 +1,8 @@
 import { fileURLToPath } from 'node:url'
 import { BASE, SECRET, bundleWorker, startWorkerd, type Bundle, type Workerd } from '@vibase/auth/test'
 import { openControlDb } from '@vibase/storage-d1'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { clerkKit } from './test/kit.js'
+import { bootstrapD1, clerkKit } from './test/kit.js'
 
 const ENTRY = fileURLToPath(new URL('./worker.ts', import.meta.url))
 const NOT_FOUND = { error: { code: 'not_found', message: 'no such route' } }

@@ -1,11 +1,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMigrationTracker } from '@vibase/storage-d1/test'
 import { openControlDb } from '@vibase/storage-d1'
-import { bootstrapD1 } from './bootstrap-d1.js'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { UI_CSP, UI_PAGE_PATHS } from './ui-serving.js'
 import { AUTH_BASE, AUTH_SECRET } from './test/auth-kit.js'
-import { clerkKit, openWorkerPair, type ClerkKit, type WorkerPair } from './test/kit.js'
+import { bootstrapD1, clerkKit, openWorkerPair, type ClerkKit, type WorkerPair } from './test/kit.js'
 
 // [[UI246]] D1, D2: the three auth pages and the `/ui/` bundle are served by the Worker from the assets binding, on `better-auth` only, with the security headers on every response,
 // before the migration, configuration and control gates; on `clerk` and unset every one of those paths is `404 not_found`.

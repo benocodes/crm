@@ -333,6 +333,8 @@ export function engineSuite(engineName: EngineName): void {
         scopes: ['tasks:read'],
         ids: { user: uuidv7(), membership: uuidv7(), agent: uuidv7(), apiKey: uuidv7() },
         secret,
+        // The unit's own atomicity, with its full statement list (the D1 `bootstrap` mints the key on control after the unit, CORE356).
+        crmKey: true,
         now: NOW,
       })
       await roll(withFault(op, { after: 'first-mutation' }), internal)
