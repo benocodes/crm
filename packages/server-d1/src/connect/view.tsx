@@ -2,6 +2,7 @@
 // runtime), never markup; a link is made only for an `https:` URL. No `style` prop anywhere: the page serves `style-src 'self'` off Clerk ([[UI256]] P3).
 import type { ReactNode } from 'react'
 import { Alert } from '@vibase/ui'
+import { render } from 'preact'
 import type { AgentRowView, ViewModel } from './types.js'
 
 export interface Handlers {
@@ -147,4 +148,17 @@ export function ConnectView({ vm, handlers }: { vm: ViewModel; handlers: Handler
       ) : null}
     </>
   )
+}
+
+const mounted = new WeakSet<Element>()
+/**
+ * Draws the view into `root`. The first draw clears what the HTML shipped (its "Loading" placeholder): Preact appends into a non-empty container instead of replacing it,
+ * which left a stray "Loading" line under a signed-in view. Later draws diff against the previous one.
+ */
+export function drawView(root: HTMLElement, vm: ViewModel, handlers: Handlers): void {
+  if (!mounted.has(root)) {
+    root.replaceChildren()
+    mounted.add(root)
+  }
+  render(<ConnectView vm={vm} handlers={handlers} />, root)
 }

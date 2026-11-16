@@ -3,7 +3,7 @@ import { cleanup, render, within } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentRecord, Me, PageState } from './types.js'
 import { buildView } from './view-model.js'
-import { ConnectView, type Handlers } from './view.js'
+import { ConnectView, drawView, type Handlers } from './view.js'
 
 // [[UI30]] D10, [[UI256]]: the connect page's view layer on @vibase/ui. Values from the API are text, never markup; every hook the E2Es select on stays.
 
@@ -279,5 +279,20 @@ describe('the page works under style-src self (UI256 P3)', () => {
       expect(container.querySelectorAll('style').length, s.kind).toBe(0)
       cleanup()
     }
+  })
+})
+
+describe('the first draw replaces the HTML placeholder', () => {
+  it('no stray Loading text remains once a signed-in view has drawn, and a later draw still replaces the view', () => {
+    document.body.innerHTML = '<main id="app" aria-live="polite"><p>Loading</p></main>'
+    const root = document.getElementById('app')!
+    const h = handlers()
+    drawView(root, view({ kind: 'signed-in', me: me(), agents: [] }), h)
+    expect(root.textContent).not.toContain('Loading')
+    expect(root.querySelectorAll('[data-section="account"]').length).toBe(1)
+    expect(root.lastElementChild?.getAttribute('data-section')).toBe('account')
+    drawView(root, view({ kind: 'signed-out' }), h)
+    expect(sections(root)).toEqual([])
+    expect(root.querySelectorAll('h1').length).toBe(1)
   })
 })
