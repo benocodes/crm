@@ -6,6 +6,8 @@
 import { fileURLToPath } from 'node:url'
 import { configDefaults, type TestProjectInlineConfiguration } from 'vitest/config'
 import { REACT_TO_PREACT_ALIAS } from './packages/ui/src/esbuild-options.ts'
+// For its side effect: a private TMPDIR per run, so Miniflare's leaked `miniflare-*` folders go with the run.
+import './vitest.tmpdir.ts'
 
 // `.tsx` too (UI254 D4): page tests render with the shipping runtime.
 const TESTS = '**/{src,scripts}/**/*.test.{ts,tsx}'
