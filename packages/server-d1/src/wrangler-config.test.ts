@@ -55,31 +55,38 @@ describe('wrangler.jsonc (OPS4 C2)', () => {
 
   it('env smoked1 has exactly the C2 shape', () => {
     const c = unstable_readConfig({ config: CONFIG, env: 'smoked1' })
-    expect(c.name).toBe('vault-smoked1')
+    expect(c.name).toBe('vb-smoked1')
     expect(c.workers_dev).toBe(false)
     expect(c.preview_urls).toBe(false)
     expect(c.routes).toEqual([{ pattern: 'api.smoked1.vibase.ai', custom_domain: true }])
     expect(c.observability?.enabled).toBe(true)
-    expect(c.d1_databases).toHaveLength(1)
+    // OPS251: the instance replaced on the vb- names, Better Auth, a control database of its own.
+    expect(c.d1_databases).toHaveLength(2)
     const db = c.d1_databases[0]!
     expect(db.binding).toBe('DB')
-    expect(db.database_name).toBe('vault-smoked1')
+    expect(db.database_name).toBe('vb-crm-smoked1')
     expect(db.remote).toBe(true)
     expect(db.migrations_dir).toMatch(/storage-d1\/migrations$/)
     expect(db.preview_database_id).toBeUndefined()
-    expect(c.r2_buckets).toEqual([{ binding: 'BODIES', bucket_name: 'vault-smoked1-bodies' }])
-    expect(c.vars).toEqual({ AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' })
+    const control = c.d1_databases[1]!
+    expect(control.binding).toBe('CONTROL_DB')
+    expect(control.database_name).toBe('vb-control-smoked1')
+    expect(control.remote).toBe(true)
+    expect(control.migrations_dir).toMatch(/storage-d1\/control-migrations$/)
+    expect(c.r2_buckets).toEqual([{ binding: 'BODIES', bucket_name: 'vb-bodies-smoked1' }])
+    expect(c.vars).toEqual({
+      AUTH_PROVIDER: 'better-auth',
+      PUBLIC_BASE_URL: 'https://api.smoked1.vibase.ai',
+      CORS_ALLOWED_ORIGINS: '',
+    })
     expect(c.account_id).toBeUndefined()
   })
 
-  it('no deployed env binds CONTROL_DB yet (its database comes with OPS260), and each env keeps exactly its DB binding', () => {
-    for (const env of ['smoked1', 'hq']) {
-      const c = unstable_readConfig({ config: CONFIG, env })
-      expect(
-        c.d1_databases.map((d: { binding: string }) => d.binding),
-        env,
-      ).toEqual(['DB'])
-    }
+  it('smoked1 binds DB and CONTROL_DB (OPS251); hq still binds DB alone until its own cutover (OPS252)', () => {
+    const bindings = (env: string) =>
+      unstable_readConfig({ config: CONFIG, env }).d1_databases.map((d: { binding: string }) => d.binding)
+    expect(bindings('smoked1')).toEqual(['DB', 'CONTROL_DB'])
+    expect(bindings('hq')).toEqual(['DB'])
   })
 
   it('names no reserved production hostname or environment (D23)', () => {
@@ -136,14 +143,13 @@ describe('every run_worker_first list equals the constants the Worker serves (UI
   })
 })
 
-// [[CHN141]] D34, D76: the Workflow and the cron are Worker configuration of the instance they run in. `workflows` and `triggers` are not
-// inherited by an env, so each states its own; `hq` got its cron after the supervised first backfill ([[CHN155]] D92; it takes effect at the user's deploy).
+// [[CHN141]] D34, D76: the Workflow and the cron are Worker configuration of the instance they run in. `workflows` is not inherited by an env, so each states its own, and `triggers` is (OPS251: the replaced `smoked1` block carries no `triggers` key and runs both crons); `hq` got its cron after the supervised first backfill ([[CHN155]] D92; it takes effect at the user's deploy).
 // [[AGT8]] D54: every env also states the per-minute cron of the execution rail and the expiry sweep, beside the 15-minute one.
 describe('mail sync Workflow and crons (CHN141 D34, D76; AGT8 D54)', () => {
   const CRONS = ['*/15 * * * *', '* * * * *']
   it.each([
     [undefined, 'vb-mail-sync', CRONS],
-    ['smoked1', 'vault-smoked1-mail-sync', CRONS],
+    ['smoked1', 'vb-mail-sync-smoked1', CRONS],
     ['hq', 'vault-hq-mail-sync', CRONS],
   ] as const)('env %s binds MAIL_SYNC to %s with crons %j', (env, name, crons) => {
     const c = unstable_readConfig({ config: CONFIG, env })

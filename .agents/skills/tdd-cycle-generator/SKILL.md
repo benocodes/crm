@@ -241,6 +241,11 @@ record reader ("the Workflow too if the coder finds the record reads it"), and t
 `smoked1`/`hq` blocks carry a hand-added `MAIL_SYNC` Workflow that no setup path writes (#368). When a charter rebuilds,
 replaces or compares an env block, diff a real recorded block in `wrangler.jsonc` against what setup writes at plan time and
 name every binding the real one holds, each with an obligation.
+**OPS251** (`knowledge/specs/015-OPS251-smoked1-cutover/RETRO.md`): a remote cutover as a coder cycle plus a remote E2E, 6
+groups (0 matrix), one test-only fix, review approved round 1. Coder ~112k / 47 calls; the budget holds. The extra cost
+(~65k, one stop) came from the charter: it did not name the owner email the setup run invites, the coder defaulted to the
+git user's, and an unclaimed owner invitation cannot gain a second owner beside it (`ship-branch`, `owner-reset`). A charter
+that runs setup or a replace on a real instance names the owner email (or the `.env.<env>` line holding it).
 **CORE302** (`knowledge/specs/015-CORE302-readmit-removed-member/RETRO.md`): 5 groups (1 matrix), 2 decisions + 6 planner
 rules, no migration, 1 local E2E part (+224 code / +546 test lines, 12 files), two review rounds (the cap). The budget
 holds; the rounds came from the spec. P1 said which token re-admits but not *when* it must have been issued, so the

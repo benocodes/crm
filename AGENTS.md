@@ -144,7 +144,7 @@ another dated paragraph.
 
 | Environment | What it is | Agents may | Keys |
 |---|---|---|---|
-| `smoked1` | the agents' own single-organisation D1 instance: `--env smoked1`, `api.smoked1.vibase.ai`, Worker `vault-smoked1` until it moves to `vb-smoked1` ([[OPS250]]) | deploy, migrate, set secrets and create its `vb-` resources, as listed below | `.env.smoked1` |
+| `smoked1` | the agents' own single-organisation D1 instance: `--env smoked1`, `api.smoked1.vibase.ai`, Worker `vb-smoked1` on Better Auth ([[OPS251]]; the old `vault-smoked1` resources await the user's deletion) | deploy, migrate, set secrets and create its `vb-` resources, as listed below | `.env.smoked1` |
 | Clerk dev instance | the Clerk *development* instance (`sk_test_`/`pk_test_`, `CLERK_JWT_KEY`, `CLERK_FRONTEND_API_URL`) | configure it and create and delete test users, for tests and E2E, as listed below | `.env.dev` |
 | `hq` | the Vibase team's production instance: `--env hq`, Worker `vault-hq`, `api.hq.vibase.ai` | nothing: every deploy, migration or Clerk change is a hard stop | `.env.hq`, never sourced or printed |
 | `hq-staging` | a later staging copy of `hq`: `--env hq-staging`, `api.hq-staging.vibase.ai` | nothing, as for `hq` | `.env.hq-staging`, never sourced or printed |
