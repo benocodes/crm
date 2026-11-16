@@ -59,24 +59,52 @@
   // vars, d1_databases, r2_buckets and routes are not inherited by an env, so each env repeats what it needs (assets is inherited).
   "env": {
     "smoked1": {
-      "name": "vault-smoked1",
+      "name": "vb-smoked1",
       "workers_dev": false,
       "preview_urls": false,
-      "routes": [{ "pattern": "api.smoked1.vibase.ai", "custom_domain": true }],
-      "observability": { "enabled": true },
+      "routes": [
+        {
+          "pattern": "api.smoked1.vibase.ai",
+          "custom_domain": true
+        }
+      ],
+      "observability": {
+        "enabled": true
+      },
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "vault-smoked1",
-          "database_id": "13f7fb64-d909-44e7-9ce7-cc3c753bb3bc",
+          "database_name": "vb-crm-smoked1",
+          "database_id": "d9b77220-95e6-4443-ad0b-b023937379df",
           "migrations_dir": "../storage-d1/migrations",
+          "remote": true
+        },
+        {
+          "binding": "CONTROL_DB",
+          "database_name": "vb-control-smoked1",
+          "database_id": "cab3ca50-7333-44f2-9de6-9c1e49b47556",
+          "migrations_dir": "../storage-d1/control-migrations",
           "remote": true
         }
       ],
-      "r2_buckets": [{ "binding": "BODIES", "bucket_name": "vault-smoked1-bodies" }],
-      "workflows": [{ "binding": "MAIL_SYNC", "name": "vault-smoked1-mail-sync", "class_name": "MailSyncWorkflow" }],
-      "triggers": { "crons": ["*/15 * * * *", "* * * * *"] },
-      "vars": { "AUTH_PROVIDER": "", "CORS_ALLOWED_ORIGINS": "" }
+      "r2_buckets": [
+        {
+          "binding": "BODIES",
+          "bucket_name": "vb-bodies-smoked1"
+        }
+      ],
+      "workflows": [
+        {
+          "binding": "MAIL_SYNC",
+          "name": "vb-mail-sync-smoked1",
+          "class_name": "MailSyncWorkflow"
+        }
+      ],
+      "vars": {
+        "AUTH_PROVIDER": "better-auth",
+        "PUBLIC_BASE_URL": "https://api.smoked1.vibase.ai",
+        "CORS_ALLOWED_ORIGINS": ""
+      }
     },
     "hq": {
       "name": "vault-hq",
