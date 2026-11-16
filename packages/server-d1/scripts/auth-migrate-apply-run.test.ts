@@ -21,7 +21,7 @@ import {
   type World,
 } from './auth-migrate/test-kit.js'
 import type { AuthPlan } from './auth-migrate/types.js'
-import type { Cmd } from './remote.js'
+import { RemoteRefusal, type Cmd } from './remote.js'
 
 const { U, A } = ids
 const CRM_ID = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
@@ -130,6 +130,10 @@ interface RunOpts {
   crm?: (d1: D1Like) => D1Like
   control?: (d1: D1Like) => D1Like
   putStatus?: number
+  /** `git status --porcelain` output; non-empty is a dirty tree */
+  dirty?: string
+  deployThrows?: Error
+  appendThrows?: Error
   deployStatus?: number
 }
 /** One run of the command: its exit code and everything it did at the boundaries. */
@@ -168,12 +172,15 @@ async function runApply(c: Ctx, o: RunOpts = {}) {
       mark('secret')
       return o.putStatus ?? 0
     },
+    git: (args) => ({ status: 0, stdout: args[0] === 'status' ? (o.dirty ?? '') : 'abc123\n' }),
     appendEnvVar: (env, name, value) => {
       appended++
+      if (o.appendThrows) throw o.appendThrows
       appendInstanceVar(c.envFile, env, name, value, c.dir, join(c.dir, 'root.env'))
     },
     deploy: () => {
       mark('deploy')
+      if (o.deployThrows) throw o.deployThrows
       return o.deployStatus ?? 0
     },
     now: () => new Date('2026-11-17T09:00:00.000Z'),
@@ -261,6 +268,11 @@ describe('apply refuses before any write', () => {
       'the instance changed since the plan (the plan checks and the state check)',
       async () => void (await pair.d1.prepare("update users set name = 'Changed' where id = ?").bind(U(1)).run()),
       /no longer matches the plan/,
+    ],
+    [
+      'the git tree is not clean (the provider switch is not committed)',
+      () => ({ dirty: ' M packages/server-d1/wrangler.jsonc\n' }),
+      /commit the provider switch/,
     ],
     ['a plan file that is missing', (c) => void rmSync(c.planPath), /missing or unreadable/],
   ]
@@ -423,6 +435,32 @@ describe('every stopping point exits 2 and a re-run ends applied', () => {
       expect(await crmDump()).toBe(crmBefore)
     })
   }
+
+  it('the deploy is refused (a RemoteRefusal): exit 2 with its own message, the CRM untouched, and a re-run resumes', async () => {
+    const c = await setup()
+    const before = await crmDump()
+    const first = await runApply(c, { deployThrows: new RemoteRefusal('the working tree is not clean: commit or stash first') })
+    expect(first.code).toBe(2)
+    expect(first.err.join('\n')).toMatch(/the deploy was refused \(the working tree is not clean/)
+    expect(first.crmWrites()).toBe(0)
+    expect(await crmDump()).toBe(before)
+    const second = await runApply(c)
+    expect(second.code).toBe(0)
+    expect((await rows(pair.d1, 'select auth_provider from deployment'))[0]!.auth_provider).toBe('better-auth')
+  })
+
+  it('the env file cannot be appended to: exit 2 with its own message, nothing put, the CRM untouched, and a re-run resumes', async () => {
+    const c = await setup()
+    const before = await crmDump()
+    const first = await runApply(c, { appendThrows: new Error('disk full') })
+    expect(first.code).toBe(2)
+    expect(first.err.join('\n')).toMatch(/AUTH_SECRET could not be written to \.env\.hq/)
+    expect(first.cmds).toEqual([])
+    expect(first.crmWrites()).toBe(0)
+    expect(await crmDump()).toBe(before)
+    const second = await runApply(c)
+    expect(second.code).toBe(0)
+  })
 
   it('an empty instance (no people, no agents) still switches the marker, and its re-run is applied', async () => {
     const c = await setup({ world: { users: [], agents: [], memberships: [] }, bodies: [] })

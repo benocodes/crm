@@ -58,6 +58,8 @@ export interface PlanDeps {
   exists(path: string): boolean
   /** Is the path inside the repository checkout and not ignored by git? */
   repoPathNotIgnored(path: string): boolean
+  /** Runs git in the checkout (the clean-tree guard, shared with the deploy). */
+  git(args: string[]): { status: number | null; stdout: string }
   /** Opens the instance's remote CRM and control databases for `fn` and closes them after ([[OPS393]]; the way `bootstrap --owner-reset` opens them). */
   withDatabases<T>(envName: string, fn: (dbs: { crm: D1Like; control: D1Like }) => Promise<T>): Promise<T>
   /** Runs one writing command with `input` on its stdin (`wrangler secret put`); returns its exit status. */
@@ -128,6 +130,10 @@ export const realDeps: PlanDeps = {
     return { status: r.status, stdout: r.stdout ?? '' }
   },
   fetch: (input, init) => globalThis.fetch(input, init),
+  git: (args) => {
+    const r = spawnSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8' })
+    return { status: r.status, stdout: r.stdout ?? '' }
+  },
   withDatabases: async (envName, fn) => {
     const { getPlatformProxy } = await import('wrangler')
     const proxy = await getPlatformProxy<{ DB: D1Like; CONTROL_DB: D1Like }>(remoteProxyOptions(envName))

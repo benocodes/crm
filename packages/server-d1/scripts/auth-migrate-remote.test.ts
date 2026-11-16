@@ -54,6 +54,9 @@ function kit(
     readInstanceEnv: () => o.env ?? ENV_OK,
     exec: wrangler.exec,
     fetch: clerk.fetch,
+    git: () => {
+      throw new Error('plan runs no git')
+    },
     withDatabases: () => Promise.reject(new Error('plan opens no database')),
     run: () => {
       throw new Error('plan runs no writing command')
