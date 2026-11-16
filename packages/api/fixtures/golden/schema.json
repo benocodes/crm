@@ -1512,116 +1512,7 @@
                 "label": "API keys",
                 "description": "Credentials of agents. Only a hash is stored; the key itself is shown once, at creation.",
                 "associable": false,
-                "resource": {
-                  "name": "api_keys",
-                  "surface": "meta",
-                  "path": "/meta/v1/api-keys",
-                  "operations": ["api_keys.list", "api_keys.get"],
-                  "read_scope": "agents:read",
-                  "write_scope": null,
-                  "sorts": [
-                    {
-                      "name": "id",
-                      "kind": "uuid",
-                      "indexed": true
-                    },
-                    {
-                      "name": "created_at",
-                      "kind": "timestamp",
-                      "indexed": false
-                    },
-                    {
-                      "name": "updated_at",
-                      "kind": "timestamp",
-                      "indexed": false
-                    },
-                    {
-                      "name": "last_used_at",
-                      "kind": "timestamp",
-                      "indexed": false
-                    },
-                    {
-                      "name": "expires_at",
-                      "kind": "timestamp",
-                      "indexed": false
-                    }
-                  ],
-                  "filters": [
-                    {
-                      "name": "id",
-                      "custom": false,
-                      "kind": "uuid",
-                      "operators": ["eq", "neq", "in"],
-                      "indexed": true,
-                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "agent_id",
-                      "custom": false,
-                      "kind": "uuid",
-                      "operators": ["eq", "neq", "in"],
-                      "indexed": false,
-                      "description": "Filter by agent_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: agent_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send agent_id=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "prefix",
-                      "custom": false,
-                      "kind": "text",
-                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
-                      "indexed": false,
-                      "description": "Filter by prefix (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: prefix=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send prefix=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "last_used_at",
-                      "custom": false,
-                      "kind": "timestamp",
-                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "is"],
-                      "indexed": false,
-                      "description": "Filter by last_used_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: last_used_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send last_used_at=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "revoked_at",
-                      "custom": false,
-                      "kind": "timestamp",
-                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "is"],
-                      "indexed": false,
-                      "description": "Filter by revoked_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: revoked_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send revoked_at=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "expires_at",
-                      "custom": false,
-                      "kind": "timestamp",
-                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "is"],
-                      "indexed": false,
-                      "description": "Filter by expires_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: expires_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send expires_at=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "created_by",
-                      "custom": false,
-                      "kind": "uuid",
-                      "operators": ["eq", "neq", "in"],
-                      "indexed": false,
-                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "created_at",
-                      "custom": false,
-                      "kind": "timestamp",
-                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in"],
-                      "indexed": false,
-                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "updated_at",
-                      "custom": false,
-                      "kind": "timestamp",
-                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in"],
-                      "indexed": false,
-                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
-                    }
-                  ],
-                  "aggregate": null
-                },
+                "resource": null,
                 "columns": [
                   {
                     "name": "id",
@@ -1633,7 +1524,7 @@
                     "label": "Id",
                     "description": "Unique id (UUIDv7).",
                     "values": null,
-                    "exposed": true,
+                    "exposed": false,
                     "references": null
                   },
                   {
@@ -1646,7 +1537,7 @@
                     "label": "Created at",
                     "description": "When the row was created.",
                     "values": null,
-                    "exposed": true,
+                    "exposed": false,
                     "references": null
                   },
                   {
@@ -1659,7 +1550,7 @@
                     "label": "Updated at",
                     "description": "When the row last changed.",
                     "values": null,
-                    "exposed": true,
+                    "exposed": false,
                     "references": null
                   },
                   {
@@ -1672,7 +1563,7 @@
                     "label": "Organization id",
                     "description": "The organisation that owns the row; always the deployment's single organisation.",
                     "values": null,
-                    "exposed": true,
+                    "exposed": false,
                     "references": {
                       "table": "organizations",
                       "column": "id"
@@ -1688,7 +1579,7 @@
                     "label": "Agent id",
                     "description": "The agent the key authenticates as.",
                     "values": null,
-                    "exposed": true,
+                    "exposed": false,
                     "references": {
                       "table": "agents",
                       "column": "id"
@@ -1717,7 +1608,7 @@
                     "label": "Prefix",
                     "description": "The first characters of the key, to recognise it.",
                     "values": null,
-                    "exposed": true,
+                    "exposed": false,
                     "references": null
                   },
                   {
@@ -1730,7 +1621,7 @@
                     "label": "Last used at",
                     "description": "When the key last authenticated a request (approximate: stamped at most once a minute).",
                     "values": null,
-                    "exposed": true,
+                    "exposed": false,
                     "references": null
                   },
                   {
@@ -1743,7 +1634,7 @@
                     "label": "Revoked at",
                     "description": "When the key was revoked; null while valid.",
                     "values": null,
-                    "exposed": true,
+                    "exposed": false,
                     "references": null
                   },
                   {
@@ -1756,7 +1647,7 @@
                     "label": "Expires at",
                     "description": "When the key stops working; null for no expiry.",
                     "values": null,
-                    "exposed": true,
+                    "exposed": false,
                     "references": null
                   },
                   {
@@ -1769,7 +1660,7 @@
                     "label": "Created by",
                     "description": "The principal (user or agent) that created the row.",
                     "values": null,
-                    "exposed": true,
+                    "exposed": false,
                     "references": {
                       "table": "principals",
                       "column": "id"

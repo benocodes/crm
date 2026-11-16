@@ -305,10 +305,8 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
 - **Administration** ([[CORE3]] cycle 2, [[CORE27]]):
   - prepared definitions `src/resources/{memberships,agents,api-keys}.ts` since [[CORE40]] (`memberships` is
     read-only, written only by the directory sync; `agents` normalises scopes with `normalizeAgentScopes` in
-    `prepare`, and its create is the concrete `createAgentOperation`; `api_keys` is read-only, its writes are
-    hand-written);
-  - `src/admin/` (`users.list`, `users.get`, `api_keys.create`, `api_keys.revoke`: `adminOperations()`, all
-    prepared since [[CORE40]]; `issueApiKeyOperation`, `revokeApiKeyOperation`, `listUsersOperation`, `getUserOperation`);
+    `prepare`, and its create is the concrete `createAgentOperation`; `api_keys.ts` is the record and the list grammar of the key operations, not a registered resource since [[CORE351]]);
+  - `src/admin/` (`users.list`, `users.get`: `adminOperations()`, prepared since [[CORE40]]; `api_keys.create|revoke|list|get` are control operations on an `ApiKeyStorePort` since [[CORE351]], `apiKeyOperations()` in `api-keys.ts`, one control batch with its `control_audit` row and no CRM write or event; `createApp({ apiKeys: { port, store } })`; no store: `501 provider_not_configured`);
   - `src/directory/` ([[CORE29]], on storage since [[CORE41]]): `repairMembership` (the token claim repairs one
     user's membership; `repairOperation`), `reconcileOrganization` (fetch-and-reconcile one Clerk organisation;
     `reconcilePlanOperation` then `reconcileOperation`, one unit with a constant statement count), `refreshUser`
@@ -364,6 +362,11 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `@vibase/storage-d1` (the [[CORE337]] review finding). CRM facts the control write needs (an agent's scopes, the
     newest event id) are read before the control call through `ControlEnv.read(program)`, which refuses a mutating
     program; it is the only CRM access a control operation has.
+    A control write that reads the row first and then calls a store method which re-reads it has two reads, so
+    a racer can land between them: when the store's answer contradicts the operation's own read (the store says
+    `already_revoked` but the read saw the key live), treat it as drift and plan again, never answer from the
+    stale read ([[CORE351]] review: a racing revoke answered `200` with `revoked_at: null`). Prove it with the
+    test's port interleave (wrap the port method, run the racer inside it, then call the real one).
   - `name` is dotted and lowercase (`contacts.merge`). It is the OpenAPI `operationId`, and `toolName`
     derives the CLI/MCP name from it (`contacts_merge`, at most 64 characters).
   - `surface` is required, `'api'` (records) or `'meta'` (configuration: agents, API keys, members, users, `me`,
@@ -525,10 +528,8 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
 
 - **A response that carries a secret is a hand-written operation over a read-only definition.** The
   generic create renders its event `after` from the stored record, so a create that returned a plaintext key
-  would leak it into the outbox if the key were a column. `api_keys` generates only `list`/`get`;
-  `api_keys.create` is `issueApiKeyOperation`, which adds the plaintext only to the successful result's
-  `decode` ([[CORE27]] P6, [[CORE40]]). The contract fixture names the route in `handwritten: ['create']`,
-  so the suite's "not generated" case skips it.
+  would leak it into the outbox if the key were a column. `api_keys.create` ([[CORE27]] P6, [[CORE40]]; a control operation since [[CORE351]]) adds the plaintext only to its
+  result; the control store never holds it.
 - **An owner-scoped configuration object with no generic CRUD uses an unregistered definition as its record
   helper** (webhooks did, [[API7]] D22, until [[CORE337]] moved them to the control plane as control operations;
   the pattern stands for a CRM-held object). `webhooks/operations.ts` built `definePreparedResource({ …, operations: [] })` for
@@ -1109,7 +1110,7 @@ or an operation (`control-boundary.test.ts`, [[CORE259]] D5).
   both stores is decided by control alone); the stamp goes to the store that holds the key. The per-isolate cache
   holds only the immutable (key id, agent id, organisation id) per hash and belongs to the authenticator `createApp`
   builds (one per composed app, never module state); revocation, expiry, the agent's `disabled_at` and scopes are
-  read on every request, so a warm isolate answers as a cold one. Writers stay on CRM `api_keys` until #351. Written only by the control store's key methods: `insertApiKey`
+  read on every request, so a warm isolate answers as a cold one. The four `api_keys.*` operations write and read control only since [[CORE351]] (a key held only in the CRM database is 404 there: none is in use); the other writers (bootstrap, setup, e2e) stay on CRM `api_keys` until #356. Written only by the control store's key methods: `insertApiKey`
   and `revokeApiKey` are each one control batch with their `api_key.created` / `api_key.revoked` `control_audit`
   row (`detail` holds `agent_id`, `prefix`, `expires_at`, never the key, its hash or any part of it);
   `stampApiKeyUsed` writes `last_used_at` only, at most once a minute, never `updated_at`, with no audit row

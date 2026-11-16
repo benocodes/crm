@@ -316,6 +316,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
       ...(options.invitations ? { invitations: options.invitations } : {}),
       ...(options.members ? { members: options.members } : {}),
       ...(options.audit ? { audit: options.audit } : {}),
+      ...(options.apiKeys?.store ? { apiKeys: options.apiKeys.store } : {}),
       ...(options.webhooks ? { webhooks: options.webhooks.runtime } : {}),
       connections: {
         config: gmail?.config ?? null,

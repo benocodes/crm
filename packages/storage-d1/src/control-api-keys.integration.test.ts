@@ -1,6 +1,3 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like, D1PreparedLike } from './binding.js'
 import {
@@ -12,6 +9,7 @@ import {
   readApiKeyState,
   revokeApiKey,
   stampApiKeyUsed,
+  type ApiKeyFilter,
   type NewApiKey,
 } from './control-store.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
@@ -434,8 +432,22 @@ describe('group 5: list and get as the CRM resource reads them', () => {
         createdAt: r.created_at,
         updatedAt: r.updated_at,
       }))
-    for (const q of [{ limit: 10 }, { limit: 2 }, { limit: 10, agentId: AG1 }, { limit: 1, agentId: AG2 }]) {
-      expect(await listApiKeys(c(), { organizationId: ORG2, ...q })).toEqual(await crmRead(q))
+    const byAgent = (agentId: string): { filters: ApiKeyFilter[] } => ({
+      filters: [{ column: 'agent_id', not: false, op: 'eq', value: agentId }],
+    })
+    for (const [q, crmQ] of [
+      [{ limit: 10 }, { limit: 10 }],
+      [{ limit: 2 }, { limit: 2 }],
+      [
+        { limit: 10, ...byAgent(AG1) },
+        { limit: 10, agentId: AG1 },
+      ],
+      [
+        { limit: 1, ...byAgent(AG2) },
+        { limit: 1, agentId: AG2 },
+      ],
+    ] as const) {
+      expect(await listApiKeys(c(), { organizationId: ORG2, ...q })).toEqual(await crmRead(crmQ))
     }
     const first = await listApiKeys(c(), { organizationId: ORG2, limit: 2 })
     const next = { after: first[1]!.id, limit: 10 }
@@ -460,35 +472,118 @@ describe('group 5: list and get as the CRM resource reads them', () => {
   })
 })
 
-describe('group 6: dormant and bounded (D5, P6)', () => {
-  const NAMES = ['insertApiKey', 'revokeApiKey', 'getApiKey', 'listApiKeys']
-  const PACKAGES = fileURLToPath(new URL('../../', import.meta.url))
-  const sources = (dir: string): string[] =>
-    readdirSync(dir).flatMap((f) => {
-      if (f === 'node_modules' || f === 'dist' || f === '.wrangler') return []
-      const p = join(dir, f)
-      if (statSync(p).isDirectory()) return sources(p)
-      return /\.(ts|tsx|js|mjs)$/.test(f) && !/\.test\.|\.suite\.|\.d\.ts$/.test(f) ? [p] : []
-    })
-  // [[CORE350]] P7: the lookup, state and stamp methods now have a caller (the Worker composition, for API-key authentication) and left this list; the four below stay without callers until #351 (CORE351) wires the writers and deletes this test.
-  it('no non-test source outside the control store and the index reaches the API key methods', () => {
-    const own = ['storage-d1/src/control-store.ts', 'storage-d1/src/index.ts']
-    const hits: string[] = []
-    for (const pkg of readdirSync(PACKAGES)) {
-      for (const sub of ['src', 'scripts']) {
-        let files: string[] = []
-        try {
-          files = sources(join(PACKAGES, pkg, sub))
-        } catch {
-          continue
-        }
-        for (const f of files) {
-          if (own.some((o) => f.endsWith(o))) continue
-          const text = readFileSync(f, 'utf-8')
-          for (const name of NAMES) if (new RegExp(`\\b${name}\\b`).test(text)) hits.push(`${f}: ${name}`)
-        }
+describe('group 6: list sorts, orders and filters (CORE351 P4)', () => {
+  const ORG3 = '0190b2c4-0000-7000-8000-00000000a0c3'
+  let seeded: Array<NewApiKey & { lastUsedAt: string | null; revokedAt: string | null }> = []
+  const AGS = [nextId(), nextId()]
+  beforeAll(async () => {
+    // ten keys: ties on updated_at, nulls in last_used_at and expires_at, two agents, one revoked
+    for (let i = 0; i < 10; i++) {
+      const k = newKey({
+        organizationId: ORG3,
+        agentId: AGS[i % 2]!,
+        prefix: i % 3 === 0 ? 'vk_alpha' : 'vk_beta',
+        expiresAt: i % 4 === 0 ? null : plus(NOW, (i % 3) * HOUR),
+        now: plus(NOW, Math.floor(i / 2) * MIN),
+      })
+      await insertApiKey(c(), k)
+      let lastUsedAt: string | null = null
+      if (i % 3 !== 1) {
+        lastUsedAt = plus(NOW, ((i * 7) % 4) * MIN + HOUR)
+        await run(control, 'update api_keys set last_used_at = ? where id = ?', lastUsedAt, k.id)
+      }
+      let revokedAt: string | null = null
+      if (i === 5) {
+        revokedAt = plus(NOW, 9 * HOUR)
+        await run(control, 'update api_keys set revoked_at = ? where id = ?', revokedAt, k.id)
+      }
+      seeded.push({ ...k, lastUsedAt, revokedAt })
+    }
+  })
+  const page = async (a: Omit<Parameters<typeof listApiKeys>[1], 'organizationId'>) =>
+    (await listApiKeys(c(), { organizationId: ORG3, ...a })).map((r) => r.id)
+
+  it('the column sorts order by the value, null first ascending and last descending, ties by id in the same direction', async () => {
+    const col = (name: 'last_used_at' | 'expires_at' | 'updated_at' | 'created_at') =>
+      ({
+        last_used_at: (k: (typeof seeded)[number]) => k.lastUsedAt,
+        expires_at: (k: (typeof seeded)[number]) => k.expiresAt,
+        updated_at: (k: (typeof seeded)[number]) => k.now,
+        created_at: (k: (typeof seeded)[number]) => k.now,
+      })[name]
+    for (const name of ['last_used_at', 'expires_at', 'updated_at', 'created_at'] as const) {
+      for (const order of ['asc', 'desc'] as const) {
+        const v = col(name)
+        const dir = order === 'asc' ? 1 : -1
+        const rank = (x: string | null) => (x === null ? (order === 'asc' ? -1 : 1) : 0)
+        const expected = [...seeded]
+          .sort((a, b) => {
+            const av = v(a)
+            const bv = v(b)
+            if (av === null || bv === null) return av === bv ? dir * (a.id < b.id ? -1 : 1) : rank(av) - rank(bv)
+            return av === bv ? dir * (a.id < b.id ? -1 : 1) : dir * (av < bv ? -1 : 1)
+          })
+          .map((k) => k.id)
+        expect(await page({ sort: { column: name, order, position: null }, limit: 20 }), `${name} ${order}`).toEqual(
+          expected,
+        )
       }
     }
-    expect(hits).toEqual([])
+  })
+
+  it('a position continues exactly after the last row of the previous page, for a null and a non-null value', async () => {
+    for (const order of ['asc', 'desc'] as const) {
+      const all = await listApiKeys(c(), {
+        organizationId: ORG3,
+        sort: { column: 'last_used_at', order, position: null },
+        limit: 20,
+      })
+      for (const at of [1, 3, 5, 8]) {
+        const last = all[at]!
+        const next = await page({
+          sort: { column: 'last_used_at', order, position: { value: last.lastUsedAt, id: last.id } },
+          limit: 20,
+        })
+        expect(next, `${order} after ${at}`).toEqual(all.slice(at + 1).map((r) => r.id))
+      }
+    }
+  })
+
+  it('every filter operator compiles: comparisons, in, null, not, glob and like', async () => {
+    const f = (column: ApiKeyFilter['column'], op: any, value?: unknown, not = false) =>
+      ({ column, op, ...(value === undefined ? {} : { value }), not }) as ApiKeyFilter
+    const ids = (pred: (k: (typeof seeded)[number]) => boolean) =>
+      seeded
+        .filter(pred)
+        .map((k) => k.id)
+        .sort()
+    const got = async (...filters: ApiKeyFilter[]) => (await page({ filters, limit: 20 })).sort()
+    expect(await got(f('agent_id', 'eq', AGS[0]))).toEqual(ids((k) => k.agentId === AGS[0]))
+    expect(await got(f('agent_id', 'eq', AGS[0], true))).toEqual(ids((k) => k.agentId !== AGS[0]))
+    expect(await got(f('agent_id', 'in', AGS))).toEqual(ids(() => true))
+    expect(await got(f('expires_at', 'null'))).toEqual(ids((k) => k.expiresAt === null))
+    expect(await got(f('expires_at', 'null', undefined, true))).toEqual(ids((k) => k.expiresAt !== null))
+    expect(await got(f('expires_at', 'neq', plus(NOW, HOUR)))).toEqual(
+      ids((k) => k.expiresAt !== null && k.expiresAt !== plus(NOW, HOUR)),
+    )
+    expect(await got(f('last_used_at', 'gte', plus(NOW, HOUR + 2 * MIN)))).toEqual(
+      ids((k) => k.lastUsedAt !== null && k.lastUsedAt >= plus(NOW, HOUR + 2 * MIN)),
+    )
+    expect(await got(f('revoked_at', 'null', undefined, true))).toEqual(ids((k) => k.revokedAt !== null))
+    expect(await got(f('prefix', 'glob', 'vk_al*'))).toEqual(ids((k) => k.prefix.startsWith('vk_al')))
+    expect(await got(f('prefix', 'like', 'VK\\_BE%'))).toEqual(ids((k) => k.prefix.startsWith('vk_be')))
+    expect(await got(f('agent_id', 'eq', AGS[0]), f('prefix', 'glob', 'vk_al*'))).toEqual(
+      ids((k) => k.agentId === AGS[0] && k.prefix.startsWith('vk_al')),
+    )
+  })
+
+  it('a column that is not a filterable column is refused before any SQL is built', async () => {
+    await expect(
+      listApiKeys(c(), {
+        organizationId: ORG3,
+        filters: [{ column: 'key_hash', not: false, op: 'eq', value: 'x' } as unknown as ApiKeyFilter],
+        limit: 5,
+      }),
+    ).rejects.toThrow(/column/)
   })
 })

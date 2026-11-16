@@ -96,7 +96,7 @@ describe('the manifest (D32)', () => {
     expect(reason('connections.authorize')).toMatch(/consent screen/)
     expect(reason('connections.delete')).toMatch(/not proposable/)
     expect(reason('agents.create')).toMatch(/administration/)
-    expect(reason('api_keys.revoke')).toMatch(/administration|credentials/)
+    expect(reason('api_keys.revoke')).toBe('not a record operation') // a control operation (CORE351): never proposable
     expect(reason('contact_files.create')).toMatch(/file links/)
     expect(reason('action_requests.approve')).toMatch(/never proposed/)
     expect(proposalMeta(registry.get('me.get')!).eligible).toBe(false)

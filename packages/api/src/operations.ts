@@ -1,6 +1,8 @@
 import { connectionOperations, withWatchStop, type ConnectionsRuntime } from './connections/operations.js'
 import { contentOperations } from './messaging/content-operations.js'
 import { adminOperations } from './admin/operations.js'
+import { apiKeyOperations } from './admin/api-keys.js'
+import type { ApiKeyStorePort } from './admin/api-key-port.js'
 import { auditOperations } from './audit/operations.js'
 import type { AuditRuntime } from './audit/port.js'
 import { invitationOperations } from './invitations/operations.js'
@@ -16,7 +18,6 @@ import { schemaOperations } from './schema/operations.js'
 import { eventOperations } from './events/operations.js'
 import { Registry } from './registry.js'
 import { agents } from './resources/agents.js'
-import { apiKeys } from './resources/api-keys.js'
 import { companies } from './resources/companies.js'
 import { companyFiles } from './resources/company-files.js'
 import { connections } from './resources/connections.js'
@@ -54,7 +55,8 @@ export function createVibaseRegistry(
     webhooks?: WebhooksRuntime /** [[CORE245]] P2: the control-plane port of the invitation operations; absent or null: this composition has no control store and they answer `501 provider_not_configured`. The registry has them all the same. */
     invitations?: InvitationsRuntime | null /** [[CORE288]] P1, P2: the membership writes' control-plane port; absent or null: they answer `501 provider_not_configured`. The registry has them all the same. */
     members?: MembersRuntime | null /** [[CORE261]] P1, P5: the audit log's read port; absent or null: `audit.list` answers `501 provider_not_configured`. The registry has it all the same. */
-    audit?: AuditRuntime | null
+    audit?: AuditRuntime | null /** [[CORE351]] P5: the control-plane store of the four `api_keys.*` operations; absent or null: they answer `501 provider_not_configured`. The registry has them all the same. */
+    apiKeys?: ApiKeyStorePort | null
   } = {},
 ): Registry {
   const registry = new Registry()
@@ -79,14 +81,17 @@ export function createVibaseRegistry(
   assertNeighbours(endpointTypesOf(registry.resources()))
   for (const op of associationOperations(() => registry.resources())) registry.register(op)
   for (const op of contentOperations()) registry.register(op)
-  registry.registerResource(memberships).registerResource(agents).registerResource(apiKeys)
+  registry.registerResource(memberships).registerResource(agents)
   // [[CORE288]]: the generated membership writes get their control-plane stages; the reset link is a hand-written operation beside `users.list`.
   const memberWrites = withMembershipWrites(memberships, options.members ?? null)
   registry.decorate('memberships.update', memberWrites.update).decorate('memberships.delete', memberWrites.delete)
   // [[API6]] D4: the feed's visibility map. Definitions register their own `eventName`; these are the types no definition names or that the feed hides.
   registry.registerEventType('association', { scope: 'associations', edge: true })
   registry.registerEventType('organization', { scope: 'members' })
+  // [[CORE351]]: `api_keys` is no longer a registered resource (its four operations are control operations), but its historic `api_key.*` events stay readable through the feed until #357 takes the type off the map.
+  registry.registerEventType('api_key', { scope: 'agents' })
   for (const op of adminOperations()) registry.register(op)
+  for (const op of apiKeyOperations(options.apiKeys ?? null)) registry.register(op)
   for (const op of invitationOperations(options.invitations ?? null)) registry.register(op)
   for (const op of auditOperations(options.audit ?? null)) registry.register(op)
   registry.register(resetLinkOperation(options.members ?? null))

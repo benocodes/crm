@@ -354,22 +354,8 @@ describe('resource bridge (D14)', () => {
       ],
     })
   })
-  it('a meta-surface definition with no write action has write_scope null and the meta path', () => {
-    expect(table(doc, 'api_keys').resource).toMatchObject({
-      name: 'api_keys',
-      surface: 'meta',
-      path: '/meta/v1/api-keys',
-      operations: ['api_keys.list', 'api_keys.get'],
-      read_scope: 'agents:read',
-      write_scope: null,
-      sorts: [
-        { name: 'id', kind: 'uuid', indexed: true },
-        { name: 'created_at', kind: 'timestamp', indexed: false },
-        { name: 'updated_at', kind: 'timestamp', indexed: false },
-        { name: 'last_used_at', kind: 'timestamp', indexed: false },
-        { name: 'expires_at', kind: 'timestamp', indexed: false },
-      ],
-    })
+  it('api_keys is served by control operations, not a definition, so its CRM table has resource null (CORE351)', () => {
+    expect(table(doc, 'api_keys').resource).toBeNull()
   })
   it('tables served by no definition (events, principals) have resource null', () => {
     expect(table(doc, 'events').resource).toBeNull()
@@ -445,7 +431,7 @@ describe('values and exposed (D11)', () => {
   })
   it('exposed is true only for record fields; secret columns are listed with exposed false', () => {
     expect(column(doc, 'tasks', 'status').exposed).toBe(true)
-    expect(column(doc, 'api_keys', 'prefix').exposed).toBe(true)
+    expect(column(doc, 'companies', 'name').exposed).toBe(true)
     expect(column(doc, 'api_keys', 'key_hash')).toMatchObject({ exposed: false, kind: 'text' })
     expect(column(doc, 'events', 'id').exposed).toBe(false)
   })

@@ -83,14 +83,6 @@ export const fixtures: Record<string, ContractFixture> = {
     patch: async () => ({ name: 'Renamed agent' }),
     actors: ['user'],
   },
-  api_keys: {
-    async make(kit) {
-      const agent = await kit.post('/meta/v1/agents', { name: 'k' })
-      return kit.post('/meta/v1/api-keys', { agent_id: agent.id })
-    },
-    handwritten: ['create'],
-    actors: ['user'],
-  },
   // Messaging ([[CORE25]] C1): read-only resources, made by the capture unit ([[CORE68]] P15), the only writer they have.
   threads: { make: async (kit) => ({ id: (await kit.capture()).captured[0]!.thread_id }) },
   messages: { make: async (kit) => ({ id: (await kit.capture()).captured[0]!.message_id }) },

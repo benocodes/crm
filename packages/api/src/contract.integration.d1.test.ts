@@ -1,7 +1,6 @@
 import { adminOperations } from './admin/operations.js'
 import { Registry } from './registry.js'
 import { agents } from './resources/agents.js'
-import { apiKeys } from './resources/api-keys.js'
 import { companies } from './resources/companies.js'
 import { connections } from './resources/connections.js'
 import { companyFiles } from './resources/company-files.js'
@@ -26,7 +25,7 @@ import { d1Backend } from './test/d1-backend.js'
 // The prepared resources through the same prepared path on a local D1 binding per tenant: the SAME assertions as the Postgres run
 // in contract.integration.postgres.test.ts ([[CORE35]] D16, [[CORE36]] rule 9).
 // The six messaging resources join in CORE72 (CORE69 D17), seeded by `kit.capture`.
-// Administration joins the D1 run in CORE40 (P10); api_keys' hand-written create must be routable for its fixture.
+// Administration joins the D1 run in CORE40 (P10). api_keys left it with the move of its operations to the control plane ([[CORE351]]): its suite is `admin/api-keys-control.integration.d1.test.ts`.
 runContractSuite({
   registry: adminOperations().reduce(
     (r, op) => r.register(op),
@@ -43,7 +42,6 @@ runContractSuite({
       .registerResource(identities)
       .registerResource(memberships)
       .registerResource(agents)
-      .registerResource(apiKeys)
       .registerResource(threads)
       .registerResource(messages)
       .registerResource(interactions)
@@ -64,7 +62,6 @@ runContractSuite({
     identities: fixtures.identities!,
     memberships: fixtures.memberships!,
     agents: fixtures.agents!,
-    api_keys: fixtures.api_keys!,
     threads: fixtures.threads!,
     messages: fixtures.messages!,
     interactions: fixtures.interactions!,

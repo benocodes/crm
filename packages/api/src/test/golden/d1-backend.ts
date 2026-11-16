@@ -1,6 +1,6 @@
 // Test-only. The D1 golden backend: one local Miniflare D1, the same fixed principals as the Postgres backend,
 // the real app and the prepared path, the clock and ids injected. Replays the committed fixtures.
-import { d1Binding, type D1Like } from '@vibase/storage-d1'
+import { apiKeyStore, d1Binding, openControlDb, type D1Like } from '@vibase/storage-d1'
 import { clearD1, openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
 import { seedAgent, seedDeployment, seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { memoryObjectStore, type ObjectStore } from '../../objects/store.js'
@@ -39,8 +39,11 @@ export interface D1GoldenBackend extends GoldenBackend {
 }
 
 export async function d1GoldenBackend(): Promise<D1GoldenBackend> {
-  const local: LocalD1 = await openLocalD1(['GOLDEN'])
+  const local: LocalD1 = await openLocalD1(['GOLDEN', 'CONTROL'], { control: ['CONTROL'] })
   const d1: D1Like = local.bindings.GOLDEN!
+  // [[CORE351]]: API keys live in the control plane; the app's key operations and its authenticator reach them through the real store.
+  const control: D1Like = local.bindings.CONTROL!
+  const keyStore = apiKeyStore(openControlDb(control))
   let now = new Date(0)
   let counter = 0
   const random = { n: 0 }
@@ -63,6 +66,7 @@ export async function d1GoldenBackend(): Promise<D1GoldenBackend> {
     newId,
     randomBytes: goldenRandomBytes(random),
     objects,
+    apiKeys: { port: keyStore, store: keyStore },
   })
   mountGoldenWebhook(app, clerk, { clock, newId })
   // The seeded agent keeps GOLDEN_SCOPES (the older fixtures list it); a messaging scenario's tokens also carry the messaging reads.
@@ -70,6 +74,7 @@ export async function d1GoldenBackend(): Promise<D1GoldenBackend> {
   return {
     async reset() {
       await clearD1(d1)
+      await clearD1(control)
       forgetEnsuredConnections(binding)
       counter = 0
       random.n = 0
@@ -137,7 +142,7 @@ export async function d1GoldenBackend(): Promise<D1GoldenBackend> {
         [IDS.agentKey, GOLDEN_AGENT_KEY, null],
         [IDS.expiredKey, GOLDEN_EXPIRED_KEY, '2026-10-22T08:30:00.000Z'],
       ] as const) {
-        await d1
+        await control
           .prepare(
             'INSERT INTO api_keys (id, created_at, updated_at, organization_id, agent_id, key_hash, prefix, expires_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
           )
