@@ -2,6 +2,7 @@
 // `plan` reads the Clerk instance (Backend API, GET only) and both D1 databases (wrangler, SELECT and Time Travel info only) and writes the reviewable plan file that apply and revert (#394) consume. Nothing is written but the plan file.
 // `claim --env <name> [--plan <path>] [--email <address>] [--dry-run]` ([[OPS397]]) prints one reset link per migrated person and per relinked agent account, and the caps of the disabled delegated agents; it writes only the links' verification and audit rows.
 // `apply` opens the two remote databases and runs: checks, fresh export, control batch, `AUTH_SECRET`, the deploy with the provider switched, and then the CRM batch (P1). A refusal exits 1 before any write; a failure after a write began exits 2.
+// `revert --env <name> [--plan <path>] [--dry-run]` ([[OPS394]]) undoes an applied migration: the CRM batch first, then the guarded deploy; the operator has committed the revert of the config switch first. Nothing in the control database is written.
 // A source script, not part of the release bin ([[OPS250]] "Tooling home").
 import { spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -21,6 +22,14 @@ import {
 import { uuidv7 } from '@vibase/storage'
 import { ApplyFailure, ApplyRefusal, applyBatches, assessRun, describePlan, exitCodeFor } from './auth-migrate/apply.js'
 import { ClaimRefusal, claim } from './auth-migrate/claim.js'
+import {
+  assessRevert,
+  claimedAccounts,
+  describeRevert,
+  insertedMemberships,
+  revertCrm,
+  revertLine,
+} from './auth-migrate/revert.js'
 import { classify } from './auth-migrate/classify.js'
 import { exportClerkUsers } from './auth-migrate/clerk-export.js'
 import { AGENTS_SQL, MEMBERSHIPS_SQL, USERS_SQL, readCrmExport } from './auth-migrate/crm-export.js'
@@ -38,6 +47,7 @@ import {
   type Cmd,
   type ConfigLike,
 } from './remote.js'
+import { createWorkspaceAuthAdapter } from '@vibase/api'
 import { parseBuiltInAuthConfig, AUTH_SECRET_MIN_LENGTH } from '../src/auth-config.js'
 import { readDeployment } from '../src/init-deployment.js'
 import { realDeployDeps, requireCleanTree, runDeploy } from './deploy.js'
@@ -47,7 +57,7 @@ import { appendEnvFileVar, probeEnvFile } from './setup/env-file.js'
 import type { EnvFileProbe } from './setup/types.js'
 
 export const USAGE =
-  'usage: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 auth:migrate:remote -- plan|apply|claim --env <name> [--plan <path>] [--dry-run] (claim also takes --email <address>)'
+  'usage: CONFIRM_REMOTE=1 pnpm -C packages/server-d1 auth:migrate:remote -- plan|apply|claim|revert --env <name> [--plan <path>] [--dry-run] (claim also takes --email <address>)'
 
 export interface PlanDeps {
   /** Loads the Cloudflare credentials (and refuses when they are missing). */
@@ -165,7 +175,7 @@ export const realDeps: PlanDeps = {
 }
 
 interface PlanArgs {
-  sub: 'plan' | 'apply' | 'claim'
+  sub: 'plan' | 'apply' | 'claim' | 'revert'
   env: string
   plan: string | undefined
   dryRun: boolean
@@ -200,8 +210,8 @@ function parsePlanArgs(argv: string[]): PlanArgs {
     throw new RemoteRefusal(`${e instanceof Error ? e.message : 'bad arguments'}; ${USAGE}`)
   }
   const [sub, ...rest] = parsed.positionals
-  if ((sub !== 'plan' && sub !== 'apply' && sub !== 'claim') || rest.length > 0)
-    throw new RemoteRefusal(`only the plan, apply and claim subcommands exist so far (revert is #394); ${USAGE}`)
+  if ((sub !== 'plan' && sub !== 'apply' && sub !== 'claim' && sub !== 'revert') || rest.length > 0)
+    throw new RemoteRefusal(`only the plan, apply, claim and revert subcommands exist; ${USAGE}`)
   if (!parsed.values.env) throw new RemoteRefusal(`--env <name> is required; ${USAGE}`)
   if (parsed.values.email !== undefined && sub !== 'claim')
     throw new RemoteRefusal(`--email limits a claim run: only the claim subcommand takes it; ${USAGE}`)
@@ -232,7 +242,7 @@ function summary(plan: AuthPlan): string {
 }
 
 /** What both commands check before any wrangler or Clerk call: the record names a control database and a Clerk instance, and the instance's own env file holds the Clerk key. */
-function resolveInstance(envName: string, deps: PlanDeps, command: 'plan' | 'apply' = 'plan') {
+function resolveInstance(envName: string, deps: PlanDeps, command: 'plan' | 'apply' | 'revert' = 'plan') {
   deps.loadEnv(envName)
   const config = deps.readConfig(envName)
   const target = requireControlTarget(config, envName)
@@ -243,6 +253,28 @@ function resolveInstance(envName: string, deps: PlanDeps, command: 'plan' | 'app
       throw new RemoteRefusal(
         `env ${envName} runs AUTH_PROVIDER ${provider}: the migration plan reads a clerk instance only`,
       )
+    return target
+  }
+  if (command === 'revert') {
+    // [[OPS394]] P2: the way back is the operator's committed `git revert` of the apply-time config commit, so the block must already be a Clerk one the Worker would accept (the secrets are placeholders: the block is what is judged).
+    if (provider !== 'clerk')
+      throw new RemoteRefusal(
+        `the provider switch back is not committed: env ${envName} still runs AUTH_PROVIDER ${provider}. git revert the commit that switched wrangler.jsonc's env block to Better Auth (it must be committed), then run revert again`,
+      )
+    const vars = Object.fromEntries(
+      Object.entries(config.vars ?? {}).filter((e): e is [string, string] => typeof e[1] === 'string'),
+    )
+    try {
+      createWorkspaceAuthAdapter({
+        ...vars,
+        CLERK_JWT_KEY: 'placeholder-jwt-key',
+        CLERK_SECRET_KEY: 'placeholder-secret-key',
+      })
+    } catch (e) {
+      throw new RemoteRefusal(
+        `env ${envName}'s block does not parse as a Clerk config: ${e instanceof Error ? e.message : 'invalid'}. Fix it in wrangler.jsonc and commit, then run revert again`,
+      )
+    }
     return target
   }
   // [[OPS393]] P2: the provider switch is the operator's commit, so the block must already be a Better Auth one (the guarded deploy needs a clean tree; nothing here edits the file).
@@ -467,6 +499,86 @@ async function runApply(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanDe
   })
 }
 
+/**
+ * `revert` ([[OPS394]] P1-P6): the guards, the Clerk block, the clean tree, the plan file, the migration level, then a fresh export and its state (applied, restored or a refusal). Everything up to and including the state is read-only and runs under `--dry-run` too.
+ * Applied: the CRM batch, then the guarded deploy (P1). Restored: no batch, the deploy again. Nothing is written to the control database, a file or a secret (P3, P6).
+ */
+async function runRevert(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanDeps): Promise<void> {
+  requireConfirm(procEnv)
+  const envName = args.env
+  const target = resolveInstance(envName, deps, 'revert')
+  requireCleanTree(
+    deps.git,
+    'commit the revert of the provider switch (and anything else) in wrangler.jsonc, then run revert again',
+  )
+  const planPath = resolve(args.plan ?? defaultPlanPath(envName, procEnv, homedir()))
+  const plan = readPlanFile(planPath, envName, target, deps)
+  const secretKey = readSecretKey(envName, deps)
+  deps.log(
+    `target: env ${target.env}, database ${target.databaseName} (${target.databaseId}), control database ${target.control.databaseName} (${target.control.databaseId})`,
+  )
+  await deps.withDatabases(envName, async ({ crm, control }) => {
+    await requireReady(envName, crm, control)
+    const fresh = await readSnapshotFrom(crm, secretKey, deps)
+    const link = (await crm.prepare('select organization_id, auth_provider, auth_org_id from deployment').first()) as {
+      organization_id: string
+      auth_provider: string
+      auth_org_id: string
+    } | null
+    if (!link) throw new RemoteRefusal('the CRM database has no deployment row: it is not an initialised instance')
+    const state = assessRevert(plan, fresh, link.auth_provider)
+    const inert = await claimedAccounts(plan, control)
+    const leftInert = () => {
+      for (const email of inert)
+        deps.log(
+          `left inert: ${email} (a password or Google account in the control database; revert does not touch it, and CORE259 D10's sweep owns it)`,
+        )
+    }
+    if (state === 'restored') {
+      deps.log('state: restored: the CRM already matches the plan, no CRM batch is needed')
+      if (args.dryRun) {
+        deps.log('dry run: nothing written, no deploy')
+        leftInert()
+        return
+      }
+    } else {
+      deps.log('state: applied')
+      deps.log(revertLine(describeRevert(plan, insertedMemberships(plan, fresh))))
+      if (args.dryRun) {
+        deps.log('dry run: nothing written, no deploy')
+        leftInert()
+        return
+      }
+      const outcome = await revertCrm({
+        plan,
+        fresh,
+        crm,
+        link,
+        now: () => deps.now(),
+        newId: () => deps.newId(),
+      })
+      deps.log(
+        `CRM batch committed: users restored ${outcome.users_restored}, agents relinked back ${outcome.agents_relinked_back}, agents re-enabled ${outcome.agents_reenabled}, memberships removed ${outcome.memberships_removed}; the deployment marker reads clerk`,
+      )
+    }
+    deps.log('deploying the Worker from this checkout (the provider is back to Clerk)')
+    let status: number | null
+    try {
+      status = deps.deploy(envName, procEnv)
+    } catch (e) {
+      throw new ApplyFailure(
+        `the deploy was refused (${e instanceof Error ? e.message : 'failed'}): the CRM is already restored; fix it and re-run revert, which deploys`,
+      )
+    }
+    if (status !== 0)
+      throw new ApplyFailure(
+        `the deploy failed (exit ${status ?? 'none'}): the CRM is already restored; re-run revert, which deploys`,
+      )
+    leftInert()
+    deps.log(`reverted: env ${envName} runs Clerk again, and the deployment marker says so`)
+  })
+}
+
 /** P1, P4: between the two batches. `AUTH_SECRET` is the instance file's when valid, else generated into it; it reaches the Worker on stdin only. Any failure here is a failure after a write began (exit 2) that a re-run resumes from. */
 async function secretAndDeploy(envName: string, procEnv: NodeJS.ProcessEnv, deps: PlanDeps): Promise<void> {
   const file = deps.readInstanceEnv(envName)
@@ -577,11 +689,17 @@ async function runClaim(args: PlanArgs, procEnv: NodeJS.ProcessEnv, deps: PlanDe
   })
 }
 
-/** Returns the exit code: 0 done or already applied, 1 refused (or a read failed) before any write, 2 failed after a write began (apply and claim, [[OPS393]] P5, [[OPS397]] P6). */
+/** Returns the exit code: 0 done or already applied, 1 refused (or a read failed) before any write, 2 failed after a write began (apply, claim and revert, [[OPS393]] P5, [[OPS397]] P6, [[OPS394]] P5). */
 export async function runAuthMigrate(argv: string[], procEnv: NodeJS.ProcessEnv, deps: PlanDeps): Promise<number> {
   try {
     const args = parsePlanArgs(argv)
-    await (args.sub === 'apply' ? runApply : args.sub === 'claim' ? runClaim : runPlan)(args, procEnv, deps)
+    await (args.sub === 'apply'
+      ? runApply
+      : args.sub === 'claim'
+        ? runClaim
+        : args.sub === 'revert'
+          ? runRevert
+          : runPlan)(args, procEnv, deps)
     return 0
   } catch (e) {
     deps.error(`auth-migrate: ${e instanceof Error ? e.message : 'failed'}`)
