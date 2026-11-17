@@ -147,6 +147,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   assertion clause and the overlapping guard together to prove each clause. A single removal that stays green
   because another guard rejects the same input is an equivalent mutant: record it as such beside the run that
   drops both and turns red (`sort=id` UUID check vs value = id, `knowledge/specs/012-CORE175-list-sort-rollout/RETRO.md`, M15).
+- **A refusal order is proven only where two refusals' conditions hold at once.** One case per refusal shows each
+  exists; a swapped order stays green. Add inputs that fail two checks (an agent on an unknown id, another member's
+  disconnected row) and a mutation that swaps two checks and turns the test red. A charter obligation for an order
+  names those overlaps ([[CHN409]] review round 1, `knowledge/specs/015-CHN409-connections-update/RETRO.md`).
 - **Pick negative examples that stay negative.** A test proving "a list without X keeps the old behaviour" must
   use a case excluded by design (an exempt list, an impossible value such as `sort=no_such_field`), not one merely
   not yet adopted. When a later cycle makes X universal, the second kind fails for intended reasons and must be
