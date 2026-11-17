@@ -204,6 +204,14 @@ describe('renewal (D89, D90)', () => {
     })
     expect(google.watchRequests).toHaveLength(1)
   })
+  it('a connection capturing only a user label still renews its watch for INBOX and SENT (CHN407 D4)', async () => {
+    const a = await seed({ expiresIn: null })
+    await e.d1!.prepare('delete from connection_capture_labels where connection_id = ?').bind(a.id).run()
+    await e.insert('connection_capture_labels', { connection_id: a.id, label_id: 'Label_1' })
+    expect(await renewWatches(deps())).toMatchObject({ registered: 1 })
+    expect(google.watchRequests).toHaveLength(1)
+    expect(google.watchRequests[0]!.body).toMatchObject({ labelIds: ['INBOX', 'SENT'] })
+  })
   it('6 days and a minute left: no call. 6 days less a minute: renewed with expires_at updated', async () => {
     const keep = await seed({ expiresIn: 6 * DAY + MIN })
     const renew = await seed({ expiresIn: 6 * DAY - MIN })

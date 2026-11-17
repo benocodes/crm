@@ -390,18 +390,24 @@ export class FakeGmail implements GmailClient {
       historyId: this.profile.historyId,
     }
   }
-  /** Gmail's `users.messages.list` body: matches of `after:<unix seconds> {in:inbox in:sent}` plus `extraListed`; no `messages` member when empty. */
+  /**
+   * Gmail's `users.messages.list` body: matches of `after:<unix seconds>` plus the label clause (`{in:inbox in:sent}`, `{in:inbox}`, `{in:sent}`, or none:
+   * [[CHN407]] P2, any label) plus `extraListed`; no `messages` member when empty.
+   */
   messageListWire(q: string, pageToken: string | null | undefined, maxResults: number): Record<string, unknown> {
     const ref = /rfc822msgid:<?([^ >]+)>?/.exec(q)?.[1]
     if (ref && this.delaySentSearches-- > 0) return {}
     const after = Number(/after:(\d+)/.exec(q)?.[1] ?? 0)
+    const clause = /\{([^}]*)\}/.exec(q)?.[1]
+    const wanted = clause === undefined ? null : clause.split(' ').map((t) => t.replace(/^in:/, '').toUpperCase())
     const matching = [...this.messages.values()].filter((m) => {
       const labels = m.resource.labelIds ?? []
       if (ref)
         return (
           labels.includes('SENT') && messageIdTokens(header(m.resource.payload?.headers, 'Message-ID')).includes(ref)
         )
-      return (labels.includes('INBOX') || labels.includes('SENT')) && Number(m.resource.internalDate) / 1000 >= after
+      const inLabels = wanted === null || wanted.some((l) => labels.includes(l))
+      return inLabels && Number(m.resource.internalDate) / 1000 >= after
     })
     const ids = [...new Set([...matching.map((m) => m.resource.id), ...this.extraListed])]
     const at = pageToken ? Number(pageToken.replace(/^m/, '')) : 0
