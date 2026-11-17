@@ -66,6 +66,7 @@ describe('migrations manifest (D5)', () => {
       '0019_drop_auth_tables.sql',
       '0020_drop_api_key_webhook_tables.sql',
       '0021_capture_settings.sql',
+      '0022_unattached_identities.sql',
     ])
   })
   it('catches one edited byte', () => {

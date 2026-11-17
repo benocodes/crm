@@ -198,13 +198,21 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   first (CHN140 added `ensureConnection` to `packages/api/src/test/capture-kit.ts` and fixed seeds in `server-d1`'s
   `compose.test.ts` and `measured-limits.test.ts`). Before migrating a deployed database, check the child table holds no
   row the new key would refuse: the copy aborts the whole migration.
+- **Rebuilding a table other tables reference (a parent) goes through a side table, not `<t>_new` + `RENAME`.** With
+  children holding rows, `DROP TABLE <t>` under `defer_foreign_keys` raises the deferred FK counter and the rename does
+  not clear it, so the migration fails at commit. Instead: `CREATE TABLE <t>_backup AS SELECT * FROM <t>`, `DROP <t>`,
+  `CREATE TABLE <t>` with the new definition, `INSERT … SELECT` the explicit column list from the backup (these inserts
+  clear the counter), `DROP <t>_backup`, then re-create every index and trigger. Keep `UNIQUE (organization_id, id)`
+  verbatim: the children's composite FKs depend on it. Test it over data with child rows present and
+  `PRAGMA foreign_key_check` empty after (`0022_unattached_identities.sql`, `identities-unattached-schema.integration.test.ts`,
+  [[CORE408]]).
 - **A D1 `INTEGER PRIMARY KEY` needs an explicit `NOT NULL`.** It is the rowid, but `pragma_table_info` reports
   `notnull = 0` without it, so `schema.get` publishes the key as `nullable: true`. `INTEGER PRIMARY KEY AUTOINCREMENT
   NOT NULL` still auto-assigns. `AUTOINCREMENT` creates `sqlite_sequence` (hidden from `schema.get`), which clearing the
   table does not reset: compare relative order in tests, never absolute values (`events.seq`, `0015_event_sequence.sql`,
   [[API105]]).
 - **Vocabulary CHECKs are named identically on both engines** (`<table>_<purpose>`) so the schema audit needs no difference.
-  Widening one later is a Postgres `DROP/ADD CONSTRAINT` and, on D1, a table rebuild under `PRAGMA defer_foreign_keys`: budget for it.
+  Widening one later is a Postgres `DROP/ADD CONSTRAINT` and, on D1, a table rebuild under `PRAGMA defer_foreign_keys` (a parent table rebuilds through a side table, above): budget for it.
 - **A new FK onto `identities` joins `IDENTITY_REFERENCES`** (`packages/api/src/identity/merge.ts`), like a FK onto contacts joins `CONTACT_REFERENCES`.
 - **The `integer` kind.** `position`/`version` are `integer`, `size_bytes` is `bigint` on Postgres and `INTEGER` on D1;
   `pg` returns bigint as text, so `codecs.integer` (in `toRecord` and the engines' decoders) reads a safe integer from a number or a

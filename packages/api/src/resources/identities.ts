@@ -102,7 +102,9 @@ export const identities = withColumnFilters(
                 'identity_exists',
                 own
                   ? 'the address is already an own identity'
-                  : `the address already belongs to contact ${String(row.contact_id)}`,
+                  : row.contact_id === null || row.contact_id === undefined
+                    ? 'the address is already recorded without a contact'
+                    : `the address already belongs to contact ${String(row.contact_id)}`,
               )
             },
           },

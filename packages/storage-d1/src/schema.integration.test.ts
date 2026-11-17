@@ -384,10 +384,10 @@ describe('the identity model slice (CORE36 C3)', () => {
     await insertOk('identities', identity(3))
   })
 
-  it('enforces the owner rule own = (contact_id IS NULL)', async () => {
+  it('enforces the owner rule own = 0 OR contact_id IS NULL (CORE408 D3)', async () => {
     await insertOk('contacts', contact(500))
     expect(await insertInto('identities', identity(1, { own: 1 }))).toMatch(/CHECK/i)
-    expect(await insertInto('identities', identity(2, { contact_id: null, own: 0 }))).toMatch(/CHECK/i)
+    await insertOk('identities', identity(2, { contact_id: null, own: 0, value: 'unattached@example.com' }))
     await insertOk('identities', identity(3, { contact_id: null, own: 1, value: 'me@example.com' }))
     expect(await insertInto('identities', identity(4, { own: 2 }))).toMatch(/CHECK/i)
     expect(await insertInto('identities', identity(5, { kind: 'sms', value: 'x' }))).toMatch(/CHECK/i)

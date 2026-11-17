@@ -134,12 +134,14 @@ export const CATALOG: Catalog = {
     },
     identities: {
       label: 'Identities',
-      description: 'An address (email or phone) that resolves to a contact, or to the organisation itself when own.',
+      description:
+        "An address (email or phone) that resolves to a contact's, to the organisation itself when own, or to nobody yet when unattached (captured but not given a contact).",
       columns: {
         kind: 'email or phone.',
         value: 'The address; emails are stored lowercase.',
-        contact_id: 'The contact the address belongs to; null for an address of the organisation itself.',
-        own: "True for the organisation's own addresses (no contact); false for a contact's.",
+        contact_id:
+          'The contact the address belongs to; null for an own address of the organisation, or for an unattached address that has no contact yet.',
+        own: "True for the organisation's own addresses (no contact); false for a contact's and for an unattached address.",
       },
     },
     users: {
