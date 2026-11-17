@@ -542,7 +542,12 @@ Writing and pushing the charter is where this skill ends. Implementation follows
    route. **A guard or file the obligation names must exist: one `git grep` before the charter ships.** OPS262's charter
    asked for an absence mutation of "`packages/release`'s forbidden list", which names no package (it scans for
    secrets); the coder had to find the real guards. When the grep finds nothing, name the property instead and let
-   the coder find its guards (`knowledge/specs/015-OPS262-vibase-rename/RETRO.md`).
+   the coder find its guards (`knowledge/specs/015-OPS262-vibase-rename/RETRO.md`). **An obligation about the form of
+   an input (case, whitespace, a `+tag`) goes to the layer that sees the raw input.** A pure function over normalised
+   values cannot see case, and a stored state that a schema CHECK refuses cannot be seeded. Before asking for either,
+   read the normaliser the caller runs first and the column's constraints. [[CHN414]] asked for `Support+eu@` (case)
+   in a pure predicate matrix and for a mailbox stored in mixed case, which `identities_email_ascii_lower` refuses.
+   The first cost a review round and the second a deviation (`knowledge/specs/015-CHN414-sender-filters/RETRO.md`).
 9. **A charter revised mid-cycle names the stop point and what survives.** When a design decision changes while the
    coder is working, the coder stops at a commit, and the planner revises the spec (changelog and decisions log) and the
    charter in place, never in a second plan file. The revised charter opens with a **Revised** block. That block
