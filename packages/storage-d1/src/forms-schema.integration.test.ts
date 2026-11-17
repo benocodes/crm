@@ -171,7 +171,7 @@ describe('migration 0023_forms', () => {
   })
 })
 
-describe('form_allowed_origins and form_tags (dormant in cycle 1)', () => {
+describe('form_allowed_origins and form_tags (constraints)', () => {
   let f: string
   beforeAll(async () => {
     const row = await fresh({ name: 'Children', public_id: PID('h') })
