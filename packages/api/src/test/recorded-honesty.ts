@@ -124,7 +124,7 @@ export function dishonestStrings(rec: RecordedExchange): string[] {
           : k === 'historyTypes'
             ? /^[A-Za-z]{3,30}$/.test(v)
             : k === 'q'
-              ? /^after:\d{1,12} \{in:inbox in:sent\}$|^after:\d{4}\/\d\d\/\d\d$/.test(v)
+              ? /^after:\d{1,12}( \{in:inbox in:sent\}| \{in:inbox\}| \{in:sent\})?$|^after:\d{4}\/\d\d\/\d\d$/.test(v)
               : k === 'startHistoryId' || k === 'pageToken'
                 ? PSEUDONYM.test(v)
                 : isMask(v)

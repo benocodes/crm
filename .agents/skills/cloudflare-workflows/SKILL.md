@@ -70,6 +70,13 @@ Must be structured-cloneable **and small**.
 - **Don't return:** SDK clients, DB clients or pools, compiled validators, anything built with `new Foo()`
   that has methods or private state, cycles, and **a `selectAll()` row from a table whose future shape you
   don't control**.
+- **A new key on a sync step's return is also a test edit:** `packages/api/src/sync/sync-engine.integration.d1.test.ts`
+  ("step returns (invariant 7)") lists every key a sync step may return. It sits under `src/sync`, so an
+  affected-files run over `src/channels/gmail` misses it; run `src/sync` whenever a step's return shape changes
+  ([[CHN407]] `Scan.label_clause`, one gate-fix round).
+- **A value a later step must hold fixed belongs in the return, not in a re-read.** A Gmail page token is minted
+  for one query, so the scan's query clause is computed once at scan start and carried in `Scan`; each page re-reads
+  settings only for what may change between pages ([[CHN407]] P1).
 
 ### workerd is stricter than V8's structured clone
 

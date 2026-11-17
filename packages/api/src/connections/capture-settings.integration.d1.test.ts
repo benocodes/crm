@@ -1,5 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { defineOperation, unit } from '@vibase/storage'
@@ -240,20 +239,10 @@ describe('the catalog describes the new tables and columns (D14)', () => {
   })
 })
 
-describe('dormancy (delete the matching assertion when CHN407 lands)', () => {
-  const SRC = fileURLToPath(new URL('../../..', import.meta.url))
-  const sources = (dir: string): string[] =>
-    readdirSync(dir).flatMap((f) => {
-      const p = join(dir, f)
-      if (f === 'node_modules' || f === 'dist') return []
-      if (statSync(p).isDirectory()) return sources(p)
-      return /\.tsx?$/.test(f) && !/\.test\.|\.suite\.|\/test\//.test(p) && !p.includes('/test/') ? [p] : []
-    })
-  const files = ['api', 'server-d1', 'storage', 'storage-d1', 'cli'].flatMap((p) => sources(join(SRC, p, 'src')))
-  it('no non-test module calls captureSettingsRead (CHN407 will, and deletes this assertion)', () => {
-    const callers = files.filter(
-      (f) => !f.endsWith('connections/capture-settings.ts') && readFileSync(f, 'utf8').includes('captureSettingsRead'),
-    )
-    expect(callers).toEqual([])
+describe('the shared default labels (CHN407 D12)', () => {
+  it('connect.ts takes DEFAULT_CAPTURE_LABELS from capture-settings.ts and keeps no copy of its own', () => {
+    const src = readFileSync(fileURLToPath(new URL('./connect.ts', import.meta.url)), 'utf8')
+    expect(src).toMatch(/import \{[^}]*DEFAULT_CAPTURE_LABELS[^}]*\} from '\.\/capture-settings\.js'/)
+    expect(src).not.toMatch(/const DEFAULT_CAPTURE_LABELS/)
   })
 })

@@ -132,7 +132,9 @@ the end: one row per decision in the decisions log, which the reviewer and later
 node scripts/decisions.mjs add --issue <the cycle's issue> --by coder --stage code [--id D-a] "<the decision, one sentence>"
 ```
 
-then list it in `RESULT.md` (with the `ref` the command printed) and your report. The script finds the knowledge
+then list it in `RESULT.md` (with the `ref` the command printed) and your report. `add` has no duplicate guard: if
+you are unsure whether an `add` landed, run `find <issue>` before adding again ([[CHN407]] 407.21 and 407.23 are
+one decision recorded twice). The script finds the knowledge
 repo from any worktree; an earlier cycle's rows are `node scripts/decisions.mjs find <issue or spec ID>`.
 **A decision that adds a branch needs a test that takes each side of it**, with an
 absence mutation per side: a recorded but untested decision is a review round ([[CHN149]] D-b: records
