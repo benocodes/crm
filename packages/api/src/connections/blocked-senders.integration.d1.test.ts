@@ -117,6 +117,9 @@ describe('resource semantics (D8, P2, P3)', () => {
     const addr = await create({ kind: 'address', value: 'x@spam.example' })
     expect(addr.status).toBe(201)
     expect(refusal(await create({ kind: 'address', value: 'X@Spam.Example' }))).toEqual([409, 'blocked_sender_exists'])
+    // the same text cannot be both kinds: an address needs an @, a domain has none
+    expect(refusal(await create({ kind: 'address', value: 'spam.example' }))).toEqual([400, 'validation_error'])
+    expect(refusal(await create({ kind: 'domain', value: 'x@spam.example' }))).toEqual([400, 'validation_error'])
     expect((await e.events()).length).toBe(mark + 1)
     await del(first.body.id)
     const again = await create({ kind: 'domain', value: 'spam.example' })
