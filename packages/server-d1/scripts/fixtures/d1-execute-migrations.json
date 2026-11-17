@@ -63,6 +63,9 @@
       },
       {
         "name": "0021_capture_settings.sql"
+      },
+      {
+        "name": "0022_unattached_identities.sql"
       }
     ],
     "success": true,
