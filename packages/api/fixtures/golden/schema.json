@@ -5674,7 +5674,7 @@
                     "default": null,
                     "label": "Channel",
                     "description": "The channel it happened on (email today).",
-                    "values": ["email"],
+                    "values": ["email", "form"],
                     "exposed": true,
                     "references": null
                   },
@@ -6477,7 +6477,7 @@
                     "default": null,
                     "label": "Channel",
                     "description": "The channel the message arrived on (email today).",
-                    "values": ["email"],
+                    "values": ["email", "form"],
                     "exposed": true,
                     "references": null
                   },
@@ -8179,7 +8179,7 @@
                     "default": null,
                     "label": "Channel",
                     "description": "Where the conversation happens (email today).",
-                    "values": ["email"],
+                    "values": ["email", "form"],
                     "exposed": true,
                     "references": null
                   },

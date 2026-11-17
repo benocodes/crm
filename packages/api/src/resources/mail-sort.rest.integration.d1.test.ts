@@ -184,7 +184,8 @@ async function seed(count = 5) {
   for (let n = 0; n < count; n++) {
     await e.run(
       recordMessagesOperation(e.env({ now: new Date(`2026-11-01T00:00:0${n}.000Z`) }), {
-        connection_id: C,
+        source: { kind: 'connection', id: C },
+        channel: 'email',
         messages: [
           captureMessage(e.organizationId, {
             external_id: `mail-${n}@sort.test`,

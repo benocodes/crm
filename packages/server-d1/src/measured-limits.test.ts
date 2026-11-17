@@ -283,7 +283,8 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
         binding,
         { kind: 'tenant', actorId: creator, organizationId: orgId },
         recordMessagesOperation(tenantEnv({ organizationId: orgId, userId: creator, agentId: creator }, now), {
-          connection_id: captureConnection,
+          source: { kind: 'connection', id: captureConnection },
+          channel: 'email',
           messages,
         }),
       )

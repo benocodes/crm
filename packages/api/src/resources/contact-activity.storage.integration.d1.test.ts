@@ -40,7 +40,8 @@ const identity = async (contactId: string, value: string) =>
 /** An inbound message from `from` to the owner at `at`. */
 const inbound = (from: string, at: string, over: CaptureOverrides = {}) =>
   runCapture(e, {
-    connection_id: C1,
+    source: { kind: 'connection', id: C1 },
+    channel: 'email',
     messages: [
       captureMessage(e.organizationId, {
         occurred_at: at,
@@ -61,7 +62,8 @@ const outbound = (
   over: CaptureOverrides = {},
 ) =>
   runCapture(e, {
-    connection_id: C1,
+    source: { kind: 'connection', id: C1 },
+    channel: 'email',
     messages: [
       captureMessage(e.organizationId, {
         occurred_at: at,

@@ -166,7 +166,13 @@ export async function captureMessages(
       maxSetSize: binding.runtime.maxSetSize,
     }
     assertNoCollision(
-      Object.keys(recordMessages(makeEnv(), { connection_id: conn.id, messages: [] }).reads(qc)),
+      Object.keys(
+        recordMessages(makeEnv(), {
+          source: { kind: 'connection', id: conn.id },
+          channel: 'email',
+          messages: [],
+        }).reads(qc),
+      ),
       Object.keys(opts.final.reads(qc)),
     )
   }
@@ -284,7 +290,8 @@ export async function captureMessages(
       })
     }
     const input: CaptureInput = {
-      connection_id: conn.id,
+      source: { kind: 'connection', id: conn.id },
+      channel: 'email',
       messages,
       ...(opts.contactCreation ? { contact_creation: opts.contactCreation } : {}),
     }

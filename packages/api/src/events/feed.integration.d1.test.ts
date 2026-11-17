@@ -126,7 +126,11 @@ describe('emit order and atomicity within a unit', () => {
   })
 
   it("capture's recordMessages events read back in emit order", async () => {
-    await runCapture(e, { connection_id: uuidv7(), messages: [captureMessage(e.organizationId, { attachments: 1 })] })
+    await runCapture(e, {
+      source: { kind: 'connection', id: uuidv7() },
+      channel: 'email',
+      messages: [captureMessage(e.organizationId, { attachments: 1 })],
+    })
     const types = (await page({ readable: ['thread', 'message', 'file', 'interaction'] })).events.map((x) => x.type)
     expect(types).toEqual(['thread.created', 'message.created', 'file.created', 'interaction.created'])
   })

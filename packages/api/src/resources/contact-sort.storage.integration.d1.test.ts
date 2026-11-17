@@ -39,7 +39,8 @@ beforeEach(async () => {
 const env = (scopes: readonly string[] = READ) => e.env({ scopes: ScopeSet.parse([...scopes]) })
 const outbound = (to: string, at: string) =>
   runCapture(e, {
-    connection_id: C1,
+    source: { kind: 'connection', id: C1 },
+    channel: 'email',
     messages: [
       captureMessage(e.organizationId, {
         occurred_at: at,
@@ -54,7 +55,8 @@ const outbound = (to: string, at: string) =>
   })
 const inbound = (from: string, at: string) =>
   runCapture(e, {
-    connection_id: C1,
+    source: { kind: 'connection', id: C1 },
+    channel: 'email',
     messages: [
       captureMessage(e.organizationId, {
         occurred_at: at,

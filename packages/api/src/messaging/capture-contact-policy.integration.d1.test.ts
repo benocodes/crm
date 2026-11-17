@@ -39,7 +39,12 @@ const p = (role: CaptureParticipant['role'], value: string, name?: string): Capt
 })
 const msg = (over: CaptureOverrides = {}): CaptureMessage => captureMessage(e.organizationId, over)
 const cap = (messages: CaptureMessage[], policy?: Policy, connection = CONN_A): ReturnType<typeof runCapture> =>
-  runCapture(e, { connection_id: connection, messages, ...(policy === undefined ? {} : { contact_creation: policy }) })
+  runCapture(e, {
+    source: { kind: 'connection', id: connection },
+    channel: 'email',
+    messages,
+    ...(policy === undefined ? {} : { contact_creation: policy }),
+  })
 const received = (from: string, over: CaptureOverrides = {}) =>
   msg({ sent_by_connection: false, participants: [p('from', from), p('to', OWNER)], ...over })
 const sent = (to: CaptureParticipant[], over: CaptureOverrides = {}) =>

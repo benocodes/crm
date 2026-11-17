@@ -54,7 +54,11 @@ const inbound = async (over: CaptureOverrides = {}) => {
   const result = await execute(
     k.binding,
     { kind: 'tenant', actorId: k.owner.id, organizationId: k.organizationId },
-    recordMessagesOperation(envOf(), { connection_id: connection, messages: [msg] }),
+    recordMessagesOperation(envOf(), {
+      source: { kind: 'connection', id: connection },
+      channel: 'email',
+      messages: [msg],
+    }),
   )
   return { ...result.value.captured[0]!, provider_message_id: msg.provider_message_id, external_id: msg.external_id }
 }
@@ -582,4 +586,40 @@ it('parked Postgres composition refuses messages.send with 501 before object/pro
   expect(res.status).toBe(501)
   expect(await res.json()).toMatchObject({ error: { code: 'not_implemented' } })
   expect(units).toBe(0)
+})
+it('a reply to a form thread is 409 no_sendable_connection: the anchor query joins on the sending connection (CHN421 D10)', async () => {
+  const at = '2026-11-06T09:00:00.000Z'
+  const formId = uuidv7()
+  await k.d1.prepare('insert into principals (id, kind, created_at) values (?, ?, ?)').bind(formId, 'agent', at).run()
+  await k.d1
+    .prepare(
+      'insert into agents (id, created_at, updated_at, organization_id, name, scopes, created_by) values (?, ?, ?, ?, ?, ?, ?)',
+    )
+    .bind(formId, at, at, k.organizationId, 'form agent', '[]', k.owner.id)
+    .run()
+  await k.d1
+    .prepare(
+      'insert into forms (id, created_at, updated_at, organization_id, created_by, name, public_id, enabled, email_field) values (?, ?, ?, ?, ?, ?, ?, 1, ?)',
+    )
+    .bind(formId, at, at, k.organizationId, k.owner.id, 'Website', `frm_${'7'.repeat(26)}`, 'email')
+    .run()
+  const msg = captureMessage(k.organizationId, {
+    channel: 'form',
+    direction: 'inbound',
+    provider_thread_id: 'email:lead@example.test',
+    participants: [{ kind: 'email', value: 'lead@example.test', role: 'from' }],
+  })
+  const captured = await execute(
+    k.binding,
+    { kind: 'tenant', actorId: k.owner.id, organizationId: k.organizationId },
+    recordMessagesOperation(envOf(), { source: { kind: 'form', id: formId }, channel: 'form', messages: [msg] }),
+  )
+  const out = await direct(writer, {
+    mode: 'reply',
+    thread_id: captured.value.captured[0]!.thread_id,
+    subject: undefined,
+  })
+  expect(out.status).toBe(409)
+  expect(out.body.error.code).toBe('no_sendable_connection')
+  expect(await k.rows('action_executions')).toEqual([])
 })

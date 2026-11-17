@@ -338,7 +338,11 @@ describe('messaging events carry no content (D17)', () => {
   it('a capture yields one interaction.created row whose event record has message_id and participants and no preview', async () => {
     const a = await agentWith(['interactions:read', 'events:read'])
     const sub = await k.create(a, { event_types: ['interaction.created'] })
-    await runCapture(k.e, { connection_id: uuidv7(), messages: [captureMessage(k.e.organizationId)] })
+    await runCapture(k.e, {
+      source: { kind: 'connection', id: uuidv7() },
+      channel: 'email',
+      messages: [captureMessage(k.e.organizationId)],
+    })
     await k.dispatch()
     const rows = await k.deliveries(sub.id)
     expect(rows).toHaveLength(1)
@@ -356,11 +360,19 @@ describe('messaging events carry no content (D17)', () => {
   it('after messages:read is removed, a new message.created yields no row', async () => {
     const a = await agentWith(['messages:read', 'events:read'])
     const sub = await k.create(a, { event_types: ['message.created'] })
-    await runCapture(k.e, { connection_id: uuidv7(), messages: [captureMessage(k.e.organizationId)] })
+    await runCapture(k.e, {
+      source: { kind: 'connection', id: uuidv7() },
+      channel: 'email',
+      messages: [captureMessage(k.e.organizationId)],
+    })
     await k.dispatch()
     expect(await k.deliveries(sub.id)).toHaveLength(1)
     await k.grant(a, ['events:read'])
-    await runCapture(k.e, { connection_id: uuidv7(), messages: [captureMessage(k.e.organizationId)] })
+    await runCapture(k.e, {
+      source: { kind: 'connection', id: uuidv7() },
+      channel: 'email',
+      messages: [captureMessage(k.e.organizationId)],
+    })
     await k.dispatch()
     expect(await k.deliveries(sub.id)).toHaveLength(1)
   })

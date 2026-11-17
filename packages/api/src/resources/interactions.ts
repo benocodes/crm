@@ -24,7 +24,7 @@ export const interactions = withColumnFilters(
       record: z.object({
         id: z.uuid(),
         kind: z.enum(['message', 'reaction']),
-        channel: z.enum(['email']),
+        channel: z.enum(['email', 'form']),
         direction: z.enum(['inbound', 'outbound']),
         occurred_at: z.string(),
         thread_id: z.uuid().nullable(),
@@ -43,7 +43,7 @@ export const interactions = withColumnFilters(
       },
       filters: {
         kind: { schema: z.enum(['message', 'reaction']) },
-        channel: { schema: z.enum(['email']) },
+        channel: { schema: z.enum(['email', 'form']) },
         direction: { schema: z.enum(['inbound', 'outbound']) },
         thread_id: { schema: z.uuid(), normalize: lower },
         message_id: { schema: z.uuid(), normalize: lower },

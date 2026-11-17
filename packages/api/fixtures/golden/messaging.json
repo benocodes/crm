@@ -315,7 +315,7 @@
           "response": {
             "error": {
               "code": "validation_error",
-              "message": "filter channel: Invalid input: expected \"email\""
+              "message": "filter channel: Invalid option: expected one of \"email\"|\"form\""
             }
           },
           "events": []

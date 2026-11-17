@@ -288,7 +288,7 @@ describe('constraints after 0024', () => {
         organization_id: ORG,
         created_by: USER,
         name: `Form ${agentId}`,
-        public_id: `frm_${agentId.replace(/\D/g, '').padStart(26, '0')}`,
+        public_id: `frm_${agentId === FORM ? 'a' : 'b'}${'0'.repeat(25)}`,
         enabled: 1,
         email_field: 'email',
         phone_field: null,
@@ -335,6 +335,7 @@ describe('constraints after 0024', () => {
         ...over,
       }),
       'provider_message_id',
+      'provider_thread_id',
     ],
     [
       'thread_sources',
@@ -349,18 +350,18 @@ describe('constraints after 0024', () => {
         ...over,
       }),
       'provider_thread_id',
+      null,
     ],
-  ] as const)('%s: exactly one source, FK on form, form-keyed uniqueness', async (table, check, row, _col) => {
+  ] as const)('%s: exactly one source, FK on form, form-keyed uniqueness', async (table, check, row, col, col2) => {
+    const dup = { [col]: 'dup', ...(col2 ? { [col2]: 'dup' } : {}) }
     const k = table === 'message_sources' ? 60 : 70
     expect(await insert(table, row(k, {}))).toMatch(new RegExp(check))
     expect(await insert(table, row(k + 1, { connection_id: CONN, form_id: FORM }))).toMatch(new RegExp(check))
     expect(await insert(table, row(k + 2, { form_id: id(98) }))).toMatch(/FOREIGN KEY|constraint/i)
-    expect(await insert(table, row(k + 3, { form_id: FORM, provider_message_id: 'dup', provider_thread_id: 'dup' }))).toBeNull()
-    expect(await insert(table, row(k + 4, { form_id: FORM, provider_message_id: 'dup', provider_thread_id: 'dup' }))).toMatch(
-      /UNIQUE/,
-    )
+    expect(await insert(table, row(k + 3, { form_id: FORM, ...dup }))).toBeNull()
+    expect(await insert(table, row(k + 4, { form_id: FORM, ...dup }))).toMatch(/UNIQUE/)
     // the same provider id under another form, and under a connection, is accepted
-    expect(await insert(table, row(k + 5, { form_id: FORM2, provider_message_id: 'dup', provider_thread_id: 'dup' }))).toBeNull()
-    expect(await insert(table, row(k + 6, { connection_id: CONN, provider_message_id: 'dup', provider_thread_id: 'dup' }))).toBeNull()
+    expect(await insert(table, row(k + 5, { form_id: FORM2, ...dup }))).toBeNull()
+    expect(await insert(table, row(k + 6, { connection_id: CONN, ...dup }))).toBeNull()
   })
 })

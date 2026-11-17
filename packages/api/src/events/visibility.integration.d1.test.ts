@@ -169,7 +169,11 @@ describe('visibility per resource type (matrix)', () => {
   })
 
   it('the messaging split (CORE25): interactions:read alone sees the interaction and not the thread or message; files and contact files have their own scopes', async () => {
-    await runCapture(e, { connection_id: uuidv7(), messages: [captureMessage(e.organizationId, { attachments: 1 })] })
+    await runCapture(e, {
+      source: { kind: 'connection', id: uuidv7() },
+      channel: 'email',
+      messages: [captureMessage(e.organizationId, { attachments: 1 })],
+    })
     const types = async (scopes: string[]) => (await seen(['events:read', ...scopes])).map((x) => x.type)
     expect(await types(['interactions:read'])).toEqual(['interaction.created'])
     expect(await types(['messages:read'])).toEqual(['thread.created', 'message.created'])
