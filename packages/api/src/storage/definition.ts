@@ -79,6 +79,8 @@ export type EmbedDecl<Child extends Table = Table> = {
   readonly key: ColumnOf<Child>
   readonly columns: readonly ColumnOf<Child>[]
   readonly orderBy: readonly ColumnOf<Child>[]
+  /** One column, rendered as the bare value (`string[]`) instead of an object ([[CHN406]] D3). */
+  readonly scalar?: boolean
 }
 /** Embed field name -> child table, as inferred from the `embed` declaration. */
 export type EmbedMap = Readonly<Record<string, Table>>

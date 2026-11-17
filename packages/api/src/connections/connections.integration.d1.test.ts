@@ -108,9 +108,14 @@ describe('connections.list and connections.get (D42)', () => {
     })
     expect(Object.keys(got.body).sort()).toEqual([
       'account_id',
+      'blocked_senders',
+      'capture_labels',
       'connected_at',
+      'contact_creation',
       'created_at',
       'created_by',
+      'exclude_group_addresses',
+      'exclude_personal_domains',
       'granted_scopes',
       'id',
       'identity_id',

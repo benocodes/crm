@@ -109,8 +109,8 @@ async function seedFive(db: D1Like): Promise<void> {
 }
 
 describe('migration 0020 drops the CRM api_keys and webhook tables (CORE329 P1), over data', () => {
-  it('is the next migration in the manifest', () => {
-    expect(MIGRATIONS.map((m) => m.name).at(-1)).toBe('0020_drop_api_key_webhook_tables.sql')
+  it('is in the manifest at its place (later migrations follow it)', () => {
+    expect(MIGRATIONS.map((m) => m.name)[19]).toBe('0020_drop_api_key_webhook_tables.sql')
   })
 
   it('a CRM database at 0019 with a row in every one of the five tables applies 0020: none is left, every other table keeps its rows (events included), the control database is unchanged', async () => {

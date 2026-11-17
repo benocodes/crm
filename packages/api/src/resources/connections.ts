@@ -15,6 +15,11 @@ export type ConnectionRecord = {
   status: 'active' | 'reauth_required' | 'suspended'
   granted_scopes: string[]
   connected_at: string
+  capture_labels: string[]
+  blocked_senders: Array<{ kind: 'address' | 'domain'; value: string }>
+  exclude_group_addresses: boolean
+  exclude_personal_domains: boolean
+  contact_creation: 'sent_and_received' | 'sent' | 'none'
   created_by: string
   created_at: string
   updated_at: string
@@ -42,6 +47,27 @@ const record = z.object({
     ),
   granted_scopes: z.array(z.string()).describe('The OAuth scopes the person granted at the provider.'),
   connected_at: z.string().describe('When the connection was made or last reconnected.'),
+  capture_labels: z
+    .array(z.string())
+    .describe(
+      "The Gmail label ids whose messages are captured, sorted; INBOX and SENT by default and never empty ([[CHN406]] D4). Changing them is CHN409's operation.",
+    ),
+  blocked_senders: z
+    .array(z.object({ kind: z.enum(['address', 'domain']), value: z.string() }))
+    .describe(
+      "This connection's own blocked addresses and domains, sorted by kind then value (lowercase); none by default. The workspace list is separate (blocked_senders resource).",
+    ),
+  exclude_group_addresses: z
+    .boolean()
+    .describe('Whether mail from group addresses is left out of capture; false by default.'),
+  exclude_personal_domains: z
+    .boolean()
+    .describe('Whether mail from personal-mail domains is left out of capture; false by default.'),
+  contact_creation: z
+    .enum(['sent_and_received', 'sent', 'none'])
+    .describe(
+      'Which captured mail creates contacts for unknown addresses: sent_and_received (default, as before), sent, or none.',
+    ),
   created_by: z.uuid(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -87,6 +113,21 @@ export const connections = withColumnFilters(
       d1Only: true,
       operations: ['list', 'get', 'delete'],
       derived,
+      embed: {
+        capture_labels: {
+          table: 'connection_capture_labels',
+          key: 'connection_id',
+          columns: ['label_id'],
+          orderBy: ['label_id'],
+          scalar: true,
+        },
+        blocked_senders: {
+          table: 'connection_blocked_senders',
+          key: 'connection_id',
+          columns: ['kind', 'value'],
+          orderBy: ['kind', 'value'],
+        },
+      },
       record,
       after: ({ qc, env, op, id }) => {
         if (op !== 'delete') return []

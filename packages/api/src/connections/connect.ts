@@ -49,6 +49,8 @@ export interface ConnectResult {
   created: boolean
 }
 
+/** [[CHN5]] D5's fixed pair, now the default of a connection's `capture_labels` ([[CHN406]] D4, D12). */
+const DEFAULT_CAPTURE_LABELS = ['INBOX', 'SENT'] as const
 const EXISTING = 'connect:existing'
 const sub = (i: number, key: string): string => `connect:a${i}:${key}`
 const bare = (s: Step): Step => ({ query: s.query, ...(s.expect ? { expect: s.expect } : {}) })
@@ -116,8 +118,25 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
               status: 'active',
               granted_scopes: scopes,
               connected_at: at,
+              exclude_group_addresses: false,
+              exclude_personal_domains: false,
+              contact_creation: 'sent_and_received',
             }),
             'first-mutation',
+          ),
+          // The default capture labels ([[CHN406]] D4, D12), before the event so `connection.created`'s `after` renders them from the stored rows. A reconnect (the else branch) keeps whatever rows exist.
+          ...DEFAULT_CAPTURE_LABELS.map((labelId) =>
+            bare(
+              step(
+                qc.db.insertInto('connection_capture_labels').values({
+                  id: env.newId(),
+                  organization_id: org,
+                  connection_id: newConnectionId,
+                  label_id: labelId,
+                  created_at: at,
+                }),
+              ),
+            ),
           ),
           step(
             eventStatement(qc, {

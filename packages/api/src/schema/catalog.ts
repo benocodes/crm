@@ -350,12 +350,47 @@ export const CATALOG: Catalog = {
           'active works; reauth_required when the provider refused the stored grant; suspended when the owner is no longer admitted. A reconnect makes it active again.',
         granted_scopes: 'The OAuth scopes the person granted at the provider, as a JSON array.',
         connected_at: 'When the connection was made or last reconnected.',
+        exclude_group_addresses:
+          'Whether mail from group addresses is left out of capture. False by default; applied from CHN407 on.',
+        exclude_personal_domains:
+          'Whether mail from personal-mail domains is left out of capture. False by default; applied from CHN407 on.',
+        contact_creation:
+          'Which captured mail creates contacts for unknown addresses: sent_and_received (the default, as before), sent, or none.',
       },
       derived: {
         last_synced_at:
           'When the mailbox was last brought up to date; null until a sync has finished. Derived from the sync cursor, read-only.',
         last_error_code:
           'A short code for the last sync failure; null when the last run was fine or none ran. Derived from the sync state, read-only.',
+      },
+    },
+    connection_capture_labels: {
+      label: 'Connection capture labels',
+      description:
+        "The Gmail label ids a connection captures, one row each: INBOX and SENT by default, never none. They are part of the connection record (capture_labels), which embeds them sorted; a connection's settings rows stay with it when it is disconnected.",
+      columns: {
+        connection_id: 'The connection these labels belong to.',
+        label_id:
+          "A Gmail label id (for example INBOX, SENT or Label_123); unique per connection. Ids are Gmail's stable ids, not names.",
+      },
+    },
+    connection_blocked_senders: {
+      label: 'Connection blocked senders',
+      description:
+        "A connection's own blocked addresses and domains, one row each; none by default. They are part of the connection record (blocked_senders), sorted by kind then value, and add to the workspace blocklist for this mailbox only.",
+      columns: {
+        connection_id: 'The connection this entry belongs to.',
+        kind: 'address (a full email address) or domain (a bare hostname).',
+        value: 'The blocked address or domain, trimmed and lowercase; unique per connection and kind.',
+      },
+    },
+    blocked_senders: {
+      label: 'Blocked senders',
+      description:
+        "The workspace blocklist: addresses and domains whose mail no connection captures. Set by a workspace owner and applied to every connection together with each connection's own list; deleted entries stay as history.",
+      columns: {
+        kind: 'address (a full email address) or domain (a bare hostname).',
+        value: 'The blocked address or domain, trimmed and lowercase; one live entry per kind and value.',
       },
     },
     action_requests: {

@@ -1685,6 +1685,145 @@
                 ]
               },
               {
+                "name": "blocked_senders",
+                "origin": "built_in",
+                "label": "Blocked senders",
+                "description": "The workspace blocklist: addresses and domains whose mail no connection captures. Set by a workspace owner and applied to every connection together with each connection's own list; deleted entries stay as history.",
+                "associable": false,
+                "resource": null,
+                "columns": [
+                  {
+                    "name": "id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": true,
+                    "default": null,
+                    "label": "Id",
+                    "description": "Unique id (UUIDv7).",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "created_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Created at",
+                    "description": "When the row was created.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "updated_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Updated at",
+                    "description": "When the row last changed.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "organization_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Organization id",
+                    "description": "The organisation that owns the row; always the deployment's single organisation.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "organizations",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "created_by",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Created by",
+                    "description": "The principal (user or agent) that created the row.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "principals",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "deleted_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Deleted at",
+                    "description": "When the row was deleted (soft delete); null while the row is live.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "kind",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Kind",
+                    "description": "address (a full email address) or domain (a bare hostname).",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "value",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Value",
+                    "description": "The blocked address or domain, trimmed and lowercase; one live entry per kind and value.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  }
+                ],
+                "derived": [],
+                "foreign_keys": [
+                  {
+                    "columns": ["organization_id"],
+                    "references": {
+                      "table": "organizations",
+                      "columns": ["id"]
+                    },
+                    "on_delete": "CASCADE"
+                  },
+                  {
+                    "columns": ["created_by"],
+                    "references": {
+                      "table": "principals",
+                      "columns": ["id"]
+                    },
+                    "on_delete": "NO ACTION"
+                  }
+                ]
+              },
+              {
                 "name": "channel_connections",
                 "origin": "built_in",
                 "label": "Connections",
@@ -1775,6 +1914,30 @@
                       "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in"],
                       "indexed": false,
                       "description": "Filter by connected_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: connected_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send connected_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "exclude_group_addresses",
+                      "custom": false,
+                      "kind": "boolean",
+                      "operators": ["eq", "neq"],
+                      "indexed": false,
+                      "description": "Filter by exclude_group_addresses (boolean). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq. Example: exclude_group_addresses=eq.true. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send exclude_group_addresses=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "exclude_personal_domains",
+                      "custom": false,
+                      "kind": "boolean",
+                      "operators": ["eq", "neq"],
+                      "indexed": false,
+                      "description": "Filter by exclude_personal_domains (boolean). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq. Example: exclude_personal_domains=eq.true. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send exclude_personal_domains=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "contact_creation",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
+                      "indexed": false,
+                      "description": "Filter by contact_creation (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: contact_creation=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send contact_creation=eq.<value> for a literal."
                     },
                     {
                       "name": "created_by",
@@ -1982,6 +2145,45 @@
                     "label": "Connected at",
                     "description": "When the connection was made or last reconnected.",
                     "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "exclude_group_addresses",
+                    "type": "INTEGER",
+                    "kind": "boolean",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": "0",
+                    "label": "Exclude group addresses",
+                    "description": "Whether mail from group addresses is left out of capture. False by default; applied from CHN407 on.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "exclude_personal_domains",
+                    "type": "INTEGER",
+                    "kind": "boolean",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": "0",
+                    "label": "Exclude personal domains",
+                    "description": "Whether mail from personal-mail domains is left out of capture. False by default; applied from CHN407 on.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "contact_creation",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": "'sent_and_received'",
+                    "label": "Contact creation",
+                    "description": "Which captured mail creates contacts for unknown addresses: sent_and_received (the default, as before), sent, or none.",
+                    "values": ["sent_and_received", "sent", "none"],
                     "exposed": true,
                     "references": null
                   }
@@ -2521,6 +2723,219 @@
                     "columns": ["organization_id", "file_id"],
                     "references": {
                       "table": "files",
+                      "columns": ["organization_id", "id"]
+                    },
+                    "on_delete": "NO ACTION"
+                  }
+                ]
+              },
+              {
+                "name": "connection_blocked_senders",
+                "origin": "built_in",
+                "label": "Connection blocked senders",
+                "description": "A connection's own blocked addresses and domains, one row each; none by default. They are part of the connection record (blocked_senders), sorted by kind then value, and add to the workspace blocklist for this mailbox only.",
+                "associable": false,
+                "resource": null,
+                "columns": [
+                  {
+                    "name": "id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": true,
+                    "default": null,
+                    "label": "Id",
+                    "description": "Unique id (UUIDv7).",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "organization_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Organization id",
+                    "description": "The organisation that owns the row; always the deployment's single organisation.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "organizations",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "connection_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Connection id",
+                    "description": "The connection this entry belongs to.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "channel_connections",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "kind",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Kind",
+                    "description": "address (a full email address) or domain (a bare hostname).",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "value",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Value",
+                    "description": "The blocked address or domain, trimmed and lowercase; unique per connection and kind.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "created_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Created at",
+                    "description": "When the row was created.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  }
+                ],
+                "derived": [],
+                "foreign_keys": [
+                  {
+                    "columns": ["organization_id"],
+                    "references": {
+                      "table": "organizations",
+                      "columns": ["id"]
+                    },
+                    "on_delete": "CASCADE"
+                  },
+                  {
+                    "columns": ["organization_id", "connection_id"],
+                    "references": {
+                      "table": "channel_connections",
+                      "columns": ["organization_id", "id"]
+                    },
+                    "on_delete": "NO ACTION"
+                  }
+                ]
+              },
+              {
+                "name": "connection_capture_labels",
+                "origin": "built_in",
+                "label": "Connection capture labels",
+                "description": "The Gmail label ids a connection captures, one row each: INBOX and SENT by default, never none. They are part of the connection record (capture_labels), which embeds them sorted; a connection's settings rows stay with it when it is disconnected.",
+                "associable": false,
+                "resource": null,
+                "columns": [
+                  {
+                    "name": "id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": true,
+                    "default": null,
+                    "label": "Id",
+                    "description": "Unique id (UUIDv7).",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "organization_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Organization id",
+                    "description": "The organisation that owns the row; always the deployment's single organisation.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "organizations",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "connection_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Connection id",
+                    "description": "The connection these labels belong to.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "channel_connections",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "label_id",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Label id",
+                    "description": "A Gmail label id (for example INBOX, SENT or Label_123); unique per connection. Ids are Gmail's stable ids, not names.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "created_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Created at",
+                    "description": "When the row was created.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  }
+                ],
+                "derived": [],
+                "foreign_keys": [
+                  {
+                    "columns": ["organization_id"],
+                    "references": {
+                      "table": "organizations",
+                      "columns": ["id"]
+                    },
+                    "on_delete": "CASCADE"
+                  },
+                  {
+                    "columns": ["organization_id", "connection_id"],
+                    "references": {
+                      "table": "channel_connections",
                       "columns": ["organization_id", "id"]
                     },
                     "on_delete": "NO ACTION"

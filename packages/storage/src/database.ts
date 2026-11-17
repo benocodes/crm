@@ -277,6 +277,38 @@ export interface ChannelConnectionsTable {
   status: 'active' | 'reauth_required' | 'suspended'
   granted_scopes: StringArrayColumn
   connected_at: Timestamp
+  /** [[CHN406]] D1: the capture settings that are scalars (defaults change nothing, D12). D1 only; the lists are the two child tables below. */
+  exclude_group_addresses: BooleanColumn
+  exclude_personal_domains: BooleanColumn
+  contact_creation: 'sent_and_received' | 'sent' | 'none'
+}
+/** [[CHN406]] D2, D4: the Gmail label ids a connection captures; never empty (the migration and the connect callback insert INBOX and SENT). Part of the connection record; no events of its own. D1 only. */
+export interface ConnectionCaptureLabelsTable {
+  id: string
+  organization_id: string
+  connection_id: string
+  label_id: string
+  created_at: Timestamp
+}
+/** [[CHN406]] D2: a connection's own blocked addresses and domains (stored trimmed and lowercased). Part of the connection record; no events of its own. D1 only. */
+export interface ConnectionBlockedSendersTable {
+  id: string
+  organization_id: string
+  connection_id: string
+  kind: 'address' | 'domain'
+  value: string
+  created_at: Timestamp
+}
+/** [[CHN406]] D8: the workspace blocklist, applied to every connection (written by CHN410's resource; nothing writes it before). Soft-deleted; one live (organisation, kind, value). D1 only. */
+export interface BlockedSendersTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  created_by: string
+  deleted_at: NullableTimestamp
+  kind: 'address' | 'domain'
+  value: string
 }
 /** [[CHN5]] D4, D41: the refresh token as AES-256-GCM ciphertext (base64url of iv || ciphertext || tag). Insert-only; the newest row is live. Machinery, no events. D1 only. */
 export interface ChannelCredentialsTable {
@@ -478,6 +510,9 @@ export interface StorageDatabase {
   pipeline_stages: PipelineStagesTable
   deals: DealsTable
   channel_connections: ChannelConnectionsTable
+  connection_capture_labels: ConnectionCaptureLabelsTable
+  connection_blocked_senders: ConnectionBlockedSendersTable
+  blocked_senders: BlockedSendersTable
   channel_credentials: ChannelCredentialsTable
   gmail_watches: GmailWatchesTable
   mail_sync_state: MailSyncStateTable
@@ -760,6 +795,34 @@ export const COLUMN_KINDS = {
     status: 'text',
     granted_scopes: 'string_array',
     connected_at: 'timestamp',
+    exclude_group_addresses: 'boolean',
+    exclude_personal_domains: 'boolean',
+    contact_creation: 'text',
+  },
+  connection_capture_labels: {
+    id: 'uuid',
+    organization_id: 'uuid',
+    connection_id: 'uuid',
+    label_id: 'text',
+    created_at: 'timestamp',
+  },
+  connection_blocked_senders: {
+    id: 'uuid',
+    organization_id: 'uuid',
+    connection_id: 'uuid',
+    kind: 'text',
+    value: 'text',
+    created_at: 'timestamp',
+  },
+  blocked_senders: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
+    kind: 'text',
+    value: 'text',
   },
   channel_credentials: {
     id: 'uuid',
