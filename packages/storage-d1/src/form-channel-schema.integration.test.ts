@@ -244,8 +244,9 @@ describe('migration 0024_form_channel over a database at 0023 holding data', () 
       'idx_thread_sources_form_unique',
     ])
     expect(names(schemaBefore).filter((n) => !names(after).includes(n))).toEqual([])
-    for (const row of schemaBefore.filter((r) => r.type === 'trigger')) {
-      expect(after.find((a) => a.name === row.name)?.sql).toBe(row.sql)
+    // every index and trigger keeps its definition byte for byte, not only its name
+    for (const row of schemaBefore) {
+      expect(after.find((a) => a.name === row.name)?.sql, row.name).toBe(row.sql)
     }
   })
 

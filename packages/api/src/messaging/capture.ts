@@ -80,7 +80,7 @@ export interface CaptureMessage {
   sent_by_connection: boolean
   /**
    * [[CHN421]] D11/D12: `'inbound'` captures the message as inbound whatever its `from` identity's `own` is (a form submission is
-   * always inbound, even from an own address). Absent, [[CORE25]] D9's rule holds. Decision 421.30: a field of the message, not of the chunk.
+   * always inbound, even from an own address). Absent, [[CORE25]] D9's rule holds. Decision 421.32: a field of the message, not of the chunk.
    */
   direction?: 'inbound'
   /** Normalised; at least one `from`. */
