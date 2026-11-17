@@ -326,6 +326,12 @@ migration (at the limit on three lines), no E2E, riders list contracts and golde
 its own migration at the limit on three lines still fits one run; a 15-decision spec split three ways at plan time cost nothing
 extra. Planner rules that settle every interim behaviour (P1–P5: refused fields, dormant tables, the accepted gap until the
 next cycle) left the coder only constraint shapes and harness choices to decide.
+**CHN423** (`knowledge/specs/016-CHN423-form-principal-managed/RETRO.md`): 5 groups (1 matrix), 2 decisions + 6 planner rules,
+no migration, no E2E, cost 158k / 44 calls in one run plus a 2k / 4-call fix round (+224 code / +384 test lines, 10 files).
+The budget holds; a cycle well under it is cheap. Two charter riders were empty: "goldens (operation descriptions)" (golden
+fixtures carry no descriptions, `writing-tests` §goldens) and "tests that pinned the interim gap must flip" (none existed).
+Before naming a rider or a test to flip, grep for it at plan time; otherwise word it "if any". The fix round was a missing
+changeset for a change in `@vibase/api` alone (`execute-cycle`, changesets).
 
 ### Step 3: Resolve identities
 

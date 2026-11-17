@@ -383,7 +383,9 @@ One program, two engines: the same assertions run on Postgres and D1.
     Postgres-side generator is gone). Some golden values derive from the registry: the owner's scopes in `auth.json`
     are `grantableScopes(declaredScopes())`, so a cycle that declares a scope regenerates `auth.json` by exactly those
     lines ([[CORE25]]). `schema.json` records the whole `GET /meta/v1/schema` document ([[CORE187]]), so any migration,
-    catalog text, registered resource, sort or stated sort cost regenerates it. Before claiming "golden unchanged",
+    catalog text, registered resource, sort or stated sort cost regenerates it. Operation descriptions are not in any
+    golden (the fixtures are scenario transcripts), so a description-only change regenerates nothing ([[CHN423]] 423.11).
+    Before claiming "golden unchanged",
     check for such derived values. Until #323 is fixed, `golden:check` fails on a clean `main` (committed fixtures are
     Biome-formatted, the generator's output is not): judge drift by `golden:generate`, then `pnpm format`, then
     `git diff -- packages/api/fixtures/golden`, and say so in RESULT.md (CORE347).
@@ -640,7 +642,9 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
 
   A create that also writes another resource's row **on the same id** in its unit (a form's agent principal) sets
   `createAlsoEmits` on its fixture (the extra event types, in order, before `<name>.created`); the suite asserts the
-  exact type list, so never loosen the one-event check instead ([[CHN420]] 420.29).
+  exact type list, so never loosen the one-event check instead ([[CHN420]] 420.29). An update or delete that also
+  writes that row sets `updateAlsoEmits` / `deleteAlsoEmits` the same way (the exact tail of the id's events before
+  `<name>.updated` / `<name>.deleted`; [[CHN423]] 423.10).
 
   A catalog test fails if a definition has no fixture or a fixture has no definition. A `ContractCheck`
   passed in `checks` runs once per definition and registers its own `it` blocks; `env` is a getter
