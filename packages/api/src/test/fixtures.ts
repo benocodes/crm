@@ -41,6 +41,11 @@ export const fixtures: Record<string, ContractFixture> = {
     },
     actors: ['user'],
   },
+  // The workspace blocklist (CHN410): create and delete are owner-only and human-only (`blocked_senders:write` is not agent-grantable); there is no update.
+  blocked_senders: {
+    input: async () => ({ kind: 'domain', value: `contract-${randomUUID()}.example` }),
+    actors: ['user'],
+  },
   // Deals and pipelines (CORE130): a stage needs a pipeline and a deal needs a stage, created through the public API as prerequisites.
   pipelines: {
     input: async () => ({ name: `Contract pipeline ${randomUUID()}` }),

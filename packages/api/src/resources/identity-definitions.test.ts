@@ -20,6 +20,8 @@ describe('identity definitions', () => {
       'associations:request_approval',
       'associations:write',
       'audit:read',
+      'blocked_senders:read',
+      'blocked_senders:write',
       'companies:read',
       'companies:request_approval',
       'companies:write',

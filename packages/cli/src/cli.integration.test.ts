@@ -16,6 +16,8 @@ let key: string
 let hideOperation: string | undefined
 /** The connection PATCHes the CLI sent: the API-key profile is an agent, which `connections.update` refuses, so the request is captured and answered here. */
 let patched: { path: string; body: unknown }[] = []
+/** The workspace blocklist requests the CLI sent: create and delete are human-only (the API-key profile is an agent), so they are captured and answered here too. */
+let blocked: { method: string; path: string; search: string; body: unknown }[] = []
 const rigs: ReturnType<typeof rig>[] = []
 afterEach(() => {
   while (rigs.length) rigs.pop()!.dispose()
@@ -24,6 +26,7 @@ beforeEach(async () => {
   await w.reset()
   hideOperation = undefined
   patched = []
+  blocked = []
   const b = await bootstrapD1(w.d1, {
     organizationName: 'Acme',
     authProvider: 'none',
@@ -57,6 +60,17 @@ const session = async (env: { CREDENTIALS_KEY?: string } = {}) => {
       if (req.method === 'PATCH' && new URL(req.url).pathname.startsWith('/meta/v1/connections/')) {
         patched.push({ path: new URL(req.url).pathname, body: JSON.parse(await req.text()) })
         return new Response('{}', { headers: { 'content-type': 'application/json' } })
+      }
+      const url = new URL(req.url)
+      if (url.pathname.startsWith('/meta/v1/blocked-senders') && (req.method !== 'GET' || url.search !== '')) {
+        const text = await req.text()
+        blocked.push({
+          method: req.method,
+          path: new URL(req.url).pathname,
+          search: new URL(req.url).search,
+          body: text ? JSON.parse(text) : null,
+        })
+        return new Response('{"data":[],"next_cursor":null}', { headers: { 'content-type': 'application/json' } })
       }
       const res = await worker.fetch(req)
       if (hideOperation && new URL(req.url).pathname === '/api/v1/openapi.json') {
@@ -535,5 +549,31 @@ describe('connections update through the CLI ([[CHN409]] D13)', () => {
       '--contact-creation',
     ])
       expect(help).toContain(flag)
+  })
+})
+
+describe('blocked-senders through the CLI ([[CHN410]] D13)', () => {
+  const ID = '0190b2c4-0000-7000-8000-00000000c0de'
+  it('is derived from the registry: create sends kind and value, list sends the filter, delete the id, and there is no update', async () => {
+    const r = await session()
+    await ok(r, ['blocked-senders', 'create', '--kind', 'domain', '--value', 'spam.example'])
+    await ok(r, ['blocked-senders', 'list', '--kind', 'domain'])
+    await ok(r, ['blocked-senders', 'delete', ID])
+    expect(blocked).toEqual([
+      {
+        method: 'POST',
+        path: '/meta/v1/blocked-senders',
+        search: '',
+        body: { kind: 'domain', value: 'spam.example' },
+      },
+      { method: 'GET', path: '/meta/v1/blocked-senders', search: '?kind=domain', body: null },
+      { method: 'DELETE', path: `/meta/v1/blocked-senders/${ID}`, search: '', body: null },
+    ])
+    const help = (await ok(r, ['blocked-senders', '--help'])).stdout
+    for (const sub of ['list', 'get', 'create', 'delete']) expect(help).toContain(sub)
+    expect(help).not.toContain('update')
+    const create = (await ok(r, ['blocked-senders', 'create', '--help'])).stdout
+    expect(create).toContain('--kind')
+    expect(create).toContain('--value')
   })
 })
