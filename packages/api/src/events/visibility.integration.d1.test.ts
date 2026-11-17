@@ -86,6 +86,7 @@ const MATRIX: [resourceType: string, readScope: string | null, types: string[]][
   ['company_file', 'companies:read', ['company_file.created', 'company_file.deleted']],
   ['agent', 'agents:read', ['agent.created', 'agent.updated']],
   ['connection', 'connections:read', ['connection.created', 'connection.updated']],
+  ['blocked_sender', 'blocked_senders:read', ['blocked_sender.created', 'blocked_sender.deleted']],
   ['membership', 'members:read', ['membership.created', 'membership.updated', 'membership.deleted']],
   ['organization', 'members:read', ['organization.created', 'organization.updated']],
   [

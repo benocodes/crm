@@ -5,6 +5,7 @@ import { formatScope, type Scope, type ScopeSet } from './scopes.js'
 import type { Expression, SqlBool } from 'kysely'
 import type { PhysicalTable, PreparedOperation, QueryContext } from '@vibase/storage'
 import type { ObjectStore } from './objects/store.js'
+import { ApiError } from './errors.js'
 import { softDeletes, type PreparedEnv, type PreparedResource } from './storage/definition.js'
 import { columnFilterParams } from './storage/column-filters.js'
 import { aggregateAnswer, aggregateDescription, aggregateParams } from './storage/aggregate.js'
@@ -342,6 +343,11 @@ function filterFields(def: PreparedResource<any, any>): Record<string, z.ZodType
   return Object.assign(fields, columnFilterParams(def))
 }
 
+/** [[CHN410]] P1: a `humanOnly` definition's writes refuse an agent actor, whatever scopes it holds. */
+function requireHuman(def: PreparedResource<any, any>, env: PreparedEnv): void {
+  if (def.humanOnly !== undefined && env.actor.kind !== 'user') throw new ApiError(403, 'user_required', def.humanOnly)
+}
+
 /** The generic CRUD operations of a definition, in CRUD_ACTIONS order, for the actions it generates. */
 export function resourceOperations(
   def: PreparedResource<any, any>,
@@ -388,6 +394,7 @@ export function resourceOperations(
     ops.push({
       ...base,
       name: `${def.name}.list`,
+      ...(def.descriptions?.list !== undefined ? { description: def.descriptions.list } : {}),
       summary: `List ${def.name}`,
       method: 'get',
       path: p,
@@ -435,6 +442,7 @@ export function resourceOperations(
     ops.push({
       ...base,
       name: `${def.name}.get`,
+      ...(def.descriptions?.get !== undefined ? { description: def.descriptions.get } : {}),
       summary: `Get a ${def.eventName}`,
       method: 'get',
       path: `${p}/{id}`,
@@ -454,6 +462,7 @@ export function resourceOperations(
     ops.push({
       ...base,
       name: `${def.name}.create`,
+      ...(def.descriptions?.create !== undefined ? { description: def.descriptions.create } : {}),
       summary: `Create a ${def.eventName}`,
       method: 'post',
       path: p,
@@ -461,14 +470,17 @@ export function resourceOperations(
       proposal: def.notProposable !== undefined ? notProposable() : { eligible: true },
       request: { body: def.create },
       response: { status: 201, schema: rec },
-      prepare: (env, input) =>
-        def.override?.create ? def.override.create(env, input.body) : createOperation(def, env, input.body),
+      prepare: (env, input) => {
+        requireHuman(def, env)
+        return def.override?.create ? def.override.create(env, input.body) : createOperation(def, env, input.body)
+      },
     })
   }
   if (actions.has('update')) {
     ops.push({
       ...base,
       name: `${def.name}.update`,
+      ...(def.descriptions?.update !== undefined ? { description: def.descriptions.update } : {}),
       summary: `Update a ${def.eventName}`,
       method: 'patch',
       path: `${p}/{id}`,
@@ -476,16 +488,19 @@ export function resourceOperations(
       proposal: targeted(),
       request: { params: idParams, body: def.update },
       response: { status: 200, schema: rec },
-      prepare: (env, input) =>
-        def.override?.update
+      prepare: (env, input) => {
+        requireHuman(def, env)
+        return def.override?.update
           ? def.override.update(env, { id: input.params.id, body: input.body })
-          : updateOperation(def, env, input.params.id as string, input.body),
+          : updateOperation(def, env, input.params.id as string, input.body)
+      },
     })
   }
   if (actions.has('delete')) {
     ops.push({
       ...base,
       name: `${def.name}.delete`,
+      ...(def.descriptions?.delete !== undefined ? { description: def.descriptions.delete } : {}),
       summary: `Delete a ${def.eventName}`,
       method: 'delete',
       path: `${p}/{id}`,
@@ -493,10 +508,12 @@ export function resourceOperations(
       proposal: targeted(),
       request: { params: idParams },
       response: { status: 204 },
-      prepare: (env, input) =>
-        def.override?.delete
+      prepare: (env, input) => {
+        requireHuman(def, env)
+        return def.override?.delete
           ? def.override.delete(env, input.params.id)
-          : deleteOperation(def, env, input.params.id as string),
+          : deleteOperation(def, env, input.params.id as string)
+      },
     })
   }
   return ops

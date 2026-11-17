@@ -36,6 +36,8 @@ export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'action_requests:read': 'View the queue of proposed changes and how each was decided',
   'connections:read': 'See which mailboxes are connected and whether they are syncing',
   'connections:write': 'Connect and disconnect mailboxes, and change their capture settings',
+  'blocked_senders:read': 'View the workspace blocklist: the addresses and domains whose mail is never captured',
+  'blocked_senders:write': 'Add addresses and domains to the workspace blocklist and lift them (owners, signed in)',
   'events:read': 'Read the change feed: what changed, when and by whom, for the records you can already read',
   'webhooks:read': 'View webhook subscriptions: where events are sent and for which types',
   'webhooks:write': 'Create, change, pause and delete webhook subscriptions and rotate their signing secrets',

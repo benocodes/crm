@@ -240,7 +240,7 @@ describe('the catalog describes the new tables and columns (D14)', () => {
   })
 })
 
-describe('dormancy (delete the matching assertion when CHN407 / CHN410 land)', () => {
+describe('dormancy (delete the matching assertion when CHN407 lands)', () => {
   const SRC = fileURLToPath(new URL('../../..', import.meta.url))
   const sources = (dir: string): string[] =>
     readdirSync(dir).flatMap((f) => {
@@ -255,13 +255,5 @@ describe('dormancy (delete the matching assertion when CHN407 / CHN410 land)', (
       (f) => !f.endsWith('connections/capture-settings.ts') && readFileSync(f, 'utf8').includes('captureSettingsRead'),
     )
     expect(callers).toEqual([])
-  })
-  it('no operation writes blocked_senders (CHN410 will, and deletes this assertion)', () => {
-    const writers = files.filter((f) =>
-      /(insertInto|updateTable|deleteFrom)\(\s*'blocked_senders'|table:\s*'blocked_senders'/.test(
-        readFileSync(f, 'utf8'),
-      ),
-    )
-    expect(writers).toEqual([])
   })
 })

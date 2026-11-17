@@ -28,6 +28,7 @@ import { identities } from './resources/identities.js'
 import { interactions } from './resources/interactions.js'
 import { messages } from './resources/messages.js'
 import { threads } from './resources/threads.js'
+import { blockedSenders } from './resources/blocked-senders.js'
 import { memberships } from './resources/memberships.js'
 import { notes } from './resources/notes.js'
 import { deals } from './resources/deals.js'
@@ -68,6 +69,7 @@ export function createVibaseRegistry(
     .registerResource(tags)
   registry.registerResource(pipelines).registerResource(pipelineStages).registerResource(deals)
   registry.registerResource(connections)
+  registry.registerResource(blockedSenders)
   registry.decorate('connections.delete', (op) => withWatchStop(op, options.connections ?? null))
   for (const op of connectionOperations(options.connections ?? null)) registry.register(op)
   for (const op of dealOperations()) registry.register(op)

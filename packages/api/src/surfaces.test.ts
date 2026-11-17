@@ -33,6 +33,7 @@ place('api', 'action_executions', ['list', 'get'])
 place('api', 'events', ['list', 'get'])
 place('meta', 'agents', CRUD)
 place('meta', 'connections', ['list', 'get', 'delete', 'update', 'authorize', 'sync'])
+place('meta', 'blocked_senders', ['list', 'get', 'create', 'delete'])
 place('meta', 'api_keys', [...CRUD, 'revoke'])
 place('meta', 'audit', ['list'])
 place('meta', 'invitations', ['create', 'list', 'revoke'])
@@ -48,6 +49,7 @@ const NOT_GENERATED = [
   'contact_files.update',
   'company_files.update',
   'memberships.create',
+  'blocked_senders.update',
   'agents.delete',
   'api_keys.update',
   'api_keys.delete',
@@ -82,6 +84,10 @@ describe('placement (D6)', () => {
         'api_keys.list',
         'api_keys.revoke',
         'audit.list',
+        'blocked_senders.create',
+        'blocked_senders.delete',
+        'blocked_senders.get',
+        'blocked_senders.list',
         'connections.authorize',
         'connections.delete',
         'connections.get',
@@ -110,7 +116,7 @@ describe('placement (D6)', () => {
         'webhooks.update',
       ].sort(),
     )
-    expect(ops.length).toBe(116)
+    expect(ops.length).toBe(120)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)
