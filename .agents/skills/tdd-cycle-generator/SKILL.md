@@ -310,6 +310,16 @@ re-read ~120k of context apiece and tripled the total. The budget holds. When a 
 (a cap, a width) under a fold criterion, expect one E2E round on it. When the E2E part edits an existing script, put "run
 the unchanged script once first" in Watch out, so a leg already broken on `main` is seen before it is mistaken for the
 cycle's own failure.
+**CHN410** (`knowledge/specs/015-CHN410-workspace-blocklist/RETRO.md`): 6 groups (1 matrix), 4 spec decisions + 4 planner
+rules, no migration, no E2E, rider existing fixtures. ~224k / 75 calls in one run (+162 code / +659 test lines, 24 files),
+approved round 1, gate green first time. The budget holds. The hidden work was a new generic resource's list: it must adopt
+`withColumnFilters` and `withColumnSorts` (the registry filter and sort contracts refuse it otherwise), which adds
+stated-cost entries in `filter-costs.ts` / `sort-costs.ts` and moves both contracts' counts. When a charter adds a generic
+resource with a `list`, name "list contracts (column filters, sorts, stated costs)" in the Size line's riders. The same
+adoption brings the whole filter grammar (`eq`, `in`, comparisons, `like`, `ilike`), so a planner rule about how a list
+filter matches is written over that grammar: it constrains the bare/`eq` form, or says the column gets a narrower filter
+option (410.12 superseded a rule that assumed an exact match only). Before chartering an acceptance case over a table,
+read its CHECK constraints: "the same value with the other kind is accepted" could not occur (410.10).
 
 ### Step 3: Resolve identities
 

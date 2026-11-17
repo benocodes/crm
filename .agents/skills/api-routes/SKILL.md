@@ -414,6 +414,11 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - **`d1Only`** on a resource definition or a hand-written operation ([[CHN140]], [[CHN5]] D63): `executeOperation`
     answers `501 not_implemented` on a non-D1 binding after the scope checks, before any unit. Use it for any table
     the Postgres adapter does not have, instead of a check in each handler; test it with `coldStorage()`.
+  - **`humanOnly: '<reason>'`** on a resource definition ([[CHN410]] 410.7, 410.13; `requireHuman` in `src/registry.ts`):
+    every generated write (create, update, delete) refuses a non-user actor with `403 user_required` first in `prepare`,
+    after the scope check and before body validation or any read, whatever scopes the agent holds. Use it instead of an
+    override per operation; the contract suite then enforces it. **`descriptions: { list?, get?, create?, update?,
+    delete? }`** copies a description (a CLI-shaped example) onto the generated operation without hand-writing it.
   - **`after`** on a `TenantOperation` ([[CHN141]], [[CHN5]] D77): runs once the unit has committed, with its value,
     and returns the response (REST and MCP alike). Put any side effect outside the database there (creating a Workflow
     instance, a queue send), never inside the unit, so a rolled-back unit has no effect outside it. Its failure must
@@ -592,7 +597,9 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   generated description says "Comparison folds ASCII case" or "Comparison is by byte order" per column, from
   `NOCASE_COLUMNS` in `column-filters.ts`. A new `NOCASE` text column must be added there, or the filter contract fails
   (`collation-text`, checked against `sqlite_master` both ways). Check the migration before promising case-sensitivity
-  ([[CORE200]] retro). Custom filters keep one raw value and no operators. A normaliser that depends on another filter
+  ([[CORE200]] retro). A spec or charter rule that a list filter "matches exactly after normalising" describes the bare
+  and `eq` forms only: `like`/`ilike` patterns stay on the column unnormalised ([[CHN410]] 410.12, `blocked_senders.value`);
+  say so in the rule, or give the column a narrower option. Custom filters keep one raw value and no operators. A normaliser that depends on another filter
   (identities `value` on `kind`) reads `siblings`, the call's other plain equalities (bare or `eq.`).
   - **Every generic list adopts it; the registry filter contract enforces that** ([[CORE201]],
     `src/storage/filter-contract.integration.d1.test.ts`, checker `src/test/filter-contract.ts`, lists in
