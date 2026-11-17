@@ -320,6 +320,12 @@ adoption brings the whole filter grammar (`eq`, `in`, comparisons, `like`, `ilik
 filter matches is written over that grammar: it constrains the bare/`eq` form, or says the column gets a narrower filter
 option (410.12 superseded a rule that assumed an exact match only). Before chartering an acceptance case over a table,
 read its CHECK constraints: "the same value with the other kind is accepted" could not occur (410.10).
+**CHN420** (`knowledge/specs/016-CHN420-forms-resource/RETRO.md`): 6 groups (1 matrix), 8 decisions + 5 planner rules, 1
+migration (at the limit on three lines), no E2E, riders list contracts and goldens. 238k / 74 calls in one run (+500 code /
++1,351 test and golden lines, 29 files), gate green first time, approved round 1 with no findings. A new generic resource with
+its own migration at the limit on three lines still fits one run; a 15-decision spec split three ways at plan time cost nothing
+extra. Planner rules that settle every interim behaviour (P1–P5: refused fields, dormant tables, the accepted gap until the
+next cycle) left the coder only constraint shapes and harness choices to decide.
 
 ### Step 3: Resolve identities
 
