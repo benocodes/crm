@@ -310,6 +310,38 @@ export interface BlockedSendersTable {
   kind: 'address' | 'domain'
   value: string
 }
+/** [[CHN420]] D1, D3, D6, D7, D10: a website form. Its id is also its principal's (`agents.id`, D3); `public_id` is minted by the vault and never changes. D1 only (no Postgres migration). */
+export interface FormsTable {
+  id: string
+  created_at: Timestamp
+  updated_at: Timestamp
+  organization_id: string
+  created_by: string
+  deleted_at: NullableTimestamp
+  name: string
+  public_id: string
+  enabled: BooleanColumn
+  email_field: string | null
+  phone_field: string | null
+  name_field: string | null
+  consent_text: string | null
+}
+/** [[CHN420]] D8: the browser origins a form accepts (written by CHN424; nothing writes it before). D1 only. */
+export interface FormAllowedOriginsTable {
+  id: string
+  organization_id: string
+  form_id: string
+  origin: string
+  created_at: Timestamp
+}
+/** [[CHN420]] D9: the tags a form's submitter is given (written by CHN424; nothing writes it before). D1 only. */
+export interface FormTagsTable {
+  id: string
+  organization_id: string
+  form_id: string
+  tag_id: string
+  created_at: Timestamp
+}
 /** [[CHN5]] D4, D41: the refresh token as AES-256-GCM ciphertext (base64url of iv || ciphertext || tag). Insert-only; the newest row is live. Machinery, no events. D1 only. */
 export interface ChannelCredentialsTable {
   id: string
@@ -513,6 +545,9 @@ export interface StorageDatabase {
   connection_capture_labels: ConnectionCaptureLabelsTable
   connection_blocked_senders: ConnectionBlockedSendersTable
   blocked_senders: BlockedSendersTable
+  forms: FormsTable
+  form_allowed_origins: FormAllowedOriginsTable
+  form_tags: FormTagsTable
   channel_credentials: ChannelCredentialsTable
   gmail_watches: GmailWatchesTable
   mail_sync_state: MailSyncStateTable
@@ -823,6 +858,35 @@ export const COLUMN_KINDS = {
     deleted_at: 'timestamp',
     kind: 'text',
     value: 'text',
+  },
+  forms: {
+    id: 'uuid',
+    created_at: 'timestamp',
+    updated_at: 'timestamp',
+    organization_id: 'uuid',
+    created_by: 'uuid',
+    deleted_at: 'timestamp',
+    name: 'text',
+    public_id: 'text',
+    enabled: 'boolean',
+    email_field: 'text',
+    phone_field: 'text',
+    name_field: 'text',
+    consent_text: 'text',
+  },
+  form_allowed_origins: {
+    id: 'uuid',
+    organization_id: 'uuid',
+    form_id: 'uuid',
+    origin: 'text',
+    created_at: 'timestamp',
+  },
+  form_tags: {
+    id: 'uuid',
+    organization_id: 'uuid',
+    form_id: 'uuid',
+    tag_id: 'uuid',
+    created_at: 'timestamp',
   },
   channel_credentials: {
     id: 'uuid',

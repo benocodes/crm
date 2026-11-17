@@ -4500,6 +4500,552 @@
                 ]
               },
               {
+                "name": "form_allowed_origins",
+                "origin": "built_in",
+                "label": "Form allowed origins",
+                "description": "The browser origins (scheme, host and port, no path) allowed to post to a form, one row each; none by default, which admits no browser origin. Part of the form record once forms carry them.",
+                "associable": false,
+                "resource": null,
+                "columns": [
+                  {
+                    "name": "id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": true,
+                    "default": null,
+                    "label": "Id",
+                    "description": "Unique id (UUIDv7).",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "organization_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Organization id",
+                    "description": "The organisation that owns the row; always the deployment's single organisation.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "organizations",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "form_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Form id",
+                    "description": "The form this origin belongs to.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "forms",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "origin",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Origin",
+                    "description": "An exact origin such as https://example.com; unique per form, no wildcards.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "created_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Created at",
+                    "description": "When the row was created.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  }
+                ],
+                "derived": [],
+                "foreign_keys": [
+                  {
+                    "columns": ["organization_id"],
+                    "references": {
+                      "table": "organizations",
+                      "columns": ["id"]
+                    },
+                    "on_delete": "CASCADE"
+                  },
+                  {
+                    "columns": ["organization_id", "form_id"],
+                    "references": {
+                      "table": "forms",
+                      "columns": ["organization_id", "id"]
+                    },
+                    "on_delete": "NO ACTION"
+                  }
+                ]
+              },
+              {
+                "name": "form_tags",
+                "origin": "built_in",
+                "label": "Form tags",
+                "description": "The tags a form gives its submitters, one row each; none by default. A tag deleted later keeps its row and is no longer applied. Part of the form record once forms carry them.",
+                "associable": false,
+                "resource": null,
+                "columns": [
+                  {
+                    "name": "id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": true,
+                    "default": null,
+                    "label": "Id",
+                    "description": "Unique id (UUIDv7).",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "organization_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Organization id",
+                    "description": "The organisation that owns the row; always the deployment's single organisation.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "organizations",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "form_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Form id",
+                    "description": "The form this tag belongs to.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "forms",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "tag_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Tag id",
+                    "description": "The tag applied to a submitter; unique per form.",
+                    "values": null,
+                    "exposed": false,
+                    "references": {
+                      "table": "tags",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "created_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Created at",
+                    "description": "When the row was created.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  }
+                ],
+                "derived": [],
+                "foreign_keys": [
+                  {
+                    "columns": ["organization_id"],
+                    "references": {
+                      "table": "organizations",
+                      "columns": ["id"]
+                    },
+                    "on_delete": "CASCADE"
+                  },
+                  {
+                    "columns": ["tag_id"],
+                    "references": {
+                      "table": "tags",
+                      "columns": ["id"]
+                    },
+                    "on_delete": "NO ACTION"
+                  },
+                  {
+                    "columns": ["organization_id", "form_id"],
+                    "references": {
+                      "table": "forms",
+                      "columns": ["organization_id", "id"]
+                    },
+                    "on_delete": "NO ACTION"
+                  }
+                ]
+              },
+              {
+                "name": "forms",
+                "origin": "built_in",
+                "label": "Forms",
+                "description": "A website form the workspace accepts submissions from: its name, the public id a site embeds, whether it is enabled, which submitted field is the email, the phone and the contact's name, and the consent text shown beside it. Each form is also an agent (the row of agents with the same id) that every capture from the form is attributed to; it holds no scopes and no credential. Set up by a workspace owner, signed in; deleted forms stay as history and their public id is never reused.",
+                "associable": false,
+                "resource": {
+                  "name": "forms",
+                  "surface": "meta",
+                  "path": "/meta/v1/forms",
+                  "operations": ["forms.list", "forms.get", "forms.create", "forms.update", "forms.delete"],
+                  "read_scope": "forms:read",
+                  "write_scope": "forms:write",
+                  "sorts": [
+                    {
+                      "name": "id",
+                      "kind": "uuid",
+                      "indexed": true
+                    },
+                    {
+                      "name": "created_at",
+                      "kind": "timestamp",
+                      "indexed": false
+                    },
+                    {
+                      "name": "updated_at",
+                      "kind": "timestamp",
+                      "indexed": false
+                    },
+                    {
+                      "name": "name",
+                      "kind": "text",
+                      "indexed": false
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": ["eq", "neq", "in"],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "name",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
+                      "indexed": false,
+                      "description": "Filter by name (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: name=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send name=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "public_id",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
+                      "indexed": true,
+                      "description": "Filter by public_id (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: public_id=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send public_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "enabled",
+                      "custom": false,
+                      "kind": "boolean",
+                      "operators": ["eq", "neq"],
+                      "indexed": false,
+                      "description": "Filter by enabled (boolean). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq. Example: enabled=eq.true. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send enabled=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "email_field",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "is", "like", "ilike"],
+                      "indexed": false,
+                      "description": "Filter by email_field (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: email_field=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send email_field=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "phone_field",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "is", "like", "ilike"],
+                      "indexed": false,
+                      "description": "Filter by phone_field (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: phone_field=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send phone_field=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "name_field",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "is", "like", "ilike"],
+                      "indexed": false,
+                      "description": "Filter by name_field (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: name_field=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send name_field=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "consent_text",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "is", "like", "ilike"],
+                      "indexed": false,
+                      "description": "Filter by consent_text (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: consent_text=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send consent_text=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": ["eq", "neq", "in"],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in"],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in"],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
+                    }
+                  ],
+                  "aggregate": null
+                },
+                "columns": [
+                  {
+                    "name": "id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": true,
+                    "default": null,
+                    "label": "Id",
+                    "description": "Unique id (UUIDv7).",
+                    "values": null,
+                    "exposed": true,
+                    "references": {
+                      "table": "agents",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "created_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Created at",
+                    "description": "When the row was created.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "updated_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Updated at",
+                    "description": "When the row last changed.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "organization_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Organization id",
+                    "description": "The organisation that owns the row; always the deployment's single organisation.",
+                    "values": null,
+                    "exposed": true,
+                    "references": {
+                      "table": "organizations",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "created_by",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Created by",
+                    "description": "The principal (user or agent) that created the row.",
+                    "values": null,
+                    "exposed": true,
+                    "references": {
+                      "table": "principals",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "deleted_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Deleted at",
+                    "description": "When the row was deleted (soft delete); null while the row is live.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "name",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Name",
+                    "description": "The form's name; unique among live forms, ignoring ASCII case. Also the name of its agent.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "public_id",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Public id",
+                    "description": "The id a website embeds: frm_ and 26 lowercase base32 characters, minted by the vault, never changed and never reused.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "enabled",
+                    "type": "INTEGER",
+                    "kind": "boolean",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": "1",
+                    "label": "Enabled",
+                    "description": "Whether the form accepts submissions; a disabled form is kept and refused.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "email_field",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Email field",
+                    "description": "The key of the submitted payload that holds the submitter's email address, or null; at least one of email_field and phone_field is set.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "phone_field",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Phone field",
+                    "description": "The key of the submitted payload that holds the submitter's phone number, or null.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "name_field",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Name field",
+                    "description": "The key of the submitted payload that holds the submitter's name, or null.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "consent_text",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Consent text",
+                    "description": "The consent wording the site shows beside the form (1 to 2000 characters), or null; copied onto each submission so a later edit does not rewrite it.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  }
+                ],
+                "derived": [],
+                "foreign_keys": [
+                  {
+                    "columns": ["id"],
+                    "references": {
+                      "table": "agents",
+                      "columns": ["id"]
+                    },
+                    "on_delete": "NO ACTION"
+                  },
+                  {
+                    "columns": ["organization_id"],
+                    "references": {
+                      "table": "organizations",
+                      "columns": ["id"]
+                    },
+                    "on_delete": "CASCADE"
+                  },
+                  {
+                    "columns": ["created_by"],
+                    "references": {
+                      "table": "principals",
+                      "columns": ["id"]
+                    },
+                    "on_delete": "NO ACTION"
+                  }
+                ]
+              },
+              {
                 "name": "identities",
                 "origin": "built_in",
                 "label": "Identities",

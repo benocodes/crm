@@ -395,6 +395,41 @@ export const CATALOG: Catalog = {
         value: 'The blocked address or domain, trimmed and lowercase; one live entry per kind and value.',
       },
     },
+    forms: {
+      label: 'Forms',
+      description:
+        "A website form the workspace accepts submissions from: its name, the public id a site embeds, whether it is enabled, which submitted field is the email, the phone and the contact's name, and the consent text shown beside it. Each form is also an agent (the row of agents with the same id) that every capture from the form is attributed to; it holds no scopes and no credential. Set up by a workspace owner, signed in; deleted forms stay as history and their public id is never reused.",
+      columns: {
+        name: "The form's name; unique among live forms, ignoring ASCII case. Also the name of its agent.",
+        public_id:
+          'The id a website embeds: frm_ and 26 lowercase base32 characters, minted by the vault, never changed and never reused.',
+        enabled: 'Whether the form accepts submissions; a disabled form is kept and refused.',
+        email_field:
+          "The key of the submitted payload that holds the submitter's email address, or null; at least one of email_field and phone_field is set.",
+        phone_field: "The key of the submitted payload that holds the submitter's phone number, or null.",
+        name_field: "The key of the submitted payload that holds the submitter's name, or null.",
+        consent_text:
+          'The consent wording the site shows beside the form (1 to 2000 characters), or null; copied onto each submission so a later edit does not rewrite it.',
+      },
+    },
+    form_allowed_origins: {
+      label: 'Form allowed origins',
+      description:
+        'The browser origins (scheme, host and port, no path) allowed to post to a form, one row each; none by default, which admits no browser origin. Part of the form record once forms carry them.',
+      columns: {
+        form_id: 'The form this origin belongs to.',
+        origin: 'An exact origin such as https://example.com; unique per form, no wildcards.',
+      },
+    },
+    form_tags: {
+      label: 'Form tags',
+      description:
+        'The tags a form gives its submitters, one row each; none by default. A tag deleted later keeps its row and is no longer applied. Part of the form record once forms carry them.',
+      columns: {
+        form_id: 'The form this tag belongs to.',
+        tag_id: 'The tag applied to a submitter; unique per form.',
+      },
+    },
     action_requests: {
       label: 'Action requests',
       description:

@@ -30,4 +30,5 @@ export const MIGRATIONS: readonly { readonly name: string; readonly sha256: stri
     name: '0022_unattached_identities.sql',
     sha256: '86c9db9098b726612083533d2e086a8b540c8b6133bc8a73bee68cc03b80b2ba',
   },
+  { name: '0023_forms.sql', sha256: '8e1634a6d62a68123b9b56e8200bdadc33bb2a7537894cd889e327944e74f149' },
 ]

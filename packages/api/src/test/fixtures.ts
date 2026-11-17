@@ -49,6 +49,8 @@ export const fixtures: Record<string, ContractFixture> = {
   // Forms (CHN420): writes are owner-only and human-only (`forms:write` is not agent-grantable); each create also creates the form's agent principal.
   forms: {
     input: async () => ({ name: `Contract form ${randomUUID()}` }),
+    patch: async () => ({ name: 'Renamed form', enabled: false }),
+    createAlsoEmits: ['agent.created'],
     actors: ['user'],
   },
   // Deals and pipelines (CORE130): a stage needs a pipeline and a deal needs a stage, created through the public API as prerequisites.
