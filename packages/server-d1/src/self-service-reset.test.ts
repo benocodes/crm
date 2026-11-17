@@ -180,17 +180,23 @@ describe('delivery and timing (D4, P1)', () => {
   it('a known address gets exactly one message, scheduled through waitUntil; an unknown address gets the same answer and none', async () => {
     await human('member', 'ann@x.test')
     const wk = on()
+    // The first request builds the auth provider, which schedules its own keep-alive waitUntil (OPS252, 22ce975). A warm-up request with an unknown address takes that one-off out of the count, so what is counted below is only the reset-email delivery.
+    const warm = await requestReset(wk, 'warmup@x.test')
+    await settle()
+    const baseline = scheduled.length
+    expect(email.sent).toHaveLength(0)
     const known = await requestReset(wk, 'ann@x.test')
     expect(known.status).toBe(200)
-    expect(scheduled).toHaveLength(1)
+    expect(scheduled).toHaveLength(baseline + 1)
     await settle()
     expect(email.sent).toHaveLength(1)
     expect(email.sent[0]!.to).toBe('ann@x.test')
     const unknown = await requestReset(wk, 'nobody@x.test')
     await settle()
-    expect(scheduled).toHaveLength(1)
+    expect(scheduled).toHaveLength(baseline + 1)
     expect(email.sent).toHaveLength(1)
     expect([unknown.status, unknown.json]).toEqual([known.status, known.json])
+    expect(warm.json).toEqual(known.json)
   })
 
   it('the response resolves while the send is still pending (the send is scheduled, never awaited)', async () => {
