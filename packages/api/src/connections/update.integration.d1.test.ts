@@ -264,7 +264,7 @@ describe('validation and normalisation (D4, D7, P2): the matrix', () => {
     const res = await patch(c.id as string, body)
     expect(refusal(res), JSON.stringify(body).slice(0, 80)).toEqual([400, 'validation_error'])
     if (needle) expect(res.body.error.message).toMatch(needle)
-    expect(await updatedEvents()).toEqual([])
+    expect(await updatedEvents(c.id as string)).toEqual([])
     return res
   }
   const stored = async (body: unknown) => {

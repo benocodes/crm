@@ -50,7 +50,7 @@ const record = z.object({
   capture_labels: z
     .array(z.string())
     .describe(
-      "The Gmail label ids whose messages are captured, sorted; INBOX and SENT by default and never empty ([[CHN406]] D4). Changing them is CHN409's operation.",
+      'The Gmail label ids whose messages are captured, sorted; INBOX and SENT by default and never empty ([[CHN406]] D4). Change them with connections.update.',
     ),
   blocked_senders: z
     .array(z.object({ kind: z.enum(['address', 'domain']), value: z.string() }))

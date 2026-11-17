@@ -154,14 +154,14 @@ describe('connections.list and connections.get (D42)', () => {
     expect((await call('GET', '/meta/v1/connections', ['connections:read'])).body.data).toEqual([])
   })
 
-  it('has no create and no update route: a connection exists only through the callback', async () => {
+  it('has no create route, and update takes settings only: a connection exists only through the callback', async () => {
     const c = await seedConnection()
     expect(
       (await call('POST', '/meta/v1/connections', ['connections:write'], 'user', { provider: 'google' })).status,
     ).toBe(404)
     expect(
       (await call('PATCH', `/meta/v1/connections/${c.id}`, ['connections:write'], 'user', { status: 'active' })).status,
-    ).toBe(404)
+    ).toBe(400)
   })
 })
 
