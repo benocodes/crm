@@ -34,6 +34,7 @@ import { GmailApiError, HttpGmailClient, isGmailThrottle, type GmailClient } fro
 import { GmailChannel } from './channel.js'
 import type { GmailConnection } from './mapper.js'
 import { capturesLabels, scanLabelClause } from './labels.js'
+import { captureFilter } from '../../connections/capture-filter.js'
 import { captureSettingsRead, type CaptureSettings } from '../../connections/capture-settings.js'
 import { gmailAccessToken } from './token.js'
 
@@ -427,13 +428,10 @@ async function capture(
     attachmentMaxBytes: deps.config.attachmentMaxBytes,
   }
   const conn: GmailConnection = { id: c.connectionId, mailbox: c.state.mailbox }
-  const result = await captureMessages(
-    ctx,
-    new GmailChannel(c.client, channelOpts),
-    conn,
-    fresh,
-    final ? { final } : {},
-  )
+  const result = await captureMessages(ctx, new GmailChannel(c.client, channelOpts), conn, fresh, {
+    ...(final ? { final } : {}),
+    exclude: captureFilter(c.settings, c.state.mailbox),
+  })
   return {
     captured: result.captured,
     existing: held.size + result.existing,

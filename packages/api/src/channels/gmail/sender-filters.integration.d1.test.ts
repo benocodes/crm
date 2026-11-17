@@ -178,6 +178,7 @@ describe('the page total counts every refusal once (D10)', () => {
         mk('ok', 'client@y.test'),
       ],
     })
+    s.gmail.extraListed.push('lab')
     await blockOwn(s.id, 'domain', 'x.test')
     await flags(s.id, { group: true, personal: true })
     expect(await scanPage(s)).toMatchObject({ captured: 1, skipped: 4 })

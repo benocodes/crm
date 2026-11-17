@@ -182,6 +182,12 @@ export async function captureMessages(
       skip(norm.skip)
       continue
     }
+    const refusal =
+      opts.exclude?.({ participants: norm.participants, sent_by_connection: facts.sent_by_connection }) ?? null
+    if (refusal !== null) {
+      skip(refusal)
+      continue
+    }
     const reaction = facts.kind === 'reaction'
     entries.push({
       channel: read,
