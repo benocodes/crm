@@ -194,13 +194,14 @@ describe('3. tags written and validated', () => {
   it('an unknown tag and a soft-deleted tag are each 400 invalid_reference with nothing written', async () => {
     const gone = await tag({ deleted_at: SEED_AT })
     for (const bad of [UNKNOWN, gone]) {
-      const before = await state()
-      expect(refusal(await create({ name: 'F', tag_ids: [await tag(), bad] }))).toEqual([400, 'invalid_reference'])
+      const t = await tag()
+      const base = await state()
+      expect(refusal(await create({ name: 'F', tag_ids: [t, bad] }))).toEqual([400, 'invalid_reference'])
+      expect(await state()).toEqual(base)
       const a = await create({ name: `A${bad}` })
       const mid = await state()
       expect(refusal(await patch(a.body.id, { tag_ids: [bad] }))).toEqual([400, 'invalid_reference'])
       expect(await state()).toEqual(mid)
-      expect(before.tags).toEqual([])
     }
   })
 
