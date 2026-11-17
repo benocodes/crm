@@ -66,6 +66,9 @@
       },
       {
         "name": "0022_unattached_identities.sql"
+      },
+      {
+        "name": "0023_forms.sql"
       }
     ],
     "success": true,

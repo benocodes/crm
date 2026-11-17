@@ -51,6 +51,9 @@ export const SCOPE_POLICY: ScopePolicy = {
   // The workspace blocklist ([[CHN406]] D9): members and agents may read it; changing it is the owner's, human-only, and not proposable (no request_approval).
   'blocked_senders:read': { member: true, agentGrantable: true },
   'blocked_senders:write': { member: false, agentGrantable: false },
+  // Forms ([[CHN420]] D12): members and agents may read them; opening, changing or closing a public write path is the owner's, human-only, and not proposable (no request_approval).
+  'forms:read': { member: true, agentGrantable: true },
+  'forms:write': { member: false, agentGrantable: false },
   // The event feed ([[API6]] D4): history of everything the caller may also read; each event is additionally filtered by its resource's own read scope.
   'events:read': { member: true, agentGrantable: true },
   // Webhook subscriptions ([[API7]] D2): integration plumbing, administered by owners and by the agent that owns one. Members never hold them (an endpoint may embed a token); no request_approval (a create answers a secret once).

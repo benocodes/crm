@@ -87,14 +87,14 @@ const withDef = (name: string, patch: Partial<ContractDef>): ContractInput => ({
 })
 
 describe('the registry satisfies the contract (CORE175 D12, D15)', () => {
-  it('has twenty-one sorted lists and exactly the three hand-written ones left out', () => {
+  it('has twenty-two sorted lists and exactly the three hand-written ones left out', () => {
     expect(
       base.lists
         .filter((l) => l.def === null)
         .map((l) => l.name)
         .sort(),
     ).toEqual(HAND_WRITTEN)
-    expect(base.lists.filter((l) => l.def !== null)).toHaveLength(21)
+    expect(base.lists.filter((l) => l.def !== null)).toHaveLength(22)
   })
   it('every generic list has the convention and a plan fact for every sort it accepts', () => {
     for (const l of base.lists.filter((x) => x.def)) {

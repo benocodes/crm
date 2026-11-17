@@ -135,7 +135,7 @@ const withDef = (name: string, patch: Partial<FilterContractDef>): FilterContrac
 })
 
 describe('the registry satisfies the filter contract (CORE201 D10, D12, D18)', () => {
-  it('has twenty-one generic lists with column filters and exactly the three hand-written ones left out', () => {
+  it('has twenty-two generic lists with column filters and exactly the three hand-written ones left out', () => {
     expect(
       base.lists
         .filter((l) => l.def === null)
@@ -143,7 +143,7 @@ describe('the registry satisfies the filter contract (CORE201 D10, D12, D18)', (
         .sort(),
     ).toEqual(HAND_WRITTEN)
     const generic = base.lists.filter((l) => l.def !== null)
-    expect(generic).toHaveLength(21)
+    expect(generic).toHaveLength(22)
     for (const l of generic)
       expect(Object.keys(l.def!.columnFilters ?? {}).length, `${l.name} column filters`).toBeGreaterThan(0)
   })

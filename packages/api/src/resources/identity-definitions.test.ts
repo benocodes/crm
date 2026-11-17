@@ -35,6 +35,8 @@ describe('identity definitions', () => {
       'deals:write',
       'events:read',
       'files:read',
+      'forms:read',
+      'forms:write',
       'interactions:read',
       'invitations:read',
       'invitations:write',

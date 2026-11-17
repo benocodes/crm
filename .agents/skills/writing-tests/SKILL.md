@@ -638,6 +638,10 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
   takes its event-count baseline **after** `input` runs, so those rows' events are not counted against the
   operation under test ([[CORE25]]).
 
+  A create that also writes another resource's row **on the same id** in its unit (a form's agent principal) sets
+  `createAlsoEmits` on its fixture (the extra event types, in order, before `<name>.created`); the suite asserts the
+  exact type list, so never loosen the one-event check instead ([[CHN420]] 420.29).
+
   A catalog test fails if a definition has no fixture or a fixture has no definition. A `ContractCheck`
   passed in `checks` runs once per definition and registers its own `it` blocks; `env` is a getter
   because tenants are re-seeded for each test. The generic machinery (tenancy isolation, scope enforcement, an event on every write,

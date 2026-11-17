@@ -40,6 +40,8 @@ describe('messaging definitions (CORE25 C1)', () => {
       'deals:write',
       'events:read',
       'files:read',
+      'forms:read',
+      'forms:write',
       'interactions:read',
       'invitations:read',
       'invitations:write',

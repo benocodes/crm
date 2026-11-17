@@ -825,7 +825,12 @@ interactive transaction, no `withContext` and no `executor` marker.
   renders `after` from the stored row and is gated on the mutation having applied), and a result select
   gated on the event existing. Event `after` is therefore the stored row, never a recomputation.
 - **An empty patch is a no-op** (existence check only, no event); **a same-value patch is a real update**
-  (event, new `updated_at`; spec D22).
+  (event, new `updated_at`; spec D22). A resource whose update requires at least one field refuses `{}` in its
+  `override.update`, after the strict body parse and before the existence read (`400 validation_error`, so `{}` on
+  an unknown id is `400`, not `404`); reference `packages/api/src/resources/forms.ts` ([[CHN420]] 420.26).
+- **A plan-phase uniqueness check uses the unique index's own collation** (`name = ? COLLATE NOCASE` for a
+  `NOCASE` index), never a JS `toLowerCase()`: `NOCASE` folds ASCII only, and a JS fold would refuse non-ASCII
+  variants the index accepts. Pin one non-ASCII case in the test ([[CHN420]] 420.28).
 - **The application owns every timestamp, on both engines** ([[CORE36]] D2). A unit stamps `created_at`,
   `updated_at`, `deleted_at` and its events' `created_at` from its one injected `now`. Postgres has no
   `set_updated_at` trigger any more (migration 006), so a writer that does not set `updated_at` leaves it

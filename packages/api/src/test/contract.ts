@@ -45,6 +45,8 @@ export interface ContractFixture {
   handwritten?: readonly CrudAction[]
   /** Default ['agent', 'user']. */
   actors?: readonly ContractActor[]
+  /** Event types a create emits on the same resource id before the resource's own `<name>.created`, in order (a form's agent principal shares its id, [[CHN420]] D3). Default: none, so a create emits exactly one event. */
+  createAlsoEmits?: readonly string[]
 }
 export type ContractTenant = Tenant
 export type EventRow = Record<string, any>
@@ -260,8 +262,9 @@ export function runContractSuite(opts: {
                 expect(res.status).toBe(201)
                 const body = (await res.json()) as any
                 parse('create', body)
-                const events = await env.eventsOf(body.id)
-                expect(events).toHaveLength(1)
+                const all = await env.eventsOf(body.id)
+                expect(all.map((e) => e.type)).toEqual([...(fixture.createAlsoEmits ?? []), `${def.eventName}.created`])
+                const events = all.slice(-1)
                 expect(events[0]).toMatchObject({
                   type: `${def.eventName}.created`,
                   before: null,

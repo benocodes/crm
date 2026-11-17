@@ -3,6 +3,7 @@ import { Registry } from './registry.js'
 import { agents } from './resources/agents.js'
 import { companies } from './resources/companies.js'
 import { blockedSenders } from './resources/blocked-senders.js'
+import { forms } from './resources/forms.js'
 import { connections } from './resources/connections.js'
 import { companyFiles } from './resources/company-files.js'
 import { contactFiles } from './resources/contact-files.js'
@@ -36,6 +37,7 @@ runContractSuite({
       .registerResource(tags)
       .registerResource(connections)
       .registerResource(blockedSenders)
+      .registerResource(forms)
       .registerResource(pipelines)
       .registerResource(pipelineStages)
       .registerResource(deals)
@@ -57,6 +59,7 @@ runContractSuite({
     tags: fixtures.tags!,
     connections: fixtures.connections!,
     blocked_senders: fixtures.blocked_senders!,
+    forms: fixtures.forms!,
     pipelines: fixtures.pipelines!,
     pipeline_stages: fixtures.pipeline_stages!,
     deals: fixtures.deals!,
