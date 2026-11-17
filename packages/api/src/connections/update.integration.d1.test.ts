@@ -189,7 +189,18 @@ describe('authority (D6, P3)', () => {
     const mine = await seedConnection()
     const theirs = await seedConnection({ owner_id: e.user2Id })
     const gone = await seedConnection({ deleted_at: SEED_AT })
+    const theirsGone = await seedConnection({ owner_id: e.user2Id, deleted_at: SEED_AT })
     const body = { contact_creation: 'none' }
+    const UNKNOWN = '0190b2c4-0000-7000-8000-00000000dead'
+    // overlapping failures: the earlier check in the order wins
+    expect(refusal(await patch(UNKNOWN, body, { who: 'agent' }))).toEqual([403, 'user_required'])
+    expect(refusal(await patch(theirs.id as string, body, { who: 'agent' }))).toEqual([403, 'user_required'])
+    expect(refusal(await patch(theirsGone.id as string, body))).toEqual([404, 'not_found'])
+    // scope before who: an agent without the scope gets the scope refusal
+    expect(refusal(await patch(mine.id as string, body, { who: 'agent', scopes: ['connections:read'] }))).toEqual([
+      403,
+      'insufficient_scope',
+    ])
     // lacking the scope
     expect(refusal(await patch(mine.id as string, body, { scopes: ['connections:read'] }))).toEqual([
       403,
@@ -202,10 +213,19 @@ describe('authority (D6, P3)', () => {
     expect(refusal(await patch(gone.id as string, body))).toEqual([404, 'not_found'])
     // another member's connection
     expect(refusal(await patch(theirs.id as string, body))).toEqual([403, 'not_connection_owner'])
-    for (const c of [mine, theirs, gone])
+    for (const c of [mine, theirs, gone, theirsGone])
       expect((await e.rows('channel_connections')).find((r) => r.id === c.id)?.contact_creation).toBe(
         'sent_and_received',
       )
+    expect(await updatedEvents()).toEqual([])
+  })
+
+  it("a malformed body is 400 validation_error whatever the connection: unknown, disconnected, another member's (409.8)", async () => {
+    const theirs = await seedConnection({ owner_id: e.user2Id })
+    const gone = await seedConnection({ deleted_at: SEED_AT })
+    for (const id of ['0190b2c4-0000-7000-8000-00000000dead', gone.id as string, theirs.id as string])
+      for (const body of [{ capture_labels: [] }, {}, { owner_id: e.user2Id }])
+        expect(refusal(await patch(id, body)), `${id} ${JSON.stringify(body)}`).toEqual([400, 'validation_error'])
     expect(await updatedEvents()).toEqual([])
   })
 
