@@ -9,7 +9,14 @@ import { gmailFixture } from '../../test/gmail-fixtures.js'
 import { seedGmailConnection } from '../../test/gmail-sync.js'
 import { recordingObjectStore } from '../../test/objects.js'
 import { nodeStreams } from '../../test/streams.js'
-import { beginScan, captureHistoryPage, captureScanPage, type GmailSyncDeps, type PageResult, type Scan } from './sync.js'
+import {
+  beginScan,
+  captureHistoryPage,
+  captureScanPage,
+  type GmailSyncDeps,
+  type PageResult,
+  type Scan,
+} from './sync.js'
 
 // [[CHN407]] cycle 1: the capture pages read the connection's own capture labels (D1, D2), the scan query follows them (D3, P1, P2), a null settings read
 // ends the page inactive (P3). Local D1 over FakeGmail, as `sync.integration.d1.test.ts`.
@@ -171,7 +178,10 @@ describe('the scan query follows the labels (D3, P1, P2)', () => {
     const msgs = Array.from({ length: 30 }, (_, i) => mk(`f${i}`, ['INBOX'], NOW.getTime() - (i + 1) * 3600_000))
     const s = await setup({ messages: msgs, synced: null })
     const scan = scanOf(await beginScan(s.deps, s.id, 'backfill'))
-    expect(page(await captureScanPage(s.deps, s.id, scan, null))).toMatchObject({ next_page_token: 'm25', captured: 25 })
+    expect(page(await captureScanPage(s.deps, s.id, scan, null))).toMatchObject({
+      next_page_token: 'm25',
+      captured: 25,
+    })
     await setLabels(s.id, ['SENT'])
     expect(page(await captureScanPage(s.deps, s.id, scan, 'm25'))).toMatchObject({ captured: 0, skipped: 5 })
     expect(queries(s.gmail)).toEqual([`after:${AFTER} {in:inbox in:sent}`, `after:${AFTER} {in:inbox in:sent}`])
@@ -211,7 +221,10 @@ describe('one settings read per page, and a null read (D1, P3)', () => {
     const s = await setup({ messages: [mk('n1')] })
     addHistory(s.gmail, '1001', [{ id: 'n1' }])
     const before = JSON.stringify(await e.rows('mail_sync_cursors'))
-    await e.d1!.prepare('update channel_connections set deleted_at = ? where id = ?').bind(NOW.toISOString(), s.id).run()
+    await e
+      .d1!.prepare('update channel_connections set deleted_at = ? where id = ?')
+      .bind(NOW.toISOString(), s.id)
+      .run()
     const scan: Scan = { kind: 'backfill', after: AFTER, history_id: null }
     expect(await captureHistoryPage(s.deps, s.id)).toEqual({ outcome: 'inactive' })
     expect(await captureScanPage(s.deps, s.id, scan, null)).toEqual({ outcome: 'inactive' })

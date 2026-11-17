@@ -24,6 +24,7 @@ import { watchUpsertStep } from '../channels/gmail/watch.js'
 import { ensureOwnProgram } from '../identity/resolve.js'
 import { normalizeIdentityValue } from '../identity/normalize.js'
 import { connections } from '../resources/connections.js'
+import { DEFAULT_CAPTURE_LABELS } from './capture-settings.js'
 import { afterOf, selectRecord, toRecord } from '../storage/crud.js'
 import type { PreparedEnv } from '../storage/definition.js'
 
@@ -49,8 +50,6 @@ export interface ConnectResult {
   created: boolean
 }
 
-/** [[CHN5]] D5's fixed pair, now the default of a connection's `capture_labels` ([[CHN406]] D4, D12). */
-const DEFAULT_CAPTURE_LABELS = ['INBOX', 'SENT'] as const
 const EXISTING = 'connect:existing'
 const sub = (i: number, key: string): string => `connect:a${i}:${key}`
 const bare = (s: Step): Step => ({ query: s.query, ...(s.expect ? { expect: s.expect } : {}) })

@@ -327,7 +327,10 @@ describe('backfill', () => {
     s.gmail.add(mk('b-hidden', { labels: ['IMPORTANT'] }))
     const start = await beginScan(s.deps, s.id, 'backfill')
     const after = unix(NOW.getTime() - 30 * DAY)
-    expect(start).toEqual({ outcome: 'scan', scan: { kind: 'backfill', after, history_id: null } })
+    expect(start).toEqual({
+      outcome: 'scan',
+      scan: { kind: 'backfill', after, history_id: null, label_clause: '{in:inbox in:sent}' },
+    })
     const first = page(await captureScanPage(s.deps, s.id, scanOf(start), null))
     expect(first).toMatchObject({ next_page_token: 'm25', captured: 25 })
     expect(await cursor()).toMatchObject({ history_id: '1000', page_token: null, last_synced_at: null })
@@ -405,7 +408,10 @@ describe('recovery', () => {
     const { s } = await expiredSetup()
     const start = await beginScan(s.deps, s.id, 'recovery')
     const after = unix(Date.parse(OLD_SYNC) - DAY)
-    expect(start).toEqual({ outcome: 'scan', scan: { kind: 'recovery', after, history_id: '2000' } })
+    expect(start).toEqual({
+      outcome: 'scan',
+      scan: { kind: 'recovery', after, history_id: '2000', label_clause: '{in:inbox in:sent}' },
+    })
     expect(s.gmail.accountCalls).toEqual(['profile'])
     expect(calls(s.gmail, 'list')).toEqual([])
     s.gmail.profile.historyId = '2050'
@@ -678,6 +684,7 @@ describe('secrecy and step returns', () => {
       'scan',
       'kind',
       'after',
+      'label_clause',
     ])
     const results: unknown[] = []
     const start = await beginScan(s.deps, s.id, 'backfill')

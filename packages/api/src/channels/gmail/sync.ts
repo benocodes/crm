@@ -33,7 +33,8 @@ import { ChannelThrottledError } from '../port.js'
 import { GmailApiError, HttpGmailClient, isGmailThrottle, type GmailClient } from './client.js'
 import { GmailChannel } from './channel.js'
 import type { GmailConnection } from './mapper.js'
-import { capturesLabels } from './labels.js'
+import { capturesLabels, scanLabelClause } from './labels.js'
+import { captureSettingsRead, type CaptureSettings } from '../../connections/capture-settings.js'
 import { gmailAccessToken } from './token.js'
 
 export interface GmailSyncDeps {
@@ -73,6 +74,11 @@ export type PageResult = PageDone | Outcome
 export interface Scan {
   kind: 'backfill' | 'recovery'
   after: number
+  /**
+   * The query's label clause, fixed at scan start from the connection's capture labels ([[CHN407]] P1): `{in:inbox in:sent}`, `{in:inbox}`, `{in:sent}` or `''`.
+   * Absent on a Scan minted before CHN407: the old clause applies.
+   */
+  label_clause?: string
   /** Recovery: the fresh profile history id, written by the last page only. Backfill: null. */
   history_id: string | null
 }
@@ -112,7 +118,18 @@ const envOf = (deps: StatusDeps, ownerId: string): PreparedEnv => ({
 
 /** The connection, its owner, its mailbox address and its cursor, in one read. Null when the connection does not exist. */
 export async function loadSyncState(deps: GmailSyncDeps, connectionId: string): Promise<SyncState | null> {
-  const op = defineOperation<SyncState | null>({
+  return (await loadPageState(deps, connectionId)).state
+}
+
+/**
+ * What a page reads before it acts ([[CHN407]] D1): the sync state and the connection's capture settings in ONE read batch. The whole page uses this result.
+ * `settings` is null when the connection is unknown, deleted or another organisation's (P3).
+ */
+async function loadPageState(
+  deps: GmailSyncDeps,
+  connectionId: string,
+): Promise<{ state: SyncState | null; settings: CaptureSettings | null }> {
+  const op = defineOperation<{ state: SyncState | null; settings: CaptureSettings | null }>({
     name: 'gmail.sync_state',
     mutates: false,
     reads: (qc) => ({
@@ -123,23 +140,28 @@ export async function loadSyncState(deps: GmailSyncDeps, connectionId: string): 
           left join mail_sync_cursors k on k.connection_id = c.id and k.organization_id = c.organization_id
           where c.id = ${connectionId} and c.organization_id = ${deps.organizationId}`.compile(qc.db),
       ),
+      settings: captureSettingsRead(qc, deps.organizationId, connectionId).read,
     }),
-    build: (found) =>
+    build: (found, qc) =>
       unit({
         steps: [],
         events: [],
         decode: () => {
+          const settings = captureSettingsRead(qc, deps.organizationId, connectionId).decode(found.maybe('settings'))
           const r = found.maybe('state')
-          if (!r) return null
+          if (!r) return { state: null, settings }
           const text = (v: unknown): string | null => (v === null || v === undefined ? null : String(v))
           return {
-            status: String(r.status),
-            deleted_at: text(r.deleted_at),
-            owner_id: String(r.owner_id),
-            mailbox: String(r.mailbox),
-            history_id: text(r.history_id),
-            page_token: text(r.page_token),
-            last_synced_at: text(r.last_synced_at),
+            state: {
+              status: String(r.status),
+              deleted_at: text(r.deleted_at),
+              owner_id: String(r.owner_id),
+              mailbox: String(r.mailbox),
+              history_id: text(r.history_id),
+              page_token: text(r.page_token),
+              last_synced_at: text(r.last_synced_at),
+            },
+            settings,
           }
         },
       }),
@@ -320,6 +342,8 @@ export function gmailClientFor(
 
 interface PageContext {
   state: SyncState
+  /** The connection's capture settings, read once with the state ([[CHN407]] D1). */
+  settings: CaptureSettings
   connectionId: string
   client: GmailClient
 }
@@ -333,11 +357,11 @@ async function withPage<T extends PageResult | ScanStart>(
   connectionId: string,
   body: (c: PageContext) => Promise<T>,
 ): Promise<T | Outcome> {
-  const state = await loadSyncState(deps, connectionId)
-  if (state?.status !== 'active' || state.deleted_at !== null) return { outcome: 'inactive' }
+  const { state, settings } = await loadPageState(deps, connectionId)
+  if (state?.status !== 'active' || state.deleted_at !== null || settings === null) return { outcome: 'inactive' }
   const client = gmailClientFor(deps, connectionId, state.owner_id)
   try {
-    return await body({ state, connectionId, client })
+    return await body({ state, settings, connectionId, client })
   } catch (err) {
     if (err instanceof GoogleRefreshError && err.code === 'invalid_grant') {
       await markReauth(deps, connectionId, state.owner_id)
@@ -450,7 +474,7 @@ export async function captureHistoryPage(
       for (const { message } of record.messagesAdded) {
         if (seen.has(message.id)) continue
         seen.add(message.id)
-        if (message.labelIds !== undefined && !capturesLabels(message.labelIds)) labelSkips++
+        if (message.labelIds !== undefined && !capturesLabels(message.labelIds, c.settings.capture_labels)) labelSkips++
         else ids.push(message.id)
       }
     }
@@ -464,7 +488,14 @@ export async function captureHistoryPage(
         : { page_token: next },
     )
     // A record without labels is checked on the fetched message, as the scans are.
-    const counts = await capture(deps, c, ids, labelSkips, { accept: capturesLabels }, final)
+    const counts = await capture(
+      deps,
+      c,
+      ids,
+      labelSkips,
+      { accept: (l) => capturesLabels(l, c.settings.capture_labels) },
+      final,
+    )
     return { outcome: 'page', next_page_token: next, history_id: historyAfter, ...counts }
   })
 }
@@ -486,7 +517,15 @@ export async function beginScan(
       if (c.state.last_synced_at !== null) boundMs = Date.parse(c.state.last_synced_at) - DAY_MS
       historyId = (await c.client.getProfile()).historyId
     }
-    return { outcome: 'scan', scan: { kind, after: Math.floor(boundMs / 1000), history_id: historyId } }
+    return {
+      outcome: 'scan',
+      scan: {
+        kind,
+        after: Math.floor(boundMs / 1000),
+        history_id: historyId,
+        label_clause: scanLabelClause(c.settings.capture_labels),
+      },
+    }
   })
 }
 
@@ -498,8 +537,10 @@ export async function captureScanPage(
   pageToken: string | null,
 ): Promise<PageResult> {
   return withPage<PageResult>(deps, connectionId, async (c) => {
+    // The clause was fixed at scan start (a page token is only valid with the query that minted it); a Scan without it uses the pre-CHN407 clause.
+    const clause = scan.label_clause ?? '{in:inbox in:sent}'
     const listed = await c.client.listMessages({
-      q: `after:${scan.after} {in:inbox in:sent}`,
+      q: clause === '' ? `after:${scan.after}` : `after:${scan.after} ${clause}`,
       pageToken,
       maxResults: PAGE_SIZE,
     })
@@ -518,7 +559,7 @@ export async function captureScanPage(
       c,
       listed.messages.map((m) => m.id),
       0,
-      { accept: capturesLabels },
+      { accept: (l) => capturesLabels(l, c.settings.capture_labels) },
       final,
     )
     return { outcome: 'page', next_page_token: next, history_id: historyAfter, ...counts }
