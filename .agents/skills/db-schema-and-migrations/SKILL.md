@@ -188,7 +188,8 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
 - **The D1 splitter knows triggers.** `splitStatements` (`@vibase/storage-d1/test`) ends a `CREATE TRIGGER` at the line that
   closes it with `END;`; wrangler applies the same file as written.
 - **Source tables are machinery** (`message_sources`, `thread_sources`): no events, no API; the provider's ids map to ours.
-  Since `0010` ([[CHN140]]) their `connection_id` is a composite FK to `channel_connections`.
+  Since `0010` ([[CHN140]]) their `connection_id` is a composite FK to `channel_connections`; since `0024` ([[CHN421]]) it
+  is nullable beside a `form_id` FK to `forms`, exactly one set (below).
 - **Adding a foreign key to an existing D1 table is a rebuild** (`0010_gmail_capture.sql` is the worked example):
   `PRAGMA defer_foreign_keys = on;`, create `<t>_new` with the key, `INSERT … SELECT` the explicit column list, `DROP`,
   `RENAME`, then re-create **every** index and trigger the old table had (they go with the drop). Diff the new definition
@@ -206,6 +207,15 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   verbatim: the children's composite FKs depend on it. Test it over data with child rows present and
   `PRAGMA foreign_key_check` empty after (`0022_unattached_identities.sql`, `identities-unattached-schema.integration.test.ts`,
   [[CORE408]]).
+- **A rebuild's test compares each re-created index and trigger by its `sqlite_master.sql`, not by its name.** If the test
+  compares names only, a re-created index with a wrong column list still passes ([[CHN421]]'s first review). For an
+  independent check before review, apply `0001..N-1` to a scratch file with the `sqlite3` CLI, dump `sqlite_master` for
+  the rebuilt tables, apply `N`, and diff: only the intended changes may show. macOS `sqlite3` has no `fts5`, so `0014`
+  errors there; that is harmless unless a rebuilt table has a search index.
+- **A row owned by one of two sources** (`message_sources`/`thread_sources` since `0024_form_channel.sql`, [[CHN421]] D10):
+  make both keys nullable, each with its own composite FK; add an exactly-one CHECK (`(a IS NULL) <> (b IS NULL)`, named
+  `<table>_one_source`); give each key its own plain unique index. NULLs never conflict, so each insert names its own
+  key's index as the `ON CONFLICT` target. Every read filters on the caller's own column, never on `coalesce(a, b)`.
 - **A D1 `INTEGER PRIMARY KEY` needs an explicit `NOT NULL`.** It is the rowid, but `pragma_table_info` reports
   `notnull = 0` without it, so `schema.get` publishes the key as `nullable: true`. `INTEGER PRIMARY KEY AUTOINCREMENT
   NOT NULL` still auto-assigns. `AUTOINCREMENT` creates `sqlite_sequence` (hidden from `schema.get`), which clearing the
