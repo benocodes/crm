@@ -157,7 +157,7 @@ export async function ensureConnection(
 
 /** Runs one capture unit on the engine as the tenant's user (or agent). */
 export async function runCapture(engine: Engine, input: CaptureInput, as: 'user' | 'agent' = 'user') {
-  await ensureConnection(engine.binding, engine, input.connection_id)
+  if (input.source.kind === 'connection') await ensureConnection(engine.binding, engine, input.source.id)
   return engine.run(recordMessagesOperation(engine.env({ as }), input), as)
 }
 
@@ -175,7 +175,7 @@ export function tenantEnv(t: Tenant, now = new Date('2026-10-22T10:00:00.000Z'))
 
 /** Runs one capture unit as the tenant's user on a contract session's binding. */
 export async function captureAs(binding: StorageBinding, t: Tenant, input: CaptureInput): Promise<CaptureResult> {
-  await ensureConnection(binding, t, input.connection_id)
+  if (input.source.kind === 'connection') await ensureConnection(binding, t, input.source.id)
   const out = await execute(
     binding,
     { kind: 'tenant', actorId: t.userId, organizationId: t.organizationId },

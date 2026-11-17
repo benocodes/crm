@@ -31,4 +31,5 @@ export const MIGRATIONS: readonly { readonly name: string; readonly sha256: stri
     sha256: '86c9db9098b726612083533d2e086a8b540c8b6133bc8a73bee68cc03b80b2ba',
   },
   { name: '0023_forms.sql', sha256: '8e1634a6d62a68123b9b56e8200bdadc33bb2a7537894cd889e327944e74f149' },
+  { name: '0024_form_channel.sql', sha256: 'cf687d1cd45e6f348d30bc541123ca58551492bf959f18a761e0860121ba3102' },
 ]

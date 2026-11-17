@@ -60,7 +60,11 @@ async function seed(): Promise<Record<'A' | 'B' | 'C' | 'D', string>> {
     })
     ids[n] = c.id
   }
-  await s.capture(t, { connection_id: C1, messages: [messageTo('a@x.test', T_A), messageTo('b@x.test', T_B)] })
+  await s.capture(t, {
+    source: { kind: 'connection', id: C1 },
+    channel: 'email',
+    messages: [messageTo('a@x.test', T_A), messageTo('b@x.test', T_B)],
+  })
   return ids as Record<'A' | 'B' | 'C' | 'D', string>
 }
 

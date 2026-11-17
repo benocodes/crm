@@ -63,7 +63,7 @@ export function engineSuite(engineName: EngineName): void {
 
     const msg = (over: CaptureOverrides = {}): CaptureMessage => captureMessage(e.organizationId, over)
     const cap = (messages: CaptureMessage[], opts: { connection?: string; as?: 'user' | 'agent' } = {}) =>
-      runCapture(e, { connection_id: opts.connection ?? C1, messages }, opts.as)
+      runCapture(e, { source: { kind: 'connection', id: opts.connection ?? C1 }, channel: 'email', messages }, opts.as)
     const counts = async (tables: readonly string[] = ALL_TABLES) =>
       Object.fromEntries(await Promise.all(tables.map(async (t) => [t, (await ownRows(t)).length] as const)))
     const types = async () => (await e.rows('events')).map((r) => r.type as string)
@@ -522,7 +522,11 @@ export function engineSuite(engineName: EngineName): void {
       it('rolls back everything when a statement fails after the first mutation or the first event', async () => {
         for (const after of ['first-mutation', 'first-event'] as const) {
           const op = withFault(
-            recordMessagesOperation(e.env(), { connection_id: C1, messages: [msg({ attachments: 1 })] }),
+            recordMessagesOperation(e.env(), {
+              source: { kind: 'connection', id: C1 },
+              channel: 'email',
+              messages: [msg({ attachments: 1 })],
+            }),
             { after },
           )
           await expect(e.run(op)).rejects.toBeDefined()
@@ -531,7 +535,8 @@ export function engineSuite(engineName: EngineName): void {
       })
 
       it('refuses an input outside the programmer contract', () => {
-        const run = (m: CaptureMessage) => () => recordMessages(e.env(), { connection_id: C1, messages: [m] })
+        const run = (m: CaptureMessage) => () =>
+          recordMessages(e.env(), { source: { kind: 'connection', id: C1 }, channel: 'email', messages: [m] })
         expect(run(msg({ thread_hints: Array.from({ length: 21 }, (_, i) => `h${i}`) }))).toThrow(/thread_hints/)
         expect(run(msg({ content_key: null }))).toThrow(/content_key/)
         expect(run(msg({ kind: 'reaction', content_key: 'orgs/x' }))).toThrow(/content_key/)
@@ -760,7 +765,9 @@ export function engineSuite(engineName: EngineName): void {
     })
 
     const refused = async (messages: CaptureMessage[]) => {
-      expect(await settle(runCapture(e, { connection_id: C1, messages }))).toBeInstanceOf(SetLimitExceeded)
+      expect(
+        await settle(runCapture(e, { source: { kind: 'connection', id: C1 }, channel: 'email', messages })),
+      ).toBeInstanceOf(SetLimitExceeded)
       for (const t of ALL_TABLES) expect((await ownRowsOf(e, t)).length, t).toBe(0)
     }
     const m = (over: CaptureOverrides = {}) => captureMessage(e.organizationId, over)
@@ -783,7 +790,11 @@ export function engineSuite(engineName: EngineName): void {
       await refused([m({ attachments: 4 })])
     })
     it('accepts a chunk at the cap', async () => {
-      const { value } = await runCapture(e, { connection_id: C1, messages: [m({ attachments: 3 }), m(), m()] })
+      const { value } = await runCapture(e, {
+        source: { kind: 'connection', id: C1 },
+        channel: 'email',
+        messages: [m({ attachments: 3 }), m(), m()],
+      })
       expect(value.captured).toHaveLength(3)
     })
   })

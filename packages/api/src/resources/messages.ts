@@ -36,7 +36,7 @@ export const messages = withColumnFilters(
       record: z.object({
         id: z.uuid(),
         thread_id: z.uuid(),
-        channel: z.enum(['email']),
+        channel: z.enum(['email', 'form']),
         kind: z.enum(['message', 'reaction']),
         external_id: z.string(),
         in_reply_to: z.string().nullable(),
@@ -70,7 +70,7 @@ export const messages = withColumnFilters(
       },
       filters: {
         thread_id: { schema: z.uuid(), normalize: (v) => (v as string).toLowerCase() },
-        channel: { schema: z.enum(['email']) },
+        channel: { schema: z.enum(['email', 'form']) },
         kind: { schema: z.enum(['message', 'reaction']) },
         external_id: { schema: z.string().min(1).max(998) },
         in_reply_to: { schema: z.string().min(1).max(998) },

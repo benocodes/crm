@@ -670,8 +670,15 @@ describe('the messaging slice (CORE25 C1)', () => {
         fetch_metadata: false,
         fetch_error: false,
       },
-      message_sources: { message_id: true, connection_id: true, provider_message_id: true, provider_thread_id: true },
-      thread_sources: { thread_id: true, connection_id: true, provider_thread_id: true },
+      // 0024 (CHN421 D10): either key, exactly one set, so both are nullable.
+      message_sources: {
+        message_id: true,
+        connection_id: false,
+        form_id: false,
+        provider_message_id: true,
+        provider_thread_id: true,
+      },
+      thread_sources: { thread_id: true, connection_id: false, form_id: false, provider_thread_id: true },
     }
     for (const t of ALL) {
       const cols = await all<{ name: string; notnull: number }>(`PRAGMA table_info(${t})`)
@@ -703,14 +710,16 @@ describe('the messaging slice (CORE25 C1)', () => {
         ['organization_id,message_id', 'messages', 'organization_id,id'],
         ['organization_id,file_id', 'files', 'organization_id,id'],
       ],
-      // 0010 (CHN140 D27) rebuilt both source tables with the connection key; the rest is 0004's.
+      // 0010 (CHN140 D27) rebuilt both source tables with the connection key, 0024 (CHN421 D10) added the form key; the rest is 0004's.
       message_sources: [
         ['organization_id,message_id', 'messages', 'organization_id,id'],
         ['organization_id,connection_id', 'channel_connections', 'organization_id,id'],
+        ['organization_id,form_id', 'forms', 'organization_id,id'],
       ],
       thread_sources: [
         ['organization_id,thread_id', 'threads', 'organization_id,id'],
         ['organization_id,connection_id', 'channel_connections', 'organization_id,id'],
+        ['organization_id,form_id', 'forms', 'organization_id,id'],
       ],
     }
     for (const t of ALL) {
@@ -758,6 +767,8 @@ describe('the messaging slice (CORE25 C1)', () => {
         'message_attachments_position_nonnegative',
         'message_attachments_size_nonnegative',
       ],
+      message_sources: ['message_sources_one_source'],
+      thread_sources: ['thread_sources_one_source'],
     }
     for (const t of ALL) {
       const [{ sql }] = await all<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", t)

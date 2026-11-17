@@ -145,14 +145,14 @@ export async function clearD1(d1: D1Like): Promise<void> {
     'action_executions',
     'action_requests',
     'events',
-    // forms: the child tables, then the form (its id is an agents row), before the tables they point at ([[CHN424]]: they hold rows now)
+    // forms: the child tables first; the form itself (its id is an agents row) follows the two source tables, which name it ([[CHN424]], [[CHN421]])
     'form_tags',
     'form_allowed_origins',
-    'forms',
     'interaction_participants',
     'message_attachments',
     'message_sources',
     'thread_sources',
+    'forms',
     'channel_credentials',
     'gmail_watches',
     'mail_sync_state',

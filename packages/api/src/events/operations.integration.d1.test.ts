@@ -283,7 +283,11 @@ describe('record shape and get (D3, D6)', () => {
   })
 
   it('before and after carry the read schema with embedded children, and nothing the read hides', async () => {
-    await runCapture(e, { connection_id: uuidv7(), messages: [captureMessage(e.organizationId, { attachments: 1 })] })
+    await runCapture(e, {
+      source: { kind: 'connection', id: uuidv7() },
+      channel: 'email',
+      messages: [captureMessage(e.organizationId, { attachments: 1 })],
+    })
     const scopes = ['events:read', 'interactions:read', 'messages:read', 'files:read']
     const r = await list(scopes)
     const created = (type: string) => r.body.data.find((x: any) => x.type === type)

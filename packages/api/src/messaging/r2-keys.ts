@@ -5,12 +5,14 @@
 //   file prefix     orgs/<org>/files/<object id>                                    (stored as files.storage_key)
 //   bytes           <storage_key>/blob
 
+import type { ChannelName } from '../channels/port.js'
+
 const hex = (bytes: ArrayBuffer): string =>
   [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')
 
 export async function messageContentPrefix(
   organizationId: string,
-  channel: 'email',
+  channel: ChannelName,
   externalId: string,
 ): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(externalId))

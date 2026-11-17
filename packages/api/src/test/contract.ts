@@ -220,7 +220,11 @@ export function runContractSuite(opts: {
                 return res.json()
               },
               capture: (over = {}) =>
-                session.capture(t, { connection_id: uuidv7(), messages: [captureMessage(t.organizationId, over)] }),
+                session.capture(t, {
+                  source: { kind: 'connection', id: uuidv7() },
+                  channel: 'email',
+                  messages: [captureMessage(t.organizationId, over)],
+                }),
             }),
             eventsOf: session.eventsOf,
             countEvents: session.countEvents,

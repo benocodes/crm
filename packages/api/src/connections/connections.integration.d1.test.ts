@@ -170,7 +170,8 @@ describe('connections.delete (D26, D56)', () => {
     const c = await seedConnection()
     await seedMachinery(c.id as string)
     const captured = await runCapture(e, {
-      connection_id: c.id as string,
+      source: { kind: 'connection', id: c.id as string },
+      channel: 'email',
       messages: [captureMessage(e.organizationId)],
     })
     expect(await e.rows('message_sources')).toHaveLength(1)

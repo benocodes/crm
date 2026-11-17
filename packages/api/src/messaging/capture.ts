@@ -19,6 +19,7 @@ import {
   type Step,
   type Unit,
 } from '@vibase/storage'
+import type { ChannelName } from '../channels/port.js'
 import { cleanName, resolveProgram, type ResolveEntry } from '../identity/resolve.js'
 import { normalizeIdentityValue } from '../identity/normalize.js'
 import { operationOf, type Program } from '../identity/program.js'
@@ -60,7 +61,7 @@ export interface CaptureAttachment {
   file: CaptureFile | null
 }
 export interface CaptureMessage {
-  channel: 'email'
+  channel: ChannelName
   kind: 'message' | 'reaction'
   external_id: string
   in_reply_to: string | null
@@ -77,13 +78,25 @@ export interface CaptureMessage {
   /** Null iff `kind === 'reaction'`. */
   content_key: string | null
   sent_by_connection: boolean
+  /**
+   * [[CHN421]] D11/D12: `'inbound'` captures the message as inbound whatever its `from` identity's `own` is (a form submission is
+   * always inbound, even from an own address). Absent, [[CORE25]] D9's rule holds. Decision 421.32: a field of the message, not of the chunk.
+   */
+  direction?: 'inbound'
   /** Normalised; at least one `from`. */
   participants: readonly CaptureParticipant[]
   attachments: readonly CaptureAttachment[]
 }
 export type ContactCreation = 'sent_and_received' | 'sent' | 'none'
+/** [[CHN421]] D12: where a chunk's provider ids belong, a connection or a form. */
+export interface CaptureSource {
+  kind: 'connection' | 'form'
+  id: string
+}
 export interface CaptureInput {
-  connection_id: string
+  source: CaptureSource
+  /** The chunk's one channel; every message carries the same one (`validate`). */
+  channel: ChannelName
   messages: readonly CaptureMessage[]
   /**
    * The capturing connection's `contact_creation` ([[CORE417]] D11, 417.2): which addresses of these messages may get a contact.
@@ -107,11 +120,11 @@ export interface CaptureResult {
 }
 
 const KEY = (p: { kind: string; value: string }) => `${p.kind}:${p.value}`
-const EMAIL = sql.lit('email')
 
 /** Programmer errors, thrown before anything is read: the pipeline guarantees these, so a breach is a bug, not data. */
 function validate(input: CaptureInput): void {
   for (const m of input.messages) {
+    if (m.channel !== input.channel) throw new Error("a message's channel must equal its chunk's channel")
     if (m.thread_hints.length > 20) throw new Error('thread_hints holds at most 20 entries')
     if (m.kind === 'message' && m.content_key === null) throw new Error('a message needs a content_key')
     if (m.kind === 'reaction' && m.content_key !== null) throw new Error('a reaction has no content_key')
@@ -147,7 +160,12 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
   const at = codecs.timestamp.write(env.now)
   const org = env.organizationId
   const actor = env.actor.id
-  const connection = input.connection_id
+  const source = input.source
+  const CH = sql.lit(input.channel)
+  // P1 (421.27): every source read and write names the chunk's own column, never whichever of the two is non-null.
+  const sourceColumn = source.kind === 'form' ? 'form_id' : 'connection_id'
+  const sourceRef = (table: 'thread_sources' | 'message_sources') => sql.ref(`${table}.${sourceColumn}`)
+  const sourceCol = sql.ref(sourceColumn)
 
   const sorted = input.messages
     .map((m, index) => ({ m, index, occurred: codecs.timestamp.write(m.occurred_at) }))
@@ -207,12 +225,12 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
       const hints = jsonRows(qc, 'h', { msg: 'text', rk: 'integer', hint: 'text' }, hintRows)
       const existing = sql`
         select "messages"."id" as "id", "messages"."thread_id" as "thread_id", "messages"."external_id" as "external_id" from "messages"
-        where "messages"."organization_id" = ${org} and "messages"."channel" = ${EMAIL} and ${memberOf(qc, 'messages', 'external_id', keys)}`.compile(
+        where "messages"."organization_id" = ${org} and "messages"."channel" = ${CH} and ${memberOf(qc, 'messages', 'external_id', keys)}`.compile(
         qc.db,
       )
       const aliases = sql`
         select "thread_sources"."thread_id" as "thread_id", "thread_sources"."provider_thread_id" as "provider_thread_id" from "thread_sources"
-        where "thread_sources"."organization_id" = ${org} and "thread_sources"."connection_id" = ${connection} and ${memberOf(qc, 'thread_sources', 'provider_thread_id', providerThreads)}`.compile(
+        where "thread_sources"."organization_id" = ${org} and ${sourceRef('thread_sources')} = ${source.id} and ${memberOf(qc, 'thread_sources', 'provider_thread_id', providerThreads)}`.compile(
         qc.db,
       )
       // Per message the nearest hint that exists (lowest rank): a window function, portable to both dialects.
@@ -221,7 +239,7 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
           select "h"."msg" as "msg", "h"."rk" as "rk", "m"."thread_id" as "thread_id",
             row_number() over (partition by "h"."msg" order by "h"."rk") as "rn"
           from ${hints}
-          join "messages" as "m" on "m"."organization_id" = ${org} and "m"."channel" = ${EMAIL} and "m"."external_id" = "h"."hint"
+          join "messages" as "m" on "m"."organization_id" = ${org} and "m"."channel" = ${CH} and "m"."external_id" = "h"."hint"
         ) as "t" where "t"."rn" = 1`.compile(qc.db)
       const knownFiles = sql`
         select "files"."sha256" as "sha256", min("files"."storage_key") as "storage_key" from "files"
@@ -376,6 +394,7 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
 
       // Direction (D9): the connection said so, else the sender's planned identity is one of ours.
       const direction = (m: CaptureMessage): 'inbound' | 'outbound' => {
+        if (m.direction === 'inbound') return 'inbound'
         if (m.sent_by_connection) return 'outbound'
         const from = m.participants.find((p) => p.role === 'from')!
         return dbIdentities.get(KEY(from))?.own ? 'outbound' : 'inbound'
@@ -427,7 +446,7 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
         column: 'external_id' | 'sha256',
         values: readonly string[],
       ) =>
-        sql<SqlBool>`not exists (select 1 from ${sql.table(table)} where ${sql.ref(`${table}.organization_id`)} = ${org} and ${table === 'messages' ? sql`${sql.ref('messages.channel')} = ${EMAIL} and ` : sql``}${memberOf(qc, table, column as never, values)})`
+        sql<SqlBool>`not exists (select 1 from ${sql.table(table)} where ${sql.ref(`${table}.organization_id`)} = ${org} and ${table === 'messages' ? sql`${sql.ref('messages.channel')} = ${CH} and ` : sql``}${memberOf(qc, table, column as never, values)})`
       const aliasesAsPlanned = sql<SqlBool>`not exists (
         select 1 from ${jsonRows(
           qc,
@@ -436,7 +455,7 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
           providerThreads.map((pt) => ({ pt, thread_id: dbAliases.get(pt) ?? null })),
         )}
         where coalesce((select cast("thread_sources"."thread_id" as text) from "thread_sources"
-          where "thread_sources"."organization_id" = ${org} and "thread_sources"."connection_id" = ${connection} and "thread_sources"."provider_thread_id" = "a"."pt"), '') <> coalesce("a"."thread_id", ''))`
+          where "thread_sources"."organization_id" = ${org} and ${sourceRef('thread_sources')} = ${source.id} and "thread_sources"."provider_thread_id" = "a"."pt"), '') <> coalesce("a"."thread_id", ''))`
       const plannedIdentities = [...dbIdentities.values()]
       const identitiesAsPlanned = sql<SqlBool>`(select count(*) from ${jsonRows(qc, 'p', { id: 'uuid', own: 'boolean' }, plannedIdentities)}
         join "identities" on "identities"."id" = "p"."id" and "identities"."organization_id" = ${org} and "identities"."deleted_at" is null and "identities"."own" = "p"."own") = ${sql.lit(plannedIdentities.length)}`
@@ -546,7 +565,7 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
         assertion,
         step(
           sql`insert into "threads" ("id", "created_at", "organization_id", "created_by", "channel", "subject")
-            select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${EMAIL}, ${R('subject')} from ${threadSet} order by ${R('ord')}`.compile(
+            select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${CH}, ${R('subject')} from ${threadSet} order by ${R('ord')}`.compile(
             qc.db,
           ),
           firstMutation,
@@ -561,7 +580,7 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
           qc,
           step(
             sql`insert into "messages" ("id", "created_at", "organization_id", "created_by", "thread_id", "channel", "kind", "external_id", "in_reply_to", "author", "occurred_at", "preview", "content_key", "version", "retracted_at")
-              select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${R('thread_id')}, ${EMAIL}, ${R('kind')}, ${R('external_id')}, ${R('in_reply_to')}, ${R('author')}, ${R('occurred_at')}, ${R('preview')}, ${R('content_key')}, ${bind(qc, 'integer', 1)}, ${bind(qc, 'timestamp', null)}
+              select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${R('thread_id')}, ${CH}, ${R('kind')}, ${R('external_id')}, ${R('in_reply_to')}, ${R('author')}, ${R('occurred_at')}, ${R('preview')}, ${R('content_key')}, ${bind(qc, 'integer', 1)}, ${bind(qc, 'timestamp', null)}
               from ${messageSet} where true order by ${R('ord')}
               on conflict ("organization_id", "channel", "external_id") do nothing`.compile(qc.db),
           ),
@@ -574,7 +593,7 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
         ),
         step(
           sql`insert into "interactions" ("id", "created_at", "organization_id", "created_by", "kind", "channel", "direction", "occurred_at", "thread_id", "message_id")
-            select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${R('kind')}, ${EMAIL}, ${R('direction')}, ${R('occurred_at')}, ${R('thread_id')}, ${R('message_id')}
+            select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${R('kind')}, ${CH}, ${R('direction')}, ${R('occurred_at')}, ${R('thread_id')}, ${R('message_id')}
             from ${interactionSet} order by ${R('ord')}`.compile(qc.db),
         ),
         ...exactly(
@@ -589,16 +608,16 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
           participantRows.length,
         ),
         step(
-          sql`insert into "message_sources" ("id", "created_at", "organization_id", "created_by", "message_id", "connection_id", "provider_message_id", "provider_thread_id")
-            select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${R('message_id')}, ${T('uuid', connection)}, ${R('pm')}, ${R('pt')}
+          sql`insert into "message_sources" ("id", "created_at", "organization_id", "created_by", "message_id", ${sourceCol}, "provider_message_id", "provider_thread_id")
+            select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${R('message_id')}, ${T('uuid', source.id)}, ${R('pm')}, ${R('pt')}
             from ${messageSourceSet} where true order by ${R('ord')}
-            on conflict ("organization_id", "connection_id", "provider_message_id") do nothing`.compile(qc.db),
+            on conflict ("organization_id", ${sourceCol}, "provider_message_id") do nothing`.compile(qc.db),
         ),
         step(
-          sql`insert into "thread_sources" ("id", "created_at", "organization_id", "created_by", "thread_id", "connection_id", "provider_thread_id")
-            select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${R('thread_id')}, ${T('uuid', connection)}, ${R('pt')}
+          sql`insert into "thread_sources" ("id", "created_at", "organization_id", "created_by", "thread_id", ${sourceCol}, "provider_thread_id")
+            select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${R('thread_id')}, ${T('uuid', source.id)}, ${R('pt')}
             from ${threadSourceSet} where true order by ${R('ord')}
-            on conflict ("organization_id", "connection_id", "provider_thread_id") do nothing`.compile(qc.db),
+            on conflict ("organization_id", ${sourceCol}, "provider_thread_id") do nothing`.compile(qc.db),
         ),
         ...(
           [

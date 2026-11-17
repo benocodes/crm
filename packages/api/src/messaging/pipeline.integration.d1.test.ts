@@ -426,7 +426,8 @@ function engineSuite(): void {
       const external = '<with-attachment@fake.test>'
       e.betweenPlanAndCommit(async () => {
         await runCapture(e, {
-          connection_id: C2.id,
+          source: { kind: 'connection', id: C2.id },
+          channel: 'email',
           messages: [
             captureMessage(e.organizationId, {
               external_id: external,

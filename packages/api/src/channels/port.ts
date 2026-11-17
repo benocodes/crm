@@ -8,7 +8,7 @@ export type VibaseMessage = Pick<
   'id' | 'threadId' | 'text' | 'formatted' | 'author' | 'metadata' | 'attachments'
 >
 
-export type ChannelName = 'email'
+export type ChannelName = 'email' | 'form'
 export type ParticipantRole = 'from' | 'to' | 'cc' | 'bcc'
 
 /** The interaction facts the SDK's `Message` does not model. `attachments[i]` describes `message.attachments[i]`. */

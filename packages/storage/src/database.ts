@@ -144,7 +144,7 @@ export interface ThreadsTable {
   created_at: Timestamp
   organization_id: string
   created_by: string
-  channel: 'email'
+  channel: 'email' | 'form'
   subject: string | null
 }
 export interface MessagesTable {
@@ -153,7 +153,7 @@ export interface MessagesTable {
   organization_id: string
   created_by: string
   thread_id: string
-  channel: 'email'
+  channel: 'email' | 'form'
   kind: 'message' | 'reaction'
   external_id: string
   in_reply_to: string | null
@@ -170,7 +170,7 @@ export interface InteractionsTable {
   organization_id: string
   created_by: string
   kind: 'message' | 'reaction'
-  channel: 'email'
+  channel: 'email' | 'form'
   direction: 'inbound' | 'outbound'
   occurred_at: Timestamp
   thread_id: string | null
@@ -441,7 +441,9 @@ export interface MessageSourcesTable {
   organization_id: string
   created_by: string
   message_id: string
-  connection_id: string
+  /** Exactly one of `connection_id` and `form_id` is set ([[CHN421]] D10). */
+  connection_id: string | null
+  form_id: string | null
   provider_message_id: string
   provider_thread_id: string
 }
@@ -451,7 +453,9 @@ export interface ThreadSourcesTable {
   organization_id: string
   created_by: string
   thread_id: string
-  connection_id: string
+  /** Exactly one of `connection_id` and `form_id` is set ([[CHN421]] D10). */
+  connection_id: string | null
+  form_id: string | null
   provider_thread_id: string
 }
 
@@ -973,6 +977,7 @@ export const COLUMN_KINDS = {
     created_by: 'uuid',
     message_id: 'uuid',
     connection_id: 'uuid',
+    form_id: 'uuid',
     provider_message_id: 'text',
     provider_thread_id: 'text',
   },
@@ -1037,6 +1042,7 @@ export const COLUMN_KINDS = {
     created_by: 'uuid',
     thread_id: 'uuid',
     connection_id: 'uuid',
+    form_id: 'uuid',
     provider_thread_id: 'text',
   },
 } as const satisfies { [T in PhysicalTable]: { [C in ColumnOf<T>]: ColumnKind } }

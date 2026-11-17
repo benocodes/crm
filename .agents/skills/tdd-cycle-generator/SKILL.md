@@ -333,6 +333,11 @@ fixtures carry no descriptions, `writing-tests` §goldens) and "tests that pinne
 Before naming a rider or a test to flip, grep for it at plan time; otherwise word it "if any". The fix round was a missing
 changeset for a change in `@vibase/api` alone (`execute-cycle`, changesets). When a charter names the changeset, name the
 published package it bumps (`@vibase/server-d1`), not `@vibase/api`, which is unpublished ([[CHN424]] 424.10).
+**CHN421** cycle 1 (`knowledge/specs/016-CHN421-form-ingress/RETRO.md`): 6 groups (1 matrix), 4 decisions + 3 planner rules,
+1 migration rebuilding five tables, no E2E. Cost 197k / 72 calls over two runs (+263 code / +669 test lines, 36 files), with
+one fix round of four findings, all about evidence. The budget holds. The hidden work was changing a shared program's input
+shape (`recordMessages`), which touched about 25 call sites. When a charter changes a signature that tests and callers
+share, grep its call sites at plan time and name the count in the Size line ("rider: N call sites").
 
 ### Step 3: Resolve identities
 

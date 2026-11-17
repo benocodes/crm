@@ -79,7 +79,8 @@ async function seedFour(): Promise<Record<'A' | 'B' | 'C' | 'D', string>> {
     D: await addContact('D', 'd@x.test'),
   }
   await s.capture(t, {
-    connection_id: C1,
+    source: { kind: 'connection', id: C1 },
+    channel: 'email',
     messages: [messageFrom('a@x.test', T_A), messageTo('b@x.test', T_B), messageTo('d@x.test', T_D)],
   })
   return ids
