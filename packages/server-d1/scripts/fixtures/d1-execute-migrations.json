@@ -60,6 +60,9 @@
       },
       {
         "name": "0020_drop_api_key_webhook_tables.sql"
+      },
+      {
+        "name": "0021_capture_settings.sql"
       }
     ],
     "success": true,
