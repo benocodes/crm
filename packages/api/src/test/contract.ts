@@ -47,6 +47,9 @@ export interface ContractFixture {
   actors?: readonly ContractActor[]
   /** Event types a create emits on the same resource id before the resource's own `<name>.created`, in order (a form's agent principal shares its id, [[CHN420]] D3). Default: none, so a create emits exactly one event. */
   createAlsoEmits?: readonly string[]
+  /** The same for an update and a delete: event types emitted on the resource's id just before `<name>.updated` / `<name>.deleted` ([[CHN423]]: a form's rename and delete also write its agent). Asserted as the exact tail of the id's events. Default: none. */
+  updateAlsoEmits?: readonly string[]
+  deleteAlsoEmits?: readonly string[]
 }
 export type ContractTenant = Tenant
 export type EventRow = Record<string, any>
@@ -300,8 +303,14 @@ export function runContractSuite(opts: {
                 const res = await env.call(a, actor, 'full', 'PATCH', pathOf(def, 'update', row.id), patch)
                 expect(res.status).toBe(200)
                 const body = parse('update', await res.json())
-                const updated = types(await env.eventsOf(row.id), 'updated')
+                const allEvents = await env.eventsOf(row.id)
+                const updated = types(allEvents, 'updated')
                 expect(updated).toHaveLength(1)
+                const alsoUpdate = fixture.updateAlsoEmits ?? []
+                expect(allEvents.slice(-(alsoUpdate.length + 1)).map((e) => e.type)).toEqual([
+                  ...alsoUpdate,
+                  `${def.eventName}.updated`,
+                ])
                 expect(updated[0]!.before).not.toBeNull()
                 expect(updated[0]!.after).toEqual(recordOfEvent(body))
                 expect(updated[0]!.actor_id).toBe(await env.principalId(a, actor, 'full'))
@@ -314,8 +323,14 @@ export function runContractSuite(opts: {
                 const res = await env.call(a, actor, 'full', 'DELETE', pathOf(def, 'delete', row.id))
                 expect(res.status).toBe(204)
                 expect(await res.text()).toBe('')
-                const deleted = types(await env.eventsOf(row.id), 'deleted')
+                const allEvents = await env.eventsOf(row.id)
+                const deleted = types(allEvents, 'deleted')
                 expect(deleted).toHaveLength(1)
+                const alsoDelete = fixture.deleteAlsoEmits ?? []
+                expect(allEvents.slice(-(alsoDelete.length + 1)).map((e) => e.type)).toEqual([
+                  ...alsoDelete,
+                  `${def.eventName}.deleted`,
+                ])
                 expect(deleted[0]!.before).toEqual(recordOfEvent(last))
                 expect(deleted[0]!.after).toBeNull()
                 await error(await env.call(a, actor, 'full', 'GET', pathOf(def, 'get', row.id)), 404, 'not_found')

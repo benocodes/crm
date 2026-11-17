@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { compileOperation } from '@vibase/storage'
-import { readAgentExists } from './crm-key-reads.js'
+import { readAgentForKey } from './crm-key-reads.js'
 import { hashApiKey } from '../auth/api-keys.js'
 import { openApiKeyKit, NO_SUCH, NOW, OWNER_SCOPES, type ApiKeyKit } from '../test/api-key-kit.js'
 
@@ -140,7 +140,7 @@ describe('group 3: authority and refusals match today (P1, P6)', () => {
 
   it('the agent read is scoped to the organisation on both dialects (a D1 deployment holds one organisation and its binding refuses a foreign one, so the predicate is proven at the program)', () => {
     for (const dialect of ['d1', 'postgres'] as const) {
-      const compiled = compileOperation(readAgentExists(k.e.organizationId, k.e.agentId), dialect, {})
+      const compiled = compileOperation(readAgentForKey(k.e.organizationId, k.e.agentId), dialect, {})
       const text = compiled.reads.map((r) => `${r.sql} ${JSON.stringify(r.parameters)}`).join(' ')
       expect(text, dialect).toMatch(/organization_id/)
       expect(text, dialect).toContain(k.e.organizationId)

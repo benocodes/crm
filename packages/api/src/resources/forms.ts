@@ -1,15 +1,15 @@
 import { sql } from 'kysely'
 import { z } from 'zod'
-import { UnitDriftError, codecs, defineOperation, readMaybe, step, unit, type PreparedOperation } from '@vibase/storage'
+import { UnitDriftError, appliedPrev, codecs, defineOperation, readMaybe, step, unit, type PreparedOperation, type Unit } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { mintPublicId } from '../forms/public-id.js'
 import { eventStatement } from '../outbox.js'
-import { afterOf, columnsOf, receipt, resultStep, toRecord, updateOperation } from '../storage/crud.js'
+import { afterOf, beforeRead, columnsOf, deleteOperation, receipt, resultStep, toRecord, updateOperation } from '../storage/crud.js'
 import { definePreparedResource, type Conflict, type PreparedEnv } from '../storage/definition.js'
 import { withColumnFilters } from '../storage/column-filters.js'
-import { prepareCreate, prepareUpdate } from '../storage/prepare.js'
+import { canonicalId, prepareCreate, prepareUpdate } from '../storage/prepare.js'
 import { withColumnSorts } from '../storage/sorts.js'
-import { agents } from './agents.js'
+import { agents, type AgentRecord } from './agents.js'
 
 export type FormRecord = {
   id: string
@@ -146,7 +146,8 @@ const nameConflicts = ({
 /**
  * Forms ([[CHN420]]): the website forms of the workspace, configuration on `/meta` (D11). Created, changed and deleted by an owner, signed in (`humanOnly`; `forms:write` is owner-only and not
  * agent-grantable, D12); anyone holding `forms:read` reads them. Each form is created with its own credential-less agent principal (D3), an `agents` row sharing the form's id, in the same unit.
- * Cycle 1 covers the scalar fields only: the allowed origins and tags (D8, D9) come with CHN424 and the principal's management (D4: rename sync, disable on delete, refusals) with CHN423.
+ * The scalar fields only: the allowed origins and tags (D8, D9) come with CHN424. The principal is managed by its form (D4, [[CHN423]]): a rename renames the agent, a delete disables it, each in the form's unit with its `agent.updated`;
+ * `agents.update` and `api_keys.create` refuse it (`409 form_principal`).
  * A live duplicate name is refused in the plan (`409 form_name_exists`, P4); the partial unique index is the commit-time backstop. Delete is soft. D1 only: `501 not_implemented` elsewhere.
  */
 export const forms = withColumnFilters(
@@ -166,9 +167,9 @@ export const forms = withColumnFilters(
         create:
           'Human only, and only an owner: create a form and its agent. The public id is minted and returned; name must be unique among live forms (409 form_name_exists); the mapping defaults to email and name and needs email_field or phone_field; 403 user_required for an agent. Example: vibase forms create --name "Website contact" --consent-text "We store your answer."',
         update:
-          'Human only, and only an owner: change a form (name, enabled, the field mapping, consent text). At least one field; the merged mapping must still have an identity field and no two equal fields; the public id never changes. Example: vibase forms update <id> --enabled false',
+          'Human only, and only an owner: change a form (name, enabled, the field mapping, consent text). A new name also renames the agent of the form (an agent.updated event before form.updated). At least one field; the merged mapping must still have an identity field and no two equal fields; the public id never changes. Example: vibase forms update <id> --enabled false',
         delete:
-          'Human only, and only an owner: delete a form (soft delete; its public id is never reused). 404 for an unknown or already deleted form. Example: vibase forms delete <id>',
+          'Human only, and only an owner: delete a form (soft delete; its public id is never reused) and disable its agent (an agent.updated event before form.deleted; the agent stays listed and can never be re-enabled). 404 for an unknown or already deleted form. Example: vibase forms delete <id>',
       },
       record,
       create,
@@ -178,20 +179,78 @@ export const forms = withColumnFilters(
       override: {
         create: (env, input) => createFormOperation(env, input),
         update: (env, input) => updateFormOperation(env, input as { id: string; body: unknown }),
+        delete: (env, id) => deleteFormOperation(env, id as string),
       },
     }),
     ['name'],
   ),
 )
 
-/** `forms.update`: the generic update, refusing an empty body, with the merged mapping re-validated against the stored row (D7). */
+/** The agent of the form as the plan phase read it, with the stamp of the read, for the write that follows the form's own. */
+const agentRead = (env: PreparedEnv, qc: Parameters<PreparedOperation<unknown>['reads']>[0], id: string) =>
+  beforeRead(agents, qc, env, id)
+
+const agentBefore = (found: { maybe(key: string): unknown }): AgentRecord | null => {
+  const row = found.maybe('agent') as Record<string, unknown> | null
+  if (!row) return null
+  const { __stamp: _stamp, ...rest } = row
+  return toRecord(agents, rest) as AgentRecord
+}
+
+/**
+ * Splices the agent's write into a form unit ([[CHN423]] P4, P5): after the form's own mutation (kept first, so a drift on the form gates everything after it, as `changes() > 0` chains on D1), the agent's UPDATE and its `agent.updated`, then
+ * the form's event and result. The agent event therefore precedes the form event. The agent UPDATE carries no stamp guard of its own: the agent is written only through its form (`agents.update` refuses it), so the form's stamp is the guard,
+ * and a drift on it applies nothing (the agent UPDATE is gated on the form's, the events chain on each other). `set` is the agent's patch beyond `updated_at`.
+ */
+function withAgentWrite<T>(
+  inner: Unit<T>,
+  qc: Parameters<PreparedOperation<unknown>['reads']>[0],
+  env: PreparedEnv,
+  id: string,
+  agentEventId: string,
+  at: string,
+  set: Record<string, unknown>,
+  agent: AgentRecord,
+): Unit<T> {
+  const update = qc.db
+    .updateTable('agents')
+    .set({ ...set, updated_at: at } as never)
+    .where('agents.id', '=', id)
+    .where('agents.organization_id', '=', env.organizationId)
+    .where(appliedPrev(qc))
+  const event = eventStatement(qc, {
+    id: agentEventId,
+    at,
+    organizationId: env.organizationId,
+    actorId: env.actor.id,
+    type: 'agent.updated',
+    resourceType: 'agent',
+    resourceId: id,
+    before: agent as unknown as Record<string, unknown>,
+    after: { table: 'agents', columns: columnsOf(agents) },
+  })
+  const [mutation, ...rest] = inner.steps
+  return unit({
+    steps: [mutation!, step(update), step(event), ...rest],
+    events: [receipt(agents, agentEventId, 'updated', id), ...inner.events],
+    decode: inner.decode,
+  })
+}
+
+/**
+ * `forms.update`: the generic update, refusing an empty body, with the merged mapping re-validated against the stored row (D7). A `name` that differs exactly (case-sensitive) from the stored agent's name also renames the agent in the same unit,
+ * emitting `agent.updated` before `form.updated`; any other update leaves the agent alone ([[CHN423]] P4).
+ */
 export function updateFormOperation(
   env: PreparedEnv,
   input: { id: string; body: unknown },
 ): PreparedOperation<FormRecord> {
   const values = prepareUpdate(forms, env.actor, input.body)
   if (Object.keys(values).length === 0) throw new ApiError(400, 'validation_error', 'send at least one field to change')
-  return updateOperation(forms, env, input.id, input.body, (before) => {
+  const agentEventId = env.newId() // before the form event's id, so the two sort in write order
+  const at = codecs.timestamp.write(env.now)
+  const id = canonicalId(forms, input.id)
+  const inner = updateOperation(forms, env, input.id, input.body, (before) => {
     checkMapping({
       email_field: 'email_field' in values ? (values.email_field as string | null) : before.email_field,
       phone_field: 'phone_field' in values ? (values.phone_field as string | null) : before.phone_field,
@@ -199,6 +258,47 @@ export function updateFormOperation(
     })
     return {}
   }) as PreparedOperation<FormRecord>
+  if (typeof values.name !== 'string') return inner
+  return defineOperation<FormRecord>({
+    ...inner,
+    reads: (qc) => ({ ...inner.reads(qc), agent: agentRead(env, qc, id) }),
+    build: (found, qc) => {
+      const built = inner.build(found, qc)
+      const agent = agentBefore(found)
+      if (!agent || agent.name === values.name) return built
+      return withAgentWrite(built, qc, env, id, agentEventId, at, { name: values.name }, agent)
+    },
+  })
+}
+
+/**
+ * `forms.delete`: the generic soft delete, and the form's agent is disabled in the same unit (`disabled_at` with `coalesce`, so an earlier timestamp is kept) with its `agent.updated` before `form.deleted`; an agent already disabled is left
+ * alone and emits nothing ([[CHN423]] P5). The agent stays in `agents.list` and `agents.get`, and `agents.update` refuses to re-enable it.
+ */
+export function deleteFormOperation(env: PreparedEnv, rawId: string): PreparedOperation<void> {
+  const inner = deleteOperation(forms, env, rawId)
+  const id = canonicalId(forms, rawId)
+  const agentEventId = env.newId()
+  const at = codecs.timestamp.write(env.now)
+  return defineOperation<void>({
+    ...inner,
+    reads: (qc) => ({ ...inner.reads(qc), agent: agentRead(env, qc, id) }),
+    build: (found, qc) => {
+      const built = inner.build(found, qc)
+      const agent = agentBefore(found)
+      if (!agent || agent.disabled_at !== null) return built
+      return withAgentWrite(
+        built,
+        qc,
+        env,
+        id,
+        agentEventId,
+        at,
+        { disabled_at: sql`coalesce(${sql.ref('agents.disabled_at')}, ${at})` },
+        agent,
+      )
+    },
+  })
 }
 
 /**

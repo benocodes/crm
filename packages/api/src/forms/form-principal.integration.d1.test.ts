@@ -230,16 +230,25 @@ describe('4. disable on delete (P5)', () => {
     expect(agentBefore.disabled_at).toBe(earlier)
   })
 
-  it('a failure inside the unit leaves the form live and the agent enabled (the form changed between plan and commit)', async () => {
+  it('a drift between plan and commit (the form changed meanwhile) is replanned once as a whole: one agent.updated and one form.deleted, never a half-applied unit', async () => {
     const f = await createForm('Website')
-    const before = await snapshot()
+    const mark = (await e.events()).length
     e.betweenPlanAndCommit(async () => void (await e.update('forms', f.body.id, { consent_text: 'changed meanwhile' })))
     const r = await delForm(f.body.id)
-    expect(r.status).toBe(409)
-    const after = await snapshot()
-    expect(after.agents).toEqual(before.agents)
-    expect(after.events).toBe(before.events)
-    expect(after.forms.find((x) => x.id === f.body.id)!.deleted_at).toBeNull()
+    expect(r.status).toBe(204)
+    expect(await typesSince(mark)).toEqual(['agent.updated', 'form.deleted'])
+    expect((await agentOf(f.body.id)).disabled_at).not.toBeNull()
+    expect((await e.rows('forms')).find((x) => x.id === f.body.id)!.deleted_at).not.toBeNull()
+  })
+
+  it('a unit that cannot commit leaves the form live and the agent enabled (the form deleted by a concurrent writer: nothing of this unit applies)', async () => {
+    const f = await createForm('Website')
+    const mark = (await e.events()).length
+    e.betweenPlanAndCommit(async () => void (await e.update('forms', f.body.id, { deleted_at: SEED_AT })))
+    const r = await delForm(f.body.id)
+    expect([404, 409]).toContain(r.status)
+    expect(await typesSince(mark)).toEqual([])
+    expect((await agentOf(f.body.id)).disabled_at).toBeNull()
   })
 
   it('a second delete is 404 and writes nothing; so is an unknown id', async () => {
