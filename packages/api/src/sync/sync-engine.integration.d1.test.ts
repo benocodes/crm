@@ -173,6 +173,7 @@ describe('step returns (invariant 7)', () => {
       'scan',
       'kind',
       'after',
+      'label_clause',
       'history_id',
       'next_page_token',
       'captured',
