@@ -18,7 +18,13 @@ import { operationOf, type Program } from '../identity/program.js'
 import type { ObjectStore } from '../objects/store.js'
 import { ScopeSet } from '../scopes.js'
 import type { PreparedEnv } from '../storage/definition.js'
-import { recordMessages, type CaptureAttachment, type CaptureMessage, type CaptureResult } from './capture.js'
+import {
+  recordMessages,
+  type CaptureAttachment,
+  type CaptureMessage,
+  type CaptureParticipant,
+  type CaptureResult,
+} from './capture.js'
 import { captureChunks, normalizeParticipants } from './capture-chunks.js'
 import { messagePreview } from './preview.js'
 import { fileBlobKey, messageContentPrefix } from './r2-keys.js'
@@ -53,7 +59,17 @@ export interface PipelineResult {
   orphaned_objects: number
 }
 
+/** What the exclude hook sees of a read message ([[CHN407]] D5): its normalised participants and whether the connection sent it. */
+export interface ExcludeFacts {
+  participants: readonly CaptureParticipant[]
+  sent_by_connection: boolean
+}
+/** Returns the skip reason that refuses the message, or null to keep it ([[CHN407]] D5, D10). */
+export type ExcludeHook = (facts: ExcludeFacts) => string | null
+
 export interface PipelineOptions {
+  /** [[CHN407]] D5: judged after the message is read and normalised, before the pre-check; a reason skips the message and stores nothing. */
+  exclude?: ExcludeHook
   /** Prepared steps committed in the LAST chunk's unit, or alone when the batch yields no chunk ([[CORE69]] D10). */
   final?: Program<unknown>
 }
