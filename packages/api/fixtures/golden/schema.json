@@ -4503,7 +4503,7 @@
                 "name": "form_allowed_origins",
                 "origin": "built_in",
                 "label": "Form allowed origins",
-                "description": "The browser origins (scheme, host and port, no path) allowed to post to a form, one row each; none by default, which admits no browser origin. Part of the form record once forms carry them.",
+                "description": "The browser origins (scheme, host and port, no path) allowed to post to a form, one row each; none by default, which admits no browser origin. Carried in the form record as allowed_origins, replaced whole by forms.create and forms.update.",
                 "associable": false,
                 "resource": null,
                 "columns": [
@@ -4603,7 +4603,7 @@
                 "name": "form_tags",
                 "origin": "built_in",
                 "label": "Form tags",
-                "description": "The tags a form gives its submitters, one row each; none by default. A tag deleted later keeps its row and is no longer applied. Part of the form record once forms carry them.",
+                "description": "The tags a form gives its submitters, one row each; none by default. A tag deleted later keeps its row and is no longer applied. Carried in the form record as tag_ids, replaced whole by forms.create and forms.update.",
                 "associable": false,
                 "resource": null,
                 "columns": [

@@ -326,7 +326,7 @@ export interface FormsTable {
   name_field: string | null
   consent_text: string | null
 }
-/** [[CHN420]] D8: the browser origins a form accepts (written by CHN424; nothing writes it before). D1 only. */
+/** [[CHN420]] D8: the browser origins a form accepts (written whole by forms.create and forms.update, [[CHN424]]). D1 only. */
 export interface FormAllowedOriginsTable {
   id: string
   organization_id: string
@@ -334,7 +334,7 @@ export interface FormAllowedOriginsTable {
   origin: string
   created_at: Timestamp
 }
-/** [[CHN420]] D9: the tags a form's submitter is given (written by CHN424; nothing writes it before). D1 only. */
+/** [[CHN420]] D9: the tags a form's submitter is given (written whole by forms.create and forms.update, [[CHN424]]). D1 only. */
 export interface FormTagsTable {
   id: string
   organization_id: string

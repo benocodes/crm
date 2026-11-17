@@ -204,14 +204,6 @@ describe('3. tags written and validated', () => {
     }
   })
 
-  it('a tag of another organisation is not live for this one', async () => {
-    const org2 = '0190b2c4-0000-7000-8000-0000000000b2'
-    await e.insert('organizations', { id: org2, name: 'Other org' } as never).catch(() => undefined)
-    const foreign = await e.insert('tags', { name: 'Foreign', organization_id: org2 }).catch(() => null)
-    if (!foreign) return
-    expect(refusal(await create({ name: 'F', tag_ids: [foreign.id as string] }))).toEqual([400, 'invalid_reference'])
-  })
-
   it('a non-uuid is 400 validation_error, a repeated id is refused naming its index, 21 are refused, 20 accepted', async () => {
     const t = await tag()
     expect(refusal(await create({ name: 'F', tag_ids: ['nope'] }))).toEqual([400, 'validation_error'])

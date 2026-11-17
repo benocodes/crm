@@ -51,7 +51,7 @@ export const fixtures: Record<string, ContractFixture> = {
     input: async (kit) => ({
       name: `Contract form ${randomUUID()}`,
       allowed_origins: ['https://contract.example'],
-      tag_ids: [(await kit.post('/meta/v1/tags', { name: `Form tag ${randomUUID()}` })).id],
+      tag_ids: [(await kit.post('/api/v1/tags', { name: `Form tag ${randomUUID()}` })).id],
     }),
     patch: async () => ({
       name: 'Renamed form',
