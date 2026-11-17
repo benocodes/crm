@@ -234,7 +234,7 @@ export function resolveProgram(env: PreparedEnv, entries: readonly ResolveEntry[
       }
       if (promoted.length > 0) {
         // D6: the promotion holds only for an identity still live, not own and without a contact (the columns the plan read
-        // relied on); any other state aborts the whole unit as drift, so no contact and no event survives it (408.20).
+        // relied on); any other state aborts the whole unit as drift, so no contact and no event survives it (408.21).
         const promoteSet = () =>
           jsonRows(
             qc,
