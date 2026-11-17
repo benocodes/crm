@@ -9,7 +9,7 @@ import { encodeCursor } from '../resources/sort-cursor.js'
 import { globPattern, likePattern, type Condition } from '../storage/column-filters.js'
 import { prepareListQuery } from '../storage/prepare.js'
 import type { ApiKeyStoreFilter, ApiKeyStorePort, ApiKeyStoreRecord, ApiKeyStoreSort } from './api-key-port.js'
-import { readAgentExists } from './crm-key-reads.js'
+import { readAgentForKey } from './crm-key-reads.js'
 
 // `api_keys.create`, `revoke`, `list` and `get` ([[CORE40]] P7), moved onto the control plane by [[CORE351]] ([[CORE259]] D3, D5, D12): control operations run against an `ApiKeyStorePort`. A create or revoke is ONE control
 // batch with its `control_audit` row (P1) and writes nothing to the CRM database, no event included; the CRM fact create needs (the agent) is read before the control call. Keys held only in the CRM database are not handled (P2 dropped by the user: none in use). Without a port they answer
@@ -51,7 +51,7 @@ async function replanned<T>(name: string, attempt: () => Promise<T | 'drifted'>)
 /**
  * `api_keys.create` (P1). The secret is made outside (`generateApiKey(env.randomBytes)`): only its hash and prefix reach the store, and the plaintext rides in the result only. Pure validation first (an expiry must be strictly
  * after the clock), then the agent in this organisation is read from the CRM database (`invalid_reference`: a key for another organisation's agent would authenticate as that agent). A disabled agent may be issued a key
- * ([[CORE27]]). An agent deleted between the read and the write leaves a key that fails closed at authentication ([[CORE350]] P1).
+ * ([[CORE27]]), but a form's principal may not ([[CHN423]]: `409 form_principal`, decided from that read, before any control write). An agent deleted between the read and the write leaves a key that fails closed at authentication ([[CORE350]] P1).
  */
 async function createKey(
   port: ApiKeyStorePort,
@@ -63,8 +63,10 @@ async function createKey(
     throw new ApiError(400, 'validation_error', 'expires_at must be in the future')
   const expiresAt = input.expires_at ? new Date(input.expires_at).toISOString() : null
   const secret = await generateApiKey(env.randomBytes)
-  if (!(await env.read(readAgentExists(env.organizationId, agentId))))
-    throw new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
+  const agent = await env.read(readAgentForKey(env.organizationId, agentId))
+  if (!agent) throw new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
+  if (agent.formId !== null)
+    throw new ApiError(409, 'form_principal', `managed by form ${agent.formId}; change the form`)
   const id = env.newId()
   const now = env.now.toISOString()
   const made = await port.create({
@@ -213,7 +215,7 @@ export function apiKeyOperations(port: ApiKeyStorePort | null): ControlOperation
       name: 'api_keys.create',
       summary: 'Issue an API key for an agent; the key is shown once',
       description:
-        'The key is returned once and never again. Issuing it is recorded in the audit log, not in the event feed: read it with audit.list (audit:read).',
+        "The key is returned once and never again. Issuing it is recorded in the audit log, not in the event feed: read it with audit.list (audit:read). 409 form_principal for the agent of a form (live or deleted): a form's agent holds no key; change the form instead.",
       method: 'post',
       path: '/api-keys',
       scope: { resource: 'agents', action: 'write' },

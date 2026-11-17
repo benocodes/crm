@@ -51,6 +51,9 @@ export const fixtures: Record<string, ContractFixture> = {
     input: async () => ({ name: `Contract form ${randomUUID()}` }),
     patch: async () => ({ name: 'Renamed form', enabled: false }),
     createAlsoEmits: ['agent.created'],
+    // the patch renames the form, which renames its agent; a delete disables it ([[CHN423]] D4, D13)
+    updateAlsoEmits: ['agent.updated'],
+    deleteAlsoEmits: ['agent.updated'],
     actors: ['user'],
   },
   // Deals and pipelines (CORE130): a stage needs a pipeline and a deal needs a stage, created through the public API as prerequisites.

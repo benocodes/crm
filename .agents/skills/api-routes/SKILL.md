@@ -875,6 +875,13 @@ interactive transaction, no `withContext` and no `executor` marker.
     `exists (event id)` instead, or rely on the `exactly` before it.
     A delete-and-insert of a child list counts: a list replaced while empty deletes nothing. Put the parent's
     guarded UPDATE (which always changes one row) last before the event (`connections.update`, [[CHN409]] 409.10).
+  - **A dependent write on a second resource rides the parent's guard.** When a resource's update or delete also
+    writes a row only it may write (a form's agent principal: `forms.update` renames it, `forms.delete` disables it),
+    splice the dependent UPDATE right after the parent's guarded mutation, gated on `changes()` of that mutation, then
+    its event, then the parent's event; allocate the dependent event's id first so ids sort in write order. The parent's
+    stamp is the one guard, which holds only because every other writer refuses the row (`409 form_principal` in
+    `agents.update` and `api_keys.create`, decided from the plan read before any write). Emit the dependent event only
+    when the row really changes (`packages/api/src/resources/forms.ts`, [[CHN423]] 423.8, 423.14).
   - **Check-then-write belongs inside the batch, not before it** ([[CORE245]], `packages/storage-d1/src/control-store.ts`).
     A guard read in its own query and acted on in a later `batch()` is a race: a concurrent writer lands in between.
     Put the guard in the write (`insert ... select ... where not exists (live same email)`), make the dependent row

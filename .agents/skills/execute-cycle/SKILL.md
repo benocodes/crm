@@ -232,6 +232,9 @@ baseline evidence. Keep RESULT/HANDOFF current before a planned handoff so the n
 
 A change to what `@vibase/cli` or `@vibase/server-d1` ships (a migration, an export, the Worker, the CLI) adds a
 `.changeset/*.md` (`pnpm changeset`; AGENTS.md, [[OPS210]] D25); [[OPS260]]'s review round 1 was partly a missing one.
+A behaviour change in a shared package the Worker bundles (`@vibase/api`, `@vibase/storage*`, `@vibase/auth`) changes
+what `@vibase/server-d1` ships, so it adds one too (`'@vibase/server-d1': minor` for new behaviour). Add it yourself;
+"the PR stage decides" is not an answer ([[CHN423]] review round 1, decision 423.16).
 
 A new workspace package (`packages/<dir>`) must update `packages/release/src/workspace.test.ts` (the full
 directory list), the count in `packages/release/src/version.test.ts` and `.changeset/config.json`'s `ignore` list

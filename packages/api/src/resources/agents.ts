@@ -1,6 +1,6 @@
 import { sql } from 'kysely'
 import { z } from 'zod'
-import { UnitDriftError, codecs, defineOperation, step, unit, type PreparedOperation } from '@vibase/storage'
+import { UnitDriftError, codecs, defineOperation, readMaybe, step, unit, type PreparedOperation } from '@vibase/storage'
 import { SCOPE_POLICY, isAgentGrantable, type ScopePolicy } from '../auth/roles.js'
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
@@ -61,6 +61,10 @@ export const agents = withColumnFilters(
       table: 'agents',
       scopeResource: 'agents',
       operations: ['list', 'get', 'create', 'update'],
+      descriptions: {
+        update:
+          'Change an agent: its name, scopes (the whole list, or add_scopes and remove_scopes) or disabled flag. 409 form_principal for the agent of a form (live or deleted): that agent is managed by its form, so rename, disable or delete the form instead. Example: vibase agents update <id> --disabled true',
+      },
       record: agentRecord,
       create: z.strictObject({ name, scopes: scopesField.default([]) }),
       update: z
@@ -98,10 +102,7 @@ const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.
  * unknown id is 400, not 404), and the new list `(stored ∪ add) \ remove` is merged inside `build` from the one `before` row whose stamp
  * guards the UPDATE (D5). A merge equal to the stored list with no `name`/`disabled` is an empty patch (D7).
  */
-export function updateAgentOperation(
-  env: PreparedEnv,
-  input: { id: string; body: unknown },
-): PreparedOperation<AgentRecord> {
+function planAgentUpdate(env: PreparedEnv, input: { id: string; body: unknown }): PreparedOperation<AgentRecord> {
   const values = prepareUpdate(agents, env.actor, input.body)
   const hasAdd = 'add_scopes' in values
   const hasRemove = 'remove_scopes' in values
@@ -126,6 +127,37 @@ export function updateAgentOperation(
     if (!touchesOther && sameList(next, before.scopes)) return null
     return { scopes: next }
   }) as PreparedOperation<AgentRecord>
+}
+
+/**
+ * `agents.update` for every body shape, refusing the principal of a form ([[CHN423]] D4, P1 to P3): `409 form_principal` when the agent's id is a `forms` row, live or soft-deleted. The check comes after the body validation
+ * (`planAgentUpdate` throws 400 first) and after the existence check (its `build` throws 404 first), and before any write; the agent and its form are written in one unit, so no guard is needed (P3). The form read rides the same plan phase.
+ */
+export function updateAgentOperation(
+  env: PreparedEnv,
+  input: { id: string; body: unknown },
+): PreparedOperation<AgentRecord> {
+  const inner = planAgentUpdate(env, input)
+  const id = input.id.toLowerCase()
+  return defineOperation<AgentRecord>({
+    ...inner,
+    reads: (qc) => ({
+      ...inner.reads(qc),
+      form: readMaybe(
+        qc.db
+          .selectFrom('forms')
+          .select('forms.id')
+          .where('forms.id', '=', id)
+          .where('forms.organization_id', '=', env.organizationId),
+      ),
+    }),
+    build: (found, qc) => {
+      const built = inner.build(found, qc) // 404 for an unknown agent comes first
+      if (found.maybe('form') !== null)
+        throw new ApiError(409, 'form_principal', `managed by form ${id}; change the form`)
+      return built
+    },
+  })
 }
 
 /**
