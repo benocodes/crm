@@ -60,7 +60,7 @@ export const updateBody = z.strictObject({
   contact_creation: z
     .enum(['sent_and_received', 'sent', 'none'])
     .optional()
-    .describe('Which captured mail creates contacts for unknown addresses.'),
+    .describe('Which captured mail gives an address a contact: sent_and_received (the default) every counterparty, sent only the recipients of mail this mailbox sent, none nobody. An address that gets no contact is recorded unattached. Applies to mail captured from now on.'),
 })
 
 export interface CaptureUpdate {
