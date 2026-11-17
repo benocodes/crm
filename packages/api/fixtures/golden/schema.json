@@ -1690,7 +1690,97 @@
                 "label": "Blocked senders",
                 "description": "The workspace blocklist: addresses and domains whose mail no connection captures. Set by a workspace owner and applied to every connection together with each connection's own list; deleted entries stay as history.",
                 "associable": false,
-                "resource": null,
+                "resource": {
+                  "name": "blocked_senders",
+                  "surface": "meta",
+                  "path": "/meta/v1/blocked-senders",
+                  "operations": [
+                    "blocked_senders.list",
+                    "blocked_senders.get",
+                    "blocked_senders.create",
+                    "blocked_senders.delete"
+                  ],
+                  "read_scope": "blocked_senders:read",
+                  "write_scope": "blocked_senders:write",
+                  "sorts": [
+                    {
+                      "name": "id",
+                      "kind": "uuid",
+                      "indexed": false
+                    },
+                    {
+                      "name": "created_at",
+                      "kind": "timestamp",
+                      "indexed": false
+                    },
+                    {
+                      "name": "updated_at",
+                      "kind": "timestamp",
+                      "indexed": false
+                    },
+                    {
+                      "name": "kind",
+                      "kind": "text",
+                      "indexed": true
+                    },
+                    {
+                      "name": "value",
+                      "kind": "text",
+                      "indexed": false
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": ["eq", "neq", "in"],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "kind",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
+                      "indexed": true,
+                      "description": "Filter by kind (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: kind=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send kind=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "value",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
+                      "indexed": false,
+                      "description": "Filter by value (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: value=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send value=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": ["eq", "neq", "in"],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in"],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in"],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
+                    }
+                  ],
+                  "aggregate": null
+                },
                 "columns": [
                   {
                     "name": "id",
@@ -1702,7 +1792,7 @@
                     "label": "Id",
                     "description": "Unique id (UUIDv7).",
                     "values": null,
-                    "exposed": false,
+                    "exposed": true,
                     "references": null
                   },
                   {
@@ -1715,7 +1805,7 @@
                     "label": "Created at",
                     "description": "When the row was created.",
                     "values": null,
-                    "exposed": false,
+                    "exposed": true,
                     "references": null
                   },
                   {
@@ -1728,7 +1818,7 @@
                     "label": "Updated at",
                     "description": "When the row last changed.",
                     "values": null,
-                    "exposed": false,
+                    "exposed": true,
                     "references": null
                   },
                   {
@@ -1741,7 +1831,7 @@
                     "label": "Organization id",
                     "description": "The organisation that owns the row; always the deployment's single organisation.",
                     "values": null,
-                    "exposed": false,
+                    "exposed": true,
                     "references": {
                       "table": "organizations",
                       "column": "id"
@@ -1757,7 +1847,7 @@
                     "label": "Created by",
                     "description": "The principal (user or agent) that created the row.",
                     "values": null,
-                    "exposed": false,
+                    "exposed": true,
                     "references": {
                       "table": "principals",
                       "column": "id"
@@ -1785,8 +1875,8 @@
                     "default": null,
                     "label": "Kind",
                     "description": "address (a full email address) or domain (a bare hostname).",
-                    "values": null,
-                    "exposed": false,
+                    "values": ["address", "domain"],
+                    "exposed": true,
                     "references": null
                   },
                   {
@@ -1799,7 +1889,7 @@
                     "label": "Value",
                     "description": "The blocked address or domain, trimmed and lowercase; one live entry per kind and value.",
                     "values": null,
-                    "exposed": false,
+                    "exposed": true,
                     "references": null
                   }
                 ],

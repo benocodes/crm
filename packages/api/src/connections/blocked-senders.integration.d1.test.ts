@@ -45,7 +45,8 @@ const call = async (method: string, path: string, body?: unknown, opts: { who?: 
 }
 const PATH = '/meta/v1/blocked-senders'
 const create = (body: unknown, opts: { who?: Who; scopes?: string[] } = {}) => call('POST', PATH, body, opts)
-const del = (id: string, opts: { who?: Who; scopes?: string[] } = {}) => call('DELETE', `${PATH}/${id}`, undefined, opts)
+const del = (id: string, opts: { who?: Who; scopes?: string[] } = {}) =>
+  call('DELETE', `${PATH}/${id}`, undefined, opts)
 const list = (query = '', opts: { who?: Who; scopes?: string[] } = {}) =>
   call('GET', `${PATH}${query ? `?${query}` : ''}`, undefined, opts)
 const refusal = (r: { status: number; body: any }) => [r.status, r.body?.error?.code]
@@ -82,8 +83,7 @@ describe('resource semantics (D8, P2, P3)', () => {
     await entry('domain', 'spam.example')
     await entry('domain', 'other.example')
     await entry('address', 'a@spam.example')
-    const values = async (q: string) =>
-      (await list(q)).body.data.map((r: any) => r.value).sort() as string[]
+    const values = async (q: string) => (await list(q)).body.data.map((r: any) => r.value).sort() as string[]
     expect(await values('kind=domain')).toEqual(['other.example', 'spam.example'])
     expect(await values('kind=address')).toEqual(['a@spam.example'])
     expect(await values(`value=${encodeURIComponent(' Spam.Example ')}`)).toEqual(['spam.example'])
@@ -272,7 +272,12 @@ describe('validation (P4): the matrix', () => {
   })
 
   it.each(VALUE_CASES)('%s %j answers the same through connections.update', async (kind, input, stored) => {
-    const identity = await e.insert('identities', { kind: 'email', value: 'own@vibase.test', contact_id: null, own: true })
+    const identity = await e.insert('identities', {
+      kind: 'email',
+      value: 'own@vibase.test',
+      contact_id: null,
+      own: true,
+    })
     const c = await e.insert('channel_connections', {
       provider: 'google',
       account_id: 'sub-1',
@@ -282,9 +287,14 @@ describe('validation (P4): the matrix', () => {
       granted_scopes: ['openid'],
       connected_at: SEED_AT,
     })
-    const res = await call('PATCH', `/meta/v1/connections/${c.id}`, { blocked_senders: [{ kind, value: input }] }, {
-      scopes: ['connections:read', 'connections:write'],
-    })
+    const res = await call(
+      'PATCH',
+      `/meta/v1/connections/${c.id}`,
+      { blocked_senders: [{ kind, value: input }] },
+      {
+        scopes: ['connections:read', 'connections:write'],
+      },
+    )
     if (stored === null) expect(refusal(res)).toEqual([400, 'validation_error'])
     else expect([res.status, res.body.blocked_senders]).toEqual([200, [{ kind, value: stored }]])
   })
@@ -343,8 +353,7 @@ describe('effective settings (D11): captureSettingsRead sees what the operation 
             unit({
               steps: [],
               events: [],
-              decode: () =>
-                captureSettingsRead(qc, e.organizationId, connectionId).decode(found.maybe('settings')),
+              decode: () => captureSettingsRead(qc, e.organizationId, connectionId).decode(found.maybe('settings')),
             }),
         }),
       )

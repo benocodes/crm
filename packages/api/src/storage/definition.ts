@@ -176,6 +176,13 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
    */
   readonly notProposable?: string
   /**
+   * [[CHN410]] P1: set (with the sentence a client is told) when the definition's generated writes need a signed-in person: an agent actor is refused `403 user_required` even when it holds the write scope.
+   * Checked in `prepare`, after the scope and before the body is read, so it comes before any `400`.
+   */
+  readonly humanOnly?: string
+  /** [[CHN410]] D13: the long description of a generated operation, where the summary is not enough (a CLI-shaped example for a resource the CLI derives); absent: none, as before. */
+  readonly descriptions?: Partial<Record<CrudAction, string>>
+  /**
    * [[CORE62]] D9: the table may be an endpoint of an association. The associable set, and each type's read scope
    * (`scopeResource`), come from the registry's definitions; table names reach SQL from here, never from input.
    */

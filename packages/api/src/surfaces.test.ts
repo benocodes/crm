@@ -116,7 +116,7 @@ describe('placement (D6)', () => {
         'webhooks.update',
       ].sort(),
     )
-    expect(ops.length).toBe(116)
+    expect(ops.length).toBe(120)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)
