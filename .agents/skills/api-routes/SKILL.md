@@ -385,6 +385,10 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
 - **Validation.** With `validation: 'adapter'` (the default), the adapter parses params, query and body
   with `request`; a failure is `400 validation_error`. Use `'handler'` only when the schema is chosen per
   request (generic CRUD, [[CORE10]]).
+  - **Where the body sits in a refusal order.** A `'handler'` operation that refuses on who, existence and ownership
+    parses the body after the actor check and before the read: a malformed body is `400` even for an unknown or
+    someone else's row, which leaks nothing and matches the generic update. A spec stating an order names the body's
+    place (`connections.update`, [[CHN406]] D6, `knowledge/specs/015-CHN409-connections-update/RETRO.md`).
   - The body is read as text and `JSON.parse`d. No `Content-Type` is required, so agents can
     `curl -d`.
   - Don't use `createRoute` validators: they answer with their own error shape and a 415.
@@ -857,6 +861,8 @@ interactive transaction, no `withContext` and no `executor` marker.
   - **A statement that inserts no row resets D1's `changes()` to 0**, and so does a holding assertion. Never put
     an `appliedPrev`-gated statement (such as `eventStatement`) directly after an assertion. Gate it on an
     `exists (event id)` instead, or rely on the `exactly` before it.
+    A delete-and-insert of a child list counts: a list replaced while empty deletes nothing. Put the parent's
+    guarded UPDATE (which always changes one row) last before the event (`connections.update`, [[CHN409]] 409.10).
   - **Check-then-write belongs inside the batch, not before it** ([[CORE245]], `packages/storage-d1/src/control-store.ts`).
     A guard read in its own query and acted on in a later `batch()` is a race: a concurrent writer lands in between.
     Put the guard in the write (`insert ... select ... where not exists (live same email)`), make the dependent row

@@ -14,6 +14,8 @@ afterAll(() => w.dispose())
 
 let key: string
 let hideOperation: string | undefined
+/** The connection PATCHes the CLI sent: the API-key profile is an agent, which `connections.update` refuses, so the request is captured and answered here. */
+let patched: { path: string; body: unknown }[] = []
 const rigs: ReturnType<typeof rig>[] = []
 afterEach(() => {
   while (rigs.length) rigs.pop()!.dispose()
@@ -21,6 +23,7 @@ afterEach(() => {
 beforeEach(async () => {
   await w.reset()
   hideOperation = undefined
+  patched = []
   const b = await bootstrapD1(w.d1, {
     organizationName: 'Acme',
     authProvider: 'none',
@@ -51,6 +54,10 @@ const session = async (env: { CREDENTIALS_KEY?: string } = {}) => {
   const worker = composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '', ...env })
   const r = rig({
     fetch: async (req) => {
+      if (req.method === 'PATCH' && new URL(req.url).pathname.startsWith('/meta/v1/connections/')) {
+        patched.push({ path: new URL(req.url).pathname, body: JSON.parse(await req.text()) })
+        return new Response('{}', { headers: { 'content-type': 'application/json' } })
+      }
       const res = await worker.fetch(req)
       if (hideOperation && new URL(req.url).pathname === '/api/v1/openapi.json') {
         const doc = (await res.json()) as any
@@ -489,5 +496,44 @@ describe('webhook subscriptions through the CLI ([[API7]])', () => {
     ])
     expect(res.code).not.toBe(0)
     expect(res.stderr).toContain('webhooks_not_configured')
+  })
+})
+
+describe('connections update through the CLI ([[CHN409]] D13)', () => {
+  const ID = '0190b2c4-0000-7000-8000-00000000c0de'
+  it('is derived from the registry: scalar flags, a JSON flag per list, the expected body', async () => {
+    const r = await session()
+    await ok(r, [
+      'connections',
+      'update',
+      ID,
+      '--contact-creation',
+      'sent',
+      '--capture-labels',
+      '["INBOX","Label_1"]',
+      '--exclude-group-addresses',
+      '--blocked-senders',
+      '[{"kind":"domain","value":"example.com"}]',
+    ])
+    expect(patched).toEqual([
+      {
+        path: `/meta/v1/connections/${ID}`,
+        body: {
+          contact_creation: 'sent',
+          capture_labels: ['INBOX', 'Label_1'],
+          exclude_group_addresses: true,
+          blocked_senders: [{ kind: 'domain', value: 'example.com' }],
+        },
+      },
+    ])
+    const help = (await ok(r, ['connections', 'update', '--help'])).stdout
+    for (const flag of [
+      '--capture-labels',
+      '--blocked-senders',
+      '--exclude-group-addresses',
+      '--exclude-personal-domains',
+      '--contact-creation',
+    ])
+      expect(help).toContain(flag)
   })
 })

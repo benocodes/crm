@@ -32,7 +32,7 @@ place('api', 'action_requests', ['list', 'get', 'create', 'withdraw', 'approve',
 place('api', 'action_executions', ['list', 'get'])
 place('api', 'events', ['list', 'get'])
 place('meta', 'agents', CRUD)
-place('meta', 'connections', ['list', 'get', 'delete', 'authorize', 'sync'])
+place('meta', 'connections', ['list', 'get', 'delete', 'update', 'authorize', 'sync'])
 place('meta', 'api_keys', [...CRUD, 'revoke'])
 place('meta', 'audit', ['list'])
 place('meta', 'invitations', ['create', 'list', 'revoke'])
@@ -87,6 +87,7 @@ describe('placement (D6)', () => {
         'connections.get',
         'connections.list',
         'connections.sync',
+        'connections.update',
         'invitations.create',
         'invitations.list',
         'invitations.revoke',
@@ -109,7 +110,7 @@ describe('placement (D6)', () => {
         'webhooks.update',
       ].sort(),
     )
-    expect(ops.length).toBe(115)
+    expect(ops.length).toBe(116)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)
