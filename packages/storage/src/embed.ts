@@ -13,6 +13,11 @@ export interface EmbedSpec {
   readonly key: string
   readonly columns: readonly string[]
   readonly orderBy: readonly string[]
+  /**
+   * One column, rendered as the bare value instead of an object (`['INBOX', 'SENT']`, not `[{ label_id: 'INBOX' }]`):
+   * for a child table that is a list of one thing ([[CHN406]] D3's `capture_labels`). `columns` must then name exactly one column.
+   */
+  readonly scalar?: boolean
 }
 
 /** Throws unless `table`, `key`, every column and every orderBy are modelled: a load-time check as much as a render-time one. */
@@ -22,6 +27,8 @@ export function checkEmbed(spec: EmbedSpec): void {
   for (const c of [spec.key, ...spec.columns, ...spec.orderBy])
     if (!(c in kinds)) throw new Error(`embed: "${c}" is not a column of ${spec.table}`)
   if (!('organization_id' in kinds)) throw new Error(`embed: ${spec.table} has no organization_id`)
+  if (spec.scalar && spec.columns.length !== 1)
+    throw new Error(`embed: a scalar embed of ${spec.table} names exactly one column`)
 }
 
 /**
@@ -38,7 +45,7 @@ export function embedJson(
   checkEmbed(spec)
   const kinds = COLUMN_KINDS[spec.table] as Record<string, ColumnKind>
   const ref = (c: string) => sql.ref(`${spec.table}.${c}`)
-  const pairs = spec.columns.map((c) => {
+  const valueOf = (c: string) => {
     const kind = kinds[c]
     const value =
       kind === 'timestamp'
@@ -48,13 +55,16 @@ export function embedJson(
           : qc.dialect === 'd1' && (kind === 'json' || kind === 'string_array')
             ? sql`json(${ref(c)})`
             : sql`${ref(c)}`
-    return sql`${sql.lit(c)}, ${value}`
-  })
+    return value
+  }
+  const pairs = spec.columns.map((c) => sql`${sql.lit(c)}, ${valueOf(c)}`)
   const order = sql.join(spec.orderBy.map((c) => ref(c)))
   const where = sql`${ref(spec.key)} = ${sql.ref(`${parent}.id`)} and ${ref('organization_id')} = ${sql.ref(`${parent}.organization_id`)}`
   if (qc.dialect === 'postgres') {
-    return sql`(select coalesce(jsonb_agg(jsonb_build_object(${sql.join(pairs)}) order by ${order}), '[]'::jsonb) from ${sql.table(spec.table)} where ${where})`
+    const item = spec.scalar ? valueOf(spec.columns[0]!) : sql`jsonb_build_object(${sql.join(pairs)})`
+    return sql`(select coalesce(jsonb_agg(${item} order by ${order}), '[]'::jsonb) from ${sql.table(spec.table)} where ${where})`
   }
-  const inner = sql`(select json_group_array(json_object(${sql.join(pairs)}) order by ${order}) from ${sql.table(spec.table)} where ${where})`
+  const item = spec.scalar ? valueOf(spec.columns[0]!) : sql`json_object(${sql.join(pairs)})`
+  const inner = sql`(select json_group_array(${item} order by ${order}) from ${sql.table(spec.table)} where ${where})`
   return ctx === 'json' ? sql`json(${inner})` : inner
 }

@@ -347,7 +347,7 @@ describe('control 0004: the four webhook tables', () => {
   })
 
   it('the CRM schema no longer holds the four tables ([[CORE329]]: 0020 dropped them; the control database holds them)', async () => {
-    expect(MIGRATIONS.at(-1)?.name).toBe('0020_drop_api_key_webhook_tables.sql')
+    expect(MIGRATIONS[19]?.name).toBe('0020_drop_api_key_webhook_tables.sql')
     const names = (await all(crm, "select name from sqlite_master where type = 'table'")).map((r) => r.name)
     for (const t of TABLES) expect(names, t).not.toContain(t)
   })

@@ -376,6 +376,91 @@ describe('reconnect (D31, D56)', () => {
   })
 })
 
+describe('default capture settings (CHN406 D4, D12)', () => {
+  const labelsOf = async (connectionId: string) =>
+    (await rows('connection_capture_labels'))
+      .filter((r) => r.connection_id === connectionId)
+      .map((r) => r.label_id as string)
+      .sort()
+
+  it('a new connection gets INBOX and SENT in the callback unit, and connection.created carries the five fields', async () => {
+    await connect()
+    const c = (await rows('channel_connections'))[0]!
+    expect(await labelsOf(c.id as string)).toEqual(['INBOX', 'SENT'])
+    expect(c).toMatchObject({
+      exclude_group_addresses: false,
+      exclude_personal_domains: false,
+      contact_creation: 'sent_and_received',
+    })
+    const created = (await events()).find((x) => x.type === 'connection.created')!
+    expect(created.after).toMatchObject({
+      capture_labels: ['INBOX', 'SENT'],
+      blocked_senders: [],
+      exclude_group_addresses: false,
+      exclude_personal_domains: false,
+      contact_creation: 'sent_and_received',
+    })
+  })
+
+  it('a late statement that fails leaves no label rows (the inserts are in the unit)', async () => {
+    const before = (await rows('connection_capture_labels')).length
+    const op = connectOperation(e.env(), {
+      google_sub: 'sub-ann',
+      mailbox: 'ann@example.test',
+      own_addresses: ['ann@example.test'],
+      granted_scopes: SCOPES_ALL,
+      ciphertext: 'c2VhbGVk',
+      key_version: 1,
+      history_id: '555',
+    })
+    const faulty = {
+      ...op,
+      build: (found: Parameters<typeof op.build>[0], qc: Parameters<typeof op.build>[1]) => {
+        const built = op.build(found, qc)
+        const fault = step(
+          sql`insert into "tasks" ("id", "organization_id") select null, "id" from "organizations"`.compile(qc.db),
+          'fault',
+        )
+        return { ...built, steps: [...built.steps, fault] }
+      },
+    }
+    await expect(e.run(faulty as never)).rejects.toThrow()
+    expect((await rows('connection_capture_labels')).length).toBe(before)
+    expect(await rows('channel_connections')).toEqual([])
+  })
+
+  it('a live reconnect keeps the rows and scalars changed beforehand by direct SQL', async () => {
+    await connect()
+    const c = (await rows('channel_connections'))[0]!
+    const sent = (await rows('connection_capture_labels')).find((r) => r.label_id === 'SENT')!
+    await e.d1!.prepare('delete from connection_capture_labels where id = ?').bind(sent.id).run()
+    await e.insert('connection_capture_labels', { connection_id: c.id, label_id: 'Label_5' })
+    await e.update('channel_connections', c.id as string, { contact_creation: 'none', exclude_group_addresses: true })
+    await connect({ ...ANN })
+    expect(await labelsOf(c.id as string)).toEqual(['INBOX', 'Label_5'])
+    expect((await rows('channel_connections'))[0]).toMatchObject({
+      contact_creation: 'none',
+      exclude_group_addresses: true,
+    })
+  })
+
+  it('a reconnect after a disconnect is a new connection with fresh defaults; the old rows stay with the deleted one', async () => {
+    await connect()
+    const first = (await rows('channel_connections'))[0]!
+    await e
+      .d1!.prepare('delete from connection_capture_labels where connection_id = ? and label_id = ?')
+      .bind(first.id, 'SENT')
+      .run()
+    await e.update('channel_connections', first.id as string, { contact_creation: 'sent' })
+    expect((await api('DELETE', `/meta/v1/connections/${first.id}`)).status).toBe(204)
+    await connect()
+    const second = (await rows('channel_connections')).find((c) => c.id !== first.id)!
+    expect(await labelsOf(second.id as string)).toEqual(['INBOX', 'SENT'])
+    expect(second.contact_creation).toBe('sent_and_received')
+    expect(await labelsOf(first.id as string)).toEqual(['INBOX'])
+  })
+})
+
 describe('every callback refusal writes nothing and emits nothing (D9, D33, D57)', () => {
   const stateOf = (cb: URL) => cb.searchParams.get('state')!
   const cases: Array<[string, string, () => NonNullable<Parameters<typeof connect>[1]>]> = [
