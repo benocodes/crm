@@ -133,7 +133,7 @@ const rows: Row[] = [
     expect: null,
   },
   {
-    name: 'support+eu@ (case and +tag) is a group address',
+    name: 'support+eu@ (+tag) is a group address',
     settings: GROUPS,
     participants: [from('support+eu@y.test'), to(MAILBOX)],
     expect: 'group_address',

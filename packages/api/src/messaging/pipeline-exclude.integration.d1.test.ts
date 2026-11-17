@@ -151,3 +151,15 @@ describe('precedence and counting through the pipeline (D10)', () => {
     expect(Object.values(r.skipped).reduce((a, b) => a + b, 0)).toBe(4)
   })
 })
+
+describe('a mixed-case, tagged sender through the pipeline (D8, D9)', () => {
+  it('Support+EU@Y.test is normalised, then skipped as group_address with the flag on and captured with it off', async () => {
+    const on = setup([msg('mixed', 'Support+EU@Y.test')])
+    expect(
+      (await on.run(['mixed'], captureFilter(settings({ exclude_group_addresses: true }), MAILBOX))).skipped,
+    ).toEqual({ group_address: 1 })
+    expect(await e.rows('messages')).toHaveLength(0)
+    const off = setup([msg('mixed', 'Support+EU@Y.test')])
+    expect(await off.run(['mixed'], captureFilter(settings(), MAILBOX))).toMatchObject({ captured: 1, skipped: {} })
+  })
+})
