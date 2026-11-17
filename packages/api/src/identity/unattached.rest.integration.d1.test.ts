@@ -21,8 +21,7 @@ beforeEach(async () => {
   await e.reset()
   app = createApp({ registry, storage: () => e.binding, userAuthenticator: fakeUserAuthenticator() })
 })
-const token = () =>
-  mintTestUserToken({ userId: e.userId, organizationId: e.organizationId, scopes: ALL, kind: 'user' })
+const token = () => mintTestUserToken({ userId: e.userId, organizationId: e.organizationId, scopes: ALL, kind: 'user' })
 const call = async (method: string, path: string, body?: unknown) => {
   const res = await app.request(path, {
     method,
@@ -37,9 +36,15 @@ const eventTypes = async () => (await e.events()).map((x) => String(x.type))
 describe('identities over an unattached identity (group 5)', () => {
   it('resolve promotes it: created false, the contact is new, identity.updated and contact.created', async () => {
     const un = await unattached('u@x.test')
-    const r = await call('POST', '/api/v1/identities/resolve', { identities: [{ kind: 'email', value: 'U@x.test', name: 'Una' }] })
+    const r = await call('POST', '/api/v1/identities/resolve', {
+      identities: [{ kind: 'email', value: 'U@x.test', name: 'Una' }],
+    })
     expect(r.status).toBe(200)
-    expect(r.body.data[0]).toMatchObject({ created: false, contact: { name: 'Una' }, identity: { id: un.id, own: false } })
+    expect(r.body.data[0]).toMatchObject({
+      created: false,
+      contact: { name: 'Una' },
+      identity: { id: un.id, own: false },
+    })
     expect(r.body.data[0].identity.contact_id).toBe(r.body.data[0].contact.id)
     expect(await eventTypes()).toEqual(['contact.created', 'identity.updated'])
   })
@@ -114,7 +119,9 @@ describe('catalog and dormancy (group 6)', () => {
   it('schema.get describes the three states of an identity', async () => {
     const r = await call('GET', '/meta/v1/schema')
     expect(r.status).toBe(200)
-    const table = r.body.tables?.find?.((t: any) => t.name === 'identities') ?? r.body.data?.tables?.find?.((t: any) => t.name === 'identities')
+    const table =
+      r.body.tables?.find?.((t: any) => t.name === 'identities') ??
+      r.body.data?.tables?.find?.((t: any) => t.name === 'identities')
     expect(table, 'identities in schema.get').toBeDefined()
     expect(table.description).toBe(
       "An address (email or phone) that resolves to a contact's, to the organisation itself when own, or to nobody yet when unattached (captured but not given a contact).",
@@ -142,7 +149,9 @@ describe('catalog and dormancy (group 6)', () => {
       return readFileSync(p, 'utf8').includes('mayCreateContact')
     })
     expect(offenders).toEqual([])
-    const users = files.filter((p) => !p.startsWith(join(root, 'identity')) && readFileSync(p, 'utf8').includes('resolveProgram'))
+    const users = files.filter(
+      (p) => !p.startsWith(join(root, 'identity')) && readFileSync(p, 'utf8').includes('resolveProgram'),
+    )
     expect(users.length).toBeGreaterThan(0)
   })
 })

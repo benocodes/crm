@@ -4503,7 +4503,7 @@
                 "name": "identities",
                 "origin": "built_in",
                 "label": "Identities",
-                "description": "An address (email or phone) that resolves to a contact, or to the organisation itself when own.",
+                "description": "An address (email or phone) that resolves to a contact's, to the organisation itself when own, or to nobody yet when unattached (captured but not given a contact).",
                 "associable": false,
                 "resource": {
                   "name": "identities",
@@ -4727,7 +4727,7 @@
                     "primary_key": false,
                     "default": null,
                     "label": "Contact id",
-                    "description": "The contact the address belongs to; null for an address of the organisation itself.",
+                    "description": "The contact the address belongs to; null for an own address of the organisation, or for an unattached address that has no contact yet.",
                     "values": null,
                     "exposed": true,
                     "references": {
@@ -4743,7 +4743,7 @@
                     "primary_key": false,
                     "default": "0",
                     "label": "Own",
-                    "description": "True for the organisation's own addresses (no contact); false for a contact's.",
+                    "description": "True for the organisation's own addresses (no contact); false for a contact's and for an unattached address.",
                     "values": null,
                     "exposed": true,
                     "references": null

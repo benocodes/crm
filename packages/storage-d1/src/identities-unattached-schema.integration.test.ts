@@ -78,7 +78,10 @@ describe('migration 0022_unattached_identities over a database at 0021', () => {
     expect(await insert('identities', ident(10, { value: 'me@example.test', contact_id: null, own: 1 }))).toBeNull()
     expect(await insert('identities', ident(12, { contact_id: CONTACT, own: 0 }))).toBeNull()
     expect(
-      await insert('identities', ident(13, { value: 'gone@example.test', contact_id: CONTACT, own: 0, deleted_at: AT })),
+      await insert(
+        'identities',
+        ident(13, { value: 'gone@example.test', contact_id: CONTACT, own: 0, deleted_at: AT }),
+      ),
     ).toBeNull()
     expect(
       await insert('channel_connections', {
