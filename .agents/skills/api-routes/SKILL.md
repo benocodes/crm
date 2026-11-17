@@ -901,7 +901,15 @@ interactive transaction, no `withContext` and no `executor` marker.
   `jsonRows(qc, alias, columns, rows)` (D1 `json_each`, Postgres `jsonb_array_elements … with ordinality`), and
   emit its events with ONE `eventSetStatement` (ids and `before` in the parameter, `after` rendered from the
   stored rows). The statement-count test compares a set of 1 with a set of 10 on both engines. Current
-  counts: company and contact delete 9, merge 12, resolve 7 on Postgres and 6 on D1.
+  counts: company and contact delete 9, merge 12, resolve 7 on Postgres and 6 on D1. A program whose statements
+  depend on which sets are non-empty (`resolveProgram` since [[CORE408]]: contacts, fresh identities, promotions)
+  still binds each set as one parameter, so a caller that chunks input (capture's `captureChunks`) budgets only the
+  binding's `maxSetSize` (100 items per set read), not statements or parameters. Prove it with one chunk at the cap
+  where every set is non-empty ([[CORE417]], 417.7).
+- **A field's meaning is described in more than one place.** The `schema.get` catalog (`src/schema/catalog.ts`), the
+  resource record's zod `.describe()` (`src/resources/<name>.ts`) and an update operation's input zod each carry
+  text that agents read. A cycle that changes what a field does updates all of them (`rg` the old text); [[CORE417]]
+  updated only the catalog and took a review round to fix the other two.
 - **Concrete programs are `Program<T>` plan/build pairs** (`src/identity/program.ts`) with namespaced read
   keys (`resolve:`, `own:`, `merge:`), so [[CORE25]] can compose them later. `resolveProgram`,
   `ensureOwnProgram` and `mergeOperation` are the worked examples. **Composing one program into another**
