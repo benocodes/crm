@@ -63,7 +63,7 @@ export const agents = withColumnFilters(
       operations: ['list', 'get', 'create', 'update'],
       descriptions: {
         update:
-          "Change an agent: its name, scopes (the whole list, or add_scopes and remove_scopes) or disabled flag. 409 form_principal for the agent of a form (live or deleted): that agent is managed by its form, so rename, disable or delete the form instead. Example: vibase agents update <id> --disabled true",
+          'Change an agent: its name, scopes (the whole list, or add_scopes and remove_scopes) or disabled flag. 409 form_principal for the agent of a form (live or deleted): that agent is managed by its form, so rename, disable or delete the form instead. Example: vibase agents update <id> --disabled true',
       },
       record: agentRecord,
       create: z.strictObject({ name, scopes: scopesField.default([]) }),
@@ -102,10 +102,7 @@ const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.
  * unknown id is 400, not 404), and the new list `(stored ∪ add) \ remove` is merged inside `build` from the one `before` row whose stamp
  * guards the UPDATE (D5). A merge equal to the stored list with no `name`/`disabled` is an empty patch (D7).
  */
-function planAgentUpdate(
-  env: PreparedEnv,
-  input: { id: string; body: unknown },
-): PreparedOperation<AgentRecord> {
+function planAgentUpdate(env: PreparedEnv, input: { id: string; body: unknown }): PreparedOperation<AgentRecord> {
   const values = prepareUpdate(agents, env.actor, input.body)
   const hasAdd = 'add_scopes' in values
   const hasRemove = 'remove_scopes' in values

@@ -79,7 +79,10 @@ describe('1. agents.update refuses a form principal (matrix: body shape x form s
   for (const state of ['live', 'deleted'] as const)
     for (const [label, body] of shapes)
       it(`${state} form, ${label}: 409 form_principal, agent row and event log unchanged`, async () => {
-        const id = await seedForm({ deleted: state === 'deleted', agent: state === 'deleted' ? { disabled_at: SEED_AT } : {} })
+        const id = await seedForm({
+          deleted: state === 'deleted',
+          agent: state === 'deleted' ? { disabled_at: SEED_AT } : {},
+        })
         const before = await snapshot()
         const r = await call('PATCH', `${AGENTS}/${id}`, body)
         expect(refusal(r)).toEqual([409, 'form_principal'])
@@ -120,8 +123,18 @@ describe('1. agents.update refuses a form principal (matrix: body shape x form s
     const got = await agentOf(made.body.id)
     expect(Object.keys(got).sort()).toEqual(
       [
-        'auth_client_id', 'auth_provider', 'auth_subject', 'created_at', 'created_by', 'delegated_by', 'disabled_at',
-        'id', 'name', 'organization_id', 'scopes', 'updated_at',
+        'auth_client_id',
+        'auth_provider',
+        'auth_subject',
+        'created_at',
+        'created_by',
+        'delegated_by',
+        'disabled_at',
+        'id',
+        'name',
+        'organization_id',
+        'scopes',
+        'updated_at',
       ].sort(),
     )
     const listed = (await call('GET', AGENTS)).body.data.map((a: any) => a.id)
@@ -267,9 +280,15 @@ describe('5. feed filtering', () => {
     await patchForm(f.body.id, { name: 'Landing' })
     await delForm(f.body.id)
     const feed = async (scopes: string[]) =>
-      ((await call('GET', '/api/v1/events?limit=200', undefined, scopes)).body.data as { type: string }[]).map((x) => x.type)
+      ((await call('GET', '/api/v1/events?limit=200', undefined, scopes)).body.data as { type: string }[]).map(
+        (x) => x.type,
+      )
     const formsOnly = await feed(['events:read', 'forms:read'])
-    expect(formsOnly.filter((t) => t.startsWith('form.')).sort()).toEqual(['form.created', 'form.deleted', 'form.updated'])
+    expect(formsOnly.filter((t) => t.startsWith('form.')).sort()).toEqual([
+      'form.created',
+      'form.deleted',
+      'form.updated',
+    ])
     expect(formsOnly.filter((t) => t.startsWith('agent.'))).toEqual([])
     const both = await feed(['events:read', 'forms:read', 'agents:read'])
     expect(both.filter((t) => t === 'agent.updated')).toHaveLength(2)

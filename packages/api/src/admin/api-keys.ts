@@ -215,7 +215,7 @@ export function apiKeyOperations(port: ApiKeyStorePort | null): ControlOperation
       name: 'api_keys.create',
       summary: 'Issue an API key for an agent; the key is shown once',
       description:
-        'The key is returned once and never again. Issuing it is recorded in the audit log, not in the event feed: read it with audit.list (audit:read). 409 form_principal for the agent of a form (live or deleted): a form\'s agent holds no key; change the form instead.',
+        "The key is returned once and never again. Issuing it is recorded in the audit log, not in the event feed: read it with audit.list (audit:read). 409 form_principal for the agent of a form (live or deleted): a form's agent holds no key; change the form instead.",
       method: 'post',
       path: '/api-keys',
       scope: { resource: 'agents', action: 'write' },
