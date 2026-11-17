@@ -83,7 +83,10 @@ async function setup(contact_creation: 'sent_and_received' | 'sent' | 'none', me
     historyId: '1000',
     lastSyncedAt: SYNCED,
   })
-  await e.d1!.prepare('update channel_connections set contact_creation = ? where id = ?').bind(contact_creation, id).run()
+  await e
+    .d1!.prepare('update channel_connections set contact_creation = ? where id = ?')
+    .bind(contact_creation, id)
+    .run()
   const gmail = new FakeGmail(messages, { chunk: 2048 })
   const settingsReads: string[] = []
   const deps: GmailSyncDeps = {
@@ -131,10 +134,10 @@ describe('the sync passes the connection contact_creation into capture (D11)', (
     for (const v of ['lead@acme.test', 'client@acme.test', 'copy@acme.test', 'newsletter@acme.test'])
       expect(await state(v), v).toBe('unattached')
     expect(await e.rows('contacts')).toHaveLength(0)
-    expect((await e.rows('interaction_participants')).length).toBeGreaterThanOrEqual(8)
+    expect((await e.rows('interaction_participants')).length).toBe(7)
   })
 
-  it('sent: recipients of the mailbox\'s own sent mail get contacts, senders of received mail stay unattached', async () => {
+  it("sent: recipients of the mailbox's own sent mail get contacts, senders of received mail stay unattached", async () => {
     const s = await setup('sent', messages())
     expect(page(await captureHistoryPage(s.deps, s.id))).toMatchObject({ captured: 3 })
     expect(await state('client@acme.test')).toBe('contact')

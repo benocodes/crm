@@ -5,12 +5,7 @@ import { createApp } from '../rest/app.js'
 import { SEED_AT } from '../test/insert.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
-import {
-  captureMessage,
-  ensureConnection,
-  runCapture,
-  type CaptureOverrides,
-} from '../test/capture-kit.js'
+import { captureMessage, ensureConnection, runCapture, type CaptureOverrides } from '../test/capture-kit.js'
 import { captureChunks, captureMeasure } from './capture-chunks.js'
 import type { CaptureInput, CaptureMessage, CaptureParticipant } from './capture.js'
 
@@ -43,11 +38,7 @@ const p = (role: CaptureParticipant['role'], value: string, name?: string): Capt
   ...(name ? { name } : {}),
 })
 const msg = (over: CaptureOverrides = {}): CaptureMessage => captureMessage(e.organizationId, over)
-const cap = (
-  messages: CaptureMessage[],
-  policy?: Policy,
-  connection = CONN_A,
-): ReturnType<typeof runCapture> =>
+const cap = (messages: CaptureMessage[], policy?: Policy, connection = CONN_A): ReturnType<typeof runCapture> =>
   runCapture(e, { connection_id: connection, messages, ...(policy === undefined ? {} : { contact_creation: policy }) })
 const received = (from: string, over: CaptureOverrides = {}) =>
   msg({ sent_by_connection: false, participants: [p('from', from), p('to', OWNER)], ...over })
@@ -55,7 +46,8 @@ const sent = (to: CaptureParticipant[], over: CaptureOverrides = {}) =>
   msg({ sent_by_connection: true, participants: [p('from', OWNER), ...to], ...over })
 
 type State = 'contact' | 'unattached' | 'own'
-const live = async () => (await e.rows('identities')).filter((i) => i.deleted_at === null && !String(i.value).endsWith('@seed.test'))
+const live = async () =>
+  (await e.rows('identities')).filter((i) => i.deleted_at === null && !String(i.value).endsWith('@seed.test'))
 async function states(): Promise<Record<string, State>> {
   const out: Record<string, State> = {}
   for (const i of await live()) {
@@ -154,8 +146,7 @@ describe('qualification matrix (group 1: D4, D5, P1, P3)', () => {
           Object.values(shape.expect[key]).filter((s) => s !== 'own').length,
         )
         expect(countOf(types, 'identity.updated')).toBe(0)
-        for (const i of await live())
-          if (i.own !== true && i.contact_id === null) expect(i.own).toBe(false)
+        for (const i of await live()) if (i.own !== true && i.contact_id === null) expect(i.own).toBe(false)
         await participantsRecorded(shape.rows)
       })
     }
@@ -163,16 +154,26 @@ describe('qualification matrix (group 1: D4, D5, P1, P3)', () => {
 
   it('absent and sent_and_received produce the same unit: the same events in order and the same shapes', async () => {
     const build = () => [
-      received('gina@x.test', { participants: [p('from', 'gina@x.test', 'Gina'), p('to', OWNER), p('cc', 'hank@x.test')] }),
+      received('gina@x.test', {
+        participants: [p('from', 'gina@x.test', 'Gina'), p('to', OWNER), p('cc', 'hank@x.test')],
+      }),
       sent([p('to', 'bob@x.test')]),
     ]
     await cap(build())
-    const first = { types: await eventTypes(), states: await states(), names: (await e.rows('contacts')).map((c) => c.name).sort() }
+    const first = {
+      types: await eventTypes(),
+      states: await states(),
+      names: (await e.rows('contacts')).map((c) => c.name).sort(),
+    }
     await e.reset()
     await e.insert('identities', { kind: 'email', value: OWNER, contact_id: null, own: true })
     await ensureConnection(e.binding, e, CONN_A)
     await cap(build(), 'sent_and_received')
-    const second = { types: await eventTypes(), states: await states(), names: (await e.rows('contacts')).map((c) => c.name).sort() }
+    const second = {
+      types: await eventTypes(),
+      states: await states(),
+      names: (await e.rows('contacts')).map((c) => c.name).sort(),
+    }
     expect(second).toEqual(first)
     expect(first.names).toEqual(['Gina', null, null])
   })
@@ -235,7 +236,10 @@ describe('promotion through capture (group 2: D6)', () => {
       const before = await snapshot()
       const eventsBefore = (await e.rows('events')).length
       await cap([sent([p('to', 'att@x.test', 'Renamed')])], policy)
-      await cap([received('att@x.test', { participants: [p('from', 'att@x.test', 'Renamed'), p('to', OWNER)] })], policy)
+      await cap(
+        [received('att@x.test', { participants: [p('from', 'att@x.test', 'Renamed'), p('to', OWNER)] })],
+        policy,
+      )
       expect(await snapshot()).toEqual(before)
       const fresh = (await e.rows('events')).slice(eventsBefore).map((r) => r.resource_id)
       expect(fresh).not.toContain(c.id)
@@ -258,7 +262,12 @@ describe('promotion through capture (group 2: D6)', () => {
       await e.update('identities', un.id, { contact_id: other.id })
       snapshot = await take()
     })
-    const err = mapStorageError(await cap([m], 'sent').then(() => null, (x: unknown) => x))
+    const err = mapStorageError(
+      await cap([m], 'sent').then(
+        () => null,
+        (x: unknown) => x,
+      ),
+    )
     expect(err).toBeInstanceOf(ApiError)
     expect(err).toMatchObject({ status: 409, code: 'conflict' })
     expect(await take()).toEqual(snapshot)
@@ -307,7 +316,12 @@ describe('several mailboxes and going forward (group 3: D7, D10)', () => {
   })
 
   it('connections.update writes nothing to identities or contacts, with unattached identities and with none (D10)', async () => {
-    const own = await e.insert('identities', { kind: 'email', value: 'own-upd@vibase.test', contact_id: null, own: true })
+    const own = await e.insert('identities', {
+      kind: 'email',
+      value: 'own-upd@vibase.test',
+      contact_id: null,
+      own: true,
+    })
     const c = await e.insert('channel_connections', {
       provider: 'google',
       account_id: 'sub-upd',
@@ -381,6 +395,22 @@ describe('widest shape at the cap (group 5: 408.30)', () => {
     expect(countOf(types, 'identity.created')).toBe(66)
     expect(await e.rows('contacts')).toHaveLength(66)
     await participantsRecorded(1 + 66 + 33)
+  })
+})
+
+describe('the cap is the binding limit (group 5, absence side)', () => {
+  it('one address past the cap in a chunk is refused by the binding, so captureChunks must hold the cap', async () => {
+    const sentMsg = sent(Array.from({ length: 100 }, (_, i) => p('to', `over${i}@wide.test`)))
+    expect(captureMeasure(sentMsg).addresses).toHaveLength(101)
+    const err = await cap([sentMsg], 'sent').then(
+      () => null,
+      (x: unknown) => x,
+    )
+    expect(err).not.toBeNull()
+    expect(String((err as Error).message)).toMatch(/set|limit|exceed/i)
+    expect(await e.rows('contacts')).toHaveLength(0)
+    // The same message is skipped by the real chunker rather than sent to the binding.
+    expect(captureChunks([sentMsg], 100, captureMeasure).skipped).toHaveLength(1)
   })
 })
 
