@@ -556,6 +556,8 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   carry the same rendering from ONE helper (`embedJson` in `@vibase/storage`: Postgres `coalesce(jsonb_agg(... order by ...), '[]')`,
   D1 `json_group_array(json_object(...) ORDER BY ...)`, wrapped in `json(...)` inside `recordJson`). An empty set is `[]`,
   never null. Table, key, columns and order are checked against `COLUMN_KINDS` at the call site (types) and at load.
+  `scalar: true` with exactly one column renders the bare values (`string[]`, `channel_connections.capture_labels`,
+  [[CHN406]]) instead of objects.
 - **Custom filters** (named "join filters" in [[CORE25]] D51 and [[CORE129]]; renamed by [[CORE199]]): `customFilters: { <key>: { schema, normalize?, where(qc, value) } }` are list filters
   that are not columns (`interactions.contact_id`, `identity_id`, an `EXISTS` over a child table). A key may never be a
   column of the table nor also in `filters` (load-time throw); `where` is a synchronous Kysely/`sql` fragment ANDed into
