@@ -431,6 +431,7 @@ async function capture(
   const result = await captureMessages(ctx, new GmailChannel(c.client, channelOpts), conn, fresh, {
     ...(final ? { final } : {}),
     exclude: captureFilter(c.settings, c.state.mailbox),
+    contactCreation: c.settings.contact_creation,
   })
   return {
     captured: result.captured,

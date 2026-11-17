@@ -1,12 +1,10 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
 
-// [[CORE408]] groups 5 and 6: the identities API over an unattached identity (REST and MCP, D1), and the dormancy pin.
+// [[CORE408]] groups 5 and 6: the identities API over an unattached identity (REST and MCP, D1), and the catalog text (CORE417 deleted the dormancy pin).
 const registry = createVibaseRegistry()
 const ALL = registry.declaredScopes()
 let e: Engine
@@ -115,7 +113,7 @@ describe('identities over an unattached identity (group 5)', () => {
   })
 })
 
-describe('catalog and dormancy (group 6)', () => {
+describe('catalog (CORE408 group 6, CORE417 group 6)', () => {
   it('schema.get describes the three states of an identity', async () => {
     const r = await call('GET', '/meta/v1/schema')
     expect(r.status).toBe(200)
@@ -132,26 +130,16 @@ describe('catalog and dormancy (group 6)', () => {
     )
   })
 
-  // Meant to break in CORE417 (#417), which passes the no-contact choice from capture: delete it there, by name.
-  it('no caller of resolveProgram outside identity/ passes the no-contact choice yet', () => {
-    const root = join(__dirname, '..')
-    const files: string[] = []
-    const walk = (dir: string) => {
-      for (const f of readdirSync(dir)) {
-        const p = join(dir, f)
-        if (statSync(p).isDirectory()) walk(p)
-        else if (/\.ts$/.test(f) && !/\.test\.ts$/.test(f) && !p.includes(`${join(root, 'test')}`)) files.push(p)
-      }
-    }
-    walk(root)
-    const offenders = files.filter((p) => {
-      if (p.startsWith(join(root, 'identity'))) return false
-      return readFileSync(p, 'utf8').includes('mayCreateContact')
-    })
-    expect(offenders).toEqual([])
-    const users = files.filter(
-      (p) => !p.startsWith(join(root, 'identity')) && readFileSync(p, 'utf8').includes('resolveProgram'),
+  it('schema.get describes contact_creation: the three values, what sent counts, and unattached recording (CORE417 D12)', async () => {
+    const r = await call('GET', '/meta/v1/schema')
+    expect(r.status).toBe(200)
+    const table =
+      r.body.tables?.find?.((t: any) => t.name === 'channel_connections') ??
+      r.body.data?.tables?.find?.((t: any) => t.name === 'channel_connections')
+    expect(table, 'channel_connections in schema.get').toBeDefined()
+    const col = table.columns.find((c: any) => c.name === 'contact_creation')
+    expect(col.description).toBe(
+      'Which captured mail gives an address a contact: sent_and_received (the default) gives every counterparty one; sent gives one only to the to, cc and bcc recipients of mail this mailbox sent, never to an address that is also the sender of that message; none gives nobody one. An address that gets no contact is still recorded, as an unattached identity, and is promoted when a later capture qualifies it. It applies to mail captured from now on; changing it never removes or detaches a contact.',
     )
-    expect(users.length).toBeGreaterThan(0)
   })
 })

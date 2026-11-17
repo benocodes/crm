@@ -357,7 +357,7 @@ export const CATALOG: Catalog = {
         exclude_personal_domains:
           'Whether mail from personal-mail domains is left out of capture. False by default; applied from CHN407 on.',
         contact_creation:
-          'Which captured mail creates contacts for unknown addresses: sent_and_received (the default, as before), sent, or none.',
+          'Which captured mail gives an address a contact: sent_and_received (the default) gives every counterparty one; sent gives one only to the to, cc and bcc recipients of mail this mailbox sent, never to an address that is also the sender of that message; none gives nobody one. An address that gets no contact is still recorded, as an unattached identity, and is promoted when a later capture qualifies it. It applies to mail captured from now on; changing it never removes or detaches a contact.',
       },
       derived: {
         last_synced_at:

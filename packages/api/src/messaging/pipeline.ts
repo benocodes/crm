@@ -21,6 +21,8 @@ import type { PreparedEnv } from '../storage/definition.js'
 import {
   recordMessages,
   type CaptureAttachment,
+  type CaptureInput,
+  type ContactCreation,
   type CaptureMessage,
   type CaptureParticipant,
   type CaptureResult,
@@ -70,6 +72,8 @@ export type ExcludeHook = (facts: ExcludeFacts) => string | null
 export interface PipelineOptions {
   /** [[CHN407]] D5: judged after the message is read and normalised, before the pre-check; a reason skips the message and stores nothing. */
   exclude?: ExcludeHook
+  /** [[CORE417]] D11: the connection's contact policy, passed to every capture unit of the batch; absent means `sent_and_received` (417.2). */
+  contactCreation?: ContactCreation
   /** Prepared steps committed in the LAST chunk's unit, or alone when the batch yields no chunk ([[CORE69]] D10). */
   final?: Program<unknown>
 }
@@ -279,7 +283,11 @@ export async function captureMessages(
         attachments: stored.attachments,
       })
     }
-    const input = { connection_id: conn.id, messages }
+    const input: CaptureInput = {
+      connection_id: conn.id,
+      messages,
+      ...(opts.contactCreation ? { contact_creation: opts.contactCreation } : {}),
+    }
     const last = index === chunks.length - 1
     const out = await record((env) =>
       last && opts.final ? withFinal(recordMessages(env, input), opts.final) : recordMessages(env, input),

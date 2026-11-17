@@ -81,9 +81,15 @@ export interface CaptureMessage {
   participants: readonly CaptureParticipant[]
   attachments: readonly CaptureAttachment[]
 }
+export type ContactCreation = 'sent_and_received' | 'sent' | 'none'
 export interface CaptureInput {
   connection_id: string
   messages: readonly CaptureMessage[]
+  /**
+   * The capturing connection's `contact_creation` ([[CORE417]] D11, 417.2): which addresses of these messages may get a contact.
+   * Absent means `sent_and_received`, today's behaviour, so a caller that passes nothing is unchanged.
+   */
+  contact_creation?: ContactCreation
 }
 export interface CaptureResult {
   /** In sorted order. */
@@ -150,6 +156,18 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
         compareText(a.occurred, b.occurred) || compareText(a.m.external_id, b.m.external_id) || a.index - b.index,
     )
 
+  // The addresses the connection's contact policy qualifies for a contact in this unit ([[CORE408]] D4, 417.1, 417.3). Under the
+  // default capture passes no per-address choice at all, so the unit is exactly today's; only `sent` and `none` narrow it.
+  const policy = input.contact_creation ?? 'sent_and_received'
+  const qualifies = new Set<string>()
+  if (policy === 'sent') {
+    for (const { m } of sorted) {
+      if (!m.sent_by_connection) continue
+      const senders = new Set(m.participants.filter((p) => p.role === 'from').map(KEY))
+      for (const p of m.participants) if (p.role !== 'from' && !senders.has(KEY(p))) qualifies.add(KEY(p))
+    }
+  }
+
   // The chunk's distinct addresses in first-occurrence order (the first non-blank name wins), and its stored files.
   const addresses = new Map<string, ResolveEntry>()
   for (const { m } of sorted) {
@@ -160,7 +178,12 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
       else if (known.name === undefined && cleanName(p.name)) known.name = p.name!
     }
   }
-  const resolve = resolveProgram(env, [...addresses.values()])
+  const resolve = resolveProgram(
+    env,
+    [...addresses.entries()].map(([k, entry]) =>
+      policy === 'sent_and_received' ? entry : { ...entry, mayCreateContact: qualifies.has(k) },
+    ),
+  )
   const storedShas = input.messages.flatMap((m) =>
     m.attachments.filter((a) => a.file !== null).map((a) => a.file!.sha256),
   )
