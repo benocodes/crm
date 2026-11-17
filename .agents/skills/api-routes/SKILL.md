@@ -882,6 +882,8 @@ interactive transaction, no `withContext` and no `executor` marker.
     stamp is the one guard, which holds only because every other writer refuses the row (`409 form_principal` in
     `agents.update` and `api_keys.create`, decided from the plan read before any write). Emit the dependent event only
     when the row really changes (`packages/api/src/resources/forms.ts`, [[CHN423]] 423.8, 423.14).
+    Find the parent's mutation by its step label (`first-mutation`), never by position: once child-list writes run
+    before the parent's UPDATE, `steps[0]` is a child delete ([[CHN424]] 424.13).
   - **Check-then-write belongs inside the batch, not before it** ([[CORE245]], `packages/storage-d1/src/control-store.ts`).
     A guard read in its own query and acted on in a later `batch()` is a race: a concurrent writer lands in between.
     Put the guard in the write (`insert ... select ... where not exists (live same email)`), make the dependent row

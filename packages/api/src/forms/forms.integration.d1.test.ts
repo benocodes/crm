@@ -9,7 +9,7 @@ import { coldStorage } from '../test/storage.js'
 import { SEED_AT } from '../test/insert.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
 
-// [[CHN420]] cycle 1: the forms resource over its scalar fields and the principal created with each form (D3, D6, D7, D10, D11 scalar part, D12, D13 part).
+// [[CHN420]] cycle 1: the forms resource over its scalar fields (the lists are in forms-origins-tags.integration.d1.test.ts, CHN424) and the principal created with each form (D3, D6, D7, D10, D11 scalar part, D12, D13 part).
 // Fixtures are direct inserts (setup bypasses the code under test); the form's principal is a `principals` row, an `agents` row and a `forms` row sharing one id.
 let e: Engine
 let app: ReturnType<typeof createApp>
@@ -200,6 +200,7 @@ describe('validation matrix (D7, D10, D11, P1, P4)', () => {
     })
     expect(Object.keys(r.body).sort()).toEqual(
       [
+        'allowed_origins',
         'consent_text',
         'created_at',
         'created_by',
@@ -211,6 +212,7 @@ describe('validation matrix (D7, D10, D11, P1, P4)', () => {
         'organization_id',
         'phone_field',
         'public_id',
+        'tag_ids',
         'updated_at',
       ].sort(),
     )
@@ -293,15 +295,9 @@ describe('validation matrix (D7, D10, D11, P1, P4)', () => {
     expect(refusal(await create({ name: 'ÉTÉ' }))).not.toEqual([409, 'form_name_exists'])
   })
 
-  it('an empty PATCH is refused; allowed_origins and tag_ids in a body are refused as unknown fields (cycle 1 carries neither)', async () => {
+  it('an empty PATCH is refused', async () => {
     const a = await create({ name: 'A' })
     expect(refusal(await patch(a.body.id, {}))).toEqual([400, 'validation_error'])
-    await bad({ name: 'B', allowed_origins: ['https://example.com'] })
-    await bad({ name: 'B', tag_ids: [] })
-    expect(refusal(await patch(a.body.id, { allowed_origins: [] }))).toEqual([400, 'validation_error'])
-    expect(refusal(await patch(a.body.id, { tag_ids: [] }))).toEqual([400, 'validation_error'])
-    expect(a.body).not.toHaveProperty('allowed_origins')
-    expect(a.body).not.toHaveProperty('tag_ids')
   })
 
   it('update of an unknown form is 404 after the body validates', async () => {
@@ -453,7 +449,16 @@ describe('surfaces', () => {
     expect(Object.keys(mem).sort()).toEqual(['delete', 'get', 'patch'])
     const schema = col.post.requestBody.content['application/json'].schema
     expect(Object.keys(schema.properties).sort()).toEqual(
-      ['consent_text', 'email_field', 'enabled', 'name', 'name_field', 'phone_field'].sort(),
+      [
+        'allowed_origins',
+        'consent_text',
+        'email_field',
+        'enabled',
+        'name',
+        'name_field',
+        'phone_field',
+        'tag_ids',
+      ].sort(),
     )
     expect(schema.additionalProperties).toBe(false)
     for (const op of [col.get, col.post, mem.get, mem.patch, mem.delete])
@@ -512,16 +517,5 @@ describe('surfaces', () => {
         'not_implemented',
       ])
     }
-  })
-})
-
-describe('dormant child tables (P2; CHN424 deletes this group)', () => {
-  it('no operation writes form_allowed_origins or form_tags: a full create, update and delete leaves both empty', async () => {
-    const a = await create({ name: 'A' })
-    await patch(a.body.id, { name: 'A2', enabled: false })
-    await del(a.body.id)
-    await create({ name: 'B' })
-    expect(await e.rows('form_allowed_origins')).toEqual([])
-    expect(await e.rows('form_tags')).toEqual([])
   })
 })

@@ -331,7 +331,8 @@ no migration, no E2E, cost 158k / 44 calls in one run plus a 2k / 4-call fix rou
 The budget holds; a cycle well under it is cheap. Two charter riders were empty: "goldens (operation descriptions)" (golden
 fixtures carry no descriptions, `writing-tests` §goldens) and "tests that pinned the interim gap must flip" (none existed).
 Before naming a rider or a test to flip, grep for it at plan time; otherwise word it "if any". The fix round was a missing
-changeset for a change in `@vibase/api` alone (`execute-cycle`, changesets).
+changeset for a change in `@vibase/api` alone (`execute-cycle`, changesets). When a charter names the changeset, name the
+published package it bumps (`@vibase/server-d1`), not `@vibase/api`, which is unpublished ([[CHN424]] 424.10).
 
 ### Step 3: Resolve identities
 

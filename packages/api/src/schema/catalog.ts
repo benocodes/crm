@@ -415,7 +415,7 @@ export const CATALOG: Catalog = {
     form_allowed_origins: {
       label: 'Form allowed origins',
       description:
-        'The browser origins (scheme, host and port, no path) allowed to post to a form, one row each; none by default, which admits no browser origin. Part of the form record once forms carry them.',
+        'The browser origins (scheme, host and port, no path) allowed to post to a form, one row each; none by default, which admits no browser origin. Carried in the form record as allowed_origins, replaced whole by forms.create and forms.update.',
       columns: {
         form_id: 'The form this origin belongs to.',
         origin: 'An exact origin such as https://example.com; unique per form, no wildcards.',
@@ -424,7 +424,7 @@ export const CATALOG: Catalog = {
     form_tags: {
       label: 'Form tags',
       description:
-        'The tags a form gives its submitters, one row each; none by default. A tag deleted later keeps its row and is no longer applied. Part of the form record once forms carry them.',
+        'The tags a form gives its submitters, one row each; none by default. A tag deleted later keeps its row and is no longer applied. Carried in the form record as tag_ids, replaced whole by forms.create and forms.update.',
       columns: {
         form_id: 'The form this tag belongs to.',
         tag_id: 'The tag applied to a submitter; unique per form.',

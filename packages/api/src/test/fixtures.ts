@@ -48,8 +48,17 @@ export const fixtures: Record<string, ContractFixture> = {
   },
   // Forms (CHN420): writes are owner-only and human-only (`forms:write` is not agent-grantable); each create also creates the form's agent principal.
   forms: {
-    input: async () => ({ name: `Contract form ${randomUUID()}` }),
-    patch: async () => ({ name: 'Renamed form', enabled: false }),
+    input: async (kit) => ({
+      name: `Contract form ${randomUUID()}`,
+      allowed_origins: ['https://contract.example'],
+      tag_ids: [(await kit.post('/api/v1/tags', { name: `Form tag ${randomUUID()}` })).id],
+    }),
+    patch: async () => ({
+      name: 'Renamed form',
+      enabled: false,
+      allowed_origins: ['https://renamed.example'],
+      tag_ids: [],
+    }),
     createAlsoEmits: ['agent.created'],
     // the patch renames the form, which renames its agent; a delete disables it ([[CHN423]] D4, D13)
     updateAlsoEmits: ['agent.updated'],
