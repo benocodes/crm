@@ -180,7 +180,7 @@ describe('3. rename sync (P4)', () => {
     expect(await agentOf(f.body.id)).toEqual(agentBefore)
   })
 
-  it('an agent name diverged by a direct seed is brought back by a rename, and a same-name update leaves it diverged', async () => {
+  it('an agent name diverged by a direct seed is brought back by a rename', async () => {
     const id = await seedForm({ name: 'Website', agent: { name: 'Drifted' } })
     const mark = (await e.events()).length
     expect((await patchForm(id, { name: 'Website' })).status).toBe(200)
@@ -259,7 +259,7 @@ describe('4. disable on delete (P5)', () => {
     const mark = (await e.events()).length
     e.betweenPlanAndCommit(async () => void (await e.update('forms', f.body.id, { deleted_at: SEED_AT })))
     const r = await delForm(f.body.id)
-    expect([404, 409]).toContain(r.status)
+    expect(refusal(r)).toEqual([409, 'conflict'])
     expect(await typesSince(mark)).toEqual([])
     expect((await agentOf(f.body.id)).disabled_at).toBeNull()
   })
