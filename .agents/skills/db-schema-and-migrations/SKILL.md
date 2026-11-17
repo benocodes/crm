@@ -348,7 +348,9 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
 - **Each implementation cycle adds one numbered file** (`0002_identity_model.sql`: companies, contacts,
   identities). Copy every constraint the Postgres table has: composite intra-org FKs, partial unique indexes,
   owner and tombstone CHECKs, the email CHECK `value = lower(value) AND value NOT GLOB '*[^ -~]*'`. Add the new
-  tables to `clearD1`'s delete `order` (children first) in the same step.
+  tables to `clearD1`'s delete `order` (children first) in the same step, even a table no code writes yet: the miss
+  stays silent until a child holds rows, then rest-order deletes hit the FK (`forms` and its child tables, added only
+  by [[CHN424]] 424.9).
 - **Add every new file to the manifest in the same change** ([[CORE61]] D2, D5). `MIGRATIONS` in
   `packages/storage-d1/src/migrations-manifest.ts` lists `{ name, sha256 }` in file order, and
   `migrations-manifest.test.ts` hashes the real files. It fails on an unlisted file, an entry with no file, a
