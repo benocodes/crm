@@ -51,7 +51,7 @@ export interface AppController {
 }
 
 const ok = (r: ApiResult<unknown>): boolean => r.status >= 200 && r.status < 300 && r.body !== null
-const AGENTS_UNREADABLE = 'The agents list could not be read. Try Check again.'
+export const AGENTS_UNREADABLE = 'The agents list could not be read. Reload the page to try again.'
 const SIGN_OUT_FAILED = 'Sign-out did not complete. Reload the page and try again.'
 
 export function createAppController(deps: {

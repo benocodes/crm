@@ -6,7 +6,7 @@ import axe from 'axe-core'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { App } from './app.js'
-import type { AppState } from './state.js'
+import { AGENTS_UNREADABLE, type AppState } from './state.js'
 
 // [[UI460]] D4, D7, D8, D10 (groups 3, 4, 5), P5: the app's views for each state, on real React in the `page-ui` project. The shell renders in `ready` only.
 afterEach(cleanup)
@@ -199,6 +199,13 @@ describe('Home: Get started (D9, D10)', () => {
     expect(screen.getByRole('region', { name: 'Get started' })).toBeTruthy()
     expect(screen.getByRole('alert').textContent).toContain('could not be read (500)')
     expect(screen.queryByRole('region', { name: 'Connect an agent' })).toBeNull()
+  })
+
+  it('the real unreadable-agents message offers no Check again, and Home has no such button in the error state', () => {
+    expect(AGENTS_UNREADABLE).not.toMatch(/check again/i)
+    show({ ...READY, connectAgent: { status: 'error', message: AGENTS_UNREADABLE } } as AppState)
+    expect(screen.getByRole('alert').textContent).toBe(AGENTS_UNREADABLE)
+    expect(screen.queryByRole('button', { name: /check again/i })).toBeNull()
   })
 
   it('an owner and a member with the same lists see the same Home', () => {
