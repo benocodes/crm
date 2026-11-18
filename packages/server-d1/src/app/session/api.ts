@@ -56,7 +56,22 @@ export function createApi(deps: { origin: string; getToken(): Promise<string | n
       }
       return { status: 200, body: all }
     },
-    hasEnabledAgent: async () => ({ status: 200, body: false }), // STUB (red commit)
+    async hasEnabledAgent() {
+      let after: string | null = null
+      // Stops at the first enabled agent. A server that never ends the cursor is bounded, as `agents()` is.
+      for (let i = 0; i < 100; i++) {
+        const r: ApiResult<{ data: AgentRecord[]; next_cursor: string | null }> = await call(
+          'GET',
+          `/meta/v1/agents?limit=200${after ? `&after=${encodeURIComponent(after)}` : ''}`,
+        )
+        if (r.status < 200 || r.status >= 300 || !r.body)
+          return { status: r.status, body: null, ...(r.noToken ? { noToken: true as const } : {}) }
+        if (r.body.data.some((a) => a.disabled_at === null)) return { status: r.status, body: true }
+        if (r.body.next_cursor === null) return { status: r.status, body: false }
+        after = r.body.next_cursor
+      }
+      return { status: 200, body: false }
+    },
     setDisabled: (id, disabled) =>
       call<AgentRecord>('PATCH', `/meta/v1/agents/${encodeURIComponent(id)}`, { disabled }),
   }

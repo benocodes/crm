@@ -1,5 +1,6 @@
 // [[UI30]] D10, [[UI254]] D9, [[UI256]]: the connect page's view layer, Preact components on `@vibase/ui` fed the `ViewModel`. Everything that came from the API or the URL is a text child (escaped by the
 // runtime), never markup; a link is made only for an `https:` URL. No `style` prop anywhere: the page serves `style-src 'self'` off Clerk ([[UI256]] P3).
+import { MCP_NOTE } from '../app/connect-text.js'
 import type { ReactNode } from 'react'
 import { Alert } from '@vibase/ui'
 import { render } from 'preact'
@@ -117,7 +118,7 @@ export function ConnectView({ vm, handlers }: { vm: ViewModel; handlers: Handler
           </Section>
           {vm.connect.mcp ? (
             <Section name="mcp" title="MCP">
-              <p>Add this URL as a remote MCP server in your client; it signs in through this instance.</p>
+              <p>{MCP_NOTE}</p>
               <Command value={vm.connect.mcp.url} />
             </Section>
           ) : null}

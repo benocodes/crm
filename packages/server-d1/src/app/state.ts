@@ -1,5 +1,6 @@
 // [[UI460]] D4 ([[UI443]]): the workspace app's state machine over the session seam and the API client. It moves between `AppState`s and decides nothing about markup. Stores nothing: no
 // localStorage, sessionStorage or cookie. Dependency-free (no React), so it is tested in Node.
+import type { ConnectAgentCheck } from './first-steps.js'
 import type { Api, ApiResult } from './session/api.js'
 import type { Me, SessionSeam } from './session/types.js'
 
@@ -31,6 +32,8 @@ export type AppState =
       who: Who /** The active organisation's scopes, for the nav's `visible(ctx)`. */
       scopes: string[]
       manageAccountHref: string | null
+      /** [[UI461]] D10: whether Home's Connect an agent prompt shows. */
+      connectAgent: ConnectAgentCheck
       signOutError?: string
     }
 
@@ -43,15 +46,18 @@ export interface AppController {
   /** Sends the person to sign in and back to this page (`<origin><path>`, never a query). */
   signIn(): Promise<void>
   signOut(): Promise<void>
+  /** [[UI461]] P4: re-reads the agents list (a GET) and updates Home's Connect an agent prompt; nothing is written. */
+  checkAgain(): Promise<void>
 }
 
 const ok = (r: ApiResult<unknown>): boolean => r.status >= 200 && r.status < 300 && r.body !== null
+const AGENTS_UNREADABLE = 'The agents list could not be read. Try Check again.'
 const SIGN_OUT_FAILED = 'Sign-out did not complete. Reload the page and try again.'
 
 export function createAppController(deps: {
   /** The sign-in seam, or `null` when sign-in is unavailable (no provider, or discovery could not be read). */
   seam: SessionSeam | null
-  api: Pick<Api, 'me'>
+  api: Pick<Api, 'me' | 'hasEnabledAgent'>
   origin: string
   /** The page path the person is on: where signing in returns to. */
   path: string
@@ -80,6 +86,20 @@ export function createAppController(deps: {
 
   const failed = (message: string): void => set({ kind: 'error', message })
 
+  /** D10, P4: no `agents:read` is no request and the prompt; otherwise one walk of the list, which a failure turns into the one-line error. */
+  async function readConnectAgent(scopes: readonly string[]): Promise<ConnectAgentCheck | 'signed-out'> {
+    if (!scopes.includes('agents:read')) return { status: 'show' }
+    let r: ApiResult<boolean> | 'signed-out'
+    try {
+      r = await guarded(() => api.hasEnabledAgent())
+    } catch {
+      return { status: 'error', message: AGENTS_UNREADABLE }
+    }
+    if (r === 'signed-out') return r
+    if (r.status < 200 || r.status >= 300 || r.body === null) return { status: 'error', message: AGENTS_UNREADABLE }
+    return { status: r.body ? 'hidden' : 'show' }
+  }
+
   async function readMe(): Promise<void> {
     let r: ApiResult<Me> | 'signed-out'
     try {
@@ -97,6 +117,8 @@ export function createAppController(deps: {
     const display = me.user.name?.trim() ? me.user.name : me.user.email
     if (!active) return set({ kind: 'no-access', who: display })
     const membership = me.memberships.find((m) => m.organization_id === active.id)
+    const connectAgent = await readConnectAgent(active.scopes)
+    if (connectAgent === 'signed-out') return set({ kind: 'signed-out' })
     set({
       kind: 'ready',
       who: {
@@ -107,6 +129,7 @@ export function createAppController(deps: {
       },
       scopes: [...active.scopes],
       manageAccountHref: seam?.profileUrl() ?? null,
+      connectAgent,
     })
   }
 
@@ -133,11 +156,25 @@ export function createAppController(deps: {
     },
     start: load,
     retry: load,
+    async checkAgain() {
+      if (state.kind !== 'ready') return
+      const before = state
+      const connectAgent = await readConnectAgent(before.scopes)
+      if (connectAgent === 'signed-out') return set({ kind: 'signed-out' })
+      // Only if nothing else moved the state while the read was in flight.
+      if (state === before) set({ ...before, connectAgent })
+    },
     signIn: () => Promise.resolve(seam?.redirectToSignIn(`${deps.origin}${deps.path}`)),
     async signOut() {
       // A refused attempt's message clears as the next one begins.
       if (state.kind === 'ready' && state.signOutError)
-        set({ kind: 'ready', who: state.who, scopes: state.scopes, manageAccountHref: state.manageAccountHref })
+        set({
+          kind: 'ready',
+          who: state.who,
+          scopes: state.scopes,
+          manageAccountHref: state.manageAccountHref,
+          connectAgent: state.connectAgent,
+        })
       const before = state
       try {
         await seam?.signOut()

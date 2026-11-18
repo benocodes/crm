@@ -12,6 +12,11 @@ export interface AppProps {
   provider: string | null
   /** The page path being shown (marks its nav entry current). */
   path: string
+  /** The page's origin: the server the connect-an-agent commands name. */
+  origin: string
+  /** The MCP URL when discovery advertises one. */
+  mcpUrl: string | null
+  onCheckAgain(): void
   onSignIn(): void
   onSignOut(): void
   onRetry(): void
@@ -21,7 +26,7 @@ function Centered({ children }: { children: React.ReactNode }) {
   return <main className="mx-auto my-6 max-w-132 px-4">{children}</main>
 }
 
-export function App({ state, provider, path, onSignIn, onSignOut, onRetry }: AppProps) {
+export function App({ state, provider, path, origin, mcpUrl, onCheckAgain, onSignIn, onSignOut, onRetry }: AppProps) {
   switch (state.kind) {
     case 'loading':
       return (
@@ -97,7 +102,13 @@ export function App({ state, provider, path, onSignIn, onSignOut, onRetry }: App
           signOut={{ onClick: onSignOut }}
           {...(state.manageAccountHref ? { manageAccountHref: state.manageAccountHref } : {})}
         >
-          <HomePage who={state.who} {...(state.signOutError ? { error: state.signOutError } : {})} />
+          <HomePage
+            who={state.who}
+            connectAgent={state.connectAgent}
+            instructions={{ origin, signIn: provider !== null, mcpUrl }}
+            onCheckAgain={onCheckAgain}
+            {...(state.signOutError ? { error: state.signOutError } : {})}
+          />
         </AppShell>
       )
   }
@@ -108,10 +119,14 @@ export function AppRoot({
   controller,
   provider,
   path,
+  origin,
+  mcpUrl,
 }: {
   controller: AppController
   provider: string | null
   path: string
+  origin: string
+  mcpUrl: string | null
 }) {
   const state = useSyncExternalStore(controller.subscribe, controller.state)
   return (
@@ -119,6 +134,9 @@ export function AppRoot({
       state={state}
       provider={provider}
       path={path}
+      origin={origin}
+      mcpUrl={mcpUrl}
+      onCheckAgain={() => void controller.checkAgain()}
       onSignIn={() => void controller.signIn()}
       onSignOut={() => void controller.signOut()}
       onRetry={() => void controller.retry()}

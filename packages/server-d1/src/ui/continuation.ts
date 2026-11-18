@@ -1,6 +1,10 @@
-// [[UI247]] D6 (b): where `/sign-in` may send a person back to. The allow-list is two pathnames, exactly: `/device` and `/connect`. A `return_to` is resolved against the page's origin and honoured only when
-// it stays on that origin and its pathname is one of the two (so `//evil.example/device`, `/device/../x`, `/devices` and `javascript:` are all ignored). Returns the path and query to go to, or null.
+// [[UI247]] D6 (b), [[UI461]] D3: where `/sign-in` may send a person back to. The allow-list is exact pathnames: `/device`, `/connect` and the app's pages (`APP_PAGE_PATHS`, read at call time). A `return_to` is resolved against the page's origin and honoured only when
+// it stays on that origin and its pathname is one of them (so `//evil.example/device`, `/device/../x`, `/devices` and `javascript:` are all ignored). Returns the path and query to go to, or null.
+import { APP_PAGE_PATHS } from '../app/paths.js'
+
 const RETURN_PATHS: readonly string[] = ['/device', '/connect']
+const allowed = (pathname: string): boolean =>
+  RETURN_PATHS.includes(pathname) || APP_PAGE_PATHS.some((p) => p === pathname)
 
 export function returnTarget(search: string): string | null {
   const value = new URLSearchParams(search).get('return_to')
@@ -11,7 +15,7 @@ export function returnTarget(search: string): string | null {
   } catch {
     return null
   }
-  if (url.origin !== location.origin || !RETURN_PATHS.includes(url.pathname)) return null
+  if (url.origin !== location.origin || !allowed(url.pathname)) return null
   // A bare `device` would resolve to `/device`: only a rooted path or an absolute URL of this origin is a target.
   if (!value.startsWith('/') && !value.startsWith(`${location.origin}/`)) return null
   return url.pathname + url.search

@@ -4,6 +4,7 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axe from 'axe-core'
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { App } from './app.js'
 import type { AppState } from './state.js'
 
@@ -201,12 +202,17 @@ describe('Home: Get started (D9, D10)', () => {
   })
 
   it('an owner and a member with the same lists see the same Home', () => {
+    // Everything but the Role value is the same.
+    const text = () => {
+      const main = document.querySelector('main')!.cloneNode(true) as HTMLElement
+      for (const dt of main.querySelectorAll('dt')) if (dt.textContent === 'Role') dt.nextElementSibling?.remove()
+      return main.textContent
+    }
     show(SHOW)
-    const owner = document.querySelector('main')!.textContent!
+    const owner = text()
     cleanup()
     show({ ...SHOW, who: { ...(SHOW as { who: object }).who, role: 'member' } } as AppState)
-    const member = document.querySelector('main')!.textContent!
-    expect(member).toBe(owner.replace('owner', 'member'))
+    expect(text()).toBe(owner)
   })
 
   it.each(['light', 'dark'])('axe is clean with the prompt in the %s theme', async (theme) => {
@@ -218,7 +224,7 @@ describe('Home: Get started (D9, D10)', () => {
   })
 
   it('Home imports no bare shadcn primitive: the shared composites only', () => {
-    const src = readFileSync(new URL('./home.tsx', import.meta.url), 'utf8')
+    const src = readFileSync(join(process.cwd(), 'src/app/home.tsx'), 'utf8')
     expect(src).not.toMatch(/components\/ui\//)
     expect(src).toMatch(/PromptCard/)
   })

@@ -1,5 +1,6 @@
 // [[UI30]] D4: the only logic the page owns. Given the session state and the API's answers, what to show. Pure: no DOM, no Clerk, no network.
 import type { AgentRecord, Me } from '../app/session/types.js'
+import { apiKeyDirections, LOGIN_STEPS, loginCommand } from '../app/connect-text.js'
 import type { AgentRowView, PageState, ViewModel } from './types.js'
 
 const SCOPE_READ_AGENTS = 'agents:read'
@@ -15,11 +16,6 @@ const EMPTY: ViewModel = {
   account: null,
   error: null,
 }
-
-const apiKeyDirections = (origin: string): { command: string; note: string } => ({
-  command: `printf %s "$VIBASE_API_KEY" | vibase login --api-key --server ${origin}`,
-  note: 'For scripts and agents that cannot use a browser. An owner creates a key with `vibase api-keys create`; the key is read from stdin, never from the command line.',
-})
 
 function agentRow(a: AgentRecord, me: Me, canToggle: boolean): AgentRowView {
   const delegated = a.delegated_by !== null || a.auth_client_id !== null
@@ -97,9 +93,8 @@ export function buildView(
         },
         connect: {
           cli: {
-            command: `vibase login --server ${origin}`,
-            steps:
-              'Run this in a terminal. It prints a link: open the link in any browser, sign in, approve the connection, then return to the terminal.',
+            command: loginCommand(origin),
+            steps: LOGIN_STEPS,
           },
           apiKey: apiKeyDirections(origin),
           mcp: ctx.mcpUrl ? { url: ctx.mcpUrl } : null,

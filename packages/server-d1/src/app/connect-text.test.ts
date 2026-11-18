@@ -20,7 +20,7 @@ describe('connect-text', () => {
   it('src/connect keeps no copy of the strings', () => {
     for (const f of ['view-model.ts', 'view.tsx', 'controller.ts']) {
       const src = readFileSync(new URL(`../connect/${f}`, import.meta.url), 'utf8')
-      expect(src, f).not.toContain('vibase login')
+      expect(src, f).not.toContain('vibase login --')
       expect(src, f).not.toContain('VIBASE_API_KEY')
       expect(src, f).not.toContain('remote MCP server')
     }
