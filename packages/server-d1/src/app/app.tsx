@@ -2,6 +2,7 @@
 // Every string from the vault is rendered as text, never markup.
 import { useSyncExternalStore } from 'react'
 import { Alert, AppShell, Button, Card } from '@vibase/ui/components'
+import { AccountsPage, type AccountsApi } from './accounts/accounts.js'
 import { HomePage } from './home.js'
 import { NAV, visibleNav } from './nav.js'
 import type { AppController, AppState } from './state.js'
@@ -16,6 +17,8 @@ export interface AppProps {
   origin: string
   /** The MCP URL when discovery advertises one. */
   mcpUrl: string | null
+  /** The client the Connected accounts page reads and connects with ([[UI467]]). */
+  api: AccountsApi
   onCheckAgain(): void
   onSignIn(): void
   onSignOut(): void
@@ -26,7 +29,18 @@ function Centered({ children }: { children: React.ReactNode }) {
   return <main className="mx-auto my-6 max-w-132 px-4">{children}</main>
 }
 
-export function App({ state, provider, path, origin, mcpUrl, onCheckAgain, onSignIn, onSignOut, onRetry }: AppProps) {
+export function App({
+  state,
+  provider,
+  path,
+  origin,
+  mcpUrl,
+  api,
+  onCheckAgain,
+  onSignIn,
+  onSignOut,
+  onRetry,
+}: AppProps) {
   switch (state.kind) {
     case 'loading':
       return (
@@ -102,13 +116,17 @@ export function App({ state, provider, path, origin, mcpUrl, onCheckAgain, onSig
           signOut={{ onClick: onSignOut }}
           {...(state.manageAccountHref ? { manageAccountHref: state.manageAccountHref } : {})}
         >
-          <HomePage
-            who={state.who}
-            connectAgent={state.connectAgent}
-            instructions={{ origin, signIn: provider !== null, mcpUrl }}
-            onCheckAgain={onCheckAgain}
-            {...(state.signOutError ? { error: state.signOutError } : {})}
-          />
+          {path === '/accounts' ? (
+            <AccountsPage api={api} userId={state.who.userId} scopes={state.scopes} />
+          ) : (
+            <HomePage
+              who={state.who}
+              connectAgent={state.connectAgent}
+              instructions={{ origin, signIn: provider !== null, mcpUrl }}
+              onCheckAgain={onCheckAgain}
+              {...(state.signOutError ? { error: state.signOutError } : {})}
+            />
+          )}
         </AppShell>
       )
   }
@@ -121,12 +139,14 @@ export function AppRoot({
   path,
   origin,
   mcpUrl,
+  api,
 }: {
   controller: AppController
   provider: string | null
   path: string
   origin: string
   mcpUrl: string | null
+  api: AccountsApi
 }) {
   const state = useSyncExternalStore(controller.subscribe, controller.state)
   return (
@@ -136,6 +156,7 @@ export function AppRoot({
       path={path}
       origin={origin}
       mcpUrl={mcpUrl}
+      api={api}
       onCheckAgain={() => void controller.checkAgain()}
       onSignIn={() => void controller.signIn()}
       onSignOut={() => void controller.signOut()}

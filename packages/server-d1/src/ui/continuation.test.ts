@@ -37,7 +37,7 @@ describe('returnTarget', () => {
     '/homes',
     '/home/../x',
     'home',
-    '/accounts',
+    '/accounts/x',
     '/agents',
     '/app/app.js',
     '//evil.example/home',

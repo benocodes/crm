@@ -1,7 +1,7 @@
 // [[UI460]] D7, D8 ([[UI443]]): the sidebar as a table. A row is added with its page and shown by `visible(ctx)` over the provider and the active organisation's scopes (the page's read scope, and the provider for rows that
 // exist on one provider only). Home has no `visible`: everyone sees it. Icons are imported by name (`lucide-react`), so the bundle holds only these.
 import type { AppNavEntry } from '@vibase/ui/components'
-import { House } from 'lucide-react'
+import { House, Mail } from 'lucide-react'
 
 export interface NavContext {
   /** `clerk` or `better-auth`, from discovery; `null` when there is none. */
@@ -19,7 +19,16 @@ export interface NavRow {
   visible?: (ctx: NavContext) => boolean
 }
 
-export const NAV: readonly NavRow[] = [{ label: 'Home', href: '/home', icon: House }]
+export const NAV: readonly NavRow[] = [
+  { label: 'Home', href: '/home', icon: House },
+  // [[UI467]] D1, D12: shown by the page's read scope.
+  {
+    label: 'Connected accounts',
+    href: '/accounts',
+    icon: Mail,
+    visible: (ctx) => ctx.scopes.includes('connections:read'),
+  },
+]
 
 /** The rows `ctx` may see, as the shell's entries; `current` is true for the one whose path is the page being shown. */
 export function visibleNav(rows: readonly NavRow[], ctx: NavContext, currentPath: string): AppNavEntry[] {

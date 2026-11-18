@@ -139,7 +139,7 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
     expect((await send(wk, '/accounts', 'POST')).status).toBe(405)
   })
 
-  it.each(['/accounts/', '/accounts/x'])('%s is the Worker\'s 404 not_found (UI467 D1)', async (path) => {
+  it.each(['/accounts/', '/accounts/x'])("%s is the Worker's 404 not_found (UI467 D1)", async (path) => {
     const res = await send(make(), path)
     expect(res.status).toBe(404)
     expect(await res.json()).toEqual(NOT_FOUND)

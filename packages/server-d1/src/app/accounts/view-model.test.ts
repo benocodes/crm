@@ -92,7 +92,9 @@ describe('meta, status and actions', () => {
       'Not synced yet',
       'Google no longer accepts this connection. Reconnect to resume syncing. (invalid_grant)',
     ])
-    expect(metaOf('d')[1]).toBe('The person who connected this mailbox is no longer a member of this workspace. (owner_not_admitted)')
+    expect(metaOf('d')[1]).toBe(
+      'The person who connected this mailbox is no longer a member of this workspace. (owner_not_admitted)',
+    )
     expect(metaOf('e')).toEqual(['Not synced yet', 'Last sync failed. (rate_limited)'])
   })
 

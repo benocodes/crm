@@ -13,12 +13,13 @@ afterEach(cleanup)
 
 const READY: AppState = {
   kind: 'ready',
-  who: { name: 'Ann', email: 'ann@x.test', role: 'owner', workspaceName: 'Acme' },
+  who: { name: 'Ann', email: 'ann@x.test', role: 'owner', workspaceName: 'Acme', userId: 'u1' },
   scopes: [],
   manageAccountHref: null,
   connectAgent: { status: 'hidden' },
 }
 const SHOW: AppState = { ...READY, connectAgent: { status: 'show' } } as AppState
+const NO_API = { connections: vi.fn(), identityAddress: vi.fn(), authorizeGmail: vi.fn() } as never
 const handlers = () => ({ onSignIn: vi.fn(), onSignOut: vi.fn(), onRetry: vi.fn(), onCheckAgain: vi.fn() })
 const show = (state: AppState, over: { provider?: string | null; path?: string; mcpUrl?: string | null } = {}) => {
   const h = handlers()
@@ -29,6 +30,7 @@ const show = (state: AppState, over: { provider?: string | null; path?: string; 
       path={over.path ?? '/home'}
       origin="https://w.test"
       mcpUrl={over.mcpUrl === undefined ? null : over.mcpUrl}
+      api={NO_API}
       {...h}
     />,
   )
@@ -102,6 +104,20 @@ describe('ready: the shell and Home (D7, D8, P5)', () => {
     show(READY)
     const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } })
     expect(r.violations.map((v) => v.id)).toEqual([])
+  })
+})
+
+describe('ready on /accounts (UI467 D1)', () => {
+  it('draws the Connected accounts page, not Home, with its nav entry current and Home not', () => {
+    show({ ...READY, scopes: ['connections:read'] }, { path: '/accounts' })
+    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Connected accounts'])
+    const nav = screen.getByRole('navigation', { name: 'Workspace' })
+    expect(within(nav).getByRole('link', { name: 'Connected accounts' }).getAttribute('aria-current')).toBe('page')
+    expect(within(nav).getByRole('link', { name: 'Home' }).getAttribute('aria-current')).toBeNull()
+  })
+  it('the nav row is absent without connections:read', () => {
+    show(READY)
+    expect(screen.queryByRole('link', { name: 'Connected accounts' })).toBeNull()
   })
 })
 

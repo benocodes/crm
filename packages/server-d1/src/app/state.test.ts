@@ -41,7 +41,15 @@ const api = (...answers: (ApiResult<Me> | Error)[]) => {
     return a
   })
   const hasEnabledAgent = vi.fn(async (): Promise<ApiResult<boolean>> => ({ status: 200, body: false }))
-  return { me, agents: vi.fn(), hasEnabledAgent, setDisabled: vi.fn() } satisfies Api
+  return {
+    me,
+    agents: vi.fn(),
+    hasEnabledAgent,
+    setDisabled: vi.fn(),
+    connections: vi.fn(),
+    identityAddress: vi.fn(),
+    authorizeGmail: vi.fn(),
+  } satisfies Api
 }
 const make = (s: SessionSeam | null, a: Api, path = '/home') =>
   createAppController({ seam: s, api: a, origin: 'https://w.test', path })
@@ -71,7 +79,7 @@ describe('the states by input (D4)', () => {
     await c.start()
     expect(c.state()).toEqual({
       kind: 'ready',
-      who: { name: 'Ann', email: 'ann@x.test', role: 'owner', workspaceName: 'Acme' },
+      who: { name: 'Ann', email: 'ann@x.test', role: 'owner', workspaceName: 'Acme', userId: 'u1' },
       scopes: ['connections:read'],
       manageAccountHref: null,
       connectAgent: { status: 'show' },

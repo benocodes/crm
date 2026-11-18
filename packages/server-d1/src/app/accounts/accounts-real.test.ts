@@ -79,7 +79,10 @@ beforeEach(async () => {
   ownerConn = await connect(ownerId, 'own-mailbox@vibase.test')
   memberConn = await connect(memberId, 'a-member-mailbox@vibase.test')
   await w.d1.prepare("update channel_connections set status = 'reauth_required' where id = ?").bind(memberConn).run()
-  await w.d1.prepare("update mail_sync_state set last_error_code = 'invalid_grant' where connection_id = ?").bind(memberConn).run()
+  await w.d1
+    .prepare("update mail_sync_state set last_error_code = 'invalid_grant' where connection_id = ?")
+    .bind(memberConn)
+    .run()
 })
 
 async function viewAs(who: 'owner' | 'member') {
@@ -103,7 +106,7 @@ async function viewAs(who: 'owner' | 'member') {
 }
 
 describe('the view model over real responses', () => {
-  it('as the owner: own mailbox in Your mailboxes, the member\'s reauth_required one in Other mailboxes with no action', async () => {
+  it("as the owner: own mailbox in Your mailboxes, the member's reauth_required one in Other mailboxes with no action", async () => {
     const { view, list } = await viewAs('owner')
     expect(list.map((c) => c.id).sort()).toEqual([ownerConn, memberConn].sort())
     expect(view.access).toBe(true)

@@ -26,8 +26,8 @@ export type ConnectError =
   | 'exchange_failed'
   | 'temporarily_unavailable'
 
-/** The fixed text of each code, shown on the built-in page. Never provider text. */
-const TEXT: Record<ConnectError, string> = {
+/** The fixed text of each code, shown on the built-in page. Never provider text. Exported as a value so the workspace app's copy of the table ([[UI467]] P2) is checked against it, codes and sentences. */
+export const CONNECT_ERROR_TEXT: Record<ConnectError, string> = {
   state_invalid: 'This connect link is invalid or has expired. Start again.',
   consent_denied: 'The connection was cancelled at Google. Nothing was connected.',
   scope_missing: 'Gmail access was not granted. Start again and leave the Gmail permission ticked.',
@@ -119,7 +119,11 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
     const refuse = (code: ConnectError): Response => {
       console.warn(`[gmail] connect refused: ${code}`)
       if (config.returnUrl) return redirectTo(config.returnUrl, { error: code })
-      return page('Not connected', `<p>${escapeHtml(TEXT[code])}</p><p><code>${code}</code></p>`, STATUS[code])
+      return page(
+        'Not connected',
+        `<p>${escapeHtml(CONNECT_ERROR_TEXT[code])}</p><p><code>${code}</code></p>`,
+        STATUS[code],
+      )
     }
 
     const q = url.searchParams

@@ -37,8 +37,7 @@ const fakeApi = (
   connections: vi.fn(over.connections ?? (async () => ok([]))),
   identityAddress: vi.fn(over.identityAddress ?? (async (id: string) => ok(`${id.slice(2)}@x.test`))),
   authorizeGmail: vi.fn(
-    over.authorizeGmail ??
-      (async () => ok({ authorize_url: 'https://accounts.google.test/consent', expires_at: 't' })),
+    over.authorizeGmail ?? (async () => ok({ authorize_url: 'https://accounts.google.test/consent', expires_at: 't' })),
   ),
 })
 const show = (api: ReturnType<typeof fakeApi>, scopes: string[] = RW, navigate = vi.fn()) => {
@@ -63,10 +62,11 @@ describe('lists and states (group 4: D2, D12)', () => {
     expect(screen.getByText('Loading…')).toBeTruthy()
     d.resolve(ok([conn('zed'), conn('amy'), conn('bob', { owner_id: 'someone' })]))
     const yours = await screen.findByRole('region', { name: 'Your mailboxes' })
-    expect(within(yours).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      expect.stringContaining('amy@x.test'),
-      expect.stringContaining('zed@x.test'),
-    ])
+    expect(
+      within(yours)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual([expect.stringContaining('amy@x.test'), expect.stringContaining('zed@x.test')])
     const others = screen.getByRole('region', { name: 'Other mailboxes' })
     expect(within(others).getByText('bob@x.test')).toBeTruthy()
     expect(within(others).getByText("Another member's mailbox")).toBeTruthy()
@@ -238,7 +238,9 @@ describe('Connect Gmail and Reconnect (group 3: D3)', () => {
     await screen.findByText('No mailbox connected yet')
     const user = userEvent.setup()
     await user.click(screen.getAllByRole('button', { name: 'Connect Gmail' })[0]!)
-    expect((await screen.findByRole('alert')).textContent).toBe('Could not start connecting. Try again. (user_required)')
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Could not start connecting. Try again. (user_required)',
+    )
     await user.click(screen.getAllByRole('button', { name: 'Connect Gmail' })[0]!)
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Could not start connecting. Try again.'))
     expect(api.authorizeGmail).toHaveBeenCalledTimes(2)
@@ -255,7 +257,11 @@ describe('Connect Gmail and Reconnect (group 3: D3)', () => {
   it('Reconnect runs the same flow from its row, once, and only on own non-active rows', async () => {
     const api = fakeApi({
       connections: async () =>
-        ok([conn('amy', { status: 'reauth_required' }), conn('bob'), conn('cat', { owner_id: 'o', status: 'suspended' })]),
+        ok([
+          conn('amy', { status: 'reauth_required' }),
+          conn('bob'),
+          conn('cat', { owner_id: 'o', status: 'suspended' }),
+        ]),
     })
     const navigate = show(api)
     await screen.findByText('amy@x.test')
