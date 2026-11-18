@@ -118,7 +118,8 @@ For every **Must be tested** obligation in the charter, write the test(s) that p
   CodeInput missing from the gallery.
 - **Setting work aside never uses a bare `git checkout <file>` / `git restore <file>`.** Either resets the
   file to the last commit and silently deletes every uncommitted change in it; it cost [[CORE188]] (restoring a
-  mutant) and again [[CORE199]] (mid-run, outside any mutation) a rewrite. Before you revert, split or compare
+  mutant) and again [[CORE199]] (mid-run, outside any mutation) a rewrite; [[UI455]] did it a third time with a
+  directory (`git checkout -- src/ui`), which resets every file under it. Before you revert, split or compare
   a file, commit what you mean to keep (a WIP commit is fine; squash it before the red/green commits if it
   would blur them), or copy the file to the scratchpad. To look at `main`'s version use `git show main:<path>`
   or a throwaway worktree, never a checkout over your edits. Check `git status --short` before any
@@ -223,7 +224,9 @@ example a diff confined to `packages/server-d1/scripts/` or `packages/release/`,
 Say so in RESULT.md with the `git diff --name-only` list that justifies it; typecheck and build still run in full.
 The charter's E2E scenario is not part of the gate; in a sprint the e2e-tester runs it.
 When the scenario is a script you wrote (a Playwright `*.e2e.ts`) and it needs only a local Worker and
-`.env.dev`, run it once before you report and fix what is yours. The tester's run is still the evidence; yours
+`.env.dev`, run it once before you report and fix what is yours. When the script has rate-limited legs (the
+device legs of `e2e:oauth-pages`), rerun only the legs you changed (`-g`); repeated full runs spent [[UI455]]'s
+per-IP limit and left the full run undone. The tester's run is still the evidence; yours
 catches script slips, which cost [[API115]] a full coder and tester round. Note the run (pass, or what failed and
 why) in RESULT.md. **Before writing a Playwright spec, read `writing-tests` §7** and copy the waits of an existing
 spec (`mcp-oauth.e2e.ts`): [[AGT8]] cycle 1's spec read `window.Clerk.session` right after sign-in, a race §7
