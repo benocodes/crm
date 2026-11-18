@@ -15,7 +15,7 @@ const ME = (over: Partial<Me> = {}): Me => ({
     { organization_id: 'o1', organization_name: 'Other Co', role: 'member' },
     { organization_id: 'o2', organization_name: 'Acme', role: 'owner' },
   ],
-  active_organization: { id: 'o2', role: 'owner', scopes: [] },
+  active_organization: { id: 'o2', role: 'owner', scopes: ['connections:read'] },
   ...over,
 })
 const ok = (body: Me): ApiResult<Me> => ({ status: 200, body })
@@ -71,6 +71,7 @@ describe('the states by input (D4)', () => {
     expect(c.state()).toEqual({
       kind: 'ready',
       who: { name: 'Ann', email: 'ann@x.test', role: 'owner', workspaceName: 'Acme' },
+      scopes: ['connections:read'],
       manageAccountHref: null,
     })
   })
@@ -79,7 +80,11 @@ describe('the states by input (D4)', () => {
     const s = seam({ profileUrl: vi.fn(() => 'https://acc.test/user') })
     const c = make(s, api(ok(ME({ user: { id: 'u1', email: 'ann@x.test', name: null, email_verified: true } }))))
     await c.start()
-    expect(c.state()).toMatchObject({ kind: 'ready', who: { name: 'ann@x.test' }, manageAccountHref: 'https://acc.test/user' })
+    expect(c.state()).toMatchObject({
+      kind: 'ready',
+      who: { name: 'ann@x.test' },
+      manageAccountHref: 'https://acc.test/user',
+    })
   })
 
   it.each([

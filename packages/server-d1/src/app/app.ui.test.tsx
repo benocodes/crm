@@ -12,12 +12,13 @@ afterEach(cleanup)
 const READY: AppState = {
   kind: 'ready',
   who: { name: 'Ann', email: 'ann@x.test', role: 'owner', workspaceName: 'Acme' },
+  scopes: [],
   manageAccountHref: null,
 }
 const handlers = () => ({ onSignIn: vi.fn(), onSignOut: vi.fn(), onRetry: vi.fn() })
-const show = (state: AppState, over: { provider?: string | null; scopes?: string[]; path?: string } = {}) => {
+const show = (state: AppState, over: { provider?: string | null; path?: string } = {}) => {
   const h = handlers()
-  render(<App state={state} provider={over.provider ?? 'better-auth'} scopes={over.scopes ?? []} path={over.path ?? '/home'} {...h} />)
+  render(<App state={state} provider={over.provider ?? 'better-auth'} path={over.path ?? '/home'} {...h} />)
   return h
 }
 const noShell = () => {
@@ -32,12 +33,17 @@ describe('ready: the shell and Home (D7, D8, P5)', () => {
     const home = within(nav).getByRole('link', { name: 'Home' })
     expect(home.getAttribute('href')).toBe('/home')
     expect(home.getAttribute('aria-current')).toBe('page')
-    expect(within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current'))).toHaveLength(1)
+    expect(
+      within(nav)
+        .getAllByRole('link')
+        .filter((l) => l.getAttribute('aria-current')),
+    ).toHaveLength(1)
     const h1 = screen.getAllByRole('heading', { level: 1 })
     expect(h1.map((h) => h.textContent)).toEqual(['Welcome to your CRM'])
     const who = screen.getByRole('region', { name: 'Who you are' })
     const dl = who.querySelector('dl')!
-    const text = (term: string) => [...dl.querySelectorAll('dt')].find((t) => t.textContent === term)?.nextElementSibling?.textContent
+    const text = (term: string) =>
+      [...dl.querySelectorAll('dt')].find((t) => t.textContent === term)?.nextElementSibling?.textContent
     expect(text('Name')).toBe('Ann')
     expect(text('Email')).toBe('ann@x.test')
     expect(text('Role')).toBe('owner')
@@ -72,7 +78,10 @@ describe('ready: the shell and Home (D7, D8, P5)', () => {
   })
 
   it('values holding markup are text: no element is created', () => {
-    show({ ...READY, who: { name: '<img src=x onerror=1>', email: '<b>e</b>@x.test', role: 'owner', workspaceName: '<i>W</i>' } } as AppState)
+    show({
+      ...READY,
+      who: { name: '<img src=x onerror=1>', email: '<b>e</b>@x.test', role: 'owner', workspaceName: '<i>W</i>' },
+    } as AppState)
     expect(document.querySelector('main img, main b, main i')).toBeNull()
   })
 

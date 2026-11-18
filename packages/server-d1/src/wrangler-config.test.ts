@@ -113,7 +113,12 @@ describe('assets (UI30 D2)', () => {
       const c = unstable_readConfig({ config: CONFIG, env })
       expect(c.assets?.binding).toBe('ASSETS')
       // Derived from the constants the Worker serves, never a copied list: a page or prefix the Worker serves but `run_worker_first` omits would be answered by the assets binding without the headers.
-      expect(c.assets?.run_worker_first).toEqual(['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST, ...APP_RUN_WORKER_FIRST])
+      expect(c.assets?.run_worker_first).toEqual([
+        '/connect',
+        '/connect/*',
+        ...UI_RUN_WORKER_FIRST,
+        ...APP_RUN_WORKER_FIRST,
+      ])
       for (const p of UI_PAGE_PATHS) expect(c.assets?.run_worker_first, p).toContain(p)
       expect(c.assets?.run_worker_first).toContain(`${UI_PREFIX}/*`)
       // [[UI460]] D6: the app's root, its page paths and its bundle prefix.

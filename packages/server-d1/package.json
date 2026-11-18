@@ -13,7 +13,7 @@
     "./test": "./src/test/kit.ts"
   },
   "scripts": {
-    "build": "tsx scripts/build-connect.ts && tsx scripts/build-ui.ts",
+    "build": "tsx scripts/build-connect.ts && tsx scripts/build-ui.ts && tsx scripts/build-app.ts",
     "dev": "pnpm build && wrangler dev --local --port 8787",
     "e2e:connect": "playwright test --config playwright.config.ts connect.e2e.ts",
     "e2e:mcp-oauth": "playwright test --config playwright.config.ts mcp-oauth.e2e.ts",

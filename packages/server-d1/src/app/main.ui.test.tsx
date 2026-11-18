@@ -16,7 +16,8 @@ const ME = {
   memberships: [{ organization_id: 'o1', organization_name: 'Acme', role: 'owner' }],
   active_organization: { id: 'o1', role: 'owner', scopes: [] },
 }
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const stubFetch = (routes: Record<string, () => Response>) => {
   const calls: string[] = []
   vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -28,7 +29,10 @@ const stubFetch = (routes: Record<string, () => Response>) => {
   })
   return calls
 }
-const DISCOVERY = { api: 'https://w.test', auth: { provider: 'better-auth', issuer: 'https://w.test/auth', cli_client_id: 'cli', publishable_key: null } }
+const DISCOVERY = {
+  api: 'https://w.test',
+  auth: { provider: 'better-auth', issuer: 'https://w.test/auth', cli_client_id: 'cli', publishable_key: null },
+}
 const mount = async (path: string) => {
   document.body.innerHTML = '<div id="root"></div>'
   history.replaceState(null, '', path)
@@ -51,8 +55,7 @@ describe('the mount', () => {
   })
 
   it('signed out: the Sign in card, and the page query is not carried to /sign-in', async () => {
-    const assign = vi.fn()
-    vi.stubGlobal('location', Object.assign(Object.create(window.location), { assign }))
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => {})
     stubFetch({
       'GET /.well-known/vibase': () => json(DISCOVERY),
       'GET /auth/get-session': () => json(null),

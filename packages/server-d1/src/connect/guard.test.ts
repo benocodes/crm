@@ -37,7 +37,8 @@ describe('page source guard', () => {
   // [[UI460]] D4 (group 3): one copy of the seam, the session, the Clerk window and the API client, under src/app/session/.
   it('src/connect holds no seam, session, Clerk-window or API-client implementation of its own', () => {
     const own = read(DIR, '').map((s) => s.f)
-    for (const gone of ['seam.ts', 'api.ts', 'better-auth-session.ts', 'clerk-window.ts']) expect(own).not.toContain(gone)
+    for (const gone of ['seam.ts', 'api.ts', 'better-auth-session.ts', 'clerk-window.ts'])
+      expect(own).not.toContain(gone)
     for (const s of read(DIR, '')) {
       expect(s.text, s.f).not.toContain('window.Clerk')
       expect(s.text, s.f).not.toMatch(/\/auth\/(get-session|token|sign-out)/)

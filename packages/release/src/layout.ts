@@ -23,6 +23,9 @@ const SERVER_FIXED = [
 /** [[UI246]] D2: the auth pages the Worker serves from `assets/ui/`; a package without one would answer its pages with a 404, so each is required. */
 export const SERVER_UI_ASSETS = ['assets/ui/index.html', 'assets/ui/app.js', 'assets/ui/ui.css']
 
+/** [[UI460]] D6: the workspace app the Worker serves from `assets/app/`; a package without one would answer `/home` with a 404, so each is required. */
+export const SERVER_APP_ASSETS = ['assets/app/index.html', 'assets/app/app.js', 'assets/app/app.css']
+
 const readJson = (file: string): Record<string, any> | null => {
   try {
     return JSON.parse(readFileSync(file, 'utf8')) as Record<string, any>
@@ -76,8 +79,12 @@ export function serverProblems(dir: string, version: string): string[] {
   const out = fileDiff(
     listFiles(dir),
     (f) =>
-      SERVER_FIXED.includes(f) || f.startsWith('assets/connect/') || f.startsWith('assets/ui/') || migrations.has(f),
-    [...SERVER_FIXED, ...SERVER_UI_ASSETS],
+      SERVER_FIXED.includes(f) ||
+      f.startsWith('assets/connect/') ||
+      f.startsWith('assets/ui/') ||
+      f.startsWith('assets/app/') ||
+      migrations.has(f),
+    [...SERVER_FIXED, ...SERVER_UI_ASSETS, ...SERVER_APP_ASSETS],
   )
   const pkg = readJson(join(dir, 'package.json'))
   if (!manifest) out.push('release.json is missing or unreadable')

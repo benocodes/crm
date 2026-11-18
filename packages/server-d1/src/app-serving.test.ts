@@ -49,13 +49,13 @@ let n = 0
 /** Set by `clerkWorker`: the issuer the composed Worker was given, so the header rule knows which policy to expect. */
 let clerkIssuer: string | undefined
 const seen: { at: string; res: Response; issuer?: string }[] = []
-const send = async (
-  wk: { fetch(r: Request, ctx?: unknown): Promise<Response> },
-  path: string,
-  method = 'GET',
-) => {
+const send = async (wk: { fetch(r: Request, ctx?: unknown): Promise<Response> }, path: string, method = 'GET') => {
   const res = await wk.fetch(
-    new Request(AUTH_BASE + path, { method, headers: { 'cf-connecting-ip': `203.0.113.${(n++ % 200) + 1}` }, redirect: 'manual' }),
+    new Request(AUTH_BASE + path, {
+      method,
+      headers: { 'cf-connecting-ip': `203.0.113.${(n++ % 200) + 1}` },
+      redirect: 'manual',
+    }),
   )
   seen.push({ at: `${method} ${path} (${res.status})`, res, issuer: clerkIssuer })
   return res
@@ -84,12 +84,24 @@ afterEach(() => {
 })
 
 const betterAuthWorker = (over: Partial<D1WorkerEnv> = {}) =>
-  composeD1Worker({ DB: w.d1, CONTROL_DB: w.control, AUTH_PROVIDER: 'better-auth', AUTH_SECRET, PUBLIC_BASE_URL: AUTH_BASE, ASSETS, ...over })
+  composeD1Worker({
+    DB: w.d1,
+    CONTROL_DB: w.control,
+    AUTH_PROVIDER: 'better-auth',
+    AUTH_SECRET,
+    PUBLIC_BASE_URL: AUTH_BASE,
+    ASSETS,
+    ...over,
+  })
 const clerkWorker = (over: Partial<D1WorkerEnv> = {}) => {
   clerkIssuer = kit.issuer.issuer
-  return composeD1Worker({ DB: w.d1, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, ASSETS, ...over }, { fetch: kit.fetch })
+  return composeD1Worker(
+    { DB: w.d1, CONTROL_DB: w.control, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, ASSETS, ...over },
+    { fetch: kit.fetch },
+  )
 }
-const unsetWorker = (over: Partial<D1WorkerEnv> = {}) => composeD1Worker({ DB: w.d1, ASSETS, ...over })
+const unsetWorker = (over: Partial<D1WorkerEnv> = {}) =>
+  composeD1Worker({ DB: w.d1, CONTROL_DB: w.control, ASSETS, ...over })
 const PROVIDERS: [string, (over?: Partial<D1WorkerEnv>) => ReturnType<typeof composeD1Worker>][] = [
   ['clerk', clerkWorker],
   ['better-auth', betterAuthWorker],
@@ -148,8 +160,10 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
       expect(res.status, method).toBe(302)
       expect(res.headers.get('location'), method).toBe('/home')
     }
+    // POST / stays what it was: the Worker's own answer for a path nothing serves (404, or its gate's 503 here, with the database behind), never the redirect.
     const post = await send(wk, '/', 'POST')
-    expect(post.status).toBe(404)
+    expect(post.status).toBe((await send(wk, '/nothing-here', 'POST')).status)
+    expect(post.status).not.toBe(302)
     expect(post.headers.get('location')).toBeNull()
     expect(assetCalls).toEqual([])
   })
@@ -191,7 +205,9 @@ describe('appCsp and the headers (D5, group 2)', () => {
     const dirs = (s: string) => Object.fromEntries(s.split('; ').map((d) => [d.split(' ')[0]!, d]))
     const base = dirs(APP_CSP)
     const clerk = dirs(csp)
-    expect(clerk['script-src']).toBe(`script-src 'self' ${i} https://challenges.cloudflare.com https://*.protect.clerk.com`)
+    expect(clerk['script-src']).toBe(
+      `script-src 'self' ${i} https://challenges.cloudflare.com https://*.protect.clerk.com`,
+    )
     expect(clerk['connect-src']).toBe(`connect-src 'self' ${i} https://*.protect.clerk.com:*`)
     expect(clerk['img-src']).toBe("img-src 'self' https://img.clerk.com")
     expect(clerk['worker-src']).toBe("worker-src 'self' blob:")
@@ -205,7 +221,15 @@ describe('appCsp and the headers (D5, group 2)', () => {
 
   it('every app answer through the composed Worker carries the policy: page, HEAD, asset, 404, 405, 302 (checked after each test)', async () => {
     const wk = betterAuthWorker()
-    for (const [path, method] of [['/home', 'GET'], ['/home', 'HEAD'], ['/app/app.js', 'GET'], ['/app/', 'GET'], ['/home/x', 'GET'], ['/home', 'POST'], ['/', 'GET']] as const)
+    for (const [path, method] of [
+      ['/home', 'GET'],
+      ['/home', 'HEAD'],
+      ['/app/app.js', 'GET'],
+      ['/app/', 'GET'],
+      ['/home/x', 'GET'],
+      ['/home', 'POST'],
+      ['/', 'GET'],
+    ] as const)
       await send(wk, path, method)
     expect(seen.length).toBe(7)
   })
@@ -227,9 +251,12 @@ describe('connectCsp is gone (P4)', () => {
     const { readdirSync, readFileSync, statSync } = await import('node:fs')
     const { join } = await import('node:path')
     const dir = fileURLToPath(new URL('.', import.meta.url))
-    const walk = (d: string): string[] => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]))
+    const walk = (d: string): string[] =>
+      readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]))
     const old = ['connect', 'Csp'].join('')
-    const hits = walk(dir).filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && readFileSync(f, 'utf8').includes(old))
+    const hits = walk(dir).filter(
+      (f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && readFileSync(f, 'utf8').includes(old),
+    )
     expect(hits).toEqual([])
     expect(readFileSync(join(dir, 'connect-serving.ts'), 'utf8')).toContain('appCsp')
   })

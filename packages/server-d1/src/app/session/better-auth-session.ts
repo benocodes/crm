@@ -2,7 +2,9 @@
 // The type is `SessionSeam` ([[UI443]] D4; it was `ClerkLike`).
 import type { SessionSeam } from './types.js'
 
-export function betterAuthSession(deps: { fetch?: typeof fetch; navigate?: (url: string) => void; returnPath?: string } = {}): SessionSeam {
+export function betterAuthSession(
+  deps: { fetch?: typeof fetch; navigate?: (url: string) => void; returnPath?: string } = {},
+): SessionSeam {
   const doFetch: typeof fetch = deps.fetch ?? ((input, init) => fetch(input, init))
   // [[UI460]] P2, P3: the page path the person comes back to, from the caller (`/connect` today, `/home` for the app); a path only, never a query.
   const signIn = `/sign-in?return_to=${deps.returnPath ?? '/connect'}`
