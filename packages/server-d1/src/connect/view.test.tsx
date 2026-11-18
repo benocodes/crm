@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { cleanup, render, within } from '@testing-library/preact'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentRecord, Me, PageState } from './types.js'
+import type { AgentRecord, Me } from '../app/session/types.js'
+import type { PageState } from './types.js'
 import { buildView } from './view-model.js'
 import { ConnectView, drawView, type Handlers } from './view.js'
 

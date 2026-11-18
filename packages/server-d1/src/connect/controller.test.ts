@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest'
-import { createApi } from './api.js'
+import { createApi } from '../app/session/api.js'
 import { createPage } from './controller.js'
 import { FakeClerk } from './test/fake-clerk.js'
-import type { AgentRecord, ClerkLike, Me } from './types.js'
+import type { AgentRecord, SessionSeam, Me } from '../app/session/types.js'
 
 // [[UI30]] D4, D6, D8: the page's state machine over a fake Clerk and a fake API. No network, no Clerk instance.
 
@@ -68,7 +68,7 @@ const ok = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const err = (status: number) => ok({ error: { code: 'x', message: 'y' } }, status)
 
-const setup = (clerk: FakeClerk, vibase: ReturnType<typeof fakeVibase>, seam: ClerkLike | null = clerk) => {
+const setup = (clerk: FakeClerk, vibase: ReturnType<typeof fakeVibase>, seam: SessionSeam | null = clerk) => {
   const api = createApi({ origin: ORIGIN, getToken: () => clerk.getToken(), fetch: vibase.fetchFn })
   const states: string[] = []
   const page = createPage({ clerk: seam, api, origin: ORIGIN, onChange: (s) => states.push(s.kind) })
@@ -92,7 +92,7 @@ afterEach(() => {
   expect(sessionStorage.length).toBe(0)
   current = undefined
 })
-const run = (clerk: FakeClerk, script: Record<string, (Response | (() => Response))[]>, seam?: ClerkLike | null) => {
+const run = (clerk: FakeClerk, script: Record<string, (Response | (() => Response))[]>, seam?: SessionSeam | null) => {
   const vibase = fakeVibase(script)
   current = { clerk, vibase }
   return { vibase, ...setup(clerk, vibase, seam) }

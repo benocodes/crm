@@ -1,5 +1,6 @@
 // [[UI30]] D4: the only logic the page owns. Given the session state and the API's answers, what to show. Pure: no DOM, no Clerk, no network.
-import type { AgentRecord, AgentRowView, Me, PageState, ViewModel } from './types.js'
+import type { AgentRecord, Me } from '../app/session/types.js'
+import type { AgentRowView, PageState, ViewModel } from './types.js'
 
 const SCOPE_READ_AGENTS = 'agents:read'
 const SCOPE_WRITE_AGENTS = 'agents:write'

@@ -6,14 +6,18 @@ import { describe, expect, it } from 'vitest'
 // this stops a markup sink or a storage write from being added where no test looks.
 
 const DIR = fileURLToPath(new URL('.', import.meta.url))
-const sources = readdirSync(DIR)
-  .filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f))
-  .map((f) => ({
-    f,
-    text: readFileSync(DIR + f, 'utf8')
-      .replace(/\/\/.*$/gm, '')
-      .replace(/\/\*[\s\S]*?\*\//g, ''),
-  }))
+// [[UI460]] D4: the session seam moved to `src/app/session/`; the guard reads it too, so the sinks stay out of the one copy `/connect` and the app share.
+const SESSION = fileURLToPath(new URL('../app/session/', import.meta.url))
+const read = (dir: string, prefix: string) =>
+  readdirSync(dir)
+    .filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f))
+    .map((f) => ({
+      f: prefix + f,
+      text: readFileSync(dir + f, 'utf8')
+        .replace(/\/\/.*$/gm, '')
+        .replace(/\/\*[\s\S]*?\*\//g, ''),
+    }))
+const sources = [...read(DIR, ''), ...read(SESSION, 'session/')]
 
 describe('page source guard', () => {
   it('finds the page modules', () => {
@@ -22,12 +26,23 @@ describe('page source guard', () => {
         'view-model.ts',
         'controller.ts',
         'view.tsx',
-        'api.ts',
         'main.tsx',
-        'better-auth-session.ts',
-        'seam.ts',
+        'session/api.ts',
+        'session/better-auth-session.ts',
+        'session/clerk-window.ts',
+        'session/seam.ts',
       ]),
     )
+  })
+  // [[UI460]] D4 (group 3): one copy of the seam, the session, the Clerk window and the API client, under src/app/session/.
+  it('src/connect holds no seam, session, Clerk-window or API-client implementation of its own', () => {
+    const own = read(DIR, '').map((s) => s.f)
+    for (const gone of ['seam.ts', 'api.ts', 'better-auth-session.ts', 'clerk-window.ts']) expect(own).not.toContain(gone)
+    for (const s of read(DIR, '')) {
+      expect(s.text, s.f).not.toContain('window.Clerk')
+      expect(s.text, s.f).not.toMatch(/\/auth\/(get-session|token|sign-out)/)
+      expect(s.text, s.f).not.toContain('/meta/v1/')
+    }
   })
   it.each([
     'innerHTML',

@@ -1,8 +1,8 @@
 // [[UI30]] D1-D13, [[UI256]]: the connect page's entry, and a page file; `view.tsx` holds the one `preact` import (the rest import `react`, aliased by the build). Reads the instance's discovery document, builds the Clerk seam and the API client, and draws.
-import { createApi } from './api.js'
+import { createApi } from '../app/session/api.js'
 import { createPage } from './controller.js'
-import { selectSeam } from './seam.js'
-import type { Discovery } from './types.js'
+import { selectSeam } from '../app/session/seam.js'
+import type { Discovery } from '../app/session/types.js'
 import { buildView } from './view-model.js'
 import { drawView, type Handlers } from './view.js'
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildView } from './view-model.js'
-import type { AgentRecord, Me, PageState } from './types.js'
+import type { AgentRecord, Me } from '../app/session/types.js'
+import type { PageState } from './types.js'
 
 // [[UI30]] D4, D8, D11, D12, D13: given the session and the API answers, what the page shows.
 

@@ -1,7 +1,5 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
-import { createPage } from './controller.js'
-import { createApi } from './api.js'
 import { selectSeam } from './seam.js'
 import type { Discovery } from './types.js'
 
@@ -50,15 +48,10 @@ describe('selectSeam', () => {
       return
     }
     expect(seam).not.toBeNull()
-    // The page over this seam: a signed-out start. On better-auth the only traffic is the same-origin session read.
-    const page = createPage({
-      clerk: seam,
-      api: createApi({ origin: 'https://w.test', getToken: async () => null, fetch: async () => new Response('{}') }),
-      origin: 'https://w.test',
-    })
+    // A signed-out start. On better-auth the only traffic is the same-origin session read.
     if (expected === 'better-auth') {
-      await page.start()
-      expect(page.state().kind).toBe('signed-out')
+      await seam!.load()
+      expect(seam!.isSignedIn()).toBe(false)
       expect(scripts).toEqual([])
       expect(requests).toEqual(['GET /auth/get-session'])
     }
