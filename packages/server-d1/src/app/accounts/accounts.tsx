@@ -149,7 +149,7 @@ function AccountsList({
     try {
       outcome = syncOutcome(await api.syncConnection(id))
     } catch {
-      outcome = { kind: 'note', variant: 'error', text: 'Could not request a sync. Try again.' }
+      outcome = { kind: 'note', text: 'Could not request a sync. Try again.' }
     } finally {
       syncing.current.delete(id)
     }

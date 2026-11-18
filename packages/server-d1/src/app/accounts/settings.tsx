@@ -55,9 +55,9 @@ const CONTACT_OPTIONS: { value: ContactCreation; label: string }[] = [
 const nameOfLabel = (id: string) => SYSTEM_LABEL_OPTIONS.find((o) => o.id === id)?.name ?? id
 
 const BackLink = () => (
-  <a href="/accounts" className="text-sm underline underline-offset-4">
-    Back to Connected accounts
-  </a>
+  <ui.Button asChild variant="link">
+    <a href="/accounts">Back to Connected accounts</a>
+  </ui.Button>
 )
 
 export function ConnectionSettings({

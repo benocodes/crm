@@ -92,17 +92,17 @@ function rowActions(status: string, own: boolean, canWrite: boolean): AccountAct
   return actions
 }
 
-export type RowNote = { kind: 'note'; variant: 'success' | 'error'; text: string } | { kind: 'reload' }
+export type RowNote = { kind: 'note'; text: string } | { kind: 'reload' }
 export const SYNC_REQUESTED = 'Sync requested. New mail appears shortly.'
 export const SYNC_NOT_CONFIGURED =
   'This instance cannot sync mailboxes. Its operator sets up Gmail sync (see the setup guide).'
 /** [[UI468]] D9, P5: what a `connections.sync` answer means for its row. `409` means the status changed: read the list again. */
 export function syncOutcome(r: { status: number; code?: string; message?: string }): RowNote {
-  if (r.status === 202) return { kind: 'note', variant: 'success', text: SYNC_REQUESTED }
+  if (r.status === 202) return { kind: 'note', text: SYNC_REQUESTED }
   if (r.status === 409 || r.status === 404) return { kind: 'reload' }
-  if (r.status === 501) return { kind: 'note', variant: 'error', text: SYNC_NOT_CONFIGURED }
-  if (r.status === 503 && r.message) return { kind: 'note', variant: 'error', text: r.message }
-  return { kind: 'note', variant: 'error', text: `Could not request a sync (${r.code ?? r.status}). Try again.` }
+  if (r.status === 501) return { kind: 'note', text: SYNC_NOT_CONFIGURED }
+  if (r.status === 503 && r.message) return { kind: 'note', text: r.message }
+  return { kind: 'note', text: `Could not request a sync (${r.code ?? r.status}). Try again.` }
 }
 
 /** [[UI468]] D8, P6: a `404` on delete means it is already gone, which is what was asked for. */
