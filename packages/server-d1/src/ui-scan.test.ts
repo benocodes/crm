@@ -8,7 +8,12 @@ import { checkReactSources } from '../../ui/src/test/react-scan'
 
 const UI_TREE = fileURLToPath(new URL('./ui', import.meta.url))
 /** This tree's allow-list entries beyond the scan's own: the component set (never the root `@vibase/ui`, the Preact layer) the dependency-free scope catalogue leaf ([[UI247]] D5), and `vitest` (only the test-support `fake-fetch.ts` imports it). */
-const PAGE_ALLOW = ['@vibase/ui/components', '@vibase/api/scope-descriptions', 'vitest'] as const
+const PAGE_ALLOW = [
+  '@vibase/ui/components',
+  '@vibase/api/scope-descriptions',
+  '@vibase/api/scope-areas',
+  'vitest',
+] as const
 
 const sandbox = (files: Record<string, string>) => {
   const root = mkdtempSync(join(tmpdir(), 'ui-scan-'))

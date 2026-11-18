@@ -747,6 +747,12 @@ only an empty `div` (the [[UI256]] E2E found the stray text; `packages/server-d1
   auth pages disable transitions on their wrapper (`[&_*]:transition-none!`, pinned in `scripts/build-ui.test.ts`); a
   page that keeps transitions waits for them to finish before axe or a screenshot. It is not a missing dark token:
   check the computed colour before and after a pause before editing the theme.
+- **Axe sees only what is open.** A closed `<details>` keeps its region out of the accessibility tree, so axe on a
+  page's default state passed while two open `ScopeList` disclosures, both named "Requested permissions", failed
+  `landmark-unique` ([[UI455]] review 1). Run one axe check with every disclosure and collapsible open, and give a
+  component that renders a named region a `label` prop when a page may render it more than once.
+- **Assert what a forced control sends, not only its checked state.** [[UI455]]'s "Write forces Propose" mutation
+  stayed green on a page suite that checked `aria-checked` until a test asserted the Allow body.
 - **Radix's Switch (and Checkbox) inside a `<form>` render a hidden bubble `<input aria-hidden>`** with an inline
   `style` set through CSSOM: `PAGE_CSP` and axe pass, but a keyboard check that counts focusable `input`s counts it
   though Tab skips it. Exclude `[aria-hidden="true"]` from Tab-stop selectors (`packages/ui/e2e/gallery-react.e2e.ts`,

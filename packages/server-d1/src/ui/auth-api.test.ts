@@ -168,7 +168,7 @@ describe('the OAuth and device answers (UI247 D6)', () => {
     expect(isFollowable(url)).toBe(expected)
   })
 
-  it('submitConsent posts { accept, oauth_query } and no scope', async () => {
+  it('submitConsent posts { accept, oauth_query } and, when given, scope ([[UI455]] D6)', async () => {
     const f = fakeFetch({
       'POST /auth/oauth2/consent': { status: 200, json: { redirect: true, url: 'http://127.0.0.1:1/cb?code=c' } },
     })
@@ -177,6 +177,8 @@ describe('the OAuth and device answers (UI247 D6)', () => {
       data: { redirect: 'http://127.0.0.1:1/cb?code=c' },
     })
     expect(f.calls[0]!.body).toEqual({ accept: false, oauth_query: 'client_id=c&sig=s' })
+    await submitConsent(true, 'client_id=c&sig=s', 'openid contacts:read')
+    expect(f.calls[1]!.body).toEqual({ accept: true, oauth_query: 'client_id=c&sig=s', scope: 'openid contacts:read' })
   })
 
   it('claimDeviceCode: GET /auth/device?user_code= reduced to { status, clientId, scope }; no client_id stays absent', async () => {

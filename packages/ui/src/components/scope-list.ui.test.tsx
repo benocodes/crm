@@ -3,6 +3,14 @@ import { render, screen } from '#render'
 import { ScopeList } from './scope-list'
 
 describe('ScopeList', () => {
+  it('the region is named "Requested permissions" by default and by the label prop when given', () => {
+    const { rerender } = render(<ScopeList scopes={[{ name: 'a:read', description: 'd' }]} />)
+    expect(screen.getByRole('region', { name: 'Requested permissions' })).toBeTruthy()
+    rerender(<ScopeList label="CRM records permissions" scopes={[{ name: 'a:read', description: 'd' }]} />)
+    expect(screen.getByRole('region', { name: 'CRM records permissions' })).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Requested permissions' })).toBeNull()
+  })
+
   it('renders each scope name with its description', () => {
     render(
       <ScopeList
