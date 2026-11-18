@@ -343,6 +343,12 @@ no migration, no E2E, dormant. Cost ~222k / 60 calls (+523 code / +760 test line
 round of four evidence findings; every coder decision accepted. The budget holds. When a dormant cycle adds a file beside an
 earlier dormant cycle's no-caller test, say so in Watch out: CHN424's substring guard failed the gate on a comment
 (`writing-tests`, no-caller tests).
+**CHN433** (`knowledge/specs/016-CHN433-forms-smoked1/RETRO.md`): a remote deploy plus a remote E2E, 5 groups (0 matrix), no
+code change, no PR code. The coder's part was cheap; the E2E cost two runs because the sign-in hand-off (a 5-minute reset
+link, a password the classifier would not let the agent read) was not planned, and one step failed on a charter claim
+copied from a vendor's docs (the always-pass Turnstile secret "accepts only the dummy token"; it passes any token). When a
+charter states how a third-party test fixture behaves, probe it once at plan time (one `curl`) or name it in Watch out as a
+premise; and an E2E step that needs a human-in-the-loop secret names who supplies it and how, before the run.
 
 ### Step 3: Resolve identities
 
