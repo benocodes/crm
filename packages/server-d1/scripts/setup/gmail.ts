@@ -4,6 +4,7 @@
 import { parseEnv } from 'node:util'
 import { isValidPushVar, parseGmailConfig } from '@vibase/api'
 import { RemoteRefusal } from '../remote.js'
+import { googleClientIdProblem, looksLikeGoogleClientId } from './better-auth.js'
 import type { EnvFileProbe, SetupOptions } from './types.js'
 
 /** Put on the Worker as secrets. `CREDENTIALS_KEY` is never replaced once present ([[CHN5]] D4 owns rotation). */
@@ -93,6 +94,13 @@ export function loadGmail(opts: SetupOptions, probe: EnvFileProbe): Gmail | null
       `${f} has part of the Gmail group but is missing ${missing.join(', ')}: the four core values go together, all or none ([[CHN5]] D58)`,
     )
   }
+  // [[GH442]] item 3: the same pair check as the Google sign-in client, for the Gmail client.
+  const idProblem = googleClientIdProblem('GOOGLE_CLIENT_ID', value('GOOGLE_CLIENT_ID')!, f)
+  if (idProblem) throw new RemoteRefusal(idProblem)
+  if (looksLikeGoogleClientId(value('GOOGLE_CLIENT_SECRET')!))
+    throw new RemoteRefusal(
+      `GOOGLE_CLIENT_SECRET in ${f} looks like a client ID: are GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET swapped?`,
+    )
   const secrets: Record<string, string> = {}
   const vars: Record<string, string> = {}
   for (const name of [...GMAIL_SECRET_NAMES, ...GMAIL_VAR_NAMES]) {

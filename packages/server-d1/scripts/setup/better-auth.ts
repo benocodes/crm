@@ -47,6 +47,15 @@ export function chooseProvider(flag: string | undefined, record: RecordedAuth | 
 /** The Worker secrets of the optional Google sign-in client ([[CORE294]] D7): both or neither. */
 export const GOOGLE_SECRET_NAMES = ['AUTH_GOOGLE_CLIENT_ID', 'AUTH_GOOGLE_CLIENT_SECRET'] as const
 
+/** [[GH442]] item 3: every Google OAuth client ID ends in this. */
+export const GOOGLE_CLIENT_ID_SUFFIX = '.apps.googleusercontent.com'
+export const looksLikeGoogleClientId = (v: string): boolean => v.trim().endsWith(GOOGLE_CLIENT_ID_SUFFIX)
+/** The refusal text for a client ID that is not one, or `null`. Names the variable and the file, never the value. */
+export const googleClientIdProblem = (name: string, v: string, file: string): string | null =>
+  looksLikeGoogleClientId(v)
+    ? null
+    : `${name} in ${file} does not end in ${GOOGLE_CLIENT_ID_SUFFIX}: it is not a Google OAuth client ID (are the client ID and the client secret swapped?)`
+
 export interface BetterAuthInputs {
   /** The instance's own file as shown to the owner (`.env.<env>`, or the secrets file's path). */
   file: string
@@ -82,6 +91,15 @@ export function loadBetterAuth(
     throw new RemoteRefusal(
       `${file} has ${id === undefined ? 'AUTH_GOOGLE_CLIENT_SECRET' : 'AUTH_GOOGLE_CLIENT_ID'} but is missing ${id === undefined ? 'AUTH_GOOGLE_CLIENT_ID' : 'AUTH_GOOGLE_CLIENT_SECRET'}: the Google pair goes together, both or neither (CORE294 D7)`,
     )
+  }
+  // [[GH442]] item 3: a swapped pair deploys and then fails at Google with `invalid_client`; refuse it before any step, naming the variable, never the value.
+  if (id !== undefined && key !== undefined) {
+    const idProblem = googleClientIdProblem('AUTH_GOOGLE_CLIENT_ID', id, file)
+    if (idProblem) throw new RemoteRefusal(idProblem)
+    if (looksLikeGoogleClientId(key))
+      throw new RemoteRefusal(
+        `AUTH_GOOGLE_CLIENT_SECRET in ${file} looks like a client ID (it ends in ${GOOGLE_CLIENT_ID_SUFFIX}): are AUTH_GOOGLE_CLIENT_ID and AUTH_GOOGLE_CLIENT_SECRET swapped?`,
+      )
   }
   if (id !== undefined && key !== undefined) out.google = { AUTH_GOOGLE_CLIENT_ID: id, AUTH_GOOGLE_CLIENT_SECRET: key }
   return out

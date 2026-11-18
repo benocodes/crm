@@ -9,6 +9,7 @@ import { moveLines, registerPending, resolveHost } from './host.js'
 import { loadClerkKeys } from './clerk-keys.js'
 import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, loadGmail } from './gmail.js'
 import { STEPS, type Ctx } from './steps.js'
+import { claimBlock } from './verify-better-auth.js'
 import { CLERK_ONLY_STEPS, STEP_NAMES, type SetupDeps, type SetupOptions, type StepResult } from './types.js'
 
 export interface SetupOutcome {
@@ -141,6 +142,14 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
           ? 'setup: dry run complete, nothing was changed'
           : 'setup: done',
   )
+  // [[GH442]] item 5: the owner invitation closes the output, whatever the run's outcome (the invitation is valid), and goes to the console only.
+  if (ctx.ownerInvitation && !opts.dryRun)
+    for (const l of claimBlock(
+      ctx.ownerInvitation,
+      `https://${opts.apiHost}`,
+      `CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env ${opts.env} --owner-reset --email ${ctx.ownerInvitation.email}`,
+    ))
+      deps.log(l)
   return { exitCode: failed ? 1 : 0, results, stoppedAfterConfigWrite: ctx.stop === true }
 }
 

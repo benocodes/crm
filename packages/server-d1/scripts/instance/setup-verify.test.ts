@@ -17,7 +17,7 @@ const ARGS = ['--env', 'demo', '--api-host', API_HOST, '--owner-email', OWNER]
 const VIBASE_URL = `${BASE}/.well-known/vibase`
 const META_URL = `${BASE}/.well-known/oauth-authorization-server/auth`
 const BA_VARS = { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE, CORS_ALLOWED_ORIGINS: '' }
-const CLAIM = 'open the owner invitation link printed above by the bootstrap step; it is shown once'
+const CLAIM = 'the owner invitation link is printed at the very end of this output; it is shown once'
 
 let pair: WorkerPair
 beforeAll(async () => {
@@ -197,6 +197,27 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
   })
 })
 
+describe('GH442 item 1: progress and the DNS hint on vibase-server setup', () => {
+  it('a never-answering discovery prints one line per wait and ends with the DNS hint and the status command', async () => {
+    const s = deployed({ ba: { vibase: ['throw'] } })
+    await run(s, [...ARGS, '--only', 'verify'])
+    const waits = s.w.out.filter((l) => l.includes('waiting for the instance to come up'))
+    expect(waits.length).toBeGreaterThan(5)
+    const detail = s.w.out.find((l) => /^fail\s+verify\b/.test(l))!
+    expect(detail).toContain('stale local DNS cache')
+    expect(detail).toContain(`${BASE}/health`)
+    expect(detail).toContain('vibase-server status --env demo')
+  })
+
+  it('a health that never answers prints progress and the hint', async () => {
+    const s = deployed()
+    s.sim.deployed = null
+    await run(s, [...ARGS, '--only', 'verify'])
+    expect(s.w.out.filter((l) => l.includes('waiting for the instance to come up')).length).toBeGreaterThan(5)
+    expect(s.w.out.find((l) => /^fail\s+verify\b/.test(l))).toContain('stale local DNS cache')
+  })
+})
+
 describe('2. the next steps on better-auth (D8)', () => {
   it('the run whose bootstrap issued a link: API, the claim line, login, MCP, the no-email statement, then the operator hint, in that order', async () => {
     const s = world()
@@ -212,13 +233,27 @@ describe('2. the next steps on better-auth (D8)', () => {
     expect(l[5]).toMatch(/^no operator key was created in this run/)
   })
 
-  it("the invitation URL and token appear in the bootstrap step's lines only, never in verify's", async () => {
+  it('GH442 item 5: the invitation URL appears once, in the closing Claim block after "setup: done", never in a step row', async () => {
     const s = world()
     await run(s)
-    const token = /\/invite#token=([A-Za-z0-9_-]+)/.exec(s.w.out.join('\n'))?.[1]
-    expect(token).toBeTruthy()
-    expect(lines(s).join('\n')).not.toContain(token!)
+    const out = s.w.out
+    expect(out.filter((l) => l.includes('/invite#token='))).toHaveLength(1)
+    const done = out.indexOf('setup: done')
+    const claim = out.indexOf('=== Claim your instance ===')
+    expect(done).toBeGreaterThan(-1)
+    expect(claim).toBeGreaterThan(done)
+    expect(out.findIndex((l) => l.includes('/invite#token='))).toBeGreaterThan(claim)
+    expect(out.at(-1)).toMatch(/owner-reset --env demo/)
     expect(lines(s).join('\n')).not.toContain('/invite')
+  })
+
+  it('GH442 item 5: a failed verify still prints the Claim block, below the failure', async () => {
+    const s = world({ sim: { ba: { vibase: [{ status: 404 }] } } })
+    await run(s)
+    expect(row(s, 'verify').status).toBe('fail')
+    expect(s.w.err.length).toBeGreaterThan(0)
+    expect(s.w.out.filter((l) => l.includes('/invite#token='))).toHaveLength(1)
+    expect(s.w.out.at(-1)).toMatch(/owner-reset/)
   })
 
   it('a re-run (owner invitation pending): no claim line', async () => {

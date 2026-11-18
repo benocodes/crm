@@ -41,6 +41,8 @@ interface Sim {
   trackerAfterApply?: string
   /** Deploy succeeds but the version never changes. */
   deployNoop?: boolean
+  /** After the deploy, `/health` does not answer at all (a host the machine cannot resolve yet). */
+  dark?: boolean
   /** Replace a keyless check's answer: path -> [status, body] for requests without a key. */
   smoke?: Record<string, [number, unknown]>
   applyRan: boolean
@@ -72,6 +74,7 @@ function worldFor(s: Sim, o: WorldOptions & { runner?: WorldOptions['runner'] } 
     fetch: (url) => {
       const path = new URL(url).pathname
       if (path === '/health') {
+        if (s.dark && s.deployed) throw new Error('getaddrinfo ENOTFOUND')
         if (s.deployed) polls++
         const shown = s.deployed && polls > s.lag ? s.version : s.deployed && s.lag > 0 ? '0.0.9' : s.version
         return json(200, {
@@ -262,6 +265,23 @@ describe('D15 failure stops (exit 3, the step named, no later write)', () => {
     expect(w.clock.t).toBeGreaterThanOrEqual(300_000)
     expect(w.clock.t).toBeLessThan(320_000)
     expect(w.fetchCalls.some((c) => new URL(c.url).pathname === '/openapi.json')).toBe(false)
+  })
+  it('GH442 item 1: the verify wait prints one line per poll', async () => {
+    const { w } = await run(sim({ lag: 3 }))
+    expect(w.out.filter((l) => l.includes('waiting for the instance to come up'))).toHaveLength(3)
+  })
+  it('GH442 item 1: a /health that never answers fails with the DNS hint and the status command', async () => {
+    const { w, code } = await run(sim({ dark: true }))
+    failed(w, code, /verify/)
+    const err = w.err.join('\n')
+    expect(err).toContain('stale local DNS cache')
+    expect(err).toContain('/health in a browser')
+    expect(err).toMatch(/vibase-server status --env /)
+  })
+  it('GH442 item 1: a /health that answers with the wrong version gets no DNS hint', async () => {
+    const { w, code } = await run(sim({ deployNoop: true }))
+    failed(w, code, /verify/)
+    expect(w.err.join('\n')).not.toContain('DNS')
   })
   it('one smoke check fails: exit 3 naming the check', async () => {
     const { w, code } = await run(sim({ smoke: { '/openapi.json': [200, {}] } }))
