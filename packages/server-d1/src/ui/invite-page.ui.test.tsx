@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/preact'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { fakeFetch } from './fake-fetch.js'
 import { InvitePage } from './invite-page.js'
@@ -244,8 +244,11 @@ describe('the layout (#376)', () => {
     const follows = (a: Node, b: Node) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
     const order = [h1, google, divider, sub, name, submit, link]
     for (let i = 0; i < order.length - 1; i++) expect(follows(order[i]!, order[i + 1]!)).toBe(true)
-    expect(link.className).toContain('vb-link')
-    expect(link.className).not.toContain('vb-button')
+    // Layout intent (was `vb-link`, not `vb-button`): text styled as a link, not a filled button, and never the form's submit.
+    expect(link.getAttribute('type')).toBe('button')
+    expect(link.className).toContain('underline-offset-4')
+    expect(link.className).not.toContain('bg-primary')
+    expect(link.className).not.toContain('bg-secondary')
   })
 
   it('without Google in discovery there is no OR divider', async () => {
@@ -263,9 +266,10 @@ describe('the layout (#376)', () => {
   it('the submit button sits in the card body (a stretched column), not the shrink-to-fit actions row', () => {
     render(<InvitePage />)
     const submit = screen.getByRole('button', { name: /^create account$/i })
-    expect(submit.closest('.vb-card__actions')).toBeNull()
-    expect(submit.closest('.vb-card__body')).toBeTruthy()
-    expect(submit.className).toContain('vb-button--block')
+    // Layout intent (was `.vb-card__actions` / `.vb-card__body` / `vb-button--block`): inside the content slot, not the footer slot, full width.
+    expect(submit.closest('[data-slot="card-footer"]')).toBeNull()
+    expect(submit.closest('[data-slot="card-content"]')).toBeTruthy()
+    expect(submit.className.split(' ')).toContain('w-full')
   })
 })
 

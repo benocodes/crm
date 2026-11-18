@@ -90,6 +90,18 @@ describe('React source scan', () => {
     expect(checkReactSources([root])).toEqual([])
   })
 
+  it('a tree may extend the allow-list for itself only (UI446 D2): exact or a subpath, never a prefix lookalike', () => {
+    const root = sandbox({
+      'a.tsx': "import { A } from '@vibase/ui/components'\nimport { B } from '@vibase/ui/components/ui'",
+    })
+    expect(checkReactSources([root], { allow: ['@vibase/ui/components'] })).toEqual([])
+    expect(checkReactSources([root]).map((x) => x.match)).toEqual(['@vibase/ui/components', '@vibase/ui/components/ui'])
+    const lookalike = sandbox({ 'a.tsx': "import { A } from '@vibase/ui/components-extra'" })
+    expect(checkReactSources([lookalike], { allow: ['@vibase/ui/components'] }).map((x) => x.match)).toEqual([
+      '@vibase/ui/components-extra',
+    ])
+  })
+
   it('exempts test files and comments', () => {
     const root = sandbox({
       'a.test.tsx': "import { render } from 'preact'",

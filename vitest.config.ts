@@ -3,7 +3,7 @@
 // Turning it on moves every `*.postgres.test.ts` file into the default run and changes nothing else.
 // `pnpm test:postgres` runs the postgres project alone regardless (vitest.postgres.config.ts).
 import { defineConfig } from 'vitest/config'
-import { d1Project, engineNeutralProject, postgresProject } from './vitest.projects.ts'
+import { d1Project, engineNeutralProject, pageUiProject, postgresProject } from './vitest.projects.ts'
 
 const RUN_POSTGRES_PROJECT = false
 
@@ -12,6 +12,6 @@ export default defineConfig({
     // One worker by default: the projects share the machine (Miniflare per file) and, with the postgres project on, one database.
     // `@vibase/api`'s `test` script raises it (OPS223 D3/D4); every other package stays serial.
     maxWorkers: 1,
-    projects: [engineNeutralProject, d1Project, ...(RUN_POSTGRES_PROJECT ? [postgresProject] : [])],
+    projects: [engineNeutralProject, d1Project, pageUiProject, ...(RUN_POSTGRES_PROJECT ? [postgresProject] : [])],
   },
 })

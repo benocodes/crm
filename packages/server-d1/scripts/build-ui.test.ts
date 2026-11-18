@@ -2,11 +2,15 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { gzipSync } from 'node:zlib'
 import { build } from 'esbuild'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildUi } from './build-ui.js'
 
-// [[UI246]] D2: one Preact bundle for the auth pages under /ui/, no React in it; the Worker bundle holds none of it.
+// [[UI446]] D1, D4, D7 (on [[UI246]] D2): one React bundle for the auth pages under /ui/, built from `@vibase/ui/components` with Tailwind's stylesheet, no Preact in it; the Worker bundle holds none of it.
+/** [[UI445]] D10's limits, kept by [[UI446]] D7: gzipped bytes. */
+export const JS_BUDGET = 100 * 1024
+export const CSS_BUDGET = 20 * 1024
 const WORKER = fileURLToPath(new URL('../src/worker.ts', import.meta.url))
 let out: string
 let metafile: { inputs: Record<string, unknown> }
@@ -41,18 +45,35 @@ describe('buildUi (the pages bundle)', () => {
     expect(html).not.toMatch(/<style|\sstyle\s*=|\son[a-z]+\s*=/i)
   })
 
-  it("the stylesheet is @vibase/ui's ui.css, byte for byte", () => {
-    expect(readFileSync(join(out, 'ui/ui.css'), 'utf8')).toBe(
-      readFileSync(fileURLToPath(new URL('../../ui/src/ui.css', import.meta.url)), 'utf8'),
-    )
+  it("the stylesheet is the Tailwind build, not the Preact layer's ui.css, and holds a rule for a class only the page code uses", () => {
+    const css = readFileSync(join(out, 'ui/ui.css'), 'utf8')
+    expect(css).not.toBe(readFileSync(fileURLToPath(new URL('../../ui/src/ui.css', import.meta.url)), 'utf8'))
+    expect(css).not.toContain('--vb-')
+    // `max-w-md` is on the pages' mount wrapper (main.tsx) and nowhere in packages/ui/src/components, so only the page source scan can have produced it.
+    const components = walk(fileURLToPath(new URL('../../ui/src/components', import.meta.url)))
+      .filter((f) => /\.tsx?$/.test(f))
+      .map((f) => readFileSync(f, 'utf8'))
+    expect(components.some((t) => t.includes('max-w-md'))).toBe(false)
+    expect(css).toMatch(/\.max-w-md\{/)
   })
 
-  it('the metafile holds preact and no react or react-dom package', () => {
-    const pkgs = new Set(Object.keys(metafile.inputs).map(packageOf))
-    expect(pkgs.has('preact')).toBe(true)
-    expect(pkgs.has('react')).toBe(false)
-    expect(pkgs.has('react-dom')).toBe(false)
-    expect(Object.keys(metafile.inputs).some((i) => /(^|\/)ui\/src\//.test(i))).toBe(true)
+  it('the metafile holds react, react-dom and the component set, and no preact and no Preact-layer module', () => {
+    const inputs = Object.keys(metafile.inputs)
+    const pkgs = new Set(inputs.map(packageOf))
+    expect(pkgs.has('react')).toBe(true)
+    expect(pkgs.has('react-dom')).toBe(true)
+    expect(inputs.some((i) => /(^|\/)ui\/src\/components\//.test(i))).toBe(true)
+    expect(inputs.filter((i) => packageOf(i) === 'preact' || /preact/.test(i))).toEqual([])
+    // The Preact layer is `packages/ui/src/*` (the root `@vibase/ui` entry and its components); `src/components/**` and `src/lib/**` are the React layer.
+    expect(inputs.filter((i) => /(^|\/)ui\/src\/[^/]+$/.test(i))).toEqual([])
+  })
+
+  it('the pages stay within the budget: 100 KB gzipped JS, 20 KB gzipped CSS', () => {
+    const js = gzipSync(readFileSync(join(out, 'ui/app.js'))).length
+    const css = gzipSync(readFileSync(join(out, 'ui/ui.css'))).length
+    console.log(`auth pages bundle: ${js} B gz JS, ${css} B gz CSS`)
+    expect(js).toBeLessThanOrEqual(JS_BUDGET)
+    expect(css).toBeLessThanOrEqual(CSS_BUDGET)
   })
 
   // [[UI247]] D5: the scope catalogue is embedded at build time from its dependency-free leaf; the bundle never holds `@vibase/api`'s index or any other of its modules.

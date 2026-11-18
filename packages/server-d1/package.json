@@ -45,7 +45,9 @@
     "@vibase/auth": "workspace:*",
     "@vibase/storage": "workspace:*",
     "@vibase/storage-d1": "workspace:*",
-    "kysely": "0.29.6"
+    "kysely": "0.29.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
@@ -54,9 +56,11 @@
     "@playwright/test": "1.64.1",
     "@testing-library/dom": "10.4.2",
     "@testing-library/preact": "3.2.6",
+    "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.10",
     "@types/node": "^22",
     "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "@vibase/ui": "workspace:*",
     "better-auth": "1.7.22",
     "esbuild": "0.28.2",
