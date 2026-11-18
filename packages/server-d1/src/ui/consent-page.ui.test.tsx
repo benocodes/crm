@@ -66,9 +66,11 @@ describe('signed in', () => {
     expect(await screen.findByText('Claude Desktop')).toBeTruthy()
     expect(screen.getByText(MESSAGES.consentUnverified)).toBeTruthy()
     expect(screen.getByText(consentReturnsTo('client.test'))).toBeTruthy()
+    // [[UI455]]: the scopes sit inside closed disclosures, as text.
     expect(screen.getByText('contacts:read')).toBeTruthy()
     expect(screen.getByText(SCOPE_DESCRIPTIONS['contacts:read']!)).toBeTruthy()
     expect(screen.getByText('openid')).toBeTruthy()
+    expect(document.querySelectorAll('details[open]').length).toBe(0)
   })
 
   it('the redirect host includes a port', async () => {
@@ -120,15 +122,14 @@ describe('signed in', () => {
 })
 
 describe('Allow and Deny', () => {
-  it('oauth_query is location.search without "?", byte for byte, and no scope is sent', async () => {
+  it('oauth_query is location.search without "?", byte for byte, and scope is always sent ([[UI455]] D6)', async () => {
     const f = fakeFetch(routes())
     render(<ConsentPage navigate={vi.fn()} />)
     await allow()
     await waitFor(() => expect(f.calls.some((c) => c.path === '/auth/oauth2/consent')).toBe(true))
     const body = f.calls.find((c) => c.path === '/auth/oauth2/consent')!.body as Record<string, unknown>
-    expect(body).toEqual({ accept: true, oauth_query: location.search.slice(1) })
+    expect(body).toEqual({ accept: true, oauth_query: location.search.slice(1), scope: 'openid contacts:read' })
     expect(body.oauth_query).toBe(QUERY)
-    expect('scope' in body).toBe(false)
   })
 
   it('Deny sends accept: false with the same query and follows the answered redirect', async () => {
@@ -204,5 +205,197 @@ describe('Allow and Deny', () => {
     render(<ConsentPage navigate={go} />)
     await allow()
     await waitFor(() => expect(go).toHaveBeenCalledWith(`/sign-in?${QUERY}`))
+  })
+})
+
+// [[UI455]] groups 2 to 4: the switches, what Allow and Deny send, and the rendering.
+const DEFAULT_QUERY = `client_id=app-1&sig=s&redirect_uri=https%3A%2F%2Fclient.test%2Fcb&scope=${encodeURIComponent(
+  'openid profile email offline_access contacts:read contacts:request_approval contacts:write companies:read interactions:read messages:read messages:write events:read webhooks:read webhooks:write',
+)}`
+const consentBody = (f: ReturnType<typeof fakeFetch>) =>
+  f.calls.find((c) => c.path === '/auth/oauth2/consent')!.body as Record<string, unknown>
+const sw = (area: string, name: string | RegExp) =>
+  screen.findByRole('switch', { name: typeof name === 'string' ? `${area} ${name}` : new RegExp(`^${area} ${name.source}`) })
+const WRITE_CRM = ['CRM records', 'Write'] as const
+const PROPOSE_CRM = ['CRM records', 'Propose changes for approval'] as const
+
+describe('the switches (group 2)', () => {
+  beforeEach(() => at(DEFAULT_QUERY))
+
+  it('shows the sign-in line once and the four areas, defaults read and propose on, write off, no Administration', async () => {
+    fakeFetch(routes())
+    render(<ConsentPage navigate={vi.fn()} />)
+    await sw('CRM records', 'Read')
+    expect(screen.getAllByRole('group').map((g) => g.querySelector('legend')?.textContent)).toEqual([
+      'CRM records',
+      'Messages',
+      'Activity and approvals',
+      'Integrations',
+    ])
+    expect(screen.queryByText('Administration')).toBeNull()
+    expect((await sw(...WRITE_CRM)).getAttribute('aria-checked')).toBe('false')
+    expect((await sw(...PROPOSE_CRM)).getAttribute('aria-checked')).toBe('true')
+    expect((await sw('CRM records', 'Read')).getAttribute('aria-checked')).toBe('true')
+    expect(screen.queryAllByRole('switch').length).toBe(3 + 3 + 1 + 2)
+  })
+
+  it('Write on forces Propose on and disabled with the note, and the body holds request_approval and write; Read is unaffected', async () => {
+    const f = fakeFetch(routes())
+    render(<ConsentPage navigate={vi.fn()} />)
+    const u = userEvent.setup()
+    await u.click(await sw(...WRITE_CRM))
+    const propose = await sw(...PROPOSE_CRM)
+    expect(propose.getAttribute('aria-checked')).toBe('true')
+    expect((propose as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText('Writing includes proposing changes for approval.')).toBeTruthy()
+    expect((await sw('CRM records', 'Read')).getAttribute('aria-checked')).toBe('true')
+    await allow()
+    await waitFor(() => expect(consentBody(f)).toBeTruthy())
+    const scope = String(consentBody(f).scope).split(' ')
+    expect(scope).toEqual(expect.arrayContaining(['contacts:request_approval', 'contacts:write', 'contacts:read']))
+  })
+
+  it.each([
+    ['from Propose on', false],
+    ['from a Propose the owner turned off first', true],
+  ])('Write off releases Propose to its previous state %s', async (_n, proposeOffFirst) => {
+    const f = fakeFetch(routes())
+    render(<ConsentPage navigate={vi.fn()} />)
+    const u = userEvent.setup()
+    if (proposeOffFirst) await u.click(await sw(...PROPOSE_CRM))
+    await u.click(await sw(...WRITE_CRM))
+    await u.click(await sw(...WRITE_CRM))
+    const propose = await sw(...PROPOSE_CRM)
+    expect(propose.getAttribute('aria-checked')).toBe(proposeOffFirst ? 'false' : 'true')
+    expect((propose as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.queryByText('Writing includes proposing changes for approval.')).toBeNull()
+    await allow()
+    await waitFor(() => expect(consentBody(f)).toBeTruthy())
+    const scope = String(consentBody(f).scope).split(' ')
+    expect(scope).not.toContain('contacts:write')
+    expect(scope.includes('contacts:request_approval')).toBe(!proposeOffFirst)
+  })
+})
+
+describe('Allow and Deny send what the page shows (group 3)', () => {
+  it('a switch changed just before Allow changes the body; Read off drops the area reads', async () => {
+    at(DEFAULT_QUERY)
+    const f = fakeFetch(routes())
+    render(<ConsentPage navigate={vi.fn()} />)
+    await userEvent.setup().click(await sw('Messages', 'Read'))
+    await allow()
+    await waitFor(() => expect(consentBody(f)).toBeTruthy())
+    expect(consentBody(f)).toEqual({
+      accept: true,
+      oauth_query: DEFAULT_QUERY,
+      scope:
+        'openid profile email offline_access contacts:read contacts:request_approval companies:read events:read webhooks:read',
+    })
+  })
+
+  it('Deny sends { accept: false, oauth_query } and no scope key', async () => {
+    at(DEFAULT_QUERY)
+    const f = fakeFetch(routes())
+    render(<ConsentPage navigate={vi.fn()} />)
+    await deny()
+    await waitFor(() => expect(consentBody(f)).toBeTruthy())
+    expect(consentBody(f)).toEqual({ accept: false, oauth_query: DEFAULT_QUERY })
+    expect('scope' in consentBody(f)).toBe(false)
+  })
+
+  it('every switch off with no sign-in scope: Allow disabled, one hint, nothing sent; one switch on restores it', async () => {
+    at('client_id=app-1&sig=s&scope=contacts%3Aread+companies%3Aread')
+    const f = fakeFetch(routes())
+    render(<ConsentPage navigate={vi.fn()} />)
+    const u = userEvent.setup()
+    const read = await sw('CRM records', 'Read')
+    const hint = 'Switch something on to allow access, or choose Deny.'
+    expect(screen.queryByText(hint)).toBeNull()
+    await u.click(read)
+    expect(screen.getByText(hint)).toBeTruthy()
+    const button = screen.getByRole('button', { name: /allow/i }) as HTMLButtonElement
+    expect(button.disabled).toBe(true)
+    await u.click(button)
+    expect(f.calls.some((c) => c.path === '/auth/oauth2/consent')).toBe(false)
+    await u.click(read)
+    expect(screen.queryByText(hint)).toBeNull()
+    expect(button.disabled).toBe(false)
+    await u.click(read)
+    expect(screen.getByText(hint)).toBeTruthy()
+  })
+
+  it("a failed Allow's message survives a switch change and clears on the next press", async () => {
+    at(DEFAULT_QUERY)
+    let n = 0
+    fakeFetch(
+      routes({
+        'POST /auth/oauth2/consent': () =>
+          ++n === 1
+            ? { status: 500, text: 'boom' }
+            : { status: 200, json: { redirect: true, url: 'https://client.test/cb?code=c' } },
+      }),
+    )
+    render(<ConsentPage navigate={vi.fn()} />)
+    const u = userEvent.setup()
+    await allow()
+    expect((await screen.findByRole('alert')).textContent).toBe(genericFailure(500))
+    await u.click(await sw('CRM records', 'Read'))
+    expect(screen.getByRole('alert').textContent).toBe(genericFailure(500))
+    await allow()
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+  })
+})
+
+describe('rendered as text and accessible (group 4)', () => {
+  it('areas are fieldset/legend, every switch is named by its label and area, each disclosure counts and lists every requested scope', async () => {
+    at(DEFAULT_QUERY)
+    fakeFetch(routes())
+    const { container } = render(<ConsentPage navigate={vi.fn()} />)
+    await sw('CRM records', 'Read')
+    expect(container.querySelectorAll('fieldset').length).toBe(4)
+    for (const s of screen.getAllByRole('switch')) {
+      const fieldset = s.closest('fieldset')!
+      expect(s.getAttribute('aria-labelledby'), 'named').toBeTruthy()
+      expect(
+        s.getAttribute('aria-labelledby')!.split(' ').map((id) => document.getElementById(id)?.textContent).join(' '),
+      ).toContain(fieldset.querySelector('legend')!.textContent!)
+    }
+    const crm = screen.getByRole('group', { name: /CRM records/ })
+    expect(crm.querySelector('summary')!.textContent).toBe('Show the 4 permissions')
+    for (const n of ['contacts:read', 'contacts:request_approval', 'contacts:write', 'companies:read'])
+      expect(crm.textContent).toContain(n)
+    expect(screen.getByText('Show the 4 permissions', { selector: 'summary' })).toBeTruthy()
+    expect(document.body.textContent).toContain('Show the 2 permissions')
+  })
+
+  it('the sign-in line has no switch, its own disclosure and the D5 sentences', async () => {
+    at(DEFAULT_QUERY)
+    fakeFetch(routes())
+    render(<ConsentPage navigate={vi.fn()} />)
+    await sw('CRM records', 'Read')
+    const line = screen.getByTestId('sign-in-line')
+    expect(line.querySelector('[role="switch"]')).toBeNull()
+    expect(line.querySelector('summary')!.textContent).toBe('Show the 4 permissions')
+    expect(line.textContent).toContain('Stay signed in: keep access until you sign out or the access is revoked')
+  })
+
+  it('a hostile client name and an unparseable scope with markup are text', async () => {
+    at('client_id=app-1&sig=s&scope=%3Cu%3Ex%3C%2Fu%3E+contacts%3Aread')
+    fakeFetch(routes({ 'GET /auth/oauth2/public-client': { status: 200, json: { client_name: '<b id="n">Evil</b>' } } }))
+    render(<ConsentPage navigate={vi.fn()} />)
+    await screen.findByText('<b id="n">Evil</b>')
+    expect(screen.getAllByText('<u>x</u>').length).toBeGreaterThan(0)
+    expect(document.querySelector('u')).toBeNull()
+    expect(document.getElementById('n')).toBeNull()
+  })
+
+  it('axe is clean on the default-set shape', async () => {
+    at(DEFAULT_QUERY)
+    fakeFetch(routes())
+    const { container } = render(<ConsentPage navigate={vi.fn()} />)
+    await sw('CRM records', 'Read')
+    const axe = (await import('axe-core')).default
+    const r = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } })
+    expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(' | ')}`)).toEqual([])
   })
 })

@@ -107,9 +107,13 @@ describe('buildUi (the pages bundle)', () => {
   })
 
   // [[UI247]] D5: the scope catalogue is embedded at build time from its dependency-free leaf; the bundle never holds `@vibase/api`'s index or any other of its modules.
-  it('the page bundle holds the scope catalogue leaf and no other @vibase/api module', () => {
+  // [[UI455]] adds `scope-areas` (the area catalogue and `NOT_DEFAULT_GRANT`): leaves only.
+  it('the page bundle holds the scope catalogue leaves and no other @vibase/api module', () => {
     const api = Object.keys(metafile.inputs).filter((i) => /(^|\/)api\/src\//.test(i))
-    expect(api.map((i) => i.replace(/^.*api\/src\//, ''))).toEqual(['auth/scope-descriptions.ts'])
+    expect(api.map((i) => i.replace(/^.*api\/src\//, '')).sort()).toEqual([
+      'auth/scope-areas.ts',
+      'auth/scope-descriptions.ts',
+    ])
   })
 
   it('the script embeds a catalogue sentence and an OIDC scope sentence', () => {
