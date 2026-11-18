@@ -136,7 +136,7 @@ test('3. the invited address signs up (case-insensitive) and lands on the signed
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Create account' }).click()
   // A finished sign-up lands on /home (UI461 D3), where the person is signed in; /sign-in then shows the signed-in view.
-  await page.waitForURL('**/home')
+  await page.waitForURL((u) => u.pathname === '/home')
   await visit('/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
   await axeBoth(page, 'sign-in-signed-in')
@@ -223,7 +223,7 @@ test('6. a wrong password is the one message; the right one signs in', async () 
     await attempt(PASSWORD)
   }
   // With no return_to a finished sign-in continues to /home (UI461 D3); /sign-in then shows the signed-in view.
-  await page.waitForURL('**/home')
+  await page.waitForURL((u) => u.pathname === '/home')
   await visit('/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
 })
@@ -361,7 +361,7 @@ test('10. [UI460] signed out: / redirects to /home, the sign-in card has no side
   await page.getByLabel('Email').fill('owner@e2e.test')
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.waitForURL('**/home')
+  await page.waitForURL((u) => u.pathname === '/home')
 })
 
 test('11. [UI460] signed in: the shell with Home current, Welcome to your CRM and Who you are, the title, the headers, no CSP violation, axe clean in both themes, one row of entries at 375 px', async ({
