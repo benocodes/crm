@@ -597,6 +597,12 @@ A test that fails once and then passes is a bug until its cause is found. Do not
 (`app.fetch(new Request(…))`), seed through the same helpers production code uses, and assert DB rows
 directly. Unit tests only for pure helpers.
 
+**A lying header needs a Proxy.** A `Request` computes and guards `Content-Length`, so a body over a cap with an
+understated length cannot be built directly; wrap the request in a `Proxy` whose `headers` getter returns the lying
+`Headers` and forwards everything else (`body` stays the real stream). A body with no length at all is a
+`ReadableStream` body (`duplex: 'half'`). Both prove a cap enforced while reading, not only from the header
+(`packages/api/src/forms/ingress.integration.d1.test.ts`, [[CHN429]]).
+
 **The test pool behaves like production: nothing is preset.** The predecessor's test pool presets
 `app.organization_id` and `service_role` globally, so a query that skips its tenancy wrapper passes every
 test and reads or writes zero rows in production. The vault's pool (`createTestDb()` from `@vibase/db/test`)
