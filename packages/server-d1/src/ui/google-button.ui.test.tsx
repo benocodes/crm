@@ -72,7 +72,7 @@ describe('starting Google sign-in (D8)', () => {
     await waitFor(() => expect(navigate).toHaveBeenCalledWith(GOOGLE_URL))
     expect(f.calls.find((c) => c.method === 'POST')!.body).toEqual({
       provider: 'google',
-      callbackURL: '/connect',
+      callbackURL: '/home',
       errorCallbackURL: '/sign-in',
     })
   })
@@ -92,7 +92,7 @@ describe('starting Google sign-in (D8)', () => {
     expect(location.href).not.toContain(TOKEN)
     expect(f.calls.find((c) => c.method === 'POST')!.body).toEqual({
       provider: 'google',
-      callbackURL: '/connect',
+      callbackURL: '/home',
       errorCallbackURL: '/sign-in',
       invitation_token: TOKEN,
     })

@@ -46,7 +46,7 @@ describe("a cross-origin return_to is a callbackURL, never a navigation of the p
     },
   )
 
-  it('navigates only to the response url: a success that returns none goes to /connect, never to return_to', async () => {
+  it('navigates only to the response url: a success that returns none goes to /home, never to return_to', async () => {
     at(APP)
     fakeFetch({
       'GET /auth/get-session': NO_SESSION,
@@ -55,7 +55,7 @@ describe("a cross-origin return_to is a callbackURL, never a navigation of the p
     const go = vi.fn()
     render(<SignInPage navigate={go} />)
     await signInWith()
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/connect'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
     expect(go).toHaveBeenCalledTimes(1)
   })
 
@@ -131,7 +131,7 @@ describe('P2: the failure paths', () => {
     const go = vi.fn()
     render(<SignInPage navigate={go} />)
     await signInWith()
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/connect'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
     expect(post(f, '/auth/sign-in/email')[0]!.body).not.toHaveProperty('callbackURL')
   })
 })

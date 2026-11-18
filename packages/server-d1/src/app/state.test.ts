@@ -40,7 +40,8 @@ const api = (...answers: (ApiResult<Me> | Error)[]) => {
     if (a instanceof Error) throw a
     return a
   })
-  return { me, agents: vi.fn(), setDisabled: vi.fn() } satisfies Api
+  const hasEnabledAgent = vi.fn(async (): Promise<ApiResult<boolean>> => ({ status: 200, body: false }))
+  return { me, agents: vi.fn(), hasEnabledAgent, setDisabled: vi.fn() } satisfies Api
 }
 const make = (s: SessionSeam | null, a: Api, path = '/home') =>
   createAppController({ seam: s, api: a, origin: 'https://w.test', path })
@@ -73,6 +74,7 @@ describe('the states by input (D4)', () => {
       who: { name: 'Ann', email: 'ann@x.test', role: 'owner', workspaceName: 'Acme' },
       scopes: ['connections:read'],
       manageAccountHref: null,
+      connectAgent: { status: 'show' },
     })
   })
 
@@ -273,5 +275,90 @@ describe('nothing is stored (D4)', () => {
     heard.length = 0
     await c.signOut()
     expect(heard).toEqual([])
+  })
+})
+
+// [[UI461]] D10, P4 (group 3): when the Connect an agent prompt shows. The state carries the check's outcome; the view model (first-steps.test.ts) turns it into markup decisions.
+describe('the Connect an agent check (D10, P4)', () => {
+  const READER = ME({ active_organization: { id: 'o2', role: 'owner', scopes: ['agents:read'] } })
+  const withAgents = (...answers: (ApiResult<boolean> | Error)[]) => {
+    const a = api(ok(READER))
+    a.hasEnabledAgent.mockImplementation(async () => {
+      const x = answers.length > 1 ? answers.shift()! : answers[0]!
+      if (x instanceof Error) throw x
+      return x
+    })
+    return a
+  }
+  const found = (body: boolean): ApiResult<boolean> => ({ status: 200, body })
+
+  it('an empty list (or only disabled agents) shows the prompt', async () => {
+    const a = withAgents(found(false))
+    const c = make(seam(), a)
+    await c.start()
+    expect(c.state()).toMatchObject({ kind: 'ready', connectAgent: { status: 'show' } })
+    expect(a.hasEnabledAgent).toHaveBeenCalledTimes(1)
+  })
+
+  it('an enabled agent hides it', async () => {
+    const c = make(seam(), withAgents(found(true)))
+    await c.start()
+    expect(c.state()).toMatchObject({ kind: 'ready', connectAgent: { status: 'hidden' } })
+  })
+
+  it('without agents:read no agents request is made and the prompt shows', async () => {
+    const a = api(ok(ME()))
+    const c = make(seam(), a)
+    await c.start()
+    expect(a.hasEnabledAgent).not.toHaveBeenCalled()
+    expect(a.agents).not.toHaveBeenCalled()
+    expect(c.state()).toMatchObject({ connectAgent: { status: 'show' } })
+  })
+
+  it.each([
+    ['a non-2xx answer', { status: 500, body: null } as ApiResult<boolean>],
+    ['a network failure', new Error('offline')],
+  ])('%s is the one-line error, never the prompt; the page stays ready', async (_n, answer) => {
+    const c = make(seam(), withAgents(answer))
+    await c.start()
+    const s = c.state()
+    expect(s.kind).toBe('ready')
+    expect((s as { connectAgent: { status: string; message?: string } }).connectAgent).toEqual({
+      status: 'error',
+      message: expect.stringMatching(/agents/i),
+    })
+  })
+
+  it('Check again re-reads and hides the prompt when an enabled agent has appeared; it writes nothing', async () => {
+    const a = withAgents(found(false), found(true))
+    const c = make(seam(), a)
+    await c.start()
+    expect(c.state()).toMatchObject({ connectAgent: { status: 'show' } })
+    await c.checkAgain()
+    expect(a.hasEnabledAgent).toHaveBeenCalledTimes(2)
+    expect(c.state()).toMatchObject({ kind: 'ready', connectAgent: { status: 'hidden' } })
+    expect(a.setDisabled).not.toHaveBeenCalled()
+  })
+
+  it('Check again with still no agent keeps the prompt; a failed re-read shows the error', async () => {
+    const c = make(seam(), withAgents(found(false), found(false), { status: 503, body: null }))
+    await c.start()
+    await c.checkAgain()
+    expect(c.state()).toMatchObject({ connectAgent: { status: 'show' } })
+    await c.checkAgain()
+    expect(c.state()).toMatchObject({ connectAgent: { status: 'error' } })
+  })
+
+  it('a refused sign-out keeps the check as it was', async () => {
+    const signOut = vi.fn().mockRejectedValueOnce(new Error('refused'))
+    const c = make(seam({ signOut }), withAgents(found(true)))
+    await c.start()
+    await c.signOut()
+    expect(c.state()).toMatchObject({
+      kind: 'ready',
+      connectAgent: { status: 'hidden' },
+      signOutError: expect.any(String),
+    })
+    await c.signOut()
   })
 })

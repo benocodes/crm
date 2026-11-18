@@ -36,7 +36,13 @@ async function main(): Promise<void> {
   // No transitions, as on the auth pages (UI446): a colour-scheme change must show at once, or a button is mid-colour for 150 ms and axe's contrast check (and a screenshot) catches it (UI460 E2E run).
   createRoot(root).render(
     <div className="[&_*]:transition-none!">
-      <AppRoot controller={controller} provider={discovery?.auth?.provider || null} path={path} />
+      <AppRoot
+        controller={controller}
+        provider={discovery?.auth?.provider || null}
+        path={path}
+        origin={origin}
+        mcpUrl={discovery?.mcp ?? null}
+      />
     </div>,
   )
   await controller.start()

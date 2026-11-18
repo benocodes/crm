@@ -11,6 +11,8 @@ export interface Api {
   me(): Promise<ApiResult<Me>>
   /** Every agent: pages followed until `next_cursor` is null. */
   agents(): Promise<ApiResult<AgentRecord[]>>
+  /** True when any agent has `disabled_at` null: pages are followed until one is found or the list ends (UI461 P4). */
+  hasEnabledAgent(): Promise<ApiResult<boolean>>
   setDisabled(id: string, disabled: boolean): Promise<ApiResult<AgentRecord>>
 }
 
@@ -53,6 +55,22 @@ export function createApi(deps: { origin: string; getToken(): Promise<string | n
         after = r.body.next_cursor
       }
       return { status: 200, body: all }
+    },
+    async hasEnabledAgent() {
+      let after: string | null = null
+      // Stops at the first enabled agent. A server that never ends the cursor is bounded, as `agents()` is.
+      for (let i = 0; i < 100; i++) {
+        const r: ApiResult<{ data: AgentRecord[]; next_cursor: string | null }> = await call(
+          'GET',
+          `/meta/v1/agents?limit=200${after ? `&after=${encodeURIComponent(after)}` : ''}`,
+        )
+        if (r.status < 200 || r.status >= 300 || !r.body)
+          return { status: r.status, body: null, ...(r.noToken ? { noToken: true as const } : {}) }
+        if (r.body.data.some((a) => a.disabled_at === null)) return { status: r.status, body: true }
+        if (r.body.next_cursor === null) return { status: r.status, body: false }
+        after = r.body.next_cursor
+      }
+      return { status: 200, body: false }
     },
     setDisabled: (id, disabled) =>
       call<AgentRecord>('PATCH', `/meta/v1/agents/${encodeURIComponent(id)}`, { disabled }),

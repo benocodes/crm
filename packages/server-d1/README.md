@@ -67,7 +67,9 @@ the document names the Clerk issuer, the client registers itself (DCR), the pers
 agent for that (client, person) that an owner can disable on `/connect`. `/.well-known/vibase` carries the URL as `mcp`, and the three discovery
 documents answer a browser's `OPTIONS` preflight. `pnpm -C packages/server-d1 e2e:mcp-oauth` proves the whole flow (Playwright, Clerk dev instance, `.env.dev` only).
 
-## The connect page
+## The workspace app and the connect page
+
+Signing in lands on **`/home`** ([[UI461]]), the workspace app's Home: a person who signs in or accepts an invitation goes there, or back to the app page or `/connect` they came from (`return_to`). Until an enabled agent is connected, Home's *Get started* section shows *Connect an agent* with the login command, the MCP URL (when advertised) and the API-key line, and a *Check again* button that re-reads the agents list.
 
 Every deployment serves **`/connect`** on its own API origin ([[UI30]]): sign in through Clerk's Account Portal, see who you are and how to
 connect an agent (`vibase login --server <origin>`, the API-key fallback, the MCP URL, which every instance advertises), and, as an owner,
@@ -266,7 +268,7 @@ curl -s https://api.hq.vibase.ai/.well-known/vibase    # auth.publishable_key is
 open https://api.hq.vibase.ai/connect
 ```
 
-Optional, in the Clerk dashboard (Paths): set the Account Portal's after-sign-in URL to `https://api.hq.vibase.ai/connect`.
+Optional, in the Clerk dashboard (Paths): set the Account Portal's after-sign-in URL to `https://api.hq.vibase.ai/home`.
 
 Before the first remote bootstrap writes anything, the CLI proves on the live database that a failed `batch()` leaves no
 marker (`atomicity probe: atomic`); if it does not, it stops. Migrations are expand-only with respect to the running

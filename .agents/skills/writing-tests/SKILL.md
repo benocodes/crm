@@ -794,6 +794,12 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
 - **`locator.evaluateAll()` and `locator.count()` do not wait.** On a client-rendered page they run as soon as they are
   called and can read an empty list before React draws it ([[UI460]] E2E run 1, the app's nav). Wait for the first
   element (`await expect(locator.first()).toBeVisible()`) before reading the set.
+- **Wait for a landing on its pathname, never a URL glob.** `waitForURL('**/home')` matches the whole URL, query
+  included, and returns at once if the current URL already matches: `/sign-in?return_to=/home` satisfies it before
+  any sign-in. Use `page.waitForURL((u) => u.pathname === '/home')` ([[UI461]] E2E fix round).
+- **An absence assertion (`toHaveCount(0)`) on a client-rendered page passes while it is still loading.** First wait
+  for the read the absence depends on (`page.waitForResponse(...)`) or a sibling that must be present
+  (`oauth-pages.e2e.ts` leg 6b, [[UI461]]).
 - **Use `getByLabel(text, { exact: true })`**: the default substring match also hits a section whose accessible
   name contains the label (`New password` matched "Set a new password").
 - **A scenario that runs the real `vibase login` runs the Worker over HTTPS.** The CLI refuses a non-https issuer
