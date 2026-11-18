@@ -1,6 +1,6 @@
 ---
 name: sprint-planning
-description: Run the milestone backlog and the sprint that delivers one milestone at a time. Owns knowledge/milestones/ (one ranked folder per milestone, the seq prefix is the rank, the letter is the identifier) and knowledge/SPRINT.md (the live position of the one milestone in flight). Operations - open a sprint on the top-ranked milestone, checkpoint it, admit new work, rank, cut a milestone that is too big, pause on a hard stop, close. Use when a design conversation produces a milestone or more than one spec, when resuming sprint work in a fresh session, when new work asks to join, or when the architect is running low on context.
+description: Run the milestone backlog and the sprint that delivers one milestone at a time. Owns knowledge/milestones/ (one ranked folder per milestone, the seq prefix is the rank, the letter is the identifier) and knowledge/SPRINT.md (the live position of the one milestone in flight). Operations - open a sprint on the top-ranked milestone, checkpoint it, admit new work, rank, cut a milestone that is too big (pause and close are in sprint-wrap-up). Use when a design conversation produces a milestone or more than one spec, when resuming sprint work in a fresh session, when new work asks to join, or when the architect is running low on context.
 ---
 
 # Sprint Planning
@@ -202,8 +202,8 @@ Then rewrite, in this order:
 3. **Archive overflow.** Position beyond five lines and answered Open questions go verbatim to
    `sprint-archive.md`. A decision that turns up in `SPRINT.md` goes to the decisions log, not the archive.
 4. **Budget check.** `node scripts/decisions.mjs status` must report `SPRINT.md` as `ok`.
-5. **What the status asks for.** Every row but the demo run ✅: run `close`. `DUE`: the milestone takes no new
-   scope. `OVERDUE` with rows unfinished: run `cut`. Nothing unblocked is left: run `pause`.
+5. **What the status asks for.** Every row but the demo run ✅: run `close` (`sprint-wrap-up`). `DUE`: the milestone takes no new
+   scope. `OVERDUE` with rows unfinished: run `cut`. Nothing unblocked is left: run `pause` (`sprint-wrap-up`).
 6. **Glance test** (Quality Rule 10).
 
 ### `admit` — new work arrives
@@ -262,37 +262,10 @@ big to start. This is a **stop**, and the cut is the user's decision, never the 
    on the moved issues, and continue: finish what is left of the slimmed milestone, or `close` it at once if
    nothing is left.
 
-### `pause` — a hard stop blocks the milestone
+### `pause` and `close` — the sprint ends
 
-Run when no row of the active milestone can move without something only the user can supply (a hard stop
-from `AGENTS.md`, an account, a ruling). While any row is unblocked, work that row instead.
-
-1. Set the note's `status: paused` and say in Left what it waits for.
-2. Update `SPRINT.md` (Status at a glance, Position, Owed by the user, Open questions), commit, and **stop**:
-   tell the user what is owed.
-
-**The factory waits** (user ruling, 2026-11-16): the orchestrator does not open the next milestone while one
-is paused. When the user supplies what was owed, set `status: active` and carry on. Only the user may say to
-set a paused milestone aside and open another (`rank`).
-
-### `close` — the milestone is built
-
-Run when every row of Needed but the demo run is ✅, and only between cycles (no agent running, no open cycle
-PR), so one cycle's decisions never straddle two files.
-
-1. Verify it: every spec's `status:` is `shipped` and every cycle has a RETRO. If `retrospect` was skipped
-   somewhere, say so rather than fixing it silently here.
-2. Check the open questions are closed, not merely stale. One that still stands moves to the note's Left
-   section; an unanswered question at close is a finding to report.
-3. Set the note's `status: built` and write Left: the demo run and anything else the user owes for it. If the
-   demo has already run, set `done` instead, `git mv` the folder to `milestones/done/<letter>-<slug>/` and
-   close the repo milestone.
-4. Remove `knowledge/SPRINT.md` (the next `open` writes a new one). Keep `sprint-archive.md` and `decisions/`.
-5. Commit (`docs(sprint): close Milestone G`) and tell the user: the milestone that closed, the demo it now
-   waits for, and the path of its decisions file (`decisions/milestone-G.jsonl`).
-6. Run `open`. It stops by itself if the backlog is empty or the next rank is only proposed.
-
-When the user reports a demo run later, set that milestone `done` as in step 3; that needs no sprint.
+Both live in the `sprint-wrap-up` skill: `pause` when a hard stop blocks the milestone, `close` when it is
+built. Each reconciles the milestone's issues first; `close` ends by running `open`.
 
 ---
 

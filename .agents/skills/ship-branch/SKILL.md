@@ -37,6 +37,9 @@ yet fails every request that touches it.
    ```
    Report failures with their output; don't merge past a red suite without the user saying so.
 4. **Nothing stray.** `git status` in the worktree. Unrelated uncommitted work: ask before committing it.
+5. **Close what it delivers.** The PR body starts with one `Closes benocodes/crm#<n>` per issue the PR finishes:
+   the cycle's own issue, and the spec's issue too on the spec's last cycle. An issue closed by hand later
+   (merged without the line) is closed as `zooidbot` with a comment naming the PR.
 
 ## 2. Merge, from the main checkout
 

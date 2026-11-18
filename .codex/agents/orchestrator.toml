@@ -73,6 +73,10 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    changelog, project-state.
 8. **Ship.** You open the PR (`gh pr create`, human `gh` login, body from
    `.github/pull_request_template.md` with the gate counts from `GATE.md` and the tester's evidence, if any), wait for checks
+   **The PR body's first lines close what the PR delivers:** one `Closes benocodes/crm#<n>` per issue this
+   PR finishes: the cycle's own issue always, and the spec's issue too when this is the spec's last cycle
+   (every Decision delivered, spec `shipped`). A cycle that is not the last never closes the spec issue. The
+   brief to the planner and the coder names these numbers; a PR with no close line is not ready to open.
    (`gh pr checks --watch`; no checks configured is not a failure), then
    `gh pr merge --squash --delete-branch`. Remove the worktree (`git worktree remove`), drop its private
    test DB (`pnpm db:test:worktree --drop` from inside it, before removing). Pull `main`.
@@ -103,8 +107,8 @@ lines when:
 - an agent reports `blocked` and the block is not something another agent can resolve;
 - the milestone is too big for its sprint (`decisions status` says `OVERDUE` with rows unfinished): the cut is
   the user's (`sprint-planning`, `cut`);
-- the milestone is paused: nothing in it can move without the user (`sprint-planning`, `pause`). **The factory
-  waits**: do not open the next milestone, and do not pick up a lower-ranked one;
+- the milestone is paused: nothing in it can move without the user (`sprint-wrap-up`, `pause`). **The factory
+  waits**: do not open the next milestone, and do not pick up a lower-ranked one; first close every delivered issue the milestone names, as `close` does;
 - the backlog is empty, or the next milestone's rank is only proposed (`sprint-planning`, `open`).
 
 **New work does not slip into a running sprint.** A new milestone, or a new row in the active milestone's
