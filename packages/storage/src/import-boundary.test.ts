@@ -101,6 +101,7 @@ describe('import boundary (D14, D15)', () => {
       { 'ui/src/a.ts': "import { postgresBinding } from '@vibase/storage-postgres'" },
       '@vibase/storage-postgres',
     ],
+    ['the UI build helper importing pg ([[UI445]] D8)', { 'ui/build/index.ts': "import pg from 'pg'" }, 'pg'],
     [
       'an auth script importing @vibase/db',
       { 'auth/scripts/x.ts': "import { createDb } from '@vibase/db'" },

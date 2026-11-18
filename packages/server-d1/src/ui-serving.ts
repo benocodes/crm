@@ -1,6 +1,8 @@
 // [[UI246]] D1, D2: the auth pages (`/sign-in`, `/invite`, `/reset-password`, `/consent`, `/device`) and the `/ui/` bundle on the API origin, from the Workers Static Assets binding, with the security headers on every
 // response. The pages exist only for `AUTH_PROVIDER=better-auth` (the caller decides; for any other provider these paths are no route at all). Static: the answer reads no storage and needs no
 // credential, so it runs before the migration, configuration and control gates (the pages' own API calls meet them).
+import { PAGE_CSP } from '@vibase/ui/csp'
+
 export interface AssetsLike {
   fetch(req: Request): Promise<Response>
 }
@@ -12,18 +14,8 @@ export const UI_PREFIX = '/ui'
 /** What `wrangler.jsonc`'s `assets.run_worker_first` lists for these pages, derived from the constants the Worker serves. */
 export const UI_RUN_WORKER_FIRST: readonly string[] = [...UI_PAGE_PATHS, `${UI_PREFIX}/*`]
 
-/** D2's policy: no third-party script, no inline script or style (the stylesheet is `'self'`), same-origin API calls and forms only. */
-export const UI_CSP = [
-  "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self'",
-  "connect-src 'self'",
-  "img-src 'self'",
-  "form-action 'self'",
-  "object-src 'none'",
-  "base-uri 'none'",
-  "frame-ancestors 'none'",
-].join('; ')
+/** D2's policy: no third-party script, no inline script or style (the stylesheet is `'self'`), same-origin API calls and forms only. One value with the React gallery's run ([[UI445]] D6). */
+export const UI_CSP: string = PAGE_CSP
 
 /** The page is the assets directory's `ui/index.html`, which the binding serves at its directory path. It is reached only through the page paths. */
 const INDEX_PATH = `${UI_PREFIX}/`
