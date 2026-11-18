@@ -11,6 +11,7 @@ import { loadBetterAuth, providerFromVars } from '../setup/better-auth.js'
 import { moveLines, registerPending, resolveHost } from '../setup/host.js'
 import { loadClerkKeys } from '../setup/clerk-keys.js'
 import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, loadGmail } from '../setup/gmail.js'
+import { claimBlock } from '../setup/verify-better-auth.js'
 import { CLERK_ONLY_STEPS, STEP_NAMES, type EnvFileProbe, type StepResult } from '../setup/types.js'
 import { compareSemver, parseSemver } from './gate.js'
 import { defaultSecretsPath, loadSecrets } from './secrets.js'
@@ -222,11 +223,23 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     for (const m of manual) say(`  ${m}`)
   }
   const failed = results.find((r) => r.status === 'fail')
+  // [[GH442]] item 5: the owner invitation closes the output, whatever the run's outcome (the invitation is valid), and goes to the console only.
+  const claim = () => {
+    if (ctx.ownerInvitation && !opts.dryRun)
+      for (const l of claimBlock(
+        ctx.ownerInvitation,
+        `https://${opts.apiHost}`,
+        `vibase-server owner-reset --env ${opts.env} --email ${ctx.ownerInvitation.email}`,
+      ))
+        say(l)
+  }
   if (failed) {
     say2(`vibase-server setup: ${failed.step} failed: ${failed.detail}`)
+    claim()
     return EXIT_FAILED
   }
   say(opts.dryRun ? 'setup: dry run complete, nothing was changed' : 'setup: done')
+  claim()
   return EXIT_DONE
 }
 

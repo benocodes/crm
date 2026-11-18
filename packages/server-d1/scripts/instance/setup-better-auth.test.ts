@@ -214,6 +214,34 @@ describe('3. AUTH_SECRET (D3), four states', () => {
     expect(surface(s)).not.toContain(SECRET_43)
   })
 
+  it('GH442 item 4: present secrets are said to be kept, with --rotate-secrets named, in the dry run and the real run', async () => {
+    for (const extra of [[], ['--dry-run']]) {
+      const r = recorded()
+      const s = world({
+        ...r,
+        secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET_43}\n`,
+        sim: { ...r.sim, secrets: ['AUTH_SECRET'] },
+      })
+      expect(await run(s, [...ONLY_SECRETS, ...extra])).toBe(0)
+      expect(s.w.out.join('\n')).toMatch(
+        /kept as they are: a changed value in the secrets file is not applied without --rotate-secrets/,
+      )
+    }
+  })
+
+  it('GH442 item 4: something put while another is present: the kept one is named, with the flag', async () => {
+    const r = recorded()
+    const s = world({
+      ...r,
+      secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET_43}\nAUTH_GOOGLE_CLIENT_ID=gid-1.apps.googleusercontent.com\nAUTH_GOOGLE_CLIENT_SECRET=gsecret-0123456789\n`,
+      sim: { ...r.sim, secrets: ['AUTH_GOOGLE_CLIENT_ID'] },
+    })
+    expect(await run(s, [...ONLY_SECRETS, '--dry-run'])).toBe(0)
+    expect(s.w.out.join('\n')).toMatch(
+      /AUTH_GOOGLE_CLIENT_ID is already on the Worker and kept as it is.*--rotate-secrets/,
+    )
+  })
+
   it('(c) both: no write and no put', async () => {
     const r = recorded()
     const s = world({
@@ -300,6 +328,25 @@ describe('4. the Google pair (D4)', () => {
     const s = world({ secretsText: `${SECRETS_TEXT}${half}\n` })
     expect(await run(s)).toBe(2)
     expect(s.w.err.join('\n')).toContain(missing)
+    expect(s.w.all()).not.toContain('gsecret-0123456789')
+    expect(s.w.wrangler).toEqual([])
+    expect(s.w.fetchUrls).toEqual([])
+  })
+  it.each([
+    [
+      'an ID that is not a client ID',
+      'AUTH_GOOGLE_CLIENT_ID=gsecret-0123456789\nAUTH_GOOGLE_CLIENT_SECRET=gid-1.apps.googleusercontent.com',
+      'AUTH_GOOGLE_CLIENT_ID',
+    ],
+    [
+      'a secret that looks like a client ID',
+      'AUTH_GOOGLE_CLIENT_ID=gid-1.apps.googleusercontent.com\nAUTH_GOOGLE_CLIENT_SECRET=gid-2.apps.googleusercontent.com',
+      'AUTH_GOOGLE_CLIENT_SECRET',
+    ],
+  ])('GH442 item 3: %s is refused (exit 2) before any step, naming %s and no value', async (_n, text, name) => {
+    const s = world({ secretsText: `${SECRETS_TEXT}${text}\n` })
+    expect(await run(s)).toBe(2)
+    expect(s.w.err.join('\n')).toContain(name)
     expect(s.w.all()).not.toContain('gsecret-0123456789')
     expect(s.w.wrangler).toEqual([])
     expect(s.w.fetchUrls).toEqual([])

@@ -54,7 +54,15 @@ import {
 } from './commands.js'
 import type { Credentials, ExecResult, SetupCmd, SetupDeps, SetupOptions, StepName, StepResult } from './types.js'
 import type { MarkerRow } from './commands.js'
-import { betterAuthNextSteps, checkBetterAuthIssuer, emailConfigured } from './verify-better-auth.js'
+import {
+  betterAuthNextSteps,
+  checkBetterAuthIssuer,
+  dnsHint,
+  emailConfigured,
+  secretsKeptSentence,
+  waitLine,
+  type OwnerInvitation,
+} from './verify-better-auth.js'
 
 const EXPECTED = MIGRATIONS.map((m) => m.name)
 const CONTROL_EXPECTED = CONTROL_MIGRATIONS.map((m) => m.name)
@@ -79,6 +87,8 @@ export interface Ctx {
   keyWritten?: boolean
   /** `bootstrap` issued an owner invitation in this run: the only run whose next steps say "open the link printed above" ([[OPS306]] P4). */
   ownerLinkIssued?: boolean
+  /** The invitation this run issued, held for the closing Claim block ([[GH442]] item 5): never in a step's lines. */
+  ownerInvitation?: OwnerInvitation
   /** `--auth clerk`: the instance's credentials, loaded before any request ([[OPS65]] D34). */
   keys?: ClerkKeys
   /** The `Vibase CLI` application's client id, once the `clerk` step found or created it. */
@@ -521,12 +531,16 @@ async function betterAuthBootstrap(
         `api_key: written to .env as ${opts.keyEnv} (not shown)`,
       )
     }
-    // The URL is printed once, here, and stored nowhere (a later run reads the state and prints none).
-    if (r.ownerInvitation) ctx.ownerLinkIssued = true
-    if (r.ownerInvitation)
-      lines.push(
-        `owner invitation for ${r.ownerInvitation.email} (expires ${r.ownerInvitation.expiresAt}; shown once, stored nowhere): ${r.ownerInvitation.url}`,
-      )
+    // [[GH442]] item 5: the URL is held for the closing Claim block (printed once, last, stored nowhere); a later run reads the state and prints none.
+    if (r.ownerInvitation) {
+      ctx.ownerLinkIssued = true
+      ctx.ownerInvitation = {
+        email: r.ownerInvitation.email,
+        expiresAt: r.ownerInvitation.expiresAt,
+        url: r.ownerInvitation.url,
+      }
+      lines.push(`owner invitation for ${r.ownerInvitation.email} issued (the link is printed at the end of this run)`)
+    }
     return result(
       'bootstrap',
       'create',
@@ -765,19 +779,25 @@ const secrets: Step = async (ctx) => {
         ? !present.includes(n)
         : ctx.opts.rotateSecrets || !present.includes(n),
   )
-  const kept =
-    ctx.gmail && ctx.opts.rotateSecrets && present.includes(NEVER_REPLACED)
+  const stays = ctx.opts.rotateSecrets
+    ? []
+    : names.filter((n) => n !== 'AUTH_SECRET' && present.includes(n) && !put.includes(n))
+  const kept = [
+    ...(ctx.gmail && ctx.opts.rotateSecrets && present.includes(NEVER_REPLACED)
       ? [
           `${NEVER_REPLACED} kept: stored credentials are encrypted under it (rotate through CREDENTIALS_KEY_VERSION, not setup)`,
         ]
-      : []
+      : []),
+    // [[GH442]] item 4: present secrets that this run does not replace.
+    ...(stays.length > 0 && put.length > 0 ? [secretsKeptSentence(stays)] : []),
+  ]
   const manual = authState === 'd' ? authSecretManual(ba!.file) : undefined
   if (put.length === 0) {
     if (manual) return result('secrets', 'manual', manual, kept.length ? kept : undefined)
     return result(
       'secrets',
       'ok',
-      `${names.join(' and ')} are present (--rotate-secrets replaces them${ctx.gmail ? `, except ${NEVER_REPLACED}` : ''}${ba ? ', and never AUTH_SECRET' : ''})`,
+      `${names.join(' and ')} are present and kept as they are: a changed value in the secrets file is not applied without --rotate-secrets${ctx.gmail ? ` (which never replaces ${NEVER_REPLACED})` : ''}${ba ? ' (AUTH_SECRET is never replaced)' : ''}`,
       kept.length ? kept : undefined,
     )
   }
@@ -876,6 +896,9 @@ async function checkDiscovery(ctx: Ctx): Promise<string | null> {
   return bad.length ? `/.well-known/vibase disagrees: ${bad.join('; ')}` : null
 }
 
+/** The command that repeats the verify step on this front-end ([[GH442]] item 1). */
+const rerun = (ctx: Ctx): string => `\`pnpm -C packages/server-d1 setup:remote -- --env ${ctx.opts.env} --only verify\``
+
 /**
  * Decision (OPS65 cycle 1): the sha `verify` waits for is HEAD only when `deploy` ran in the same invocation; run alone
  * (`--only verify`, or after a no-op `--only` set without deploy) it requires `migrations.status = current` and reports the sha it found.
@@ -900,6 +923,7 @@ const verify: Step = async (ctx) => {
           )
   } else {
     while (!ready(health) && ctx.deps.now() - start < VERIFY_BOUND_MS) {
+      ctx.deps.log(waitLine(ctx.deps.now() - start))
       await ctx.deps.sleep(VERIFY_INTERVAL_MS)
       health = await readHealth(ctx)
     }
@@ -909,7 +933,7 @@ const verify: Step = async (ctx) => {
       return result(
         'verify',
         'fail',
-        `https://${ctx.opts.apiHost}/health did not become current within ${VERIFY_BOUND_MS / 1000}s (${seen})`,
+        `https://${ctx.opts.apiHost}/health did not become current within ${VERIFY_BOUND_MS / 1000}s (${seen})${seen === 'no answer' ? `; ${dnsHint(`https://${ctx.opts.apiHost}`, rerun(ctx))}` : ''}`,
       )
     }
   }
@@ -927,8 +951,14 @@ const verify: Step = async (ctx) => {
       sleep: ctx.deps.sleep,
       dryRun: ctx.opts.dryRun,
       start,
+      progress: ctx.deps.log,
     })
-    if (!issuer.ok) return result('verify', 'fail', issuer.detail)
+    if (!issuer.ok)
+      return result(
+        'verify',
+        'fail',
+        issuer.unreachable ? `${issuer.detail}; ${dnsHint(`https://${ctx.opts.apiHost}`, rerun(ctx))}` : issuer.detail,
+      )
     signInMethods = issuer.signInMethods
   }
   const clerk = ctx.opts.auth === 'clerk'

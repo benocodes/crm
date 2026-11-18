@@ -173,6 +173,31 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
     expect(calls(w, VIBASE_URL)).toBe(2)
   })
 
+  it('GH442 item 1: one progress line per wait, and the DNS hint when the host never answers', async () => {
+    const w = deployed(ba({ vibase: ['throw'] }))
+    const o = await verifyOnly(w)
+    const r = step(o, 'verify')
+    expect(r.status).toBe('fail')
+    const waits = w.logs.filter((l) => l.includes('waiting for the instance to come up'))
+    expect(waits).toHaveLength(w.state.sleeps.length)
+    expect(waits.length).toBeGreaterThan(5)
+    expect(r.detail).toContain('stale local DNS cache')
+    expect(r.detail).toContain(`${BASE}/health`)
+    expect(r.detail).toContain('--env acme --only verify')
+  })
+
+  it('GH442 item 1: a health wait prints progress and, never answering, ends with the DNS hint', async () => {
+    const w = deployed({ healthNeverCurrent: true })
+    const o = await verifyOnly(w)
+    expect(step(o, 'verify').status).toBe('fail')
+    expect(w.logs.filter((l) => l.includes('waiting for the instance to come up')).length).toBeGreaterThan(5)
+  })
+
+  it('GH442 item 1: a 5xx discovery that does answer gets no DNS hint', async () => {
+    const w = deployed(ba({ vibase: [{ status: 500 }] }))
+    expect(step(await verifyOnly(w), 'verify').detail).not.toContain('DNS')
+  })
+
   it('a dry run with a 500: fail, read once, no retry and no wait', async () => {
     const w = deployed(ba({ vibase: [{ status: 500 }] }))
     const o = await verifyOnly(w, ['--dry-run'])
@@ -214,7 +239,7 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
 const lines = (o: Awaited<ReturnType<typeof runSetup>>) => step(o, 'verify').lines ?? []
 
 describe('2. the next steps on better-auth (D8)', () => {
-  const CLAIM = 'open the owner invitation link printed above by the bootstrap step; it is shown once'
+  const CLAIM = 'the owner invitation link is printed at the very end of this output; it is shown once'
 
   it('the run whose bootstrap issued a link: API, the claim line, login, MCP, the no-email statement, then the operator hint, in that order', async () => {
     const w = world()
@@ -230,13 +255,37 @@ describe('2. the next steps on better-auth (D8)', () => {
     expect(l[5]).toMatch(/^this env is bootstrapped; create agents and keys through agents\.create/)
   })
 
-  it("the invitation URL and token appear in the bootstrap step's lines only, never in verify's", async () => {
+  it("GH442 item 5: the invitation URL appears once, in the closing Claim block after the final status line, and in no step's lines", async () => {
     const w = world()
     const o = await fullRun(w)
-    const token = /\/invite#token=([A-Za-z0-9_-]+)/.exec((step(o, 'bootstrap').lines ?? []).join('\n'))?.[1]
+    const token = /\/invite#token=([A-Za-z0-9_-]+)/.exec(w.logs.join('\n'))?.[1]
     expect(token).toBeTruthy()
-    expect(lines(o).join('\n')).not.toContain(token!)
-    expect(lines(o).join('\n')).not.toContain('/invite')
+    for (const r of o.results) expect((r.lines ?? []).join('\n'), r.step).not.toContain('/invite')
+    expect(w.logs.filter((l) => l.includes('/invite#token='))).toHaveLength(1)
+    const done = w.logs.indexOf('setup: done')
+    const claim = w.logs.indexOf('=== Claim your instance ===')
+    expect(done).toBeGreaterThan(-1)
+    expect(claim).toBeGreaterThan(done)
+    expect(w.logs.findIndex((l) => l.includes('/invite#token='))).toBeGreaterThan(claim)
+    expect(w.logs.at(-1)).toMatch(/owner-reset|vibase login/)
+    expect(w.logs.join('\n')).toMatch(/expires/)
+  })
+
+  it('GH442 item 5: a failed verify still prints the Claim block, below the failure', async () => {
+    const w = world({ ba: { vibase: [{ status: 404 }] } })
+    const o = await fullRun(w)
+    expect(step(o, 'verify').status).toBe('fail')
+    const fail = w.logs.indexOf('setup: failed')
+    expect(fail).toBeGreaterThan(-1)
+    expect(w.logs.findIndex((l) => l.includes('/invite#token='))).toBeGreaterThan(fail)
+  })
+
+  it('GH442 item 5: a re-run and --dry-run print no Claim block', async () => {
+    const w = world()
+    await fullRun(w)
+    w.logs.length = 0
+    await run(w)
+    expect(w.logs.join('\n')).not.toContain('Claim your instance')
   })
 
   it('a re-run (owner invitation pending): no claim line', async () => {

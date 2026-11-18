@@ -8,6 +8,43 @@ export const NO_EMAIL_STATEMENT =
 export const DISCOVERY_BOUND_MS = 300_000
 export const DISCOVERY_INTERVAL_MS = 10_000
 
+/** [[GH442]] item 1: one short line per poll, so a wait of up to 300 s is visibly alive. */
+export const waitLine = (elapsedMs: number): string =>
+  `  waiting for the instance to come up... ${Math.round(elapsedMs / 1000)}s of ${DISCOVERY_BOUND_MS / 1000}s`
+
+/**
+ * [[GH442]] item 1: what to try when the wait ended on "did not answer". Every failure to answer is treated as transient, so a stale local DNS cache
+ * (a negative entry for a just-created host) looks like a Worker that never came up. `rerun` is the front-end's own command that repeats the check.
+ */
+export const dnsHint = (url: string, rerun: string): string =>
+  `if the host does not resolve on this machine yet (a stale local DNS cache), flush the DNS cache or open ${url}/health in a browser, then re-run ${rerun}`
+
+/** [[GH442]] item 5: the owner invitation, held by the run and printed once, at the very end (never in a step's lines, so never before verify). */
+export interface OwnerInvitation {
+  email: string
+  expiresAt: string
+  url: string
+}
+
+/** [[GH442]] item 5: the closing "Claim your instance" block. The caller prints it last, after the final status line, through the console only. */
+export function claimBlock(inv: OwnerInvitation, instanceUrl: string, ownerResetCommand: string): string[] {
+  return [
+    '',
+    '=== Claim your instance ===',
+    `Owner invitation for ${inv.email} (expires ${inv.expiresAt}; shown once, stored nowhere):`,
+    `  ${inv.url}`,
+    '',
+    'Next:',
+    `  1. open the link above in a browser and set up the owner account`,
+    `  2. vibase login --server ${instanceUrl}`,
+    `  3. lost the link? issue a new one with: ${ownerResetCommand}`,
+  ]
+}
+
+/** [[GH442]] item 4: the sentence of the secrets step (dry run and real run) about secrets already on the Worker. */
+export const secretsKeptSentence = (kept: string[]): string =>
+  `${kept.join(', ')} ${kept.length === 1 ? 'is' : 'are'} already on the Worker and kept as it is: a changed value in the secrets file is not applied without --rotate-secrets`
+
 export interface DiscoveryReads {
   fetch: typeof fetch
   now(): number
@@ -16,8 +53,11 @@ export interface DiscoveryReads {
   dryRun: boolean
   /** The instant verify started, so the health wait and these reads share one bound ([[OPS308]] P2); default: now. */
   start?: number
+  /** Called with one line before each wait ([[GH442]] item 1). */
+  progress?: (line: string) => void
 }
-export type IssuerCheck = { ok: true; signInMethods: string[] } | { ok: false; detail: string }
+/** `unreachable`: the last read was "did not answer" (no response at all), the case where the DNS hint applies. */
+export type IssuerCheck = { ok: true; signInMethods: string[] } | { ok: false; detail: string; unreachable?: boolean }
 
 type Answer = { kind: 'transient'; detail: string } | { kind: 'final'; status: number; json: unknown }
 
@@ -44,19 +84,22 @@ async function read(f: typeof fetch, url: string): Promise<Answer> {
 export async function checkBetterAuthIssuer(base: string, r: DiscoveryReads): Promise<IssuerCheck> {
   const issuer = `${base}/auth`
   const start = r.start ?? r.now()
+  let unreachable = false
   const fetchFinal = async (path: string): Promise<{ status: number; json: unknown } | string> => {
     const url = `${base}${path}`
     for (;;) {
       const a = await read(r.fetch, url)
       if (a.kind === 'final') return a
+      unreachable = a.detail === 'did not answer'
       if (r.dryRun) return `${url} ${a.detail}`
       if (r.now() - start >= DISCOVERY_BOUND_MS)
         return `${url} still ${a.detail} after ${Math.round((r.now() - start) / 1000)}s in total`
+      r.progress?.(waitLine(r.now() - start))
       await r.sleep(DISCOVERY_INTERVAL_MS)
     }
   }
   const disc = await fetchFinal('/.well-known/vibase')
-  if (typeof disc === 'string') return { ok: false, detail: disc }
+  if (typeof disc === 'string') return { ok: false, detail: disc, unreachable }
   if (disc.status !== 200) return { ok: false, detail: `${base}/.well-known/vibase answered ${disc.status}` }
   const auth = (
     disc.json as { auth?: { provider?: unknown; issuer?: unknown; sign_in_methods?: unknown } | null } | null
@@ -72,7 +115,7 @@ export async function checkBetterAuthIssuer(base: string, r: DiscoveryReads): Pr
   if (auth.issuer !== issuer) bad.push(`auth.issuer is ${String(auth.issuer)}, setup configured ${issuer}`)
   if (bad.length) return { ok: false, detail: `${base}/.well-known/vibase disagrees: ${bad.join('; ')}` }
   const meta = await fetchFinal('/.well-known/oauth-authorization-server/auth')
-  if (typeof meta === 'string') return { ok: false, detail: meta }
+  if (typeof meta === 'string') return { ok: false, detail: meta, unreachable }
   if (meta.status !== 200)
     return { ok: false, detail: `${base}/.well-known/oauth-authorization-server/auth answered ${meta.status}` }
   const metaIssuer = (meta.json as { issuer?: unknown } | null)?.issuer
@@ -111,11 +154,11 @@ export interface NextStepsInput {
   hint: string[]
 }
 
-/** [[OPS306]] D8: the owner's next steps on `better-auth`, in order. The invitation link itself never appears here (the bootstrap step prints it once). */
+/** [[OPS306]] D8: the owner's next steps on `better-auth`, in order. The invitation link itself never appears here (the closing Claim block prints it once, [[GH442]]). */
 export function betterAuthNextSteps(i: NextStepsInput): string[] {
   return [
     `API: ${i.url}`,
-    ...(i.claimLink ? ['open the owner invitation link printed above by the bootstrap step; it is shown once'] : []),
+    ...(i.claimLink ? ['the owner invitation link is printed at the very end of this output; it is shown once'] : []),
     `vibase login --server ${i.url}`,
     `MCP: ${i.url}/mcp`,
     ...(i.google ? [`manual add the redirect URI ${i.url}/auth/callback/google to the Google OAuth client`] : []),

@@ -6,6 +6,7 @@ import { requireConfirm, statusOf } from '../remote.js'
 import { keylessChecks } from '../smoke-checks.js'
 import { withGeneratedConfig } from './config.js'
 import { childEnv, databasesCurrent, diffLines, pendingLines, readTrackerAt, runGate } from './gate.js'
+import { dnsHint, waitLine } from '../setup/verify-better-auth.js'
 import { isRefusal, InstanceRefusal, type InstanceDeps } from './types.js'
 
 /** Exit codes ([[OPS234]] P2): 0 done or nothing to do; 2 refused before any remote write; 3 failed after a remote write began. */
@@ -157,11 +158,11 @@ export async function runUpgrade(argv: string[], deps: InstanceDeps): Promise<nu
 
     step = 'verify'
     const accept = rollback ? ['ahead', 'current'] : ['current']
-    const seen = await verify(url, manifest.version, accept, deps)
+    const seen = await verify(url, manifest.version, accept, deps, undefined, deps.out)
     if (seen !== null)
       throw new StepFailure(
         'verify',
-        `${url}/health did not show version ${manifest.version} with migrations ${accept.join(' or ')} within ${VERIFY_BOUND_MS / 1000}s (${seen})`,
+        `${url}/health did not show version ${manifest.version} with migrations ${accept.join(' or ')} within ${VERIFY_BOUND_MS / 1000}s (${seen})${seen === 'no answer' ? `; ${dnsHint(url, `vibase-server status --env ${settings.env}`)}` : ''}`,
       )
     deps.out(`verify: ${url}/health is at ${manifest.version}`)
 
@@ -197,6 +198,8 @@ export async function verify(
   accept: readonly string[],
   deps: InstanceDeps,
   startedAt?: number,
+  /** One line per poll ([[GH442]] item 1). */
+  progress?: (line: string) => void,
 ): Promise<string | null> {
   const read = async (): Promise<{ version?: string; migrations?: string } | null> => {
     try {
@@ -221,6 +224,7 @@ export async function verify(
   // `setup` passes the instant its verify step began, so the health wait and discovery share one bound ([[OPS308]] P2); `upgrade` measures from here as before.
   const start = startedAt ?? deps.now()
   while (!ready(h) && deps.now() - start < VERIFY_BOUND_MS) {
+    progress?.(waitLine(deps.now() - start))
     await deps.sleep(VERIFY_INTERVAL_MS)
     h = await read()
   }

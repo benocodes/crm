@@ -218,6 +218,28 @@ describe('3. AUTH_SECRET (D3), four states', () => {
     expect(w.state.envFileText).toBe(`AUTH_SECRET=${SECRET_43}\n`)
   })
 
+  it('GH442 item 4: present secrets are said to be kept, and --rotate-secrets is named, in the dry run and the real run', async () => {
+    const w = world({ clerkEnvText: `AUTH_SECRET=${SECRET_43}\n`, secrets: ['AUTH_SECRET'] })
+    await firstRun(w)
+    for (const extra of [[], ['--dry-run']]) {
+      const o = await secretsRun(w, [...ONLY, ...extra])
+      expect(step(o, 'secrets').detail).toMatch(/kept as they are.*not applied without --rotate-secrets/)
+    }
+  })
+
+  it('GH442 item 4: when something is put and another secret is present, the kept one is named, with the flag', async () => {
+    const w = world({
+      clerkEnvText: `AUTH_SECRET=${SECRET_43}\nAUTH_GOOGLE_CLIENT_ID=gid-1.apps.googleusercontent.com\nAUTH_GOOGLE_CLIENT_SECRET=gsecret-0123456789\n`,
+      secrets: ['AUTH_GOOGLE_CLIENT_ID', 'AUTH_GOOGLE_CLIENT_SECRET'],
+    })
+    await firstRun(w)
+    const o = await secretsRun(w, [...ONLY, '--dry-run'])
+    const lines = step(o, 'secrets').lines ?? []
+    expect(lines.join('\n')).toMatch(
+      /AUTH_GOOGLE_CLIENT_ID, AUTH_GOOGLE_CLIENT_SECRET are already on the Worker and kept as it is.*--rotate-secrets/,
+    )
+  })
+
   it('(d) Worker only: nothing generated, nothing written, nothing put, and a `manual` step that names the file', async () => {
     const w = world({ secrets: ['AUTH_SECRET'] })
     await firstRun(w)
@@ -317,6 +339,28 @@ describe('4. the Google pair (D4)', () => {
     expect(w.argv).toEqual([])
     expect(w.fetched).toEqual([])
   })
+  const SWAPPED: [string, string, string][] = [
+    [
+      'an ID that is not a client ID',
+      'AUTH_GOOGLE_CLIENT_ID=gsecret-0123456789\nAUTH_GOOGLE_CLIENT_SECRET=gid-1.apps.googleusercontent.com',
+      'AUTH_GOOGLE_CLIENT_ID',
+    ],
+    [
+      'a secret that looks like a client ID',
+      'AUTH_GOOGLE_CLIENT_ID=gid-1.apps.googleusercontent.com\nAUTH_GOOGLE_CLIENT_SECRET=gid-2.apps.googleusercontent.com',
+      'AUTH_GOOGLE_CLIENT_SECRET',
+    ],
+  ]
+  it.each(SWAPPED)('GH442 item 3: %s is refused before any step, naming %s and no value', async (_n, text, name) => {
+    const w = world({ clerkEnvText: `${text}\n` })
+    const o = await run(w)
+    expect(o.exitCode).toBe(1)
+    expect(w.logs.join('\n')).toContain(name)
+    expect(w.logs.join('\n')).not.toContain('gsecret-0123456789')
+    expect(w.logs.join('\n')).not.toContain('gid-1.apps')
+    expect(w.argv).toEqual([])
+    expect(w.fetched).toEqual([])
+  })
   it('without either, nothing Google is put', async () => {
     const w = world()
     await firstRun(w)
@@ -412,11 +456,12 @@ describe('6. re-runs and the one-time link (D7)', () => {
   const invitationRows = () => rows(pair.control, 'select * from invitations')
   const auditRows = () => rows(pair.control, "select * from control_audit where action like 'invitation.%'")
 
-  it("none: the run issues one invitation and prints its URL once, in the bootstrap step's lines", async () => {
+  it("none: the run issues one invitation and prints its URL once, in the closing Claim block (GH442), not in the bootstrap step's lines", async () => {
     const w = world()
     const o = await fullRun(w)
     expect(urlLines(w.logs)).toHaveLength(1)
-    expect(step(o, 'bootstrap').lines!.some((l) => l.includes(`${BASE}/invite#token=`))).toBe(true)
+    expect(step(o, 'bootstrap').lines!.some((l) => l.includes('/invite#token='))).toBe(false)
+    expect(w.logs.indexOf('setup: done')).toBeLessThan(w.logs.findIndex((l) => l.includes(`${BASE}/invite#token=`)))
     expect(await invitationRows()).toHaveLength(1)
   })
 

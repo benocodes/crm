@@ -34,7 +34,7 @@ const CORE = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_STATE_SECRET', 
 
 /** Twelve fake values, each unmistakable in any output. */
 const FULL: Record<string, string> = {
-  GOOGLE_CLIENT_ID: 'sentinel-client-id.apps.example.test',
+  GOOGLE_CLIENT_ID: 'sentinel-client-id.apps.googleusercontent.com',
   GOOGLE_CLIENT_SECRET: 'SENTINEL_CLIENT_SECRET_VALUE',
   OAUTH_STATE_SECRET: 'SENTINEL_STATE_SECRET_VALUE',
   CREDENTIALS_KEY: KEY32,
@@ -179,6 +179,11 @@ describe('validation: each rule refuses its bad case, by variable name, before a
     [
       'CREDENTIALS_KEY in the URL-safe alphabet',
       { CREDENTIALS_KEY: Buffer.alloc(32, 0xfb).toString('base64').replace(/\+/g, '-').replace(/\//g, '_') },
+    ],
+    ['GOOGLE_CLIENT_ID that is not a client ID (GH442 item 3)', { GOOGLE_CLIENT_ID: 'plain-secret-looking-value' }],
+    [
+      'GOOGLE_CLIENT_SECRET that looks like a client ID (GH442 item 3)',
+      { GOOGLE_CLIENT_SECRET: 'gid-9.apps.googleusercontent.com' },
     ],
     ['CREDENTIALS_KEY_VERSION of 10 digits', { CREDENTIALS_KEY_VERSION: '1234567890' }],
     ['CREDENTIALS_KEY that is not base64', { CREDENTIALS_KEY: 'not base64 at all !!!' }],
