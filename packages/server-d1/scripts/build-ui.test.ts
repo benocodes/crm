@@ -94,7 +94,8 @@ describe('the Worker bundle', () => {
     const inputs = Object.keys(res.metafile.inputs)
     expect(inputs.length).toBeGreaterThan(100)
     expect(inputs.filter((i) => packageOf(i) === 'preact' || /preact/.test(i))).toEqual([])
-    expect(inputs.filter((i) => /(^|\/)ui\/src\/|@vibase\/ui\//.test(i))).toEqual([])
+    // The one module of @vibase/ui the Worker may hold is the plain-string CSP ([[UI445]] D6, one source with the gallery run); nothing else.
+    expect(inputs.filter((i) => /(^|\/)ui\/src\/|@vibase\/ui\//.test(i))).toEqual(['../ui/src/csp.ts'])
     expect(inputs.filter((i) => /(^|\/)src\/ui\//.test(i))).toEqual([])
   }, 60_000)
 })
