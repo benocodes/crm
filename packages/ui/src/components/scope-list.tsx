@@ -6,11 +6,18 @@ export interface ScopeItem {
 }
 
 /** [[UI381]] D10: tight rows in a capped-height region that scrolls on its own, named and keyboard focusable, so the page's primary button stays in view. Read-only scope names and their registry descriptions. Every value is a text child, never markup: names and descriptions can be attacker-chosen. */
-export function ScopeList({ scopes }: { scopes: readonly ScopeItem[] }) {
+/** `label` names the region (default "Requested permissions"); several lists on one page ([[UI455]]'s disclosures) each pass their own so the landmark names stay unique. */
+export function ScopeList({
+  scopes,
+  label = 'Requested permissions',
+}: {
+  scopes: readonly ScopeItem[]
+  label?: string
+}) {
   return (
     <section
       className={`max-h-48 overflow-y-auto rounded-md border p-3 ${focusRing}`}
-      aria-label="Requested permissions"
+      aria-label={label}
       // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region must be keyboard focusable (axe scrollable-region-focusable)
       tabIndex={0}
     >

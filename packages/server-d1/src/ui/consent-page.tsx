@@ -9,7 +9,7 @@ import {
   type AreaModel,
   type SwitchState,
 } from './consent-model.js'
-import { MESSAGES, consentReturnsTo, genericFailure, showPermissions } from './messages.js'
+import { MESSAGES, consentReturnsTo, genericFailure, permissionsOf, showPermissions } from './messages.js'
 import { goTo, type PageProps } from './page.js'
 import { scopeItems } from './scope-text.js'
 
@@ -30,11 +30,11 @@ const failureMessage = (f: ApiFailure): string => {
 }
 
 /** [[UI455]] P5: every requested scope of a group as text, behind a closed disclosure that counts them. */
-function Disclosure({ scopes }: { scopes: readonly string[] }) {
+function Disclosure({ scopes, label }: { scopes: readonly string[]; label: string }) {
   return (
     <details className="text-sm">
       <summary className="cursor-pointer text-muted-foreground">{showPermissions(scopes.length)}</summary>
-      <ScopeList scopes={scopeItems(scopes)} />
+      <ScopeList label={label} scopes={scopeItems(scopes)} />
     </details>
   )
 }
@@ -70,7 +70,7 @@ function Area({ area, state, setState }: { area: AreaModel; state: SwitchState; 
         )
       })}
       {forced ? <p className="text-sm text-muted-foreground">{MESSAGES.writeIncludesPropose}</p> : null}
-      <Disclosure scopes={area.requested} />
+      <Disclosure scopes={area.requested} label={permissionsOf(area.name)} />
     </fieldset>
   )
 }
@@ -173,7 +173,7 @@ export function ConsentPage({ navigate = goTo }: PageProps) {
             <b>{MESSAGES.consentSignInTitle}</b>
           </p>
           <p className="text-sm text-muted-foreground">{MESSAGES.consentSignInSentence}</p>
-          <Disclosure scopes={model.signIn} />
+          <Disclosure scopes={model.signIn} label={MESSAGES.signInPermissions} />
         </div>
       ) : null}
       {model.areas.length > 0 ? (

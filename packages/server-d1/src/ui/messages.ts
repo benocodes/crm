@@ -45,7 +45,8 @@ export const MESSAGES = {
   consentUnverified: 'This name is chosen by the app and not verified by Vibase',
   // The grouped consent page ([[UI449]] D3 to D6, [[UI455]]).
   consentSignInTitle: 'Sign-in',
-  consentSignInSentence: 'Always included so the app can sign you in and keep you signed in.',
+  consentSignInSentence: 'Also: confirm who you are and stay signed in',
+  signInPermissions: 'Sign-in permissions',
   switchRead: 'Read',
   switchReadSensitive: 'Read sensitive records',
   switchPropose: 'Propose changes for approval',
@@ -81,3 +82,6 @@ export const consentReturnsTo = (host: string): string => `After you allow, you 
 
 /** The disclosure's summary: how many permissions the app asked for in that group ([[UI455]] P5). */
 export const showPermissions = (n: number): string => `Show the ${n} permission${n === 1 ? '' : 's'}`
+
+/** The name of an area's permissions region inside its disclosure; unique per area ([[UI455]] review 1). */
+export const permissionsOf = (area: string): string => `${area} permissions`
