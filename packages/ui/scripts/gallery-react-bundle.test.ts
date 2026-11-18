@@ -2,6 +2,7 @@
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
 import type { Metafile } from 'esbuild'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -22,6 +23,7 @@ export const contentsProblems = (metafile: Metafile): string[] => {
   ]
 }
 
+const GALLERY_SRC = fileURLToPath(new URL('../gallery-react/', import.meta.url))
 const gz = (file: string) => gzipSync(readFileSync(file)).length
 let out = ''
 let metafile: Metafile
@@ -49,7 +51,13 @@ describe('React gallery bundle', () => {
     const css = readFileSync(join(out, 'gallery.css'), 'utf-8')
     expect(css).toContain('.bg-primary{')
     expect(css).toContain('.text-destructive{')
-    expect(css).not.toContain('.bg-accent{')
+    expect(css).not.toContain('.bg-yellow-500{')
+  })
+
+  it('its stylesheet holds a rule for a class only a component under src/components uses (@source for src/components)', () => {
+    const css = readFileSync(join(out, 'gallery.css'), 'utf-8')
+    expect(css).toContain('.max-h-48{')
+    expect(readFileSync(join(GALLERY_SRC, 'gallery.tsx'), 'utf-8')).not.toContain('max-h-48')
   })
 
   it('stays within the budget (100 KB gzipped JS, 20 KB gzipped CSS)', () => {
