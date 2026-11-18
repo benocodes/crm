@@ -36,6 +36,14 @@ If the brief names an existing worktree, use it. Every later command runs from t
 (`ROOT_ENV_PATH` in `packages/server-d1/scripts/remote.ts`). Before running one, link the main checkout's file
 with `ln -s ../../../.env .env` from the worktree root. Never copy it, and never print it ([[CORE61]] retro).
 
+**A deliverable outside the repo** (a folder agents may not write, with no git of its own): copy it into your
+scratch space without `node_modules`, build output and every `.env*` but `.env.example`, `git init` and commit a
+baseline, make and prove the change there, and deliver `git diff --binary` as a patch in the cycle folder, with its
+harness beside it so the reviewer and e2e-tester run what you ran. Run last, on the final patch: `git apply --check`
+on a fresh `git archive` of the baseline and `patch -p1 --dry-run` in the live folder (read-only). A later edit to
+the patch is made in a re-applied copy and regenerated the same way, never by hand in the patch file. The crm
+branch then carries no code, so there is no gate to run ([[DX422]] D2).
+
 ## 2. Survey before you write
 
 - **Before you start the work, read what was already decided** (before the survey, before any test): `node scripts/decisions.mjs find <the cycle's issue> --related`
