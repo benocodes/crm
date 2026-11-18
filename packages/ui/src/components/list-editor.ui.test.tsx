@@ -12,7 +12,7 @@ const noViolations = async () => {
   expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(' ')}`)).toEqual([])
 }
 
-const base: ListEditorProps = {
+const base = {
   label: 'Domains',
   values: [],
   onChange: () => {},
@@ -20,18 +20,21 @@ const base: ListEditorProps = {
   emptyText: 'Nothing listed.',
   emptyEntryMessage: 'Enter a value.',
   duplicateMessage: 'Already in the list.',
-  maxMessage: 'No more than 3.',
 }
 
 /** Holds the list like a page would and records every reported change. */
-function Host({ initial = [] as string[], onChange, ...rest }: Partial<ListEditorProps> & { initial?: string[] }) {
+type HostProps = Partial<Omit<ListEditorProps, 'max' | 'maxMessage'>> & { initial?: string[]; max?: number }
+function Host({ initial = [] as string[], onChange, max, ...rest }: HostProps) {
   const [values, setValues] = useState(initial)
+  const limit: { max: number; maxMessage: string } | { max?: undefined; maxMessage?: undefined } =
+    max === undefined ? {} : { max, maxMessage: 'No more than 3.' }
   return (
     <>
       <h1>Page</h1>
       <ListEditor
         {...base}
         {...rest}
+        {...limit}
         values={values}
         onChange={(v) => {
           setValues(v)
@@ -129,5 +132,16 @@ describe('ListEditor', () => {
       </>,
     )
     await noViolations()
+  })
+})
+
+describe('ListEditor props (type level)', () => {
+  it('max requires maxMessage', () => {
+    const ok = <ListEditor {...base} values={[]} onChange={() => {}} max={3} maxMessage="Full" />
+    // @ts-expect-error max without maxMessage is refused
+    const missing = <ListEditor {...base} values={[]} onChange={() => {}} max={3} />
+    // @ts-expect-error maxMessage without max is refused
+    const orphan = <ListEditor {...base} values={[]} onChange={() => {}} maxMessage="Full" />
+    expect([ok, missing, orphan]).toHaveLength(3)
   })
 })

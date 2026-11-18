@@ -4,10 +4,11 @@
 // typed (trimmed). Each accepted change reports the whole list. The texts are props; what else a value must satisfy is the page's.
 import { useId, useState } from 'react'
 import { Button } from './button'
+import { buttonVariants } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 
-export interface ListEditorProps {
+interface ListEditorCommon {
   label: string
   values: string[]
   onChange: (values: string[]) => void
@@ -19,11 +20,12 @@ export interface ListEditorProps {
   emptyText: string
   emptyEntryMessage: string
   duplicateMessage: string
-  /** Shown when an add is refused at `max`. */
-  maxMessage?: string
-  max?: number
   readOnly?: boolean
 }
+
+/** `max` and the message shown when an add is refused at it come together: a limit with no message would refuse silently. */
+export type ListEditorProps = ListEditorCommon &
+  ({ max?: undefined; maxMessage?: undefined } | { max: number; maxMessage: string })
 
 export function ListEditor({
   label,
@@ -47,7 +49,7 @@ export function ListEditor({
 
   const add = () => {
     const value = draft.trim()
-    if (max !== undefined && values.length >= max) return setRefusal(maxMessage ?? '')
+    if (max !== undefined && values.length >= max) return setRefusal(maxMessage)
     if (value === '') return setRefusal(emptyEntryMessage)
     if (values.some((v) => v.toLowerCase() === value.toLowerCase())) return setRefusal(duplicateMessage)
     setRefusal(undefined)
@@ -65,7 +67,7 @@ export function ListEditor({
               <button
                 type="button"
                 aria-label={`${removeLabel} ${value}`}
-                className="rounded-md px-2 py-1 text-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:ring-2 focus-visible:ring-ring"
+                className={buttonVariants({ variant: 'link', size: 'sm' })}
                 onClick={() => onChange(values.filter((v) => v !== value))}
               >
                 {removeLabel}

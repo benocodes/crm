@@ -61,7 +61,6 @@ const LIST_TEXT = {
   emptyText: 'Nothing listed.',
   emptyEntryMessage: 'Enter a value.',
   duplicateMessage: 'That value is already in the list.',
-  maxMessage: 'The list is full.',
 }
 
 function Dialog({
@@ -137,10 +136,24 @@ function Lists() {
       </State>
       <Dialog state="dialog-opener" />
       <State state="list-editor" title="ListEditor, editable with values">
-        <ListEditor label="Allowed domains" values={domains} onChange={setDomains} {...LIST_TEXT} max={5} />
+        <ListEditor
+          label="Allowed domains"
+          values={domains}
+          onChange={setDomains}
+          {...LIST_TEXT}
+          max={5}
+          maxMessage="The list is full."
+        />
       </State>
       <State state="list-editor-refusal" title="ListEditor, an inline refusal">
-        <ListEditor label="Blocked domains" values={refused} onChange={setRefused} {...LIST_TEXT} max={5} />
+        <ListEditor
+          label="Blocked domains"
+          values={refused}
+          onChange={setRefused}
+          {...LIST_TEXT}
+          max={5}
+          maxMessage="The list is full."
+        />
         <p className="text-xs text-muted-foreground">Type example.com and press Enter to see the refusal.</p>
       </State>
       <State state="list-editor-readonly" title="ListEditor, read-only and empty">
