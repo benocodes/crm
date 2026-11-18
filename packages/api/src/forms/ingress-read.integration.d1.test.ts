@@ -1,6 +1,3 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { defineOperation, queryContext, unit } from '@vibase/storage'
 import { openD1Engine, type Engine } from '../test/engines.js'
@@ -116,26 +113,5 @@ describe('formIngressRead (D14)', () => {
   it('a dialect other than D1 throws', () => {
     const qc = queryContext('postgres' as never)
     expect(() => formIngressRead(qc, 'frm_x')).toThrow(/D1 only/)
-  })
-})
-
-describe('P6: dormant until CHN421 (that cycle deletes this test)', () => {
-  it('no non-test source file references formIngressRead', () => {
-    const root = fileURLToPath(new URL('..', import.meta.url))
-    const hits: string[] = []
-    const walk = (dir: string) => {
-      for (const name of readdirSync(dir)) {
-        const p = join(dir, name)
-        if (statSync(p).isDirectory()) walk(p)
-        else if (
-          p.endsWith('.ts') &&
-          !/\.test\.ts$|\.suite\.ts$/.test(p) &&
-          readFileSync(p, 'utf8').includes('formIngressRead')
-        )
-          hits.push(p.slice(root.length))
-      }
-    }
-    walk(root)
-    expect(hits).toEqual(['forms/ingress-read.ts'])
   })
 })

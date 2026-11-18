@@ -1181,6 +1181,14 @@ or an operation (`control-boundary.test.ts`, [[CORE259]] D5).
 - Let unexpected errors propagate to the error middleware; don't wrap handlers in `try/catch → 500
   internal`.
 
+**Public routes outside the registry are the exception** (`handleFormIngress`, `packages/api/src/forms/ingress.ts`,
+[[CHN421]] D1, [[CHN429]]). Such a handler is a function of a `Request` and injected ports (storage, verifier,
+limiters, clock, ids) returning a `Response`, and it **never throws**: every awaited step, including the reads
+before the main `try`, maps a failure to an answer (`503 temporarily_unavailable`, logged). Review round 1 of
+CHN429 found the form read outside the `try` (429.14). Its answers carry CORS headers only after the origin has
+been judged; earlier refusals (`405/415/413/429/404`) carry none. Rate limits run before the first database read,
+and a counting binding (`execute` wrapped to count) proves it in tests.
+
 ## Logging
 
 `console.log` / `console.warn` with `[tag]` prefixes. Log sizes and counts, not per-request success lines

@@ -1,6 +1,3 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { CommitOutcomeUnknown, StatementFailed, UnitDriftError, uuidv7, type PreparedOperation } from '@vibase/storage'
 import { memoryObjectStore } from '../objects/store.js'
@@ -535,26 +532,5 @@ describe('failure and retry (D18, P4, P5)', () => {
     expect(await e.rows('messages')).toHaveLength(2)
     expect(await e.rows('contacts')).toHaveLength(1)
     expect(await e.rows('identities')).toHaveLength(1)
-  })
-})
-
-describe('P5: dormant until CHN429 (that cycle deletes this test)', () => {
-  it('no non-test source file calls captureFormSubmission', () => {
-    const root = fileURLToPath(new URL('..', import.meta.url))
-    const hits: string[] = []
-    const walk = (dir: string) => {
-      for (const name of readdirSync(dir)) {
-        const p = join(dir, name)
-        if (statSync(p).isDirectory()) walk(p)
-        else if (
-          p.endsWith('.ts') &&
-          !/\.test\.ts$|\.suite\.ts$/.test(p) &&
-          readFileSync(p, 'utf8').includes('captureFormSubmission')
-        )
-          hits.push(p.slice(root.length))
-      }
-    }
-    walk(root)
-    expect(hits).toEqual(['forms/submission.ts'])
   })
 })
