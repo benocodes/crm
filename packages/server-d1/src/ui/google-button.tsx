@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button } from '@vibase/ui'
+import { Button } from '@vibase/ui/components'
 import { getSignInMethods, startGoogleSignIn } from './auth-api.js'
 import { MESSAGES, genericFailure } from './messages.js'
 import { goTo } from './page.js'

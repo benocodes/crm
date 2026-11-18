@@ -1,6 +1,5 @@
-// The mount of the auth pages' one bundle ([[UI246]] D2): the view comes from the path. This is the one file that imports `preact` itself; every other source imports `react`, which the build aliases to
-// Preact ([[UI254]] D1). [[UI247]] adds the consent and device views.
-import { render } from 'preact'
+// The mount of the auth pages' one bundle ([[UI246]] D2, [[UI446]] D1, D2): the view comes from the path. This is the one file that imports `react-dom`; the pages run on real React and `@vibase/ui/components`.
+import { createRoot } from 'react-dom/client'
 import { ConsentPage } from './consent-page.js'
 import { DevicePage } from './device-page.js'
 import { InvitePage } from './invite-page.js'
@@ -19,4 +18,5 @@ const [title, view] =
           ? (['Sign in from your terminal', <DevicePage />] as const)
           : (['Sign in', <SignInPage />] as const)
 document.title = `${title} - Vibase`
-render(view, document.getElementById('root')!)
+// The page column the Preact layer's card carried (a 28rem column, centred, 1.5rem above and below).
+createRoot(document.getElementById('root')!).render(<div className="mx-auto my-6 max-w-md">{view}</div>)

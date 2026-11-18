@@ -1,7 +1,7 @@
 // [[UI247]] D5: the text of a scope. Vault scopes read the registry's one catalogue (`SCOPE_DESCRIPTIONS`), imported from its dependency-free leaf and so embedded into the bundle at build time (the
 // bundle never imports `@vibase/api`'s index); the four OIDC scopes have this page's own sentences; anything else is shown by name with "No description". Every value is rendered as text.
 import { SCOPE_DESCRIPTIONS } from '@vibase/api/scope-descriptions'
-import type { ScopeItem } from '@vibase/ui'
+import type { ScopeItem } from '@vibase/ui/components'
 import { MESSAGES } from './messages.js'
 
 const OIDC: Readonly<Record<string, string>> = {

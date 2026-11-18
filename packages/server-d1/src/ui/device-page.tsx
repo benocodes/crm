@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, CodeInput, FormLayout, ScopeList, normaliseCode } from '@vibase/ui'
+import { Alert, Button, Card, CodeInput, FormLayout, ScopeList, normaliseCode } from '@vibase/ui/components'
 import {
   approveDevice,
   claimDeviceCode,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, ScopeList } from '@vibase/ui'
+import { Alert, Button, Card, ScopeList } from '@vibase/ui/components'
 import { getClientName, getSession, signOut, submitConsent, type ApiFailure, type SessionUser } from './auth-api.js'
 import { MESSAGES, consentReturnsTo, genericFailure } from './messages.js'
 import { goTo, type PageProps } from './page.js'

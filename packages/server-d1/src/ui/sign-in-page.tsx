@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Alert, Button, Card, Field, FormLayout } from '@vibase/ui'
+import { Alert, Button, Card, Field, FormLayout } from '@vibase/ui/components'
 import { getSession, signIn, signOut, type SessionUser } from './auth-api.js'
 import { MESSAGES, genericFailure } from './messages.js'
 import { crossOriginTarget, returnTarget } from './continuation.js'
@@ -70,7 +70,10 @@ function SignedIn({ user, target, onSignedOut }: { user: SessionUser; target: st
     >
       {error ? <Alert variant="error">{error}</Alert> : null}
       <p>{`Signed in as ${user.email}`}</p>
-      <a className="vb-link" href={target}>
+      <a
+        className="self-start text-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        href={target}
+      >
         Continue
       </a>
     </Card>

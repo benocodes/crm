@@ -93,7 +93,8 @@ describe('buildUi (the pages bundle)', () => {
     expect(js.length).toBeGreaterThan(5000)
     expect(js).not.toMatch(/sourceMappingURL/)
     expect(js).not.toMatch(/\beval\(|new Function\(/)
-    expect(js).not.toMatch(/\bfrom\s*["']|\brequire\(/)
+    // No static import or export statement, dynamic import or require (a bare `from"` also occurs in Tailwind-merge's class-group names, so the statement forms are matched).
+    expect(js).not.toMatch(/\brequire\(|\bimport\(|(^|[;}])\s*(import|export)\s*[\w{*"']/)
   })
 })
 
