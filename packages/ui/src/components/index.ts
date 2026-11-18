@@ -14,3 +14,14 @@ export { PromptCard, type PromptAction, type PromptCardProps } from './prompt-ca
 export { SettingsPage, type SettingsPageProps } from './settings-page'
 export { SettingsRow, type SettingsRowProps } from './settings-row'
 export { SettingsSection, type SettingsSectionProps } from './settings-section'
+// [[UI458]] D11: the list, dialog and form composites the Connected accounts and Agents pages compose.
+export { ChoiceGroup, type ChoiceGroupProps, type ChoiceOption } from './choice-group'
+export { ConfirmDialog, type ConfirmDialogProps } from './confirm-dialog'
+export { ListEditor, type ListEditorProps } from './list-editor'
+export {
+  ResourceList,
+  type ResourceListItem,
+  type ResourceListProps,
+  type ResourceRowAction,
+} from './resource-list'
+export { StatusBadge, type StatusBadgeProps, type StatusTone } from './status-badge'
