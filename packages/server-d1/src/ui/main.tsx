@@ -23,5 +23,8 @@ const pageFor = (path: string): { title: string; view: ReactNode } => {
 }
 const { title, view } = pageFor(location.pathname)
 document.title = `${title} - Vibase`
-// The page column the Preact layer's card carried (a 28rem column, centred, 1.5rem above and below).
-createRoot(document.getElementById('root')!).render(<div className="mx-auto my-6 max-w-md">{view}</div>)
+// The page column the Preact layer's card carried: 28rem of content plus 1.5rem padding each side (31rem), centred, 1.5rem above and below, plus a 1rem gutter so a narrow screen keeps a margin (33rem with the gutters).
+// No transitions: the Preact layer had none, and a colour-scheme change must show at once (a transitioning button is mid-colour for 150 ms, which axe's contrast check and a screenshot both catch).
+createRoot(document.getElementById('root')!).render(
+  <div className="mx-auto my-6 max-w-132 px-4 [&_*]:transition-none!">{view}</div>,
+)

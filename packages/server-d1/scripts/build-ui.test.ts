@@ -49,12 +49,42 @@ describe('buildUi (the pages bundle)', () => {
     const css = readFileSync(join(out, 'ui/ui.css'), 'utf8')
     expect(css).not.toBe(readFileSync(fileURLToPath(new URL('../../ui/src/ui.css', import.meta.url)), 'utf8'))
     expect(css).not.toContain('--vb-')
-    // `max-w-md` is on the pages' mount wrapper (main.tsx) and nowhere in packages/ui/src/components, so only the page source scan can have produced it.
+    // `max-w-132` is on the pages' mount wrapper (main.tsx) and nowhere in packages/ui/src/components, so only the page source scan can have produced it.
     const components = walk(fileURLToPath(new URL('../../ui/src/components', import.meta.url)))
       .filter((f) => /\.tsx?$/.test(f))
       .map((f) => readFileSync(f, 'utf8'))
-    expect(components.some((t) => t.includes('max-w-md'))).toBe(false)
-    expect(css).toMatch(/\.max-w-md\{/)
+    expect(components.some((t) => t.includes('max-w-132'))).toBe(false)
+    expect(css).toMatch(/\.max-w-132\{/)
+  })
+
+  // UI446 fix round 1: the E2E's dark-mode axe check caught buttons mid-transition (light-mode colours for 150 ms after the scheme flipped). The stylesheet must carry the dark tokens
+  // under both spellings (the media query and data-theme), and the pages must switch transitions off.
+  it('the stylesheet swaps every token the buttons use in dark mode, by media query and by data-theme, and the pages disable transitions', () => {
+    const css = readFileSync(join(out, 'ui/ui.css'), 'utf8')
+    const block = (selector: string): string => {
+      const at = css.indexOf(selector)
+      expect(at, selector).toBeGreaterThan(-1)
+      return css.slice(at, css.indexOf('}', at))
+    }
+    const light = block(':root{')
+    for (const dark of [
+      block('@media (prefers-color-scheme:dark){:root:not([data-theme=light]){'),
+      block(':root[data-theme=dark]{'),
+    ]) {
+      for (const token of [
+        '--primary',
+        '--primary-foreground',
+        '--secondary',
+        '--secondary-foreground',
+        '--card',
+        '--background',
+      ]) {
+        const value = (text: string) => new RegExp(`${token}:([^;}]+)`).exec(text)?.[1]
+        expect(value(dark), token).toBeDefined()
+        expect(value(dark), `${token} differs from light`).not.toBe(value(light))
+      }
+    }
+    expect(css).toContain('transition-none\\! *{transition-property:none!important}')
   })
 
   it('the metafile holds react, react-dom and the component set, and no preact and no Preact-layer module', () => {
