@@ -388,17 +388,17 @@ describe('default capture settings (CHN406 D4, D12)', () => {
     const c = (await rows('channel_connections'))[0]!
     expect(await labelsOf(c.id as string)).toEqual(['INBOX', 'SENT'])
     expect(c).toMatchObject({
-      exclude_group_addresses: false,
-      exclude_personal_domains: false,
-      contact_creation: 'sent_and_received',
+      exclude_group_addresses: true,
+      exclude_personal_domains: true,
+      contact_creation: 'sent',
     })
     const created = (await events()).find((x) => x.type === 'connection.created')!
     expect(created.after).toMatchObject({
       capture_labels: ['INBOX', 'SENT'],
       blocked_senders: [],
-      exclude_group_addresses: false,
-      exclude_personal_domains: false,
-      contact_creation: 'sent_and_received',
+      exclude_group_addresses: true,
+      exclude_personal_domains: true,
+      contact_creation: 'sent',
     })
   })
 
@@ -451,12 +451,12 @@ describe('default capture settings (CHN406 D4, D12)', () => {
       .d1!.prepare('delete from connection_capture_labels where connection_id = ? and label_id = ?')
       .bind(first.id, 'SENT')
       .run()
-    await e.update('channel_connections', first.id as string, { contact_creation: 'sent' })
+    await e.update('channel_connections', first.id as string, { contact_creation: 'none' })
     expect((await api('DELETE', `/meta/v1/connections/${first.id}`)).status).toBe(204)
     await connect()
     const second = (await rows('channel_connections')).find((c) => c.id !== first.id)!
     expect(await labelsOf(second.id as string)).toEqual(['INBOX', 'SENT'])
-    expect(second.contact_creation).toBe('sent_and_received')
+    expect(second.contact_creation).toBe('sent')
     expect(await labelsOf(first.id as string)).toEqual(['INBOX'])
   })
 })

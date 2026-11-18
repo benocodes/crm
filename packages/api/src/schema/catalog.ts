@@ -353,11 +353,11 @@ export const CATALOG: Catalog = {
         granted_scopes: 'The OAuth scopes the person granted at the provider, as a JSON array.',
         connected_at: 'When the connection was made or last reconnected.',
         exclude_group_addresses:
-          'Whether mail from group addresses is left out of capture. False by default; applied from CHN407 on.',
+          'Whether mail from group addresses is left out of capture. True by default for a new connection; applied from CHN407 on.',
         exclude_personal_domains:
-          'Whether mail from personal-mail domains is left out of capture. False by default; applied from CHN407 on.',
+          'Whether mail from personal-mail domains is left out of capture. True by default for a new connection; applied from CHN407 on.',
         contact_creation:
-          'Which captured mail gives an address a contact: sent_and_received (the default) gives every counterparty one; sent gives one only to the to, cc and bcc recipients of mail this mailbox sent, never to an address that is also the sender of that message; none gives nobody one. An address that gets no contact is still recorded, as an unattached identity, and is promoted when a later capture qualifies it. It applies to mail captured from now on; changing it never removes or detaches a contact.',
+          'Which captured mail gives an address a contact: sent (the default for a new connection) gives one only to the to, cc and bcc recipients of mail this mailbox sent, never to an address that is also the sender of that message; sent_and_received gives every counterparty one; none gives nobody one. An address that gets no contact is still recorded, as an unattached identity, and is promoted when a later capture qualifies it. It applies to mail captured from now on; changing it never removes or detaches a contact.',
       },
       derived: {
         last_synced_at:

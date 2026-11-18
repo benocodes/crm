@@ -104,9 +104,9 @@ describe('the connection record embeds the settings (D3)', () => {
     expect(byId[b.id]).toMatchObject({
       capture_labels: [],
       blocked_senders: [{ kind: 'domain', value: 'other.example' }],
-      exclude_group_addresses: false,
-      exclude_personal_domains: false,
-      contact_creation: 'sent_and_received',
+      exclude_group_addresses: true,
+      exclude_personal_domains: true,
+      contact_creation: 'sent',
     })
   })
 })
@@ -137,9 +137,9 @@ describe('captureSettingsRead (D11, D12)', () => {
       capture_labels: ['INBOX', 'SENT'],
       blocked_addresses: [],
       blocked_domains: [],
-      exclude_group_addresses: false,
-      exclude_personal_domains: false,
-      contact_creation: 'sent_and_received',
+      exclude_group_addresses: true,
+      exclude_personal_domains: true,
+      contact_creation: 'sent',
     })
   })
 

@@ -61,7 +61,7 @@ export const updateBody = z.strictObject({
     .enum(['sent_and_received', 'sent', 'none'])
     .optional()
     .describe(
-      'Which captured mail gives an address a contact: sent_and_received (the default) every counterparty, sent only the recipients of mail this mailbox sent, none nobody. An address that gets no contact is recorded unattached. Applies to mail captured from now on.',
+      'Which captured mail gives an address a contact: sent (the default for a new connection) only the recipients of mail this mailbox sent, sent_and_received every counterparty, none nobody. An address that gets no contact is recorded unattached. Applies to mail captured from now on.',
     ),
 })
 

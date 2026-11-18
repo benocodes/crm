@@ -59,14 +59,14 @@ const record = z.object({
     ),
   exclude_group_addresses: z
     .boolean()
-    .describe('Whether mail from group addresses is left out of capture; false by default.'),
+    .describe('Whether mail from group addresses is left out of capture; true by default for a new connection.'),
   exclude_personal_domains: z
     .boolean()
-    .describe('Whether mail from personal-mail domains is left out of capture; false by default.'),
+    .describe('Whether mail from personal-mail domains is left out of capture; true by default for a new connection.'),
   contact_creation: z
     .enum(['sent_and_received', 'sent', 'none'])
     .describe(
-      'Which captured mail gives an address a contact: sent_and_received (the default) every counterparty, sent only the recipients of mail this mailbox sent, none nobody. An address that gets no contact is recorded unattached. Applies to mail captured from now on.',
+      'Which captured mail gives an address a contact: sent (the default for a new connection) only the recipients of mail this mailbox sent, sent_and_received every counterparty, none nobody. An address that gets no contact is recorded unattached. Applies to mail captured from now on.',
     ),
   created_by: z.uuid(),
   created_at: z.string(),

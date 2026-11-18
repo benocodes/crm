@@ -1,0 +1,114 @@
+import { cpSync, mkdtempSync, readdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import type { D1Like } from './binding.js'
+import { MIGRATIONS_DIR, applyMigrations, openLocalD1, type LocalD1 } from './test/index.js'
+import { seedDeployment, seedPrincipal } from './test/seed.js'
+
+// #451 (user ruling 451.1): migration 0025 rebuilds channel_connections for new column defaults (exclusions on, contact_creation 'sent'), keeping every
+// existing row, its children and the foreign keys into it. Seeded at 0024 with a connection that holds a credential row; raw inserts are the permitted
+// exception (the test proves what the database does, which no operation reaches).
+const ORG = '0190b2c4-0000-7000-8000-00000000a001'
+const USER = '0190b2c4-0000-7000-8000-00000000b001'
+const AT = '2026-11-18T09:00:00.000Z'
+const id = (n: number) => `0190b2c4-0000-7000-8000-0000000000${String(n).padStart(2, '0')}`
+const IDENT = id(10)
+const OLD = id(11)
+const NEW = id(12)
+
+let local: LocalD1
+let d1: D1Like
+beforeAll(async () => {
+  local = await openLocalD1(['G'], { migrate: false })
+  d1 = local.bindings.G!
+})
+afterAll(async () => {
+  await local.dispose()
+})
+
+const run = (sqlText: string, ...binds: unknown[]) => d1.batch([d1.prepare(sqlText).bind(...binds)])
+const all = async <T = Record<string, unknown>>(sqlText: string, ...binds: unknown[]) =>
+  ((
+    await d1
+      .prepare(sqlText)
+      .bind(...binds)
+      .all()
+  ).results ?? []) as T[]
+
+const connection = (cid: string, account: string, extra = '') =>
+  run(
+    `INSERT INTO channel_connections (id, created_at, updated_at, organization_id, created_by, provider, account_id, identity_id, owner_id, status, granted_scopes, connected_at${extra ? ', exclude_group_addresses, exclude_personal_domains, contact_creation' : ''})
+     VALUES (?, ?, ?, ?, ?, 'google', ?, ?, ?, 'active', '["openid"]', ?${extra ? ", 0, 0, 'sent_and_received'" : ''})`,
+    cid,
+    AT,
+    AT,
+    ORG,
+    USER,
+    account,
+    IDENT,
+    USER,
+    AT,
+  )
+
+describe('migration 0025_capture_defaults over a database at 0024', () => {
+  it('keeps existing connections and their children, and gives a new one the new defaults', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mig24-'))
+    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f < '0025')) cpSync(join(MIGRATIONS_DIR, f), join(dir, f))
+    await applyMigrations(d1, dir)
+    await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
+    await seedPrincipal(d1, { id: USER, kind: 'user' })
+    await run(
+      `INSERT INTO identities (id, organization_id, created_by, created_at, updated_at, kind, value, contact_id, own) VALUES (?, ?, ?, ?, ?, 'email', 'ann@example.test', NULL, 1)`,
+      IDENT,
+      ORG,
+      USER,
+      AT,
+      AT,
+    )
+    await connection(OLD, 'sub-old', 'explicit')
+    await run(
+      `INSERT INTO connection_capture_labels (id, organization_id, connection_id, label_id, created_at) VALUES (?, ?, ?, 'INBOX', ?)`,
+      id(40),
+      ORG,
+      OLD,
+      AT,
+    )
+
+    // the earlier files are re-applied by the helper only on a fresh database; apply 0025 alone over this one
+    const sqlText = readdirSync(MIGRATIONS_DIR).find((f) => f.startsWith('0025'))!
+    expect(sqlText).toBe('0025_capture_defaults.sql')
+    const lone = mkdtempSync(join(tmpdir(), 'mig25only-'))
+    cpSync(join(MIGRATIONS_DIR, sqlText), join(lone, sqlText))
+    expect(await applyMigrations(d1, lone)).toEqual([sqlText])
+
+    expect(
+      await all(
+        'select id, exclude_group_addresses, exclude_personal_domains, contact_creation from channel_connections',
+      ),
+    ).toEqual([
+      { id: OLD, exclude_group_addresses: 0, exclude_personal_domains: 0, contact_creation: 'sent_and_received' },
+    ])
+    expect(await all('select connection_id, label_id from connection_capture_labels')).toEqual([
+      { connection_id: OLD, label_id: 'INBOX' },
+    ])
+    expect(
+      await all(
+        "select name from sqlite_master where tbl_name = 'channel_connections' and name not like 'sqlite_autoindex%' order by name",
+      ),
+    ).toEqual([
+      { name: 'channel_connections' },
+      { name: 'idx_channel_connections_live_account' },
+      { name: 'idx_channel_connections_owner' },
+    ])
+
+    await connection(NEW, 'sub-new')
+    expect(
+      await all(
+        'select exclude_group_addresses, exclude_personal_domains, contact_creation from channel_connections where id = ?',
+        NEW,
+      ),
+    ).toEqual([{ exclude_group_addresses: 1, exclude_personal_domains: 1, contact_creation: 'sent' }])
+    expect(await all('pragma foreign_key_check')).toEqual([])
+  })
+})
