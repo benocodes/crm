@@ -1290,6 +1290,12 @@ message bodies or addresses at info level (customer communications are personal 
   temp input CSS that `@import`s `src/styles.css` and adds an absolute `@source` per extra directory; a missing
   directory throws before the CLI runs. Biome lints Tailwind's `@theme`, `@custom-variant` and `@source` only with
   `css.parser.tailwindDirectives` on (`biome.json`). `@source` on an absent directory is tolerated.
+- **A composite styles its controls from the shared primitives** (`buttonVariants` or the `Button` composite from
+  `packages/ui/src/components/ui/button.tsx`, `focusRing` from `ui/focus-ring.ts`), never a copied class string: a
+  copy passes every test and drifts later, and under the consistent-by-construction rule it is a forked component
+  ([[UI458]] review, 458.25). **Props that only make sense together are a union**, not two optionals
+  (`{ max?: undefined; maxMessage?: undefined } | { max: number; maxMessage: string }`), pinned by an `@ts-expect-error`
+  test under the package typecheck; two optionals let a caller set a limit whose refusal has no text (458.26).
 
 ## Large bytes and object storage
 

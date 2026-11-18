@@ -357,3 +357,137 @@ test('an injected <style> is a violation on the components page only; an injecte
   expect(composites.violations.some((v) => v.startsWith('script-src-elem'))).toBe(true)
   expect(composites.ran, 'inline script did not run under APP_CSP').toBe(false)
 })
+
+// ---- [[UI458]] cycle 1: the lists page (ResourceList, StatusBadge, ConfirmDialog, ListEditor, ChoiceGroup), served with APP_CSP ----
+
+const LIST_STATES = [
+  'resource-list',
+  'resource-empty',
+  'resource-loading',
+  'status-badges',
+  'dialog-opener',
+  'list-editor',
+  'list-editor-refusal',
+  'list-editor-readonly',
+  'choice-group',
+  'choice-group-readonly',
+]
+const DIALOG_VIEWS = ['dialog-plain', 'dialog-destructive', 'dialog-busy', 'dialog-error', 'dialog-destructive-error']
+const LIST_VIEWS = [{ view: 'lists', states: LIST_STATES }, ...DIALOG_VIEWS.map((view) => ({ view, states: [view] }))]
+
+for (const mode of MODES) {
+  for (const { view, states } of LIST_VIEWS) {
+    test.describe(`lists ${view} ${mode.name}`, () => {
+      test.use({ colorScheme: mode.colorScheme })
+
+      test('renders in the theme, axe finds zero violations, no CSP violation', async ({ page }) => {
+        const csp = await watchCsp(page)
+        const theme = mode.url.includes('theme=') ? `&${mode.url.split('?')[1]}` : ''
+        await page.goto(`/lists?view=${view}${theme}`)
+        await expect(page.locator('[data-gallery-state]').first()).toBeVisible()
+        if (view.startsWith('dialog-')) await expect(page.getByRole('alertdialog')).toBeVisible()
+        await page.screenshot({ path: join(SHOTS, `lists-${view}-${mode.name}.png`), fullPage: true })
+        for (const state of states) {
+          await page
+            .locator(`[data-gallery-state="${state}"]`)
+            .first()
+            .screenshot({ path: join(SHOTS, `lists-${view}-${mode.name}-${state}.png`) })
+        }
+        const dark = mode.name.startsWith('dark')
+        expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'the theme applied').toBe(
+          dark ? 'rgb(10, 10, 10)' : 'rgb(255, 255, 255)',
+        )
+        const results = await new AxeBuilder({ page }).analyze()
+        expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual(
+          [],
+        )
+        expect(await csp()).toEqual([])
+      })
+    })
+  }
+}
+
+test('lists page: every Tab stop shows a visible focus ring (outline and ring)', async ({ page }) => {
+  const csp = await watchCsp(page)
+  await page.goto('/lists?theme=light')
+  await expect(page.locator('[data-gallery-state]').first()).toBeVisible()
+  // A radio group is one Tab stop (the checked radio), so count each group once.
+  const expected = await page.evaluate(
+    () =>
+      document.querySelectorAll('a[href], button:not(:disabled), input:not(:disabled):not([type="radio"])').length +
+      new Set([...document.querySelectorAll('input[type="radio"]')].map((r) => (r as HTMLInputElement).name)).size,
+  )
+  expect(expected).toBeGreaterThan(12)
+  for (let i = 0; i < expected; i++) {
+    await page.keyboard.press('Tab')
+    const info = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement
+      const s = getComputedStyle(el)
+      return {
+        label: el.getAttribute('aria-label') ?? el.textContent?.slice(0, 20) ?? el.id,
+        outline: s.outlineStyle,
+        width: parseFloat(s.outlineWidth),
+        shadow: s.boxShadow,
+      }
+    })
+    expect(info.outline, `outline on ${info.label}`).not.toBe('none')
+    expect(info.width, `outline width on ${info.label}`).toBeGreaterThanOrEqual(2)
+    expect(info.shadow, `ring on ${info.label}`).not.toBe('none')
+  }
+  expect(await csp()).toEqual([])
+})
+
+test('ConfirmDialog: Tab to the opener, Enter opens it with focus on Cancel, Escape closes it and focus is back on the opener', async ({
+  page,
+}) => {
+  const csp = await watchCsp(page)
+  await page.goto('/lists?theme=light')
+  const opener = page.getByRole('button', { name: 'Open dialog-opener' })
+  for (let i = 0; i < 60 && !(await opener.evaluate((el) => el === document.activeElement)); i++)
+    await page.keyboard.press('Tab')
+  expect(await opener.evaluate((el) => el === document.activeElement), 'Tab reached the opener').toBe(true)
+  await page.keyboard.press('Enter')
+  const dialog = page.getByRole('alertdialog', { name: 'Disconnect ada@example.com?' })
+  await expect(dialog).toBeVisible()
+  await expect.poll(() => page.evaluate(() => document.activeElement?.textContent)).toBe('Keep')
+  await page.screenshot({ path: join(SHOTS, 'lists-dialog-keyboard-open.png') })
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect.poll(() => opener.evaluate((el) => el === document.activeElement)).toBe(true)
+  expect(await csp()).toEqual([])
+})
+
+test('ListEditor: a value typed and entered by keyboard appears; the same value again is refused and the list keeps one entry', async ({
+  page,
+}) => {
+  const csp = await watchCsp(page)
+  await page.goto('/lists?theme=light')
+  const state = page.locator('[data-gallery-state="list-editor"]')
+  const list = state.getByRole('list', { name: 'Allowed domains' })
+  await expect(list.getByRole('listitem')).toHaveCount(1)
+  const input = state.getByRole('textbox', { name: 'Allowed domains' })
+  await input.click()
+  await page.keyboard.type('acme.test')
+  await page.keyboard.press('Enter')
+  await expect(list.getByRole('listitem')).toHaveCount(2)
+  await expect(list).toContainText('acme.test')
+  await page.keyboard.type('acme.test')
+  await page.keyboard.press('Enter')
+  await expect(state.getByText('That value is already in the list.')).toBeVisible()
+  await expect(input).toHaveAttribute('aria-invalid', 'true')
+  await expect(list.getByRole('listitem')).toHaveCount(2)
+  await state.screenshot({ path: join(SHOTS, 'lists-list-editor-refusal.png') })
+  expect(await csp()).toEqual([])
+})
+
+test('the lists page is served with APP_CSP; an injected inline <script> is a violation and did not run', async ({
+  page,
+}) => {
+  const lists = await page.goto('/lists')
+  expect(lists?.headers()['content-security-policy']).toBe(APP_CSP)
+  await watchCsp(page)
+  const injected = await injectedViolations(page, '/lists')
+  expect(injected.violations.filter((v) => v.startsWith('style-src'))).toEqual([])
+  expect(injected.violations.some((v) => v.startsWith('script-src-elem'))).toBe(true)
+  expect(injected.ran, 'inline script did not run under APP_CSP').toBe(false)
+})

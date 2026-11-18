@@ -29,7 +29,10 @@ pnpm install
 pnpm db:test:worktree
 ```
 
-If the brief names an existing worktree, use it. Every later command runs from the worktree.
+If the brief names an existing worktree, use it. Every later command runs from the worktree. An agent's `cd` does
+not persist between tool calls, and Write/Edit take whatever path they are given: give every file path as an absolute
+path under the worktree, and before the red commit check `git -C <main checkout> status --short` is clean ([[UI458]]
+cycle 1 wrote its first red files into the main checkout).
 
 `.env` is gitignored, so a new worktree has none. The guarded remote scripts (`db:status:remote`,
 `db:migrate:remote`, `deploy:remote`, `smoke:remote`) read the `.env` at the root they run from
