@@ -1,6 +1,7 @@
 // Builds the React gallery ([[UI445]] D9) into `outDir` with the D8 helper, the way a React page build does:
 //   pnpm -C packages/ui exec tsx scripts/build-gallery-react.ts [outDir]
-// Output files: `gallery.js` (the bundle), `gallery.css` (the Tailwind stylesheet), `index.html`. Outside `src` and every export.
+// Output files: `gallery.js` and `composites.js` (the bundles of the components page and the composites page, [[UI443]] P4), `gallery.css`
+// (the Tailwind stylesheet both share), `index.html` and `composites.html`. Outside `src` and every export.
 import { copyFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,7 +21,7 @@ export async function buildGalleryReact(
   const result = await build({
     ...options,
     absWorkingDir: fileURLToPath(new URL('..', import.meta.url)),
-    entryPoints: [join(GALLERY, 'main.tsx')],
+    entryPoints: { gallery: join(GALLERY, 'main.tsx'), composites: join(GALLERY, 'composites', 'main.tsx') },
     bundle: true,
     format: 'esm',
     platform: 'browser',
@@ -28,11 +29,12 @@ export async function buildGalleryReact(
     minify: true,
     legalComments: 'none',
     metafile: true,
-    outfile: join(outDir, 'gallery.js'),
+    outdir: outDir,
     logLevel: 'warning',
   })
   await buildStylesheet({ outFile: join(outDir, 'gallery.css'), sources })
   copyFileSync(join(GALLERY, 'index.html'), join(outDir, 'index.html'))
+  copyFileSync(join(GALLERY, 'composites', 'index.html'), join(outDir, 'composites.html'))
   return { metafile: result.metafile, files: readdirSync(outDir) }
 }
 

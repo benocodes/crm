@@ -15,17 +15,23 @@ import { DEFAULT_GROUP_LENGTH as PREACT_GROUP, normaliseCode as preactNormalise 
 import * as entry from './index'
 
 describe('@vibase/ui/components entry', () => {
-  it('exports every D7 component and the code helpers', () => {
+  it('exports every D7 component, the code helpers and the UI443 D11 composites', () => {
     expect(Object.keys(entry).sort()).toEqual(
       [
         'Alert',
+        'AppShell',
         'Button',
         'Card',
         'CodeInput',
+        'CommandBlock',
         'DEFAULT_GROUP_LENGTH',
         'Field',
         'FormLayout',
+        'PromptCard',
         'ScopeList',
+        'SettingsPage',
+        'SettingsRow',
+        'SettingsSection',
         'normaliseCode',
         'ui',
       ].sort(),

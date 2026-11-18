@@ -12,3 +12,7 @@ export const PAGE_CSP = [
   "base-uri 'none'",
   "frame-ancestors 'none'",
 ].join('; ')
+
+/** The workspace app's policy ([[UI443]] D5): `PAGE_CSP` with runtime `<style>` elements allowed (Radix's scroll lock, Sonner), every other
+ *  directive, `script-src 'self'` included, unchanged. App code still writes no `style` prop or `<style>`; only libraries insert styles. */
+export const APP_CSP = PAGE_CSP.replace("style-src 'self'", "style-src 'self' 'unsafe-inline'")
