@@ -377,7 +377,7 @@ describe('the contact is added to, never changed (D14, P3)', () => {
     expect(await eventTypes()).toEqual(['thread.created', 'message.created', 'interaction.created'])
   })
 
-  it('a tag deleted between plan and commit is never linked: the unit drifts and, drifting again, is temporarily_unavailable', async () => {
+  it('a stale form tag (deleted after the ingress read) is never linked: the unit refuses it and the submission is temporarily_unavailable', async () => {
     const t = await tag()
     const form = await seedForm({ tag_ids: [t] })
     await e.update('tags', t, { deleted_at: SEED_AT })
