@@ -130,3 +130,49 @@ describe('hasEnabledAgent', () => {
     expect(calls).toHaveLength(100)
   })
 })
+
+// [[UI467]] D2, D3, P5: the three calls the Connected accounts page makes.
+describe('the Connected accounts calls', () => {
+  it('connections(): pages /meta/v1/connections with limit=200 and after= until next_cursor is null', async () => {
+    const pages = [json({ data: [{ id: 'a' }], next_cursor: 'c1' }), json({ data: [{ id: 'b' }], next_cursor: null })]
+    const { api, calls } = rig(() => pages.shift()!)
+    const r = await api.connections()
+    expect(r.body).toEqual([{ id: 'a' }, { id: 'b' }])
+    expect(calls.map((c) => c.url)).toEqual([
+      `${ORIGIN}/meta/v1/connections?limit=200`,
+      `${ORIGIN}/meta/v1/connections?limit=200&after=c1`,
+    ])
+  })
+
+  it('connections(): a failed page ends the walk with its status and error code', async () => {
+    const pages = [json({ data: [{ id: 'a' }], next_cursor: 'c1' }), json({ error: { code: 'boom' } }, 500)]
+    const { api } = rig(() => pages.shift()!)
+    expect(await api.connections()).toEqual({ status: 500, body: null, code: 'boom' })
+  })
+
+  it('identityAddress(): GET /api/v1/identities/{id} and the body is the identity value', async () => {
+    const { api, calls } = rig(() => json({ id: 'i1', kind: 'email', value: 'ann@x.test' }))
+    const r = await api.identityAddress('i 1')
+    expect(r).toEqual({ status: 200, body: 'ann@x.test' })
+    expect(calls[0]!.url).toBe(`${ORIGIN}/api/v1/identities/i%201`)
+  })
+
+  it('identityAddress(): a refusal is a null body with its status', async () => {
+    const { api } = rig(() => json({ error: { code: 'insufficient_scope' } }, 403))
+    expect(await api.identityAddress('i1')).toEqual({ status: 403, body: null, code: 'insufficient_scope' })
+  })
+
+  it('authorizeGmail(): POST /meta/v1/connections/authorize with exactly { provider: "google" }', async () => {
+    const { api, calls } = rig(() => json({ authorize_url: 'https://accounts.google.test/o', expires_at: 't' }))
+    const r = await api.authorizeGmail()
+    expect(r.body).toMatchObject({ authorize_url: 'https://accounts.google.test/o' })
+    expect(calls[0]!.url).toBe(`${ORIGIN}/meta/v1/connections/authorize`)
+    expect(calls[0]!.init.method).toBe('POST')
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ provider: 'google' })
+  })
+
+  it('authorizeGmail(): a 501 carries its error code', async () => {
+    const { api } = rig(() => json({ error: { code: 'provider_not_configured' } }, 501))
+    expect(await api.authorizeGmail()).toEqual({ status: 501, body: null, code: 'provider_not_configured' })
+  })
+})

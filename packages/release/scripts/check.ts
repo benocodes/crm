@@ -408,6 +408,14 @@ export async function checkRelease(
           `the workspace app is not served: /home ${home.status}, /app/app.js ${appJs.status}, / ${root.status} -> ${root.headers.get('location')}`,
         )
       log(`/home ${home.status}, /app/app.js ${appJs.status}, / ${root.status} -> ${root.headers.get('location')}`)
+      // [[UI467]] D1, D14: the Connected accounts page is served beside Home, and nothing below it.
+      const accounts = await fetch(new URL('/accounts', url), { redirect: 'manual' })
+      const accountsBelow = await fetch(new URL('/accounts/x', url), { redirect: 'manual' })
+      if (accounts.status !== 200 || accountsBelow.status !== 404)
+        throw new ReleaseRefusal(
+          `the Connected accounts page is not served: /accounts ${accounts.status}, /accounts/x ${accountsBelow.status}`,
+        )
+      log(`/accounts ${accounts.status}, /accounts/x ${accountsBelow.status}`)
       return {
         clientInstallPath: clientInstall,
         serverInstallPath: install,
