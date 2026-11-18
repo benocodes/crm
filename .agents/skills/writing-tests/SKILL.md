@@ -809,6 +809,17 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
 - **Local setup:** `wrangler d1 migrations apply DB --local` and `... apply CONTROL_DB --local` before `bootstrap` (it writes the control marker, CORE259); in `.dev.vars` write the
   `CLERK_JWT_KEY` PEM on one line with `\n` escapes. Delete every DCR client the run creates through BAPI by
   its application id (`DELETE /v1/oauth_applications/oa_…`), not its client id.
+- **A remote E2E that signs in through a browser (`smoked1`) uses a browser of its own**, a fresh Playwright or
+  `agent-browser` context, never the user's Chrome: Chrome holds the user's own `smoked1` session, and [[CHN433]]'s tester
+  had to sign the user out to sign in as the throwaway owner. Plan the secrets hand-off before the run: the harness's
+  permission classifier refuses an agent reading a generated password or an `owner-reset` link from a scratchpad file to
+  type it into a browser, and the link lives about 5 minutes (#437), so the first attempt expired while waiting for a human
+  approval. Issue the link only once the browser step is cleared to run straight after it.
+- **Cloudflare's always-pass Turnstile test secret (`1x0000000000000000000000000000000AA`) passes any non-empty token**
+  (`success: true`, `hostname: "example.com"`), despite the docs' "only the dummy token": a probe on 2026-11-18 passed
+  `wrong`. A wrong-token refusal cannot be shown against it; the always-fail secret (`2x0000000000000000000000000000000AA`)
+  answers `invalid-input-response`. Refusals are proven with a fake verifier (`packages/api/src/forms/turnstile.test.ts`,
+  `ingress.integration.d1.test.ts`; [[CHN433]] 433.11).
 
 ### Scripts
 
@@ -822,7 +833,7 @@ pnpm -C packages/server-d1 e2e:oauth-pages         # Better Auth /device and /co
 pnpm -C packages/server-d1 e2e:auth-pages-reset      # self-service reset by email on /sign-in (CORE304): its own email-on Worker from the test-only entry src/test/entry-email.ts (a recording EMAIL binding read at /__emails), over HTTPS, fresh local state (recipe in the spec file header); no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:approvals-app      # the approvals app (:8788, started by the config) signs in, approves and signs out through Better Auth against a local better-auth Worker on :8787 that the operator starts (UI388); E2E_INVITE_URL from bootstrap; recipe in e2e/approvals-app.e2e.ts; no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:auth-migration     # the hq auth migration end to end (OPS397, OPS394): the real `auth:migrate:remote` plan, apply, claim and revert through a test-only driver (e2e/auth-migration-driver.ts: local D1 pair, fixed Time Travel bookmark, `deploy` = restart the local Worker on the committed record's provider) against the Clerk dev instance (users and sessions by the Backend API, keys from `.env.dev`, E2E_DEV_ENV_FILE may name it), then a claim link opened in the browser; own temp state, removed at the end; recipe in the spec header; E2E_BROWSER_CHANNEL=chrome if Playwright's Chromium is not installed; not in the gate
-pnpm -C packages/server-d1 e2e:forms               # a website form posted to the real Worker under `wrangler dev --local` (CHN432): real Turnstile siteverify with the always-pass test secret (needs network), live `ratelimits` bindings, owner-created form in-process; own temp state and env file, removed at the end; no browser, no Clerk; not in the gate
+pnpm -C packages/server-d1 e2e:forms               # a website form posted to the real Worker under `wrangler dev --local` (CHN432): real Turnstile siteverify with the always-pass test secret (needs network; it passes any non-empty token, so the script proves no wrong-token refusal), live `ratelimits` bindings, owner-created form in-process; own temp state and env file, removed at the end; no browser, no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:connect             # Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only); not in the gate
 pnpm -C packages/server-d1 e2e:mcp-oauth          # MCP OAuth end to end (DCR, consent, delegated agent, revocation) on the Clerk dev instance; same harness, not in the gate
 ```
