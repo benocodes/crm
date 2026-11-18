@@ -48,6 +48,13 @@ describe('buildApp', () => {
     expect(css).toMatch(/\.md\\:flex-row/)
   })
 
+  // UI460 E2E: the dark-mode axe check caught a button mid-transition (as UI446's did on the auth pages); the app switches transitions off the same way.
+  it('the stylesheet switches transitions off under the mount wrapper', () => {
+    expect(readFileSync(join(out, 'app/app.css'), 'utf8')).toContain(
+      'transition-none\\! *{transition-property:none!important}',
+    )
+  })
+
   it('the metafile holds react, react-dom, lucide-react and the component set, and no preact and no Preact-layer module', () => {
     const inputs = Object.keys(metafile.inputs)
     const pkgs = new Set(inputs.map(packageOf))

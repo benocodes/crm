@@ -325,3 +325,86 @@ test('9. [UI255] a trusted app origin: credentialed CORS on /auth, sign-in retur
     stub.close()
   }
 })
+
+// [[UI460]] E2E (legs added after step 9, on the same fresh state, after the owner has signed up in step 3): the workspace app. Step 9 ends signed out. The app is served under APP_CSP (style-src with 'unsafe-inline', every
+// other directive the auth pages'), so the exact-policy checks of steps 8 and 9 are untouched: the pages keep PAGE_CSP.
+const APP_CSP_EXACT =
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+
+test('10. [UI460] signed out: / redirects to /home, the sign-in card has no sidebar and Sign in goes to /sign-in?return_to=/home; /home/ and /app/ are 404, /app/app.js is 200', async ({
+  request,
+}) => {
+  await context.clearCookies()
+  const root = await request.get('/', { maxRedirects: 0 })
+  expect(root.status()).toBe(302)
+  expect(root.headers().location).toBe('/home')
+  expect(root.headers()['content-security-policy']).toBe(APP_CSP_EXACT)
+  await visit('/')
+  expect(new URL(page.url()).pathname).toBe('/home')
+  await expect(page.getByRole('heading', { level: 1, name: 'Sign in to Vibase' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+  await expect(page.getByRole('navigation')).toHaveCount(0)
+  expect(page.url()).toMatch(/\/home$/) // nothing navigated on load
+  await axeBoth(page, 'app-signed-out')
+  const asset = await request.get('/app/app.js')
+  expect(asset.status()).toBe(200)
+  expect(asset.headers()['content-security-policy']).toBe(APP_CSP_EXACT)
+  expect((await request.get('/home/')).status()).toBe(404)
+  expect((await request.get('/app/')).status()).toBe(404)
+  // Sign in from a page URL that carries a query: only the path comes back as return_to.
+  await visit('/home?utm=x')
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.waitForURL('**/sign-in?**')
+  expect(new URL(page.url()).searchParams.get('return_to')).toBe('/home')
+  // P2's accepted interim gap: /sign-in ignores return_to=/home until UI461, so a finished sign-in lands on /connect.
+  await page.waitForTimeout(11_000) // Better Auth's 10 s sign-in window
+  await page.getByLabel('Email').fill('owner@e2e.test')
+  await page.getByLabel('Password').fill(PASSWORD)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.waitForURL('**/connect')
+})
+
+test('11. [UI460] signed in: the shell with Home current, Welcome to your CRM and Who you are, the title, the headers, no CSP violation, axe clean in both themes, one row of entries at 375 px', async ({
+  request,
+}) => {
+  await visit('/home')
+  const nav = page.getByRole('navigation', { name: 'Workspace' })
+  await expect(nav.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Welcome to your CRM')
+  const who = page.getByRole('region', { name: 'Who you are' })
+  await expect(who).toContainText('owner@e2e.test')
+  await expect(who).toContainText('owner')
+  await expect(who).toContainText('E2E')
+  await expect(page).toHaveTitle('Home · Vibase')
+  const res = await page.request.get('/home')
+  const h = res.headers()
+  expect(h['content-security-policy']).toBe(APP_CSP_EXACT)
+  expect(h['x-content-type-options']).toBe('nosniff')
+  expect(h['referrer-policy']).toBe('strict-origin-when-cross-origin')
+  expect(h['cache-control']).toBe('no-store')
+  await axeBoth(page, 'app-home')
+  await page.setViewportSize({ width: 375, height: 800 })
+  await visit('/home')
+  await expect(nav.getByRole('link', { name: 'Home' })).toBeVisible()
+  const links = await nav
+    .getByRole('link')
+    .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)))
+  expect(new Set(links).size, 'the entries are in one row').toBe(1)
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    'no horizontal scroll',
+  ).toBe(true)
+  await axeBoth(page, 'app-home-375')
+  await page.setViewportSize({ width: 1280, height: 720 })
+  void request
+})
+
+test('12. [UI460] Sign out from the shell shows the sign-in card, and reloading /home stays signed out', async () => {
+  await visit('/home')
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+  await expect(page.getByRole('navigation')).toHaveCount(0)
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+  expect(await page.evaluate(async () => (await fetch('/auth/get-session')).json())).toBeNull()
+})
