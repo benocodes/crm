@@ -5,8 +5,14 @@ import { describe, expect, it, vi } from 'vitest'
 import { render, screen, userEvent, waitFor } from '#render'
 import { ConfirmDialog, type ConfirmDialogProps } from './confirm-dialog'
 
+// Radix hides what is behind a modal with `aria-hidden` and `data-aria-hidden` (the page's own content stays focusable but inert to the
+// pointer, and its focus guards are tab stops): axe's aria-hidden-focus flags that by design, so the hidden siblings are excluded and
+// everything else, the portalled dialog included, is checked on document.body.
 const noViolations = async () => {
-  const results = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false }, region: { enabled: false } } })
+  const results = await axe.run(
+    { include: [document.body], exclude: [['[data-aria-hidden]']] },
+    { rules: { 'color-contrast': { enabled: false }, region: { enabled: false } } },
+  )
   expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(' ')}`)).toEqual([])
 }
 
@@ -45,7 +51,9 @@ describe('ConfirmDialog', () => {
     await openIt()
     const dialog = screen.getByRole('alertdialog', { name: 'Disconnect ada@example.com?' })
     expect(dialog.getAttribute('aria-describedby')).toBeTruthy()
-    expect(document.getElementById(dialog.getAttribute('aria-describedby') as string)?.textContent).toBe('Captured mail stays.')
+    expect(document.getElementById(dialog.getAttribute('aria-describedby') as string)?.textContent).toBe(
+      'Captured mail stays.',
+    )
     expect(screen.getByText('Extra body')).toBeTruthy()
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Keep' })))
   })
@@ -67,19 +75,27 @@ describe('ConfirmDialog', () => {
   it('an outside click does not close it', async () => {
     render(<Host />)
     await openIt()
-    await userEvent.click(document.body)
-    await userEvent.click(screen.getByRole('heading', { name: 'Page', hidden: true }))
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    await user.click(document.body)
+    await user.click(screen.getByRole('heading', { name: 'Page', hidden: true }))
     expect(screen.getByRole('alertdialog')).toBeTruthy()
   })
 
   it('while the action runs both buttons are disabled and the dialog is busy; on success it closes', async () => {
     let finish: () => void = () => {}
-    const onConfirm = vi.fn(() => new Promise<void>((resolve) => { finish = resolve }))
+    const onConfirm = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        }),
+    )
     render(<Host onConfirm={onConfirm} />)
     await openIt()
     await userEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
     expect(onConfirm).toHaveBeenCalledTimes(1)
-    await waitFor(() => expect((screen.getByRole('button', { name: 'Disconnect' }) as HTMLButtonElement).disabled).toBe(true))
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'Disconnect' }) as HTMLButtonElement).disabled).toBe(true),
+    )
     expect((screen.getByRole('button', { name: 'Keep' }) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByRole('alertdialog').getAttribute('aria-busy')).toBe('true')
     finish()
@@ -87,7 +103,10 @@ describe('ConfirmDialog', () => {
   })
 
   it('on failure it stays open with the error in an Alert inside it; the next attempt clears it; reopening clears it', async () => {
-    const onConfirm = vi.fn().mockRejectedValueOnce(new Error('Could not disconnect.')).mockImplementationOnce(() => new Promise(() => {}))
+    const onConfirm = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Could not disconnect.'))
+      .mockImplementationOnce(() => new Promise(() => {}))
     render(<Host onConfirm={onConfirm} />)
     await openIt()
     await userEvent.click(screen.getByRole('button', { name: 'Disconnect' }))

@@ -6,7 +6,9 @@ import { ResourceList, type ResourceListItem } from './resource-list'
 import { StatusBadge } from './status-badge'
 
 const noViolations = async () => {
-  const results = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false }, region: { enabled: false } } })
+  const results = await axe.run(document.body, {
+    rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
+  })
   expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(' ')}`)).toEqual([])
 }
 
@@ -71,7 +73,14 @@ describe('ResourceList', () => {
   })
 
   it('empty renders its text and optional action and no list', () => {
-    render(<ResourceList label="Mailboxes" items={[]} emptyText="No mailboxes yet." emptyAction={<button type="button">Connect</button>} />)
+    render(
+      <ResourceList
+        label="Mailboxes"
+        items={[]}
+        emptyText="No mailboxes yet."
+        emptyAction={<button type="button">Connect</button>}
+      />,
+    )
     expect(screen.getByText('No mailboxes yet.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Connect' })).toBeTruthy()
     expect(screen.queryByRole('list')).toBeNull()
@@ -99,7 +108,12 @@ describe('ResourceList', () => {
     rerender(
       <>
         <h1>Page</h1>
-        <ResourceList label="Mailboxes" items={[]} emptyText="None" emptyAction={<button type="button">Connect</button>} />
+        <ResourceList
+          label="Mailboxes"
+          items={[]}
+          emptyText="None"
+          emptyAction={<button type="button">Connect</button>}
+        />
       </>,
     )
     await noViolations()

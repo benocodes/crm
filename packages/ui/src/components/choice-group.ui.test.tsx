@@ -5,7 +5,9 @@ import { render, screen, userEvent } from '#render'
 import { ChoiceGroup, type ChoiceGroupProps } from './choice-group'
 
 const noViolations = async () => {
-  const results = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false }, region: { enabled: false } } })
+  const results = await axe.run(document.body, {
+    rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
+  })
   expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(' ')}`)).toEqual([])
 }
 

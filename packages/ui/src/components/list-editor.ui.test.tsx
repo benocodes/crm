@@ -6,7 +6,9 @@ import { render, screen, userEvent } from '#render'
 import { ListEditor, type ListEditorProps } from './list-editor'
 
 const noViolations = async () => {
-  const results = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false }, region: { enabled: false } } })
+  const results = await axe.run(document.body, {
+    rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
+  })
   expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(' ')}`)).toEqual([])
 }
 
