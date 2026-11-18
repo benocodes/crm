@@ -5,12 +5,13 @@ import { fireEvent, render, screen, userEvent, waitFor } from '#render'
 import { CommandBlock } from './command-block'
 import { PromptCard } from './prompt-card'
 
-const stubClipboard = (writeText: (t: string) => Promise<void>) => {
-  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+/** happy-dom has no real Clipboard to rely on: each test installs its own, or none (`undefined`). */
+const stubClipboard = (writeText: ((t: string) => Promise<void>) | undefined) => {
+  Object.defineProperty(navigator, 'clipboard', { value: writeText && { writeText }, configurable: true })
 }
 afterEach(() => {
   vi.useRealTimers()
-  Reflect.deleteProperty(navigator, 'clipboard')
+  stubClipboard(undefined)
 })
 
 describe('PromptCard', () => {
@@ -39,6 +40,7 @@ describe('PromptCard', () => {
     render(
       <main>
         <h1>Home</h1>
+        <h2>Get started</h2>
         <PromptCard title="T" text="x" action={{ label: 'Go', href: '/a' }}>
           <p>b</p>
         </PromptCard>
@@ -65,7 +67,7 @@ describe('CommandBlock', () => {
     const live = screen.getByRole('status')
     expect(live.getAttribute('aria-live')).toBe('polite')
     expect(live.textContent).toBe('')
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Copy' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
     expect(writeText).toHaveBeenCalledWith(ATTACK)
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Copied'))
   })
@@ -74,18 +76,18 @@ describe('CommandBlock', () => {
     const writeText = vi.fn().mockRejectedValueOnce(new Error('denied')).mockResolvedValue(undefined)
     stubClipboard(writeText)
     render(<CommandBlock command="echo hi" />)
-    const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: 'Copy' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
     await waitFor(() =>
       expect(screen.getByRole('status').textContent).toBe('Could not copy. Select the text and copy it yourself.'),
     )
-    await user.click(screen.getByRole('button', { name: 'Copy' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Copied'))
   })
 
   it('no Clipboard at all is a failure too', async () => {
+    stubClipboard(undefined)
     render(<CommandBlock command="echo hi" />)
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Copy' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
     await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/^Could not copy/))
   })
 
@@ -98,7 +100,7 @@ describe('CommandBlock', () => {
     await vi.advanceTimersByTimeAsync(2900)
     expect(screen.getByRole('status').textContent).toBe('Copied')
     await vi.advanceTimersByTimeAsync(200)
-    expect(screen.getByRole('status').textContent).toBe('')
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe(''))
     stubClipboard(vi.fn().mockRejectedValue(new Error('x')))
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
     await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/^Could not copy/))
@@ -121,7 +123,7 @@ describe('CommandBlock', () => {
     )
     const run = () => axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } })
     expect((await run()).violations.map((v) => v.id)).toEqual([])
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Copy' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Copied'))
     expect((await run()).violations.map((v) => v.id)).toEqual([])
   })

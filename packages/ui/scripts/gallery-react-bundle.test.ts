@@ -60,11 +60,18 @@ describe('React gallery bundle', () => {
     expect(readFileSync(join(GALLERY_SRC, 'gallery.tsx'), 'utf-8')).not.toContain('max-h-48')
   })
 
-  it('stays within the budget (100 KB gzipped JS, 20 KB gzipped CSS)', () => {
-    const js = gz(join(out, 'gallery.js'))
+  it('stays within the budget (100 KB gzipped JS, 20 KB gzipped CSS), for the components page and the composites page', () => {
     const css = gz(join(out, 'gallery.css'))
-    console.log(`react gallery gzipped: js ${js} bytes, css ${css} bytes`)
-    expect(js).toBeLessThanOrEqual(BUDGET.jsBytes)
+    for (const bundle of ['gallery.js', 'composites.js']) {
+      const js = gz(join(out, bundle))
+      console.log(`react gallery gzipped: ${bundle} ${js} bytes, gallery.css ${css} bytes`)
+      expect(js, bundle).toBeLessThanOrEqual(BUDGET.jsBytes)
+    }
     expect(css).toBeLessThanOrEqual(BUDGET.cssBytes)
+  })
+
+  it('builds the composites page with lucide-react and no preact (UI443 P3)', () => {
+    expect(packagesIn(metafile)).toContain('lucide-react')
+    expect(readFileSync(join(out, 'composites.html'), 'utf-8')).toContain('composites.js')
   })
 })

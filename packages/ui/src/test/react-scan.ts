@@ -17,6 +17,7 @@ export const IMPORT_ALLOW_LIST: readonly string[] = [
   'class-variance-authority',
   'clsx',
   'tailwind-merge',
+  'lucide-react', // UI443 P3: the icons of the shell and the settings composites
 ]
 /** Only a page's mount file may import `react-dom` (D1, D9). */
 const MOUNT_FILE = /(^|[\\/])main\.tsx?$/

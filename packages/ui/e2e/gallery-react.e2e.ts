@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, type Page, test } from '@playwright/test'
+import { APP_CSP, PAGE_CSP } from '../src/csp'
 
 const SHOTS = fileURLToPath(new URL('../e2e-screenshots/react/', import.meta.url))
 mkdirSync(SHOTS, { recursive: true })
@@ -169,4 +170,190 @@ test('CodeInput normalises a pasted code to ABCD-EFGH and is not spell-checked',
   await input.fill(' abcd efgh ')
   await expect(input).toHaveValue('ABCD-EFGH')
   expect(await input.evaluate((el: HTMLInputElement) => el.spellcheck)).toBe(false)
+})
+
+// ---- [[UI443]] cycle 1: the composites page, served with APP_CSP ----
+
+const COMPOSITE_STATES = [
+  'page-plain',
+  'page-actions',
+  'page-error',
+  'page-loading',
+  'sections',
+  'prompt-link',
+  'prompt-button',
+  'command',
+]
+const VIEWS = [
+  { view: 'parts', states: COMPOSITE_STATES },
+  { view: 'shell', states: ['shell', ...COMPOSITE_STATES.slice(4)] },
+  { view: 'shell-bare', states: ['shell-bare'] },
+]
+
+for (const mode of MODES) {
+  for (const { view, states } of VIEWS) {
+    test.describe(`composites ${view} ${mode.name}`, () => {
+      test.use({ colorScheme: mode.colorScheme })
+
+      test('renders in the theme, axe finds zero violations, no CSP violation', async ({ page }) => {
+        const csp = await watchCsp(page)
+        const theme = mode.url.includes('theme=') ? `&${mode.url.split('?')[1]}` : ''
+        await page.goto(`/composites?view=${view}${theme}`)
+        await expect(page.locator('[data-gallery-state]').first()).toBeVisible()
+        await page.screenshot({ path: join(SHOTS, `composites-${view}-${mode.name}.png`), fullPage: true })
+        for (const state of states) {
+          await page
+            .locator(`[data-gallery-state="${state}"]`)
+            .first()
+            .screenshot({ path: join(SHOTS, `composites-${view}-${mode.name}-${state}.png`) })
+        }
+        const dark = mode.name.startsWith('dark')
+        expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'the theme applied').toBe(
+          dark ? 'rgb(10, 10, 10)' : 'rgb(255, 255, 255)',
+        )
+        const results = await new AxeBuilder({ page }).analyze()
+        expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual(
+          [],
+        )
+        expect(await csp()).toEqual([])
+      })
+    })
+  }
+}
+
+test('Tab through the shell: the skip link first, Enter moves focus into main, every stop has a focus ring', async ({
+  page,
+}) => {
+  const csp = await watchCsp(page)
+  await page.goto('/composites?view=shell&theme=light')
+  await expect(page.getByRole('main')).toBeVisible()
+  await page.keyboard.press('Tab')
+  const skip = page.getByRole('link', { name: 'Skip to main content' })
+  expect(await skip.evaluate((el) => el === document.activeElement), 'the skip link is the first Tab stop').toBe(true)
+  await expect(skip).toBeVisible()
+  await page.screenshot({ path: join(SHOTS, 'composites-skip-link.png') })
+  await page.keyboard.press('Enter')
+  expect(await page.getByRole('main').evaluate((el) => el === document.activeElement)).toBe(true)
+  // Walk every Tab stop from the top of a fresh load: each shows an outline and a ring.
+  await page.goto('/composites?view=shell&theme=light')
+  const expected = await page.evaluate(
+    () =>
+      document.querySelectorAll(
+        'a[href]:not(.sr-only), button:not(:disabled), input:not(:disabled):not([aria-hidden="true"]), [role="switch"]:not(:disabled)',
+      ).length + 1, // the skip link is sr-only until focused
+  )
+  for (let i = 0; i < expected; i++) {
+    await page.keyboard.press('Tab')
+    const info = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement
+      const s = getComputedStyle(el)
+      return {
+        label: el.textContent?.slice(0, 20) ?? el.id,
+        outline: s.outlineStyle,
+        width: parseFloat(s.outlineWidth),
+        shadow: s.boxShadow,
+      }
+    })
+    expect(info.outline, `outline on ${info.label}`).not.toBe('none')
+    expect(info.width, `outline width on ${info.label}`).toBeGreaterThanOrEqual(2)
+    expect(info.shadow, `ring on ${info.label}`).not.toBe('none')
+  }
+  expect(await csp()).toEqual([])
+})
+
+test('CommandBlock: Copy puts exactly the command on the Clipboard and announces Copied', async ({ browser }) => {
+  const context = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] })
+  const page = await context.newPage()
+  const csp = await watchCsp(page)
+  await page.goto('/composites?theme=light')
+  const block = page.locator('[data-gallery-state="command"]')
+  await expect(block.locator('code')).toHaveText('<b>x</b> & "q"')
+  expect(await block.locator('b').count(), 'the markup characters stayed text').toBe(0)
+  await block.screenshot({ path: join(SHOTS, 'composites-command-before.png') })
+  await block.getByRole('button', { name: 'Copy' }).click()
+  await expect(block.getByRole('status')).toHaveText('Copied')
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('<b>x</b> & "q"')
+  await block.screenshot({ path: join(SHOTS, 'composites-command-after.png') })
+  expect(await csp()).toEqual([])
+  await context.close()
+})
+
+test('SettingsPage: raising an error moves focus to its alert', async ({ page }) => {
+  const csp = await watchCsp(page)
+  await page.goto('/composites?theme=light')
+  const state = page.locator('[data-gallery-state="page-error"]')
+  await state.getByRole('button', { name: 'Raise a page error' }).click()
+  const alert = state.getByRole('alert')
+  await expect(alert).toHaveText('Could not load agents.')
+  expect(await alert.evaluate((el) => el === document.activeElement)).toBe(true)
+  expect(await csp()).toEqual([])
+})
+
+test('at 375 px the shell is a row of links above the page: no sidebar, no horizontal scroll', async ({ page }) => {
+  const csp = await watchCsp(page)
+  await page.setViewportSize({ width: 375, height: 800 })
+  await page.goto('/composites?view=shell&theme=light')
+  const nav = page.getByRole('navigation', { name: 'Workspace' })
+  const boxes = await nav.getByRole('link').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()))
+  expect(boxes.length).toBe(3)
+  expect(new Set(boxes.map((b) => Math.round(b.top))).size, 'the entries share one row').toBe(1)
+  expect(await nav.evaluate((el) => getComputedStyle(el).flexDirection)).toBe('row')
+  const aside = await page
+    .locator('aside')
+    .evaluate((el) => ({ width: el.getBoundingClientRect().width, right: getComputedStyle(el).borderRightWidth }))
+  expect(aside.width, 'no sidebar column: the aside spans the page').toBeGreaterThanOrEqual(370)
+  expect(aside.right).toBe('0px')
+  const mainTop = await page.getByRole('main').evaluate((el) => el.getBoundingClientRect().top)
+  expect(mainTop, 'the page sits below the row of links').toBeGreaterThan(boxes[0]!.bottom)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: join(SHOTS, 'composites-shell-375.png'), fullPage: true })
+  await page.setViewportSize({ width: 1100, height: 800 })
+  expect(await nav.evaluate((el) => getComputedStyle(el).flexDirection), 'from md it is a sidebar column').toBe(
+    'column',
+  )
+  expect(await csp()).toEqual([])
+})
+
+test('each page is served with its own policy: PAGE_CSP on the components page, APP_CSP on the composites page', async ({
+  page,
+}) => {
+  const components = await page.goto('/')
+  expect(components?.headers()['content-security-policy']).toBe(PAGE_CSP)
+  const composites = await page.goto('/composites')
+  expect(composites?.headers()['content-security-policy']).toBe(APP_CSP)
+})
+
+/** Inserts a `<style>` element and an inline `<script>` at runtime, as a library or an attacker would; returns the violated directives. */
+async function injectedViolations(page: Page, url: string) {
+  await page.goto(url)
+  await expect(page.locator('[data-gallery-state]').first()).toBeVisible()
+  await page.evaluate(() => {
+    const style = document.createElement('style')
+    style.textContent = 'body{outline:3px solid red}'
+    document.head.append(style)
+    const script = document.createElement('script')
+    script.textContent = 'window.__ran = true'
+    document.head.append(script)
+  })
+  await page.waitForTimeout(200)
+  const violations = await page.evaluate(() => (window as unknown as { __csp: string[] }).__csp)
+  const ran = await page.evaluate(() => (window as unknown as { __ran?: boolean }).__ran === true)
+  return { violations, ran }
+}
+
+test('an injected <style> is a violation on the components page only; an injected inline <script> on both', async ({
+  page,
+}) => {
+  await watchCsp(page)
+  const components = await injectedViolations(page, '/')
+  expect(components.violations.some((v) => v.startsWith('style-src-elem'))).toBe(true)
+  expect(components.violations.some((v) => v.startsWith('script-src-elem'))).toBe(true)
+  expect(components.ran).toBe(false)
+
+  const second = await page.context().newPage()
+  await watchCsp(second)
+  const composites = await injectedViolations(second, '/composites')
+  expect(composites.violations.filter((v) => v.startsWith('style-src'))).toEqual([])
+  expect(composites.violations.some((v) => v.startsWith('script-src-elem'))).toBe(true)
+  expect(composites.ran, 'inline script did not run under APP_CSP').toBe(false)
 })
