@@ -268,6 +268,8 @@ Run when no row of the active milestone can move without something only the user
 from `AGENTS.md`, an account, a ruling). While any row is unblocked, work that row instead.
 
 1. Set the note's `status: paused` and say in Left what it waits for.
+1b. Reconcile the issues as `close` step 3 does: every delivered issue the milestone names is closed (as
+   `zooidbot`, naming the merged PR) before the factory waits; report the count closed to the user.
 2. Update `SPRINT.md` (Status at a glance, Position, Owed by the user, Open questions), commit, and **stop**:
    tell the user what is owed.
 

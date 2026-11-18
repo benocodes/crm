@@ -108,7 +108,7 @@ lines when:
 - the milestone is too big for its sprint (`decisions status` says `OVERDUE` with rows unfinished): the cut is
   the user's (`sprint-planning`, `cut`);
 - the milestone is paused: nothing in it can move without the user (`sprint-planning`, `pause`). **The factory
-  waits**: do not open the next milestone, and do not pick up a lower-ranked one;
+  waits**: do not open the next milestone, and do not pick up a lower-ranked one; first close every delivered issue the milestone names, as `close` does;
 - the backlog is empty, or the next milestone's rank is only proposed (`sprint-planning`, `open`).
 
 **New work does not slip into a running sprint.** A new milestone, or a new row in the active milestone's
