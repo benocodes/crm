@@ -31,7 +31,18 @@ describe('@vibase/ui/components entry', () => {
       ].sort(),
     )
     expect(Object.keys(entry.ui).sort()).toEqual(
-      ['Alert', 'Button', 'Card', 'CardContent', 'CardFooter', 'CardHeader', 'CardTitle', 'Input', 'Label'].sort(),
+      [
+        'Alert',
+        'Button',
+        'Card',
+        'CardContent',
+        'CardFooter',
+        'CardHeader',
+        'CardTitle',
+        'Input',
+        'Label',
+        'Switch',
+      ].sort(),
     )
   })
 

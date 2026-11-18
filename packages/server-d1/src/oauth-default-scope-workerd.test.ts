@@ -232,3 +232,76 @@ describe('group 2: a named scope passes through untouched', () => {
     expect(((await res.json()) as any).error).toBe('invalid_signature')
   })
 })
+
+// [[UI449]] D9's premise (cycle 1 group 5): Better Auth's consent `scope` field, sent as the grouped consent page will send it
+// (`POST /auth/oauth2/consent { accept: true, oauth_query, scope }`), narrows the grant, refuses an unrequested scope, and leaves a narrowed grant
+// to be asked again. The library code cannot be mutated: the control (no `scope`) is what shows each assertion discriminates.
+describe('group 3 (UI449): the consent scope field narrows, refuses and re-prompts', () => {
+  const SUBSET = ['contacts:read', 'contacts:request_approval', 'offline_access', 'openid']
+
+  async function consentTo(clientId: string, cookie: string, scope: string | undefined) {
+    const consent = await authorizeRedirect(authorizeUrl(clientId), cookie)
+    expect(consent.pathname).toBe('/consent')
+    return call('/auth/oauth2/consent', {
+      cookie,
+      body: { accept: true, oauth_query: consent.search.slice(1), ...(scope === undefined ? {} : { scope }) },
+    })
+  }
+  async function tokenScope(clientId: string, accepted: Response): Promise<string[]> {
+    expect(accepted.status, await accepted.clone().text()).toBe(200)
+    const code = new URL(((await accepted.json()) as { url: string }).url).searchParams.get('code')!
+    const tok = await call('/auth/oauth2/token', {
+      form: true,
+      body: {
+        grant_type: 'authorization_code',
+        code,
+        code_verifier: verifier,
+        redirect_uri: REDIRECT,
+        client_id: clientId,
+        resource: MCP,
+      },
+    })
+    expect(tok.status, await tok.clone().text()).toBe(200)
+    return set(decode(((await tok.json()) as { access_token: string }).access_token).scope)
+  }
+  /** Where a second authorize lands: the consent page, or the callback with a code (consent skipped). */
+  async function secondAuthorize(clientId: string, cookie: string): Promise<'consent' | 'callback'> {
+    const loc = await authorizeRedirect(authorizeUrl(clientId), cookie)
+    if (loc.pathname === '/consent') return 'consent'
+    expect(loc.origin + loc.pathname).toBe(REDIRECT)
+    expect(loc.searchParams.get('code')).toBeTruthy()
+    return 'callback'
+  }
+
+  it('a strict subset of the requested scopes is what the token holds, and the subset is strict', async () => {
+    expect(DEFAULTS.length).toBeGreaterThan(SUBSET.length)
+    const id = await registerNoScope()
+    const { cookie } = await signUp('g3-narrow@x.test')
+    const granted = await tokenScope(id, await consentTo(id, cookie, SUBSET.join(' ')))
+    expect(granted).toEqual(SUBSET)
+  })
+
+  it('a scope the query did not request is refused with 400 invalid_request', async () => {
+    expect(DEFAULTS).not.toContain('audit:read')
+    const id = await registerNoScope()
+    const { cookie } = await signUp('g3-refuse@x.test')
+    const res = await consentTo(id, cookie, `${SUBSET.join(' ')} audit:read`)
+    expect(res.status).toBe(400)
+    expect(((await res.json()) as { error?: string }).error).toBe('invalid_request')
+  })
+
+  it('a narrowed consent is asked again on the next authorize', async () => {
+    const id = await registerNoScope()
+    const { cookie } = await signUp('g3-reprompt@x.test')
+    await tokenScope(id, await consentTo(id, cookie, SUBSET.join(' ')))
+    expect(await secondAuthorize(id, cookie)).toBe('consent')
+  })
+
+  it('control: a consent without scope grants the full requested set and the next authorize skips consent', async () => {
+    const id = await registerNoScope()
+    const { cookie } = await signUp('g3-control@x.test')
+    const granted = await tokenScope(id, await consentTo(id, cookie, undefined))
+    expect(granted).toEqual([...DEFAULTS].sort())
+    expect(await secondAuthorize(id, cookie)).toBe('callback')
+  })
+})
