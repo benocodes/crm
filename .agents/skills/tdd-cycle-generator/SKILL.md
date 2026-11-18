@@ -463,7 +463,13 @@ Write the scenario so a tester can run it literally ([[CORE74]] needed two devia
 - **Scopes in full** (`notes:read`, `notes:write`): the grammar is `resource:action` with no wildcard, so
   `notes:*` cannot be granted. List the scope of **every** step's operation (a `schema get` step needs
   `schema:read`), and do not plan to add scopes later through `bootstrap`: a second bootstrap on the same
-  org is refused, so the only fallback is a fresh local D1 ([[API6]] E2E).
+  org is refused, so the only fallback is a fresh local D1 ([[API6]] E2E). Check that each scope exists and is
+  **agent-grantable** (`agentGrantable` in the scope policy): a human-only operation (`forms.create`, `forms:write`)
+  cannot be a bootstrap agent's setup step, so the scenario names an owner path for it (in-process as the owner on
+  local state, a signed-in session remotely). [[CHN432]]'s charter had the agent create the form (432.19).
+- **Name the database as the script's own**: a local scenario runs on a fresh temp-dir state, never "the
+  `.wrangler/state` of the worktree", which a coder read as licence to wipe the developer's dev database
+  ([[CHN432]] review, 432.25).
 - **A migration over data seeds the old schema directly** (SQL against the database at the previous
   migration, or the previous build), never through the new Worker: since [[CORE61]] the new code answers
   `503 migrations_pending` until the database is current. List that `503` as an expected step.
