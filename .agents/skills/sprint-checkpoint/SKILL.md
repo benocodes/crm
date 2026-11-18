@@ -21,7 +21,7 @@ File format and evidence rules live in `sprint-planning`; this is just the routi
 5. Fix stale lines in place and bump `Updated:` (and the note's `updated`). Update in this order: the State
    cells of the note's Needed table and its Left section, then `SPRINT.md`'s Now / Next, then **Status at a
    glance** (three lines, from the note). Every row but the demo run ✅ → don't edit; say
-   `/sprint-planning close` is due.
+   `/sprint-wrap-up close` is due.
 6. **Keep it short** (budget and rules in `sprint-planning`, "The file"): Position at most 5 lines, only
    open questions, no decisions (they live in the decisions log), the file under 150 lines. Move overflow
    verbatim to `knowledge/sprint-archive.md`, then run `node scripts/decisions.mjs status`: if it reports
@@ -37,4 +37,4 @@ End with one line on what changed (or "already current"), then one sentence:
 
 - Current item done → `The next sprint item is <action> <ID>, with its migration at <NNN>.` (drop the migration clause if no schema change)
 - Not done → `This sprint item still requires: <concrete steps from evidence>.`
-- Milestone built → `Milestone <letter> is built; /sprint-planning close is due.`
+- Milestone built → `Milestone <letter> is built; /sprint-wrap-up close is due.`

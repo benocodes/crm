@@ -107,7 +107,7 @@ lines when:
 - an agent reports `blocked` and the block is not something another agent can resolve;
 - the milestone is too big for its sprint (`decisions status` says `OVERDUE` with rows unfinished): the cut is
   the user's (`sprint-planning`, `cut`);
-- the milestone is paused: nothing in it can move without the user (`sprint-planning`, `pause`). **The factory
+- the milestone is paused: nothing in it can move without the user (`sprint-wrap-up`, `pause`). **The factory
   waits**: do not open the next milestone, and do not pick up a lower-ranked one; first close every delivered issue the milestone names, as `close` does;
 - the backlog is empty, or the next milestone's rank is only proposed (`sprint-planning`, `open`).
 

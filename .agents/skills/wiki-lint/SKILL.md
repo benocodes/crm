@@ -134,7 +134,7 @@ against each other and against the specs:
 - at most one note has `status: active` or `paused`. `SPRINT.md` exists exactly when one does, and its header
   names that milestone;
 - a note whose Needed rows are all ✅ but which is still `active` was never closed
-  (`/sprint-planning close`); a `done` note still in a ranked folder was never moved; a `rank: proposed` note
+  (`/sprint-wrap-up close`); a `done` note still in a ranked folder was never moved; a `rank: proposed` note
   is an open question for the user;
 - a State cell that disagrees with the spec's real `status:` is a stale checkpoint;
 - a milestone referred to by its seq-prefixed folder anywhere (use `[[milestone-G]]`);
