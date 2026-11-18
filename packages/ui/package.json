@@ -20,9 +20,13 @@
     "e2e:gallery-react": "playwright test --config playwright.react.config.ts gallery-react.e2e.ts"
   },
   "dependencies": {
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
     "preact": "11.2.0",
+    "radix-ui": "1.8.1",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "tailwind-merge": "3.7.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
