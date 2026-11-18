@@ -239,7 +239,7 @@ pnpm -C packages/api golden:generate               # and golden:check; goldens g
 pnpm -C packages/server-d1 bootstrap -- --org <n> --issuer <CLERK_ISSUER> [--agent <a>]  # local D1 only; Clerk path creates no human (CORE64 D11); `--auth-provider none --auth-org-id <n> --email <e> --agent <a>` keeps the API-key-only owner; `--auth-provider better-auth --public-base-url <url> [--auth-org-id <label>]` creates no human and seeds `vibase-cli` in the control database (CORE283)
 pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network; builds the /connect page first
 pnpm -C packages/server-d1 build                   # the connect page (UI30) into dist/assets/connect/; `dev` runs it before `wrangler dev --local`
-pnpm -C packages/ui test                          # @vibase/ui component suites under Preact (`ui-preact`) and React (`ui-react`) plus its node-side suites (UI254); component suites are `*.ui.test.tsx`, never run by the root shared projects
+pnpm -C packages/ui test                          # @vibase/ui legacy component suites under Preact (`ui-preact`) and React (`ui-react`), the new React-only `src/components` suites (`ui-components`, UI448), plus its node-side suites; component suites are `*.ui.test.tsx`, never run by the root shared projects
 pnpm changeset                                     # add a changeset (a `.changeset/*.md`); a PR that changes what `@vibase/cli` or `@vibase/server-d1` ships adds one (OPS210 D25; the PR check is #264)
 ```
 

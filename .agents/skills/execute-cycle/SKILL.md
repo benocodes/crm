@@ -112,7 +112,10 @@ For every **Must be tested** obligation in the charter, write the test(s) that p
   tests red; a group with neither a red run nor its own mutation is not proven, and the reviewer returns it.
   That includes pure-function groups (a mapper, a matrix of inputs): [[CHN428]] mutated only its integration groups
   and lost a review round on the submitter matrix, the mapper and the first-submission group. Before reporting, check
-  that every "Must be tested" bullet has a red run or a mutation listed under its name.
+  that every "Must be tested" bullet has a red run or a mutation listed under its name. A charter line that says
+  "every X in every state" (a gallery, a fixture set) is a grid: write it out (component × state, marking the states
+  a component does not have) and check each cell before reporting; [[UI448]] lost a review round to a disabled
+  CodeInput missing from the gallery.
 - **Setting work aside never uses a bare `git checkout <file>` / `git restore <file>`.** Either resets the
   file to the last commit and silently deletes every uncommitted change in it; it cost [[CORE188]] (restoring a
   mutant) and again [[CORE199]] (mid-run, outside any mutation) a rewrite. Before you revert, split or compare
