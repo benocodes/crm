@@ -49,6 +49,10 @@ const api = (...answers: (ApiResult<Me> | Error)[]) => {
     connections: vi.fn(),
     identityAddress: vi.fn(),
     authorizeGmail: vi.fn(),
+    connection: vi.fn(),
+    updateConnection: vi.fn(),
+    syncConnection: vi.fn(),
+    deleteConnection: vi.fn(),
   } satisfies Api
 }
 const make = (s: SessionSeam | null, a: Api, path = '/home') =>

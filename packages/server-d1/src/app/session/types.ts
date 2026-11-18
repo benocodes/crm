@@ -47,6 +47,12 @@ export interface ConnectionRecord {
   status: string
   last_synced_at?: string | null
   last_error_code?: string | null
+  /** [[UI468]] D7: the capture settings, present on every record the API returns (the list's rows carry them too). */
+  capture_labels?: string[]
+  blocked_senders?: Array<{ kind: 'address' | 'domain'; value: string }>
+  exclude_group_addresses?: boolean
+  exclude_personal_domains?: boolean
+  contact_creation?: 'sent' | 'sent_and_received' | 'none'
 }
 
 /** The seam over Clerk's browser SDK ([[UI30]] D4): the page logic never touches `window.Clerk`. */

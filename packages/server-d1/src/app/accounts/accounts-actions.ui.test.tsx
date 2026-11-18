@@ -53,11 +53,10 @@ const show = (api: ReturnType<typeof fakeApi>, scopes: string[] = RW, navigate =
 }
 const rowOf = (address: string) => screen.getByText(address).closest('li') as HTMLElement
 const noViolations = async () => {
-  const results = await axe.run(document.body, {
-    rules: { 'color-contrast': { enabled: false } },
-    // Radix hides the siblings of an open dialog and guards focus (458.23): checked in the browser run.
-    exclude: [['[data-aria-hidden]']],
-  })
+  const results = await axe.run(
+    { include: [document.body], exclude: [['[data-aria-hidden]']] },
+    { rules: { 'color-contrast': { enabled: false } } },
+  )
   expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(' ')}`)).toEqual([])
 }
 const deferred = <T,>() => {
@@ -200,7 +199,7 @@ describe('Sync now (group 5: D9, P5)', () => {
   }
   const statusOf = (address: string) =>
     within(rowOf(address))
-      .getAllByRole('status')
+      .queryAllByRole('status')
       .map((s) => s.textContent)
       .join(' ')
 
@@ -216,8 +215,11 @@ describe('Sync now (group 5: D9, P5)', () => {
     expect(api.connections).toHaveBeenCalledTimes(1)
   })
 
-  it('409 reads the list again', async () => {
-    const api = fakeApi({ syncConnection: async () => ({ status: 409, body: null, code: 'connection_inactive' }) })
+  it.each([
+    [409, 'connection_inactive'],
+    [404, 'not_found'],
+  ])('%s %s reads the list again', async (status, code) => {
+    const api = fakeApi({ syncConnection: async () => ({ status, body: null, code }) })
     show(api)
     await screen.findByText('amy@x.test')
     await click()
