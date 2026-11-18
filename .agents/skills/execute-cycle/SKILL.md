@@ -262,8 +262,9 @@ When applying review findings, change only what the findings ask for, rerun the 
 and **end with the `CYCLE REPORT`** (§7). A review round is a run like any other: a fix pushed without a report
 leaves the orchestrator waiting for one ([[API63]] round 1). The same holds for a gate or E2E fix round. If the fix
 changes something one of your decision rows states (a file, where a function lives), add the superseding row
-(`--supersedes <ref>`) and update `RESULT.md` in that round. A new choice the fix makes is a new row. [[UI256]]'s review
-round 1 asked only for these records.
+(`--supersedes <ref>`) and update `RESULT.md` in that round. A new choice the fix makes is a new row, listed in
+`RESULT.md`'s Decisions in the same round, with the fix's evidence. [[UI256]]'s review round 1 asked only for these
+records, and [[UI445]]'s round 2 was a gate-fix row (445.24) missing from `RESULT.md`.
 
 If you run low on context, run `/handoff` in the cycle folder and report `handed off`.
 

@@ -54,6 +54,8 @@ export const RULES: readonly Rule[] = [
     forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'],
     skipTests: true,
   },
+  // The React layer's build helper ([[UI445]] D8): Node code outside `ui/src`, covered by the same rule.
+  { dir: 'ui/build', forbid: ['pg', '@vibase/db', '@vibase/storage-postgres', '@vibase/server-postgres'] },
 ]
 
 const SPECIFIER = /(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)['"]([^'"]+)['"]/g

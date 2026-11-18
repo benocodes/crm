@@ -1274,6 +1274,17 @@ message bodies or addresses at info level (customer communications are personal 
 - **A page that needs a constant from `@vibase/api`** (the scope catalogue) imports a dependency-free leaf through a
   subpath export (`@vibase/api/scope-descriptions`), never the index. `scripts/build-ui.test.ts` pins the page bundle's
   `@vibase/api` metafile inputs to exactly that leaf ([[UI247]] D5).
+- **The pages' CSP is one value, `PAGE_CSP` in `@vibase/ui/csp`** (`packages/ui/src/csp.ts`, a plain string with no
+  imports); `server-d1`'s `UI_CSP` is that value, never a copy ([[UI445]] D6). It is the one `@vibase/ui` module the
+  Worker bundle may hold: `scripts/build-ui.test.ts` ("the Worker bundle") allows exactly `../ui/src/csp.ts` and
+  refuses every other ui module. Any new Worker-side import from `@vibase/ui` turns that test red, so run it with
+  your affected tests; UI445's only gate-fix round was this test (445.24, 445.25).
+- **React pages build through `@vibase/ui/build`** (`packages/ui/build/`, [[UI445]] D8): the esbuild options
+  (automatic JSX on `react`, `process.env.NODE_ENV` defined as `"production"`) and `buildStylesheet({ outFile,
+  sources })`, which runs the Tailwind 4 CLI on `src/styles.css`. The CLI has no source flag, so the helper writes a
+  temp input CSS that `@import`s `src/styles.css` and adds an absolute `@source` per extra directory; a missing
+  directory throws before the CLI runs. Biome lints Tailwind's `@theme`, `@custom-variant` and `@source` only with
+  `css.parser.tailwindDirectives` on (`biome.json`). `@source` on an absent directory is tolerated.
 
 ## Large bytes and object storage
 

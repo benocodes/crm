@@ -8,19 +8,26 @@
   "exports": {
     ".": "./src/index.ts",
     "./esbuild": "./src/esbuild-options.ts",
-    "./ui.css": "./src/ui.css"
+    "./ui.css": "./src/ui.css",
+    "./styles.css": "./src/styles.css",
+    "./build": "./build/index.ts",
+    "./csp": "./src/csp.ts"
   },
   "scripts": {
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit",
-    "e2e:gallery": "playwright test --config playwright.config.ts gallery.e2e.ts"
+    "e2e:gallery": "playwright test --config playwright.config.ts gallery.e2e.ts",
+    "e2e:gallery-react": "playwright test --config playwright.react.config.ts gallery-react.e2e.ts"
   },
   "dependencies": {
-    "preact": "11.2.0"
+    "preact": "11.2.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
     "@playwright/test": "1.64.1",
+    "@tailwindcss/cli": "4.3.5",
     "@testing-library/dom": "10.4.2",
     "@testing-library/preact": "3.2.6",
     "@testing-library/react": "16.3.3",
@@ -30,8 +37,7 @@
     "@types/react-dom": "19.3.0",
     "esbuild": "0.28.2",
     "happy-dom": "21.0.4",
-    "react": "19.3.1",
-    "react-dom": "19.3.1",
+    "tailwindcss": "4.3.5",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vitest": "5.0.3"
