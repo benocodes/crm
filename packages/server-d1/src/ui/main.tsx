@@ -1,5 +1,6 @@
 // The mount of the auth pages' one bundle ([[UI246]] D2, [[UI446]] D1, D2): the view comes from the path. This is the one file that imports `react-dom`; the pages run on real React and `@vibase/ui/components`.
 import type { ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
 import { ConsentPage } from './consent-page.js'
 import { DevicePage } from './device-page.js'
@@ -25,6 +26,6 @@ const { title, view } = pageFor(location.pathname)
 document.title = `${title} - Vibase`
 // The page column the Preact layer's card carried: 28rem of content plus 1.5rem padding each side (31rem), centred, 1.5rem above and below, plus a 1rem gutter so a narrow screen keeps a margin (33rem with the gutters).
 // No transitions: the Preact layer had none, and a colour-scheme change must show at once (a transitioning button is mid-colour for 150 ms, which axe's contrast check and a screenshot both catch).
-createRoot(document.getElementById('root')!).render(
-  <div className="mx-auto my-6 max-w-132 px-4 [&_*]:transition-none!">{view}</div>,
-)
+// The first render is synchronous, as Preact's `render` was: a page that takes the token from the address fragment (`/invite`, `/reset-password`) must have removed it by the time the document has loaded, not a scheduler tick later.
+const root = createRoot(document.getElementById('root')!)
+flushSync(() => root.render(<div className="mx-auto my-6 max-w-132 px-4 [&_*]:transition-none!">{view}</div>))
