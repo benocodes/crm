@@ -1083,6 +1083,18 @@ try {
       res.headers.get('cache-control') === 'no-store',
     { status: res.status, homePolicy },
   )
+  res = await call('GET', '/accounts')
+  const accountsPage = await res.text()
+  check(
+    '24c2 GET /accounts -> 200 HTML with the app bundle and the app policy ([[UI467]] D1, D14); /accounts/ and /accounts/x -> 404',
+    res.status === 200 &&
+      (res.headers.get('content-type') ?? '').startsWith('text/html') &&
+      accountsPage.includes('/app/app.js') &&
+      (res.headers.get('content-security-policy') ?? '').includes("style-src 'self' 'unsafe-inline'") &&
+      (await call('GET', '/accounts/')).status === 404 &&
+      (await call('GET', '/accounts/x')).status === 404,
+    { status: res.status },
+  )
   res = await fetch(new URL('/', base), { redirect: 'manual' })
   check(
     '24d GET / -> 302 to /home with the headers',

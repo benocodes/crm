@@ -44,7 +44,14 @@ describe('Home over the real API client', () => {
     })
     const controller = createAppController({ seam, api, origin: 'https://w.test', path: '/home' })
     render(
-      <AppRoot controller={controller} provider="better-auth" path="/home" origin="https://w.test" mcpUrl={null} />,
+      <AppRoot
+        controller={controller}
+        provider="better-auth"
+        path="/home"
+        origin="https://w.test"
+        mcpUrl={null}
+        api={api}
+      />,
     )
     await controller.start()
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Check again' }))

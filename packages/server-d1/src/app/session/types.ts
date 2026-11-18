@@ -39,6 +39,16 @@ export interface AgentRecord {
   delegated_by: string | null
 }
 
+/** [[UI467]] D2: the fields of a connection record (`connections.list`) the Connected accounts page reads. */
+export interface ConnectionRecord {
+  id: string
+  owner_id: string
+  identity_id: string
+  status: string
+  last_synced_at?: string | null
+  last_error_code?: string | null
+}
+
 /** The seam over Clerk's browser SDK ([[UI30]] D4): the page logic never touches `window.Clerk`. */
 export interface SessionSeam {
   /** Loads the SDK and the session. Not called when sign-in is unavailable. */

@@ -1,11 +1,13 @@
 // [[UI30]] D8: the three calls the page makes. A fresh token from Clerk per request, sent only as `Authorization: Bearer`.
-import type { AgentRecord, Me } from './types.js'
+import type { AgentRecord, ConnectionRecord, Me } from './types.js'
 
 export interface ApiResult<T> {
   status: number
   body: T | null
   /** Clerk had no token to give, so no request was made: the session is gone. */
   noToken?: true
+  /** The `error.code` of a non-2xx answer, when it has one ([[UI467]] D3). */
+  code?: string
 }
 export interface Api {
   me(): Promise<ApiResult<Me>>
@@ -14,6 +16,12 @@ export interface Api {
   /** True when any agent has `disabled_at` null: pages are followed until one is found or the list ends (UI461 P4). */
   hasEnabledAgent(): Promise<ApiResult<boolean>>
   setDisabled(id: string, disabled: boolean): Promise<ApiResult<AgentRecord>>
+  /** [[UI467]] D2: every connection, pages followed until `next_cursor` is null. */
+  connections(): Promise<ApiResult<ConnectionRecord[]>>
+  /** [[UI467]] D2, P5: a mailbox's address, the `value` of its own identity. */
+  identityAddress(identityId: string): Promise<ApiResult<string>>
+  /** [[UI467]] D3: `connections.authorize` for Google; the body is the consent URL to navigate to. */
+  authorizeGmail(): Promise<ApiResult<{ authorize_url: string; expires_at: string }>>
 }
 
 export function createApi(deps: { origin: string; getToken(): Promise<string | null>; fetch: typeof fetch }): Api {
@@ -34,7 +42,9 @@ export function createApi(deps: { origin: string; getToken(): Promise<string | n
     } catch {
       parsed = null
     }
-    return { status: res.status, body: res.ok ? parsed : null }
+    if (res.ok) return { status: res.status, body: parsed }
+    const code = (parsed as { error?: { code?: unknown } } | null)?.error?.code
+    return { status: res.status, body: null, ...(typeof code === 'string' ? { code } : {}) }
   }
 
   return {
@@ -74,5 +84,29 @@ export function createApi(deps: { origin: string; getToken(): Promise<string | n
     },
     setDisabled: (id, disabled) =>
       call<AgentRecord>('PATCH', `/meta/v1/agents/${encodeURIComponent(id)}`, { disabled }),
+    async connections() {
+      const all: ConnectionRecord[] = []
+      let after: string | null = null
+      // A page is a request with its own token; a server that never ends the cursor is bounded, as `agents()` is.
+      for (let i = 0; i < 100; i++) {
+        const r: ApiResult<{ data: ConnectionRecord[]; next_cursor: string | null }> = await call(
+          'GET',
+          `/meta/v1/connections?limit=200${after ? `&after=${encodeURIComponent(after)}` : ''}`,
+        )
+        if (r.status < 200 || r.status >= 300 || !r.body) return { ...r, body: null }
+        all.push(...r.body.data)
+        if (r.body.next_cursor === null) return { status: r.status, body: all }
+        after = r.body.next_cursor
+      }
+      return { status: 200, body: all }
+    },
+    async identityAddress(identityId) {
+      const r = await call<{ value: string }>('GET', `/api/v1/identities/${encodeURIComponent(identityId)}`)
+      return { ...r, body: r.body && typeof r.body.value === 'string' ? r.body.value : null }
+    },
+    authorizeGmail: () =>
+      call<{ authorize_url: string; expires_at: string }>('POST', '/meta/v1/connections/authorize', {
+        provider: 'google',
+      }),
   }
 }

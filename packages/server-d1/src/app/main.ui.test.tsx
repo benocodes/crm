@@ -85,3 +85,39 @@ describe('the mount', () => {
     expect(calls).toEqual(['GET /.well-known/vibase'])
   })
 })
+
+// [[UI467]] D1: the second page; the mount titles and draws by path, with full page loads.
+describe('the mount on /accounts', () => {
+  const ME_READER = { ...ME, active_organization: { id: 'o1', role: 'owner', scopes: ['connections:read'] } }
+  it('signed in: the title "Connected accounts · Vibase", the Connected accounts page in the shell with its nav entry current, and the list read through the API', async () => {
+    const calls = stubFetch({
+      'GET /.well-known/vibase': () => json(DISCOVERY),
+      'GET /auth/get-session': () => json({ user: { id: 'u1' }, session: { id: 's' } }),
+      'GET /auth/token': () => json({ token: 't' }),
+      'GET /meta/v1/me': () => json(ME_READER),
+      'GET /meta/v1/connections': () => json({ data: [], next_cursor: null }),
+    })
+    await mount('/accounts')
+    await vi.waitFor(() => expect(document.querySelector('h1')?.textContent).toBe('Connected accounts'))
+    expect(document.title).toBe('Connected accounts · Vibase')
+    await vi.waitFor(() => expect(document.body.textContent).toContain('No mailbox connected yet'))
+    expect(document.querySelector('nav a[aria-current="page"]')?.textContent).toBe('Connected accounts')
+    expect(calls).toContain('GET /meta/v1/connections')
+  })
+
+  it('signed out: Sign in returns to /accounts by its path only', async () => {
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => {})
+    stubFetch({
+      'GET /.well-known/vibase': () => json(DISCOVERY),
+      'GET /auth/get-session': () => json(null),
+    })
+    await mount('/accounts?error=x&utm=1')
+    const button = await vi.waitFor(() => {
+      const b = document.querySelector('button')
+      expect(b?.textContent).toBe('Sign in')
+      return b!
+    })
+    button.click()
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledExactlyOnceWith('/sign-in?return_to=/accounts'))
+  })
+})

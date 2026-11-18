@@ -21,6 +21,8 @@ const FILES: Record<string, { type: string; body: string }> = {
   '/index.html': { type: 'text/html; charset=utf-8', body: HTML },
   '/home': { type: 'text/html; charset=utf-8', body: HTML },
   '/home/': { type: 'text/html; charset=utf-8', body: HTML },
+  '/accounts': { type: 'text/html; charset=utf-8', body: HTML },
+  '/accounts/': { type: 'text/html; charset=utf-8', body: HTML },
   '/': { type: 'text/html; charset=utf-8', body: HTML },
 }
 const assetCalls: { method: string; path: string }[] = []
@@ -69,7 +71,7 @@ beforeEach(async () => {
   await w.d1.prepare('drop table if exists d1_migrations').run()
   await createMigrationTracker(w.d1) // the database is behind: every gate would answer 503 if the app route came after it
 })
-const isApp = (at: string) => /^(GET|HEAD|POST) \/(home|app)/.test(at) || /^(GET|HEAD) \/ \(302\)/.test(at)
+const isApp = (at: string) => /^(GET|HEAD|POST) \/(home|accounts|app)/.test(at) || /^(GET|HEAD) \/ \(302\)/.test(at)
 // D5: every app answer (page, asset, 404, 405, 302) carries the policy, nosniff and the referrer policy; HTML is no-store.
 afterEach(() => {
   for (const { at, res, issuer } of seen) {
@@ -109,8 +111,8 @@ const PROVIDERS: [string, (over?: Partial<D1WorkerEnv>) => ReturnType<typeof com
 ]
 
 describe('the constants the Worker serves (D1)', () => {
-  it('the app has one page path: /home', () => {
-    expect([...APP_PAGE_PATHS]).toEqual(['/home'])
+  it('the app has two page paths: /home and /accounts', () => {
+    expect([...APP_PAGE_PATHS]).toEqual(['/home', '/accounts'])
   })
 })
 
@@ -125,6 +127,23 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
     const head = await send(wk, '/home', 'HEAD')
     expect(head.status).toBe(200)
     expect(await head.text()).toBe('')
+  })
+
+  it('GET and HEAD /accounts answer the app index.html like /home, with the policy (UI467 D1)', async () => {
+    const wk = make()
+    const res = await send(wk, '/accounts')
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe(HTML)
+    expect(assetCalls).toEqual([{ method: 'GET', path: '/app/' }])
+    expect((await send(wk, '/accounts', 'HEAD')).status).toBe(200)
+    expect((await send(wk, '/accounts', 'POST')).status).toBe(405)
+  })
+
+  it.each(['/accounts/', '/accounts/x'])("%s is the Worker's 404 not_found (UI467 D1)", async (path) => {
+    const res = await send(make(), path)
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual(NOT_FOUND)
+    expect(assetCalls).toEqual([])
   })
 
   it('/app/app.js and /app/app.css are the assets', async () => {
@@ -170,7 +189,7 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
 
   it('without the assets binding every app path and / is 404', async () => {
     const wk = make({ ASSETS: undefined })
-    for (const path of ['/home', '/app/app.js', '/app/app.css', '/']) {
+    for (const path of ['/home', '/accounts', '/app/app.js', '/app/app.css', '/']) {
       const res = await send(wk, path)
       expect(res.status, path).toBe(404)
       expect(res.headers.get('location'), path).toBeNull()

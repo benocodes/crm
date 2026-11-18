@@ -37,6 +37,7 @@
       "/ui/*",
       "/",
       "/home",
+      "/accounts",
       "/app",
       "/app/*"
     ]

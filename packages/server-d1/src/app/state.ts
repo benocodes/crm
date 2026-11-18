@@ -10,6 +10,8 @@ export interface Who {
   role: string
   /** The name of the ACTIVE organisation's membership. */
   workspaceName: string
+  /** `me.get`'s user id: the Connected accounts page splits mailboxes by `owner_id` against it ([[UI467]] D2). */
+  userId: string
 }
 
 export type AppState =
@@ -126,6 +128,7 @@ export function createAppController(deps: {
         email: me.user.email,
         role: active.role ?? membership?.role ?? 'none',
         workspaceName: membership?.organization_name ?? 'Your workspace',
+        userId: me.user.id,
       },
       scopes: [...active.scopes],
       manageAccountHref: seam?.profileUrl() ?? null,

@@ -37,7 +37,7 @@ describe('returnTarget', () => {
     '/homes',
     '/home/../x',
     'home',
-    '/accounts',
+    '/accounts/x',
     '/agents',
     '/app/app.js',
     '//evil.example/home',
@@ -62,9 +62,14 @@ describe('the allow-list follows APP_PAGE_PATHS', () => {
     ;(APP_PAGE_PATHS as unknown as string[]).pop()
   })
   it('a path added to the constant is honoured with no edit to continuation.ts', () => {
-    expect(returnTarget(q('/accounts'))).toBeNull()
-    ;(APP_PAGE_PATHS as unknown as string[]).push('/accounts')
+    expect(returnTarget(q('/agents'))).toBeNull()
+    ;(APP_PAGE_PATHS as unknown as string[]).push('/agents')
+    expect(returnTarget(q('/agents'))).toBe('/agents')
+  })
+  it('/accounts is a return target (UI467 D1)', () => {
     expect(returnTarget(q('/accounts'))).toBe('/accounts')
+    expect(returnTarget(q('/accounts?x=1'))).toBe('/accounts?x=1')
+    expect(returnTarget(q('/accounts/'))).toBeNull()
   })
   it('a cross-origin https /home is still the callbackURL path, not a page target', () => {
     expect(returnTarget(q('https://app.example.com/home'))).toBeNull()
