@@ -396,6 +396,7 @@ describe('rendered as text and accessible (group 4)', () => {
     const line = screen.getByTestId('sign-in-line')
     expect(line.querySelector('[role="switch"]')).toBeNull()
     expect(line.querySelector('summary')!.textContent).toBe('Show the 4 permissions')
+    expect(line.textContent).toContain('Also: confirm who you are and stay signed in')
     expect(line.textContent).toContain('Stay signed in: keep access until you sign out or the access is revoked')
   })
 
@@ -409,6 +410,20 @@ describe('rendered as text and accessible (group 4)', () => {
     expect(screen.getAllByText('<u>x</u>').length).toBeGreaterThan(0)
     expect(document.querySelector('u')).toBeNull()
     expect(document.getElementById('n')).toBeNull()
+  })
+
+  it('axe is clean on the default-set shape with every disclosure open (region names are unique)', async () => {
+    at(DEFAULT_QUERY)
+    fakeFetch(routes())
+    const { container } = render(<ConsentPage navigate={vi.fn()} />)
+    await sw('CRM records', 'Read')
+    for (const d of container.querySelectorAll('details')) d.open = true
+    const axe = (await import('axe-core')).default
+    const r = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } })
+    expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html.slice(0, 80)).join(' | ')}`)).toEqual([])
+    const names = [...container.querySelectorAll('details section')].map((e) => e.getAttribute('aria-label'))
+    expect(new Set(names).size).toBe(names.length)
+    expect(names).toContain('CRM records permissions')
   })
 
   it('axe is clean on the default-set shape', async () => {
