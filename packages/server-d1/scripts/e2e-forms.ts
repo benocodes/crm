@@ -1,28 +1,40 @@
 // [[CHN432]] E2E, local part (432.9): a website form submitted to the real Worker under `wrangler dev --local`, with the REAL Turnstile siteverify (so it needs network access),
-// the always-pass test secret and the `ratelimits` bindings of wrangler.jsonc. Everything is local: the state is `.wrangler/state` of this package, wiped first.
+// the always-pass test secret and the `ratelimits` bindings of wrangler.jsonc. Everything is local and private to the run: the D1 state and the Worker's variables live in a temp directory that is removed at the end (the developer's `.wrangler/state` and `.dev.vars` are never read, changed or deleted).
 //
 //   pnpm -C packages/server-d1 e2e:forms
 //
 // Setup is the owner's, in-process on the same local state: `forms.create` is human-only and `forms:write` is not agent-grantable, so an agent cannot create the form over REST. An owner token
 // (a stand-in authenticator, as the tests use) creates the tag `Leads` and the form `Contact` through the real app on the local D1; then the Worker runs and every submission and every read
-// is real HTTP: the browser-style requests carry no credential, and the reads use the bootstrap agent's API key. `.dev.vars` is copied from `.dev.vars.example` when absent and removed after.
+// is real HTTP: the browser-style requests carry no credential, and the reads use the bootstrap agent's API key. The Worker's variables are `.dev.vars.example` plus the test secret, in a script-owned `--env-file`.
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
-import { copyFileSync, existsSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createApp, createVibaseRegistry, ScopeSet } from '@vibase/api'
-import { d1Binding, type D1Like } from '@vibase/storage-d1'
+import { d1Binding, openControlDb, type D1Like } from '@vibase/storage-d1'
 import { getPlatformProxy } from 'wrangler'
+import { bootstrapD1 } from '../src/bootstrap-d1.js'
 import { readDeployment } from '../src/init-deployment.js'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const CONFIG = join(ROOT, 'wrangler.jsonc')
-const DEV_VARS = join(ROOT, '.dev.vars')
+const WORK = mkdtempSync(join(tmpdir(), 'vb-e2e-forms-'))
+const STATE = join(WORK, 'state')
+const PERSIST = join(STATE, 'v3')
+const ENV_FILE = join(WORK, '.env.e2e')
 const PORT = 8799
 const BASE = `http://127.0.0.1:${PORT}`
 const ORIGIN = 'https://example.com'
 const TOKEN = 'XXXX.DUMMY.TOKEN.XXXX'
-const AGENT_SCOPES = 'tags:read,contacts:read,associations:read,messages:read,interactions:read,forms:read'
+const AGENT_SCOPES = [
+  'tags:read',
+  'contacts:read',
+  'associations:read',
+  'messages:read',
+  'interactions:read',
+  'forms:read',
+]
 
 type Json = Record<string, any>
 let failed = 0
@@ -34,55 +46,54 @@ const run = (args: string[]): string =>
   execFileSync('pnpm', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
 
 let server: ChildProcess | undefined
-let wroteDevVars = false
 const finish = (): void => {
   if (server?.pid) {
     try {
       process.kill(-server.pid, 'SIGTERM')
     } catch {}
   }
-  if (wroteDevVars) rmSync(DEV_VARS, { force: true })
+  rmSync(WORK, { recursive: true, force: true })
 }
 process.on('exit', finish)
 
 async function main(): Promise<void> {
-  // 1. A fresh local D1 (CRM and control), migrated.
-  rmSync(join(ROOT, '.wrangler', 'state'), { recursive: true, force: true })
-  run(['exec', 'wrangler', 'd1', 'migrations', 'apply', 'DB', '--local'])
-  run(['exec', 'wrangler', 'd1', 'migrations', 'apply', 'CONTROL_DB', '--local'])
+  // 1. A fresh local D1 pair (CRM and control) in the temp directory, migrated; the connect page built for the Worker's assets.
+  mkdirSync(PERSIST, { recursive: true })
+  run(['exec', 'wrangler', 'd1', 'migrations', 'apply', 'DB', '--local', '--persist-to', STATE])
+  run(['exec', 'wrangler', 'd1', 'migrations', 'apply', 'CONTROL_DB', '--local', '--persist-to', STATE])
   run(['build'])
-  if (!existsSync(DEV_VARS)) {
-    copyFileSync(join(ROOT, '.dev.vars.example'), DEV_VARS)
-    wroteDevVars = true
-  }
+  // The Worker's variables, from a file of this script's own (wrangler ignores `.dev.vars` when `--env-file` is given).
+  writeFileSync(
+    ENV_FILE,
+    `${readFileSync(join(ROOT, '.dev.vars.example'), 'utf8')}\nTURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA\n`,
+    { mode: 0o600 },
+  )
 
-  // 2. One bootstrap: the owner user and the read-only agent with its key.
-  const out = run([
-    'exec',
-    'tsx',
-    'scripts/bootstrap.ts',
-    '--org',
-    'E2E',
-    '--auth-provider',
-    'none',
-    '--auth-org-id',
-    'org_e2e',
-    '--email',
-    'owner@example.com',
-    '--agent',
-    'e2e-agent',
-    '--scopes',
-    AGENT_SCOPES,
-  ])
-  const field = (name: string): string => out.match(new RegExp(`^${name}:\\s+(\\S+)`, 'm'))?.[1] ?? ''
-  const [ownerId, organizationId, key] = [field('user_id'), field('organization_id'), field('api_key')]
+  // 2. One bootstrap, in-process on the temp state: the owner user and the read-only agent with its key.
+  const proxy = await getPlatformProxy<{ DB: D1Like; CONTROL_DB: D1Like }>({
+    configPath: CONFIG,
+    persist: { path: PERSIST },
+    remoteBindings: false,
+  })
+  const boot = await bootstrapD1(
+    proxy.env.DB,
+    {
+      organizationName: 'E2E',
+      authProvider: 'none',
+      authOrgId: 'org_e2e',
+      email: 'owner@example.com',
+      agentName: 'e2e-agent',
+      scopes: AGENT_SCOPES,
+    },
+    { control: openControlDb(proxy.env.CONTROL_DB) },
+  )
+  const [ownerId, organizationId, key] = [boot.userId ?? '', boot.organizationId, boot.key]
   check(
     'bootstrap: an owner, an organisation and an agent key',
     ownerId !== '' && organizationId !== '' && key.startsWith('vk_'),
   )
 
-  // 3. The tag and the form, created by the owner through the real app on the local state (before the Worker opens the same files).
-  const proxy = await getPlatformProxy<{ DB: D1Like }>({ configPath: CONFIG, persist: true, remoteBindings: false })
+  // 3. The tag and the form, created by the owner through the real app on the temp state (before the Worker opens the same files).
   let publicId = ''
   let tagId = ''
   try {
@@ -127,11 +138,28 @@ async function main(): Promise<void> {
   }
 
   // 4. The Worker.
-  server = spawn('pnpm', ['exec', 'wrangler', 'dev', '--local', '--port', String(PORT), '--ip', '127.0.0.1'], {
-    cwd: ROOT,
-    detached: true,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
+  server = spawn(
+    'pnpm',
+    [
+      'exec',
+      'wrangler',
+      'dev',
+      '--local',
+      '--port',
+      String(PORT),
+      '--ip',
+      '127.0.0.1',
+      '--persist-to',
+      STATE,
+      '--env-file',
+      ENV_FILE,
+    ],
+    {
+      cwd: ROOT,
+      detached: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  )
   let log = ''
   server.stdout?.on('data', (c) => (log += c))
   server.stderr?.on('data', (c) => (log += c))
