@@ -87,6 +87,17 @@ describe('the states by input (D4)', () => {
     })
   })
 
+  it('with no role on the active organisation the membership role is shown; with no membership for it the workspace is named generically', async () => {
+    const noRole = ME({ active_organization: { id: 'o2', role: null, scopes: [] } })
+    const a = make(seam(), api(ok(noRole)))
+    await a.start()
+    expect(a.state()).toMatchObject({ kind: 'ready', who: { role: 'owner', workspaceName: 'Acme' } })
+    const noMembership = ME({ memberships: [], active_organization: { id: 'o2', role: 'member', scopes: [] } })
+    const b = make(seam(), api(ok(noMembership)))
+    await b.start()
+    expect(b.state()).toMatchObject({ kind: 'ready', who: { role: 'member', workspaceName: 'Your workspace' } })
+  })
+
   it.each([
     ['a 403', bad(403)],
     ['a 200 with no active organisation', ok(ME({ active_organization: null }))],
