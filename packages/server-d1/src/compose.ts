@@ -941,10 +941,7 @@ export function composeD1Worker(
       try {
         const url = new URL(req.url)
         if (req.method === 'GET' && url.pathname === '/health') return await health()
-        // [[CORE243]] D1: `/auth/*` exists only for the built-in provider; for clerk and unset it is no route at all, before every gate. For better-auth it passes the migration gate
-        // and the configuration gate, then the control gate ([[CORE259]] D6, D7: the auth tables live in the control-plane database, which must be migrated and paired with this
-        // CRM database). It still touches no vault table (CORE243 D5).
-        // [[UI460]] D1, D2 ([[UI443]]): the workspace app (`/home`, `/app/*`) and the `/` redirect exist for every provider and are static: they answer before every gate, with the policy for the provider (Clerk's hosts on Clerk).
+        // [[UI460]] D1, D2 ([[UI443]]): the workspace app (`/home`, `/app`, `/app/*`) and the `/` redirect exist for every provider and are static: they answer before every gate, with the policy for the provider (Clerk's hosts on Clerk).
         const appPage = await serveApp(req, {
           assets: env.ASSETS,
           issuer: discovery.provider?.name === 'clerk' ? discovery.provider.issuer : undefined,
@@ -955,6 +952,9 @@ export function composeD1Worker(
           return builtIn
             ? ((await serveUi(req, { assets: env.ASSETS })) ?? json(NO_SUCH_ROUTE, 404))
             : json(NO_SUCH_ROUTE, 404)
+        // [[CORE243]] D1: `/auth/*` exists only for the built-in provider; for clerk and unset it is no route at all, before every gate. For better-auth it passes the migration gate
+        // and the configuration gate, then the control gate ([[CORE259]] D6, D7: the auth tables live in the control-plane database, which must be migrated and paired with this
+        // CRM database). It still touches no vault table (CORE243 D5).
         if (
           url.pathname === '/auth' ||
           url.pathname.startsWith('/auth/') ||

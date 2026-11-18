@@ -1093,12 +1093,13 @@ try {
   )
   res = await call('GET', '/app/app.js')
   check(
-    '24e GET /app/app.js -> 200 javascript with the headers; /home/ and /app/ -> 404',
+    '24e GET /app/app.js -> 200 javascript with the headers; /home/, /app/ and /app -> 404',
     res.status === 200 &&
       (res.headers.get('content-type') ?? '').includes('javascript') &&
       (res.headers.get('content-security-policy') ?? '') !== '' &&
       (await call('GET', '/home/')).status === 404 &&
-      (await call('GET', '/app/')).status === 404,
+      (await call('GET', '/app/')).status === 404 &&
+      (await call('GET', '/app')).status === 404,
     { status: res.status },
   )
   res = await call('GET', '/.well-known/vibase')

@@ -65,6 +65,8 @@ export function App({ state, provider, path, onSignIn, onSignOut, onRetry }: App
               </Button>
             }
           >
+            {state.who ? <p className="text-sm">Signed in as {state.who}.</p> : null}
+            {state.signOutError ? <Alert variant="error">{state.signOutError}</Alert> : null}
             <p className="text-sm">
               You are signed in, but this workspace has not given your account a role. Ask an owner to invite you.
             </p>

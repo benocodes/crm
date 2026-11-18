@@ -45,11 +45,11 @@ function withHeaders(res: Response, csp: string): Response {
 }
 
 const isPagePath = (pathname: string): boolean => (APP_PAGE_PATHS as readonly string[]).includes(pathname)
-/** A page path, anything below one (`/home/`, `/home/x`: not pages, the Worker's own 404, but ours to answer before the gates) and anything under `/app/`. `/homex` and `/app` are not ours. */
+/** A page path, anything below one (`/home/`, `/home/x`: not pages, the Worker's own 404, but ours to answer before the gates) and anything under `/app/`. `/homex` and `/appx` are not ours; `/app` exactly is (a 404, never the binding's directory page). */
 const isUnderPage = (pathname: string): boolean => APP_PAGE_PATHS.some((p) => pathname.startsWith(`${p}/`))
-/** True for the exact page paths, anything below them and anything under `/app/` (the root is decided by `serveApp`, which only claims `GET`/`HEAD`). */
+/** True for the exact page paths, anything below them, `/app` and anything under `/app/` (the root is decided by `serveApp`, which only claims `GET`/`HEAD`). */
 export const isAppPath = (pathname: string): boolean =>
-  isPagePath(pathname) || isUnderPage(pathname) || pathname.startsWith(`${APP_PREFIX}/`)
+  isPagePath(pathname) || isUnderPage(pathname) || pathname === APP_PREFIX || pathname.startsWith(`${APP_PREFIX}/`)
 
 const notFound = (csp: string) =>
   withHeaders(
@@ -87,7 +87,10 @@ export async function serveApp(
   if (isRoot) return withHeaders(new Response(null, { status: 302, headers: { location: HOME } }), csp)
   if (
     !isPagePath(url.pathname) &&
-    (isUnderPage(url.pathname) || url.pathname === INDEX_PATH || url.pathname === `${APP_PREFIX}/index.html`)
+    (isUnderPage(url.pathname) ||
+      url.pathname === APP_PREFIX ||
+      url.pathname === INDEX_PATH ||
+      url.pathname === `${APP_PREFIX}/index.html`)
   )
     return notFound(csp)
   const target = new URL(isPagePath(url.pathname) ? INDEX_PATH : url.pathname, url.origin)

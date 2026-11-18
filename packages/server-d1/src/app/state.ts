@@ -19,7 +19,11 @@ export type AppState =
   /** No session: the Sign in card. Nothing navigates on its own. */
   | { kind: 'signed-out' }
   /** A session the workspace does not admit: a 403, no active organisation, or not a person. */
-  | { kind: 'no-access' }
+  | {
+      kind: 'no-access' /** Who is signed in (name, else email): known only when `me.get` answered a person with no active organisation. */
+      who?: string
+      signOutError?: string
+    }
   /** A read that failed (5xx, `503 migrations_pending`, a network failure, a session that cannot load, a 401 that survived its one re-check). Retry re-reads. */
   | { kind: 'error'; message: string }
   | {
@@ -89,12 +93,14 @@ export function createAppController(deps: {
     const me = r.body!
     const active = me.active_organization
     // The app is for people: an agent principal has no profile to show, and a person with no active organisation has no workspace.
-    if (!me.user || !active) return set({ kind: 'no-access' })
+    if (!me.user) return set({ kind: 'no-access' })
+    const display = me.user.name?.trim() ? me.user.name : me.user.email
+    if (!active) return set({ kind: 'no-access', who: display })
     const membership = me.memberships.find((m) => m.organization_id === active.id)
     set({
       kind: 'ready',
       who: {
-        name: me.user.name?.trim() ? me.user.name : me.user.email,
+        name: display,
         email: me.user.email,
         role: active.role ?? membership?.role ?? 'none',
         workspaceName: membership?.organization_name ?? 'Your workspace',
@@ -137,7 +143,7 @@ export function createAppController(deps: {
         await seam?.signOut()
       } catch {
         // A refused sign-out (the session is still live) is not "signed out": keep the shell and say so.
-        if (before.kind === 'ready') set({ ...before, signOutError: SIGN_OUT_FAILED })
+        if (before.kind === 'ready' || before.kind === 'no-access') set({ ...before, signOutError: SIGN_OUT_FAILED })
         return
       }
       set({ kind: 'signed-out' })
