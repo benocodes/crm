@@ -44,7 +44,7 @@ import type { FormIngress } from './ingress-read.js'
 import { formSubmitter, mapFormSubmission, type FormSubmissionInput, type FormSubmitter } from './map-submission.js'
 
 // [[CHN428]]: the capture unit of a form submission ([[CHN421]] D8, D9, D14, D17, D18). Dormant: no non-test module calls it
-// until [[CHN429]]'s route does (P5, 428.6). D1 only, as `formIngressRead` is.
+// until [[CHN429]]'s route does (P5, 428.6). D1 only, like the ingress read.
 
 export interface FormSubmissionContext {
   binding: StorageBinding
