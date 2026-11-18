@@ -1,0 +1,226 @@
+// @vitest-environment happy-dom
+import { describe, expect, it, vi } from 'vitest'
+import type { Api, ApiResult } from './session/api.js'
+import type { Me, SessionSeam } from './session/types.js'
+import { createAppController } from './state.js'
+
+// [[UI460]] D4 (group 3), P2, P3 (group 4): the app's state machine over the session seam and the API client, one state for each input. It stores nothing.
+
+const ME = (over: Partial<Me> = {}): Me => ({
+  principal: { id: 'p1', kind: 'user' },
+  user: { id: 'u1', email: 'ann@x.test', name: 'Ann', email_verified: true },
+  agent: null,
+  client_id: null,
+  memberships: [
+    { organization_id: 'o1', organization_name: 'Other Co', role: 'member' },
+    { organization_id: 'o2', organization_name: 'Acme', role: 'owner' },
+  ],
+  active_organization: { id: 'o2', role: 'owner', scopes: [] },
+  ...over,
+})
+const ok = (body: Me): ApiResult<Me> => ({ status: 200, body })
+const bad = (status: number, extra: Partial<ApiResult<Me>> = {}): ApiResult<Me> => ({ status, body: null, ...extra })
+
+const seam = (over: Partial<SessionSeam> = {}) => {
+  const s = {
+    load: vi.fn(async () => {}),
+    isSignedIn: vi.fn(() => true),
+    getToken: vi.fn(async () => 't'),
+    recheckSession: vi.fn(async () => true),
+    redirectToSignIn: vi.fn(async (_u: string) => {}),
+    signOut: vi.fn(async () => {}),
+    profileUrl: vi.fn(() => null as string | null),
+    ...over,
+  }
+  return s satisfies SessionSeam
+}
+const api = (...answers: (ApiResult<Me> | Error)[]) => {
+  const me = vi.fn(async () => {
+    const a = answers.length > 1 ? answers.shift()! : answers[0]!
+    if (a instanceof Error) throw a
+    return a
+  })
+  return { me, agents: vi.fn(), setDisabled: vi.fn() } satisfies Api
+}
+const make = (s: SessionSeam | null, a: Api, path = '/home') =>
+  createAppController({ seam: s, api: a, origin: 'https://w.test', path })
+
+describe('the states by input (D4)', () => {
+  it('no provider (no seam): unavailable, and nothing is called', async () => {
+    const a = api(ok(ME()))
+    const c = make(null, a)
+    expect(c.state().kind).toBe('loading')
+    await c.start()
+    expect(c.state().kind).toBe('unavailable')
+    expect(a.me).not.toHaveBeenCalled()
+  })
+
+  it('no session: signed-out, no API call, and no navigation on load', async () => {
+    const s = seam({ isSignedIn: vi.fn(() => false) })
+    const a = api(ok(ME()))
+    const c = make(s, a)
+    await c.start()
+    expect(c.state().kind).toBe('signed-out')
+    expect(a.me).not.toHaveBeenCalled()
+    expect(s.redirectToSignIn).not.toHaveBeenCalled()
+  })
+
+  it('a 200 with an active organisation: ready, with the name, email, role and the ACTIVE membership’s workspace name', async () => {
+    const c = make(seam(), api(ok(ME())))
+    await c.start()
+    expect(c.state()).toEqual({
+      kind: 'ready',
+      who: { name: 'Ann', email: 'ann@x.test', role: 'owner', workspaceName: 'Acme' },
+      manageAccountHref: null,
+    })
+  })
+
+  it('a person with no name is shown by their email; Clerk’s profile URL is carried', async () => {
+    const s = seam({ profileUrl: vi.fn(() => 'https://acc.test/user') })
+    const c = make(s, api(ok(ME({ user: { id: 'u1', email: 'ann@x.test', name: null, email_verified: true } }))))
+    await c.start()
+    expect(c.state()).toMatchObject({ kind: 'ready', who: { name: 'ann@x.test' }, manageAccountHref: 'https://acc.test/user' })
+  })
+
+  it.each([
+    ['a 403', bad(403)],
+    ['a 200 with no active organisation', ok(ME({ active_organization: null }))],
+    ['a 200 for an agent principal (no user)', ok(ME({ user: null, principal: { id: 'a1', kind: 'agent' } }))],
+  ])('%s: no-access', async (_n, answer) => {
+    const c = make(seam(), api(answer))
+    await c.start()
+    expect(c.state().kind).toBe('no-access')
+  })
+
+  it.each([
+    ['a 500', bad(500)],
+    ['a 503 migrations_pending', bad(503)],
+    ['a 404', bad(404)],
+    ['a network failure', new Error('network down')],
+  ])('%s: error', async (_n, answer) => {
+    const c = make(seam(), api(answer))
+    await c.start()
+    expect(c.state().kind).toBe('error')
+    expect((c.state() as { message: string }).message).toMatch(/\S/)
+  })
+
+  it('a session that cannot load is an error, not signed-out', async () => {
+    const c = make(seam({ load: vi.fn(async () => Promise.reject(new Error('boom'))) }), api(ok(ME())))
+    await c.start()
+    expect(c.state().kind).toBe('error')
+  })
+
+  it('Retry re-reads: error becomes ready when the API answers, and the API is called again', async () => {
+    const a = api(bad(500), ok(ME()))
+    const s = seam()
+    const c = make(s, a)
+    await c.start()
+    expect(c.state().kind).toBe('error')
+    await c.retry()
+    expect(a.me).toHaveBeenCalledTimes(2)
+    expect(c.state().kind).toBe('ready')
+    expect(s.load).toHaveBeenCalledTimes(1) // the session is already loaded; Retry re-reads the API, not the SDK
+  })
+
+  it('Retry after a failed load loads again', async () => {
+    const load = vi.fn().mockRejectedValueOnce(new Error('x')).mockResolvedValue(undefined)
+    const c = make(seam({ load }), api(ok(ME())))
+    await c.start()
+    expect(c.state().kind).toBe('error')
+    await c.retry()
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(c.state().kind).toBe('ready')
+  })
+})
+
+describe('a 401 re-checks the session once and never loops (D4)', () => {
+  it('the session is gone: signed-out after one re-check and one call', async () => {
+    const s = seam({ recheckSession: vi.fn(async () => false) })
+    const a = api(bad(401))
+    const c = make(s, a)
+    await c.start()
+    expect(c.state().kind).toBe('signed-out')
+    expect(s.recheckSession).toHaveBeenCalledTimes(1)
+    expect(a.me).toHaveBeenCalledTimes(1)
+  })
+
+  it('the session is live: the call is retried once, and a second 401 ends in error with no third call', async () => {
+    const s = seam()
+    const a = api(bad(401))
+    const c = make(s, a)
+    await c.start()
+    expect(c.state().kind).toBe('error')
+    expect(s.recheckSession).toHaveBeenCalledTimes(1)
+    expect(a.me).toHaveBeenCalledTimes(2)
+  })
+
+  it('the session is live and the retry succeeds: ready', async () => {
+    const a = api(bad(401), ok(ME()))
+    const c = make(seam(), a)
+    await c.start()
+    expect(c.state().kind).toBe('ready')
+    expect(a.me).toHaveBeenCalledTimes(2)
+  })
+
+  it('no token to send: signed-out without a re-check', async () => {
+    const s = seam()
+    const c = make(s, api(bad(401, { noToken: true })))
+    await c.start()
+    expect(c.state().kind).toBe('signed-out')
+    expect(s.recheckSession).not.toHaveBeenCalled()
+  })
+})
+
+describe('signing in and out (D4, P2, P3, group 4)', () => {
+  it('Sign in calls the seam with <origin><current page path>, never a query', async () => {
+    const s = seam({ isSignedIn: vi.fn(() => false) })
+    const c = make(s, api(ok(ME())), '/home')
+    await c.start()
+    await c.signIn()
+    expect(s.redirectToSignIn).toHaveBeenCalledExactlyOnceWith('https://w.test/home')
+  })
+
+  it('a successful sign-out shows signed-out', async () => {
+    const c = make(seam(), api(ok(ME())))
+    await c.start()
+    await c.signOut()
+    expect(c.state().kind).toBe('signed-out')
+  })
+
+  it('a refused sign-out keeps the shell with an error, and the error clears on the next attempt', async () => {
+    const signOut = vi.fn().mockRejectedValueOnce(new Error('refused')).mockResolvedValueOnce(undefined)
+    const c = make(seam({ signOut }), api(ok(ME())))
+    await c.start()
+    await c.signOut()
+    expect(c.state()).toMatchObject({ kind: 'ready', signOutError: expect.stringMatching(/sign.?out/i) })
+    const during: unknown[] = []
+    c.subscribe(() => during.push((c.state() as { signOutError?: string }).signOutError))
+    await c.signOut()
+    expect(during[0]).toBeUndefined() // cleared as the attempt begins
+    expect(c.state().kind).toBe('signed-out')
+  })
+})
+
+describe('nothing is stored (D4)', () => {
+  it('a run through ready writes no localStorage, sessionStorage or cookie', async () => {
+    document.cookie = ''
+    const c = make(seam(), api(ok(ME())))
+    await c.start()
+    expect(c.state().kind).toBe('ready')
+    expect(localStorage.length).toBe(0)
+    expect(sessionStorage.length).toBe(0)
+    expect(document.cookie).toBe('')
+  })
+
+  it('subscribers hear every change and can unsubscribe', async () => {
+    const c = make(seam(), api(ok(ME())))
+    const heard: string[] = []
+    const off = c.subscribe(() => heard.push(c.state().kind))
+    await c.start()
+    expect(heard).toContain('ready')
+    off()
+    heard.length = 0
+    await c.signOut()
+    expect(heard).toEqual([])
+  })
+})

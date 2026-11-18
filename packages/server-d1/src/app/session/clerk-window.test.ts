@@ -28,3 +28,39 @@ describe('windowClerk', () => {
     expect(calls).toEqual([{ redirectUrl: '/connect' }])
   })
 })
+
+describe('windowClerk sign-out return (UI460 P3)', () => {
+  const fake = () => {
+    const calls: unknown[] = []
+    ;(window as unknown as { Clerk: unknown }).Clerk = {
+      load: async () => {},
+      signOut: async (o?: unknown) => void calls.push(o),
+    }
+    return calls
+  }
+  it('the app returns to the URL its caller gave (<origin>/home)', async () => {
+    const calls = fake()
+    const c = windowClerk(AUTH, { loadScript: async () => {}, signOutReturn: 'https://w.test/home' })
+    await c.load()
+    await c.signOut()
+    expect(calls).toEqual([{ redirectUrl: 'https://w.test/home' }])
+  })
+  it('with nothing given it still returns to /connect', async () => {
+    const calls = fake()
+    const c = windowClerk(AUTH, { loadScript: async () => {} })
+    await c.load()
+    await c.signOut()
+    expect(calls).toEqual([{ redirectUrl: '/connect' }])
+  })
+  it('Sign in is redirectToSignIn with the URL it is given', async () => {
+    const urls: unknown[] = []
+    ;(window as unknown as { Clerk: unknown }).Clerk = {
+      load: async () => {},
+      redirectToSignIn: async (o: unknown) => void urls.push(o),
+    }
+    const c = windowClerk(AUTH, { loadScript: async () => {} })
+    await c.load()
+    await c.redirectToSignIn('https://w.test/home')
+    expect(urls).toEqual([{ redirectUrl: 'https://w.test/home' }])
+  })
+})

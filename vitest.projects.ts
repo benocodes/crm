@@ -51,7 +51,7 @@ export const engineNeutralProject: TestProjectInlineConfiguration = {
     exclude: [...EXCLUDE, UI_SUITES, '**/*.d1.test.ts', '**/*.postgres.test.ts'],
   },
 }
-// UI446 D3: the auth pages' suites (`packages/server-d1/src/ui/*.ui.test.tsx`) run on real React, with no Preact alias, so Radix and `react-dom` are tested on
+// UI446 D3, UI460 D4: the auth pages' suites (`packages/server-d1/src/ui/*.ui.test.tsx`) and the workspace app's (`src/app/*.ui.test.tsx`) run on real React, with no Preact alias, so Radix and `react-dom` are tested on
 // the runtime that ships. The shared project above never collects `*.ui.test.tsx`; `/connect`'s suites (`src/connect/**`) stay there under the alias.
 // Folds back into the shared project when UI447 removes the alias.
 export const pageUiProject: TestProjectInlineConfiguration = {
@@ -60,7 +60,7 @@ export const pageUiProject: TestProjectInlineConfiguration = {
     ...common,
     fileParallelism: true,
     name: 'page-ui',
-    include: ['**/src/ui/**/*.ui.test.tsx'],
+    include: ['**/src/{ui,app}/**/*.ui.test.tsx'],
     exclude: EXCLUDE,
   },
 }
