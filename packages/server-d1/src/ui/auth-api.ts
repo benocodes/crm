@@ -197,9 +197,17 @@ export async function getClientName(clientId: string): Promise<ApiResult<{ name?
   return { ok: true, data: name ? { name } : {} }
 }
 
-/** `POST /auth/oauth2/consent`: all or nothing, the signed query verbatim, no `scope` ([[UI247]] D4). A success without a followable redirect is a failure. */
-export async function submitConsent(accept: boolean, oauthQuery: string): Promise<ApiResult<{ redirect: string }>> {
-  const r = await call('POST', '/auth/oauth2/consent', { accept, oauth_query: oauthQuery })
+/** `POST /auth/oauth2/consent`: the signed query verbatim ([[UI247]] D4), and on Allow the `scope` the person switched on ([[UI449]] D6; Deny sends none). A success without a followable redirect is a failure. */
+export async function submitConsent(
+  accept: boolean,
+  oauthQuery: string,
+  scope?: string,
+): Promise<ApiResult<{ redirect: string }>> {
+  const r = await call('POST', '/auth/oauth2/consent', {
+    accept,
+    oauth_query: oauthQuery,
+    ...(accept && scope !== undefined ? { scope } : {}),
+  })
   if (!r.ok) return r
   const target = redirectOf(r.data)
   return typeof target === 'string'

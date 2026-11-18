@@ -43,6 +43,18 @@ export const MESSAGES = {
   consentNoRequest: 'This page must be opened by an app that is asking for access. There is nothing to approve here.',
   consentInvalid: 'This request is no longer valid. It may have expired. Start again from the app.',
   consentUnverified: 'This name is chosen by the app and not verified by Vibase',
+  // The grouped consent page ([[UI449]] D3 to D6, [[UI455]]).
+  consentSignInTitle: 'Sign-in',
+  consentSignInSentence: 'Always included so the app can sign you in and keep you signed in.',
+  switchRead: 'Read',
+  switchReadSensitive: 'Read sensitive records',
+  switchPropose: 'Propose changes for approval',
+  switchWrite: 'Write',
+  writeIncludesPropose: 'Writing includes proposing changes for approval.',
+  areaOther: 'Other',
+  areaOtherSentence: 'Permissions this app asked for that Vibase has no group for.',
+  consentNothingOn: 'Switch something on to allow access, or choose Deny.',
+  areasLabel: 'Permissions by area',
   // Shared by both.
   useAnotherAccount: 'Use another account',
   noDescription: 'No description',
@@ -66,3 +78,6 @@ export const PASSWORD_MAX = 128
 
 /** The line under the app's name on the consent page: the host the person returns to once they allow ([[UI247]] D4). */
 export const consentReturnsTo = (host: string): string => `After you allow, you go back to ${host}`
+
+/** The disclosure's summary: how many permissions the app asked for in that group ([[UI455]] P5). */
+export const showPermissions = (n: number): string => `Show the ${n} permission${n === 1 ? '' : 's'}`

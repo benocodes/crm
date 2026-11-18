@@ -42,9 +42,9 @@ describe('buildConsentModel', () => {
       ['request_approval', true],
       ['write', false],
     ])
+    // a switch exists only where the request holds a scope of that action: messages has no *:request_approval
     expect(r.switches('messages')).toEqual([
       ['read', true],
-      ['request_approval', true],
       ['write', false],
     ])
     expect(r.switches('activity')).toEqual([['read', true]])
