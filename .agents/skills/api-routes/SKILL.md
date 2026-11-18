@@ -1069,7 +1069,10 @@ service context enforces it, so scope checks are written once.
     builds anything.
   - **Plan reads in `prepare`**: `prepare(env, input, ctx)` gets `ctx.read(program)` (a read-only unit on the
     request's storage identity), and `replanOnDrift: true` makes the executor plan and run once more on
-    `UnitDriftError`, then `409 conflict` (D28).
+    `UnitDriftError`, then `409 conflict` (D28). A retry around a unit that can **create an identity** (a capture unit
+    resolving a new address) must also retry a unique-index `StatementFailed`: two racing first writes both insert the
+    identity, and the loser fails on the unique index before the commit-time assertion can report drift
+    (`packages/api/src/forms/submission.ts`, [[CHN428]] 428.12).
   - **Composing another operation's program into one unit** (approval, `action-requests/operations.ts`): build
     the target's `PreparedOperation`, take its reads and steps, demote its `result` step, and gate your own
     transition on the target's event rows existing (`count(*) from events where id in (...)`), so a target whose

@@ -338,6 +338,11 @@ published package it bumps (`@vibase/server-d1`), not `@vibase/api`, which is un
 one fix round of four findings, all about evidence. The budget holds. The hidden work was changing a shared program's input
 shape (`recordMessages`), which touched about 25 call sites. When a charter changes a signature that tests and callers
 share, grep its call sites at plan time and name the count in the Size line ("rider: N call sites").
+**CHN428** (`knowledge/specs/016-CHN428-form-submission-unit/RETRO.md`): 6 groups (1 matrix), 7 decisions + 5 planner rules,
+no migration, no E2E, dormant. Cost ~222k / 60 calls (+523 code / +760 test lines, 5 files), one gate-fix round and one review
+round of four evidence findings; every coder decision accepted. The budget holds. When a dormant cycle adds a file beside an
+earlier dormant cycle's no-caller test, say so in Watch out: CHN424's substring guard failed the gate on a comment
+(`writing-tests`, no-caller tests).
 
 ### Step 3: Resolve identities
 
