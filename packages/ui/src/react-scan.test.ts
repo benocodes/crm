@@ -24,13 +24,13 @@ describe('React source scan', () => {
     )
   })
 
-  it('the allow-list is react and exactly the four D4 packages (448.2)', () => {
+  it('the allow-list is react, the four D4 packages (448.2) and lucide-react (UI443 P3)', () => {
     expect([...IMPORT_ALLOW_LIST].sort()).toEqual(
-      ['class-variance-authority', 'clsx', 'radix-ui', 'react', 'tailwind-merge'].sort(),
+      ['class-variance-authority', 'clsx', 'lucide-react', 'radix-ui', 'react', 'tailwind-merge'].sort(),
     )
   })
 
-  it.each(['radix-ui', 'class-variance-authority', 'clsx', 'tailwind-merge'])('accepts %s', (pkg) => {
+  it.each(['radix-ui', 'class-variance-authority', 'clsx', 'tailwind-merge', 'lucide-react'])('accepts %s', (pkg) => {
     expect(checkReactSources([sandbox({ 'a.tsx': `import x from '${pkg}'` })])).toEqual([])
   })
 
@@ -39,7 +39,11 @@ describe('React source scan', () => {
   })
 
   it.each([
-    ['lucide-react (not added, 448.3)', "import { X } from 'lucide-react'", 'lucide-react'],
+    [
+      'lucide-react/dynamic (a subpath is allowed, a lookalike is not)',
+      "import x from 'lucide-react-native'",
+      'lucide-react-native',
+    ],
     ['a scoped radix package', "import { Slot } from '@radix-ui/react-slot'", '@radix-ui/react-slot'],
     ['a prefix lookalike of an allowed package', "import x from 'clsx-extra'", 'clsx-extra'],
     ['an @/ alias import', "import { cn } from '@/lib/utils'", '@/lib/utils'],
