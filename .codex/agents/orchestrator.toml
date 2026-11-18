@@ -73,6 +73,10 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    changelog, project-state.
 8. **Ship.** You open the PR (`gh pr create`, human `gh` login, body from
    `.github/pull_request_template.md` with the gate counts from `GATE.md` and the tester's evidence, if any), wait for checks
+   **The PR body's first lines close what the PR delivers:** one `Closes benocodes/crm#<n>` per issue this
+   PR finishes: the cycle's own issue always, and the spec's issue too when this is the spec's last cycle
+   (every Decision delivered, spec `shipped`). A cycle that is not the last never closes the spec issue. The
+   brief to the planner and the coder names these numbers; a PR with no close line is not ready to open.
    (`gh pr checks --watch`; no checks configured is not a failure), then
    `gh pr merge --squash --delete-branch`. Remove the worktree (`git worktree remove`), drop its private
    test DB (`pnpm db:test:worktree --drop` from inside it, before removing). Pull `main`.

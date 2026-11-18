@@ -284,15 +284,19 @@ PR), so one cycle's decisions never straddle two files.
    somewhere, say so rather than fixing it silently here.
 2. Check the open questions are closed, not merely stale. One that still stands moves to the note's Left
    section; an unanswered question at close is a finding to report.
-3. Set the note's `status: built` and write Left: the demo run and anything else the user owes for it. If the
+3. Reconcile the issues: list every issue the milestone's table, its specs and its cycles name (`gh issue list
+   --state all`, the specs' `issue` frontmatter, the cycle PRs). Each delivered one must be closed (close it
+   as `zooidbot` with a comment naming the merged PR); each still open that is not delivered must be said
+   to be, in the note's Left section, with why. Report the count closed and any left open to the user.
+4. Set the note's `status: built` and write Left: the demo run and anything else the user owes for it. If the
    demo has already run, set `done` instead, `git mv` the folder to `milestones/done/<letter>-<slug>/` and
    close the repo milestone.
-4. Remove `knowledge/SPRINT.md` (the next `open` writes a new one). Keep `sprint-archive.md` and `decisions/`.
-5. Commit (`docs(sprint): close Milestone G`) and tell the user: the milestone that closed, the demo it now
+5. Remove `knowledge/SPRINT.md` (the next `open` writes a new one). Keep `sprint-archive.md` and `decisions/`.
+6. Commit (`docs(sprint): close Milestone G`) and tell the user: the milestone that closed, the demo it now
    waits for, and the path of its decisions file (`decisions/milestone-G.jsonl`).
-6. Run `open`. It stops by itself if the backlog is empty or the next rank is only proposed.
+7. Run `open`. It stops by itself if the backlog is empty or the next rank is only proposed.
 
-When the user reports a demo run later, set that milestone `done` as in step 3; that needs no sprint.
+When the user reports a demo run later, set that milestone `done` as in step 4; that needs no sprint.
 
 ---
 
