@@ -720,6 +720,18 @@ Preact's `render(vnode, container)` keeps the container's existing children: a s
 on the first draw, and mount at least one page test into a container seeded with the shipped HTML's content, never
 only an empty `div` (the [[UI256]] E2E found the stray text; `packages/server-d1/src/connect/view.tsx` `drawView`).
 
+**React, Tailwind and the pages' CSP** ([[UI445]]):
+- **Only a browser run under the policy proves a page CSP-safe.** `react-dom` 19's minified bundle itself contains
+  `createElement("style")`, so a string scan of the built bundle cannot tell (finding 445.13). The source scan
+  (`packages/ui/src/test/react-scan.ts`) refuses `style` props, `<style>` and `dangerouslySetInnerHTML` in our code;
+  the gallery run listens for `securitypolicyviolation` and CSP console errors, and an injected inline style
+  (`E2E_GALLERY_MUTATION`) is its seen-failing proof.
+- **Tailwind's `outline-none` removes the focus ring** that `focus-visible:ring-*` alone does not replace in every
+  element; the gallery's Tab-and-screenshot check caught it. Assert a visible ring per focusable element.
+- **esbuild defaults `process.env.NODE_ENV` to `"production"` under `minify`**, so an absence mutation of the
+  helper's define shows nothing on a minified build. Build unminified in that test to give it teeth
+  (`packages/ui/scripts/react-build.test.ts`).
+
 `packages/server-d1/e2e/*.e2e.ts` run Playwright + `@clerk/testing` against a local Worker and the Clerk dev
 instance (`.env.dev` only), outside the gate. They fail on browser and provider timing, not on vault logic, so
 write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oauth.e2e.ts`):
@@ -842,6 +854,7 @@ Clerk dev instance and `.env.dev` only (AGENTS.md, "Environments"). `e2e:rail` r
 instance, so it is in `ship-branch`, "Command reference".
 
 ```bash
+pnpm -C packages/ui e2e:gallery-react             # the React/Tailwind gallery (UI445) built with @vibase/ui/build, served on 127.0.0.1:4174 under PAGE_CSP: four theme modes (system light/dark, data-theme overrides), axe zero violations, focus ring, zero CSP violations; E2E_GALLERY_MUTATION=style-attr|style-element injects an inline style to see the CSP check fail; not in the gate
 pnpm -C packages/ui e2e:gallery                   # builds the test-only gallery, serves it on localhost, Playwright screenshots per state in light/dark (forced and emulated) into the gitignored packages/ui/e2e-screenshots/, axe zero violations, keyboard order; not in the gate. If `playwright install chromium` fails (it does on the dev Mac), run with E2E_BROWSER_CHANNEL=chrome (installed Google Chrome)
 pnpm -C packages/server-d1 e2e:oauth-pages         # Better Auth /device and /consent with the real `vibase login` and an MCP-style client (UI247); local Worker over HTTPS (`wrangler dev --local-protocol https`, recipe in the file header and writing-tests §7), no Clerk; `e2e:auth-pages` is UI246's sibling; not in the gate
 pnpm -C packages/server-d1 e2e:auth-pages-reset      # self-service reset by email on /sign-in (CORE304): its own email-on Worker from the test-only entry src/test/entry-email.ts (a recording EMAIL binding read at /__emails), over HTTPS, fresh local state (recipe in the spec file header); no Clerk; not in the gate
