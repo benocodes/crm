@@ -60,9 +60,9 @@ describe('React gallery bundle', () => {
     expect(readFileSync(join(GALLERY_SRC, 'gallery.tsx'), 'utf-8')).not.toContain('max-h-48')
   })
 
-  it('stays within the budget (100 KB gzipped JS, 20 KB gzipped CSS), for the components page and the composites page', () => {
+  it('stays within the budget (100 KB gzipped JS, 20 KB gzipped CSS), for the components, composites and lists pages', () => {
     const css = gz(join(out, 'gallery.css'))
-    for (const bundle of ['gallery.js', 'composites.js']) {
+    for (const bundle of ['gallery.js', 'composites.js', 'lists.js']) {
       const js = gz(join(out, bundle))
       console.log(`react gallery gzipped: ${bundle} ${js} bytes, gallery.css ${css} bytes`)
       expect(js, bundle).toBeLessThanOrEqual(BUDGET.jsBytes)
