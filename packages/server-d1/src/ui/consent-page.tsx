@@ -179,7 +179,7 @@ export function ConsentPage({ navigate = goTo }: PageProps) {
       {model.areas.length > 0 ? (
         <section
           aria-label={MESSAGES.areasLabel}
-          className="flex max-h-[clamp(12rem,40vh,22rem)] flex-col gap-3 overflow-y-auto"
+          className="flex max-h-[clamp(10rem,32vh,20rem)] flex-col gap-3 overflow-y-auto"
           // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region must be keyboard focusable (axe scrollable-region-focusable)
           tabIndex={0}
         >

@@ -257,6 +257,20 @@ describe('the switches (group 2)', () => {
     expect(scope).toEqual(expect.arrayContaining(['contacts:request_approval', 'contacts:write', 'contacts:read']))
   })
 
+  it('Write on over a Propose the owner had turned off still sends request_approval, with Propose shown on', async () => {
+    const f = fakeFetch(routes())
+    render(<ConsentPage navigate={vi.fn()} />)
+    const u = userEvent.setup()
+    await u.click(await sw(...PROPOSE_CRM))
+    await u.click(await sw(...WRITE_CRM))
+    expect((await sw(...PROPOSE_CRM)).getAttribute('aria-checked')).toBe('true')
+    await allow()
+    await waitFor(() => expect(consentBody(f)).toBeTruthy())
+    expect(String(consentBody(f).scope).split(' ')).toEqual(
+      expect.arrayContaining(['contacts:request_approval', 'contacts:write']),
+    )
+  })
+
   it.each([
     ['from Propose on', false],
     ['from a Propose the owner turned off first', true],

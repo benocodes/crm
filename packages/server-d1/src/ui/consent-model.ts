@@ -53,7 +53,7 @@ export function buildConsentModel(names: readonly string[]): ConsentModel {
       const ofAction = scopes.filter((s) => PARSEABLE.exec(s)?.[2] === action)
       if (ofAction.length === 0) continue
       if (action === 'read') {
-        // D4 in the coder's shape (decision 455.7): a scope in NOT_DEFAULT_GRANT never rides on the area's Read switch when that switch is on by default; it gets its own switch, off.
+        // D4 in the coder's shape (decision 455.8): a scope in NOT_DEFAULT_GRANT never rides on the area's Read switch when that switch is on by default; it gets its own switch, off.
         const sensitive = ofAction.filter((s) => NOT_DEFAULT_GRANT.includes(s))
         const plain = ofAction.filter((s) => !NOT_DEFAULT_GRANT.includes(s))
         if (plain.length > 0)

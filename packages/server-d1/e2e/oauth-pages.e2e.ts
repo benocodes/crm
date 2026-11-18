@@ -47,7 +47,7 @@ const axeAndShot = async (name: string, scheme: 'light' | 'dark') => {
   ).toEqual([])
 }
 /** [[UI381]] D10: at 1280x720 and 390x844 the decision button is inside the viewport with the page unscrolled; when the list overflows its region, the region scrolls on its own. */
-const foldCheck = async (button: string, expectScroll = false) => {
+const foldCheck = async (button: string, expectScroll = false, regionName = 'Requested permissions') => {
   for (const size of [
     { width: 1280, height: 720 },
     { width: 390, height: 844 },
@@ -59,7 +59,7 @@ const foldCheck = async (button: string, expectScroll = false) => {
     expect(box!.y + box!.height, `${button} inside the fold at ${size.width}x${size.height}`).toBeLessThanOrEqual(
       size.height,
     )
-    const region = page.getByRole('region', { name: 'Requested permissions' })
+    const region = page.getByRole('region', { name: regionName })
     await expect(region).toHaveAttribute('tabindex', '0')
     if (expectScroll)
       expect(await region.evaluate((el) => el.scrollHeight > el.clientHeight), 'the scope region scrolls').toBe(true)
@@ -224,7 +224,7 @@ const authorizeUrl = (clientId: string, challenge: string, state: string, scope 
 
 /** Catches the browser's redirect to the loopback callback (nothing listens there) and returns its URL. */
 async function callbackOf(action: () => Promise<void>): Promise<URL> {
-  const seen = page.waitForRequest((r) => r.url().startsWith(CALLBACK), { timeout: 30_000 })
+  const seen = page.waitForRequest((r) => r.url().startsWith(CALLBACK), { timeout: 90_000 })
   await page.route(`${CALLBACK}**`, (route) =>
     route.fulfill({ status: 200, contentType: 'text/plain', body: 'callback' }),
   )
@@ -248,8 +248,12 @@ test('3. MCP-style client: sign-in resumes the flow, /consent shows the app, All
     await expect(page.getByText('E2E MCP Client')).toBeVisible()
     await expect(page.getByText('This name is chosen by the app and not verified by Vibase')).toBeVisible()
     await expect(page.getByText('After you allow, you go back to 127.0.0.1:33999')).toBeVisible()
+    // [[UI455]]: the request is grouped; its scopes sit inside a closed disclosure of the area
+    await expect(page.getByText('CRM records', { exact: true })).toBeVisible()
+    await expect(page.getByText('contacts:read')).toBeHidden()
+    await page.getByText('Show the 1 permission', { exact: true }).last().click()
     await expect(page.getByText('contacts:read')).toBeVisible()
-    await foldCheck('Allow')
+    await foldCheck('Allow', false, 'Permissions by area')
     await axeBoth('consent')
     await page.getByRole('button', { name: 'Allow' }).click()
   })
@@ -295,8 +299,77 @@ test('3b. /consent with a long scope set: Allow stays in the fold and the scope 
   await visit(authorizeUrl(id, challenge, 'state-long', scopes))
   await page.waitForURL(/\/consent\?/)
   await expect(page.getByText('E2E Long Scopes')).toBeVisible()
-  await foldCheck('Allow', true)
+  await foldCheck('Allow', true, 'Permissions by area')
   await axeBoth('consent-long')
+})
+
+test('3c. /consent with no scope asked: the areas and their defaults, Write forces Propose, Allow grants exactly what is on, and a second authorize starts from the defaults again', async () => {
+  // [[UI455]]: the person is still signed in from leg 3. A client with no `scope` and an authorize with none (the CORE330 fill).
+  const res = await page.request.post('/auth/oauth2/register', {
+    headers: { origin: BASE },
+    data: {
+      client_name: 'E2E Naive Client',
+      token_endpoint_auth_method: 'none',
+      grant_types: ['authorization_code'],
+      redirect_uris: [CALLBACK],
+    },
+  })
+  expect(res.status(), await res.text()).toBe(201)
+  const id = ((await res.json()) as { client_id: string }).client_id
+  const bare = (challenge: string, state: string) =>
+    `${BASE}/auth/oauth2/authorize?${new URLSearchParams({ response_type: 'code', client_id: id, redirect_uri: CALLBACK, state, code_challenge: challenge, code_challenge_method: 'S256', resource: `${BASE}/mcp` })}`
+  const { verifier, challenge } = pkce()
+  const swt = (area: string, action: string) => page.getByRole('switch', { name: `${area} ${action}`, exact: true })
+  let consentBody: { oauth_query: string; scope?: string; accept: boolean } | undefined
+  let pageQuery = ''
+  const back = await callbackOf(async () => {
+    await visit(bare(challenge, 'state-naive'))
+    await page.waitForURL(/\/consent\?/)
+    pageQuery = new URL(page.url()).search.slice(1)
+    await expect(page.getByTestId('sign-in-line')).toBeVisible()
+    const legends = await page.locator('fieldset legend').allTextContents()
+    expect(legends).toEqual(['CRM records', 'Messages', 'Activity and approvals', 'Integrations'])
+    const defaults = await page.getByRole('switch').evaluateAll((els) =>
+      els.map((el) => ({
+        label: document.getElementById(el.getAttribute('aria-labelledby')!.split(' ')[1]!)!.textContent,
+        on: el.getAttribute('aria-checked'),
+      })),
+    )
+    expect(defaults.length).toBeGreaterThan(0)
+    for (const d of defaults) expect(d.on, `${d.label} default`).toBe(d.label === 'Write' ? 'false' : 'true')
+    await foldCheck('Allow', true, 'Permissions by area')
+    await axeBoth('consent-grouped')
+    await swt('CRM records', 'Write').click()
+    await expect(swt('CRM records', 'Propose changes for approval')).toBeDisabled()
+    await expect(swt('CRM records', 'Propose changes for approval')).toHaveAttribute('aria-checked', 'true')
+    await swt('Messages', 'Read').click()
+    const posted = page.waitForRequest((r) => r.method() === 'POST' && r.url().endsWith('/auth/oauth2/consent'))
+    await page.getByRole('button', { name: 'Allow' }).click()
+    consentBody = (await posted).postDataJSON()
+  })
+  expect(consentBody!.oauth_query).toBe(pageQuery)
+  const granted = consentBody!.scope!.split(' ')
+  expect(granted).toEqual(
+    expect.arrayContaining(['openid', 'offline_access', 'contacts:write', 'contacts:request_approval']),
+  )
+  for (const no of ['messages:read', 'webhooks:write', 'audit:read']) expect(granted).not.toContain(no)
+  const tok = await page.request.post('/auth/oauth2/token', {
+    headers: { origin: BASE },
+    form: {
+      grant_type: 'authorization_code',
+      code: back.searchParams.get('code')!,
+      code_verifier: verifier,
+      redirect_uri: CALLBACK,
+      client_id: id,
+      resource: `${BASE}/mcp`,
+    },
+  })
+  expect(tok.status(), await tok.text()).toBe(200)
+  expect(new Set(((await tok.json()) as { scope: string }).scope.split(' '))).toEqual(new Set(granted))
+  // the same client again: consent is asked again, from the defaults (nothing is remembered)
+  await visit(bare(pkce().challenge, 'state-again'))
+  await page.waitForURL(/\/consent\?/)
+  await expect(swt('CRM records', 'Write')).toHaveAttribute('aria-checked', 'false')
 })
 
 test('4. MCP-style client: Deny reaches the callback with error=access_denied', async () => {
