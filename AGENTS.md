@@ -189,6 +189,7 @@ never commits, copies or sends the file. (User ruling: 2026-11-03.)
 
 ## Identities
 
+- **The owner** is Ori, email `ori@makelinks.co`. Commits in this repo are authored with that email.
 - **Issue and board writes** (comments, labels, assignees, close, project fields) go through the
   `zooidbot` identity: `scripts/gh-zooidbot <gh args>`. It reads `ZB_GH_TOKEN` from the gitignored `.env`.
   Never print the token or put it on a command line.
