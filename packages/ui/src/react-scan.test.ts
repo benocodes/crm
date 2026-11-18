@@ -1,10 +1,11 @@
 // [[UI445]] cycle 1, group 4: the React-layer source scan, with a negative fixture for each refused item.
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { checkReactSources } from './test/react-scan'
+import { checkReactSources, IMPORT_ALLOW_LIST } from './test/react-scan'
 
 const PKG = fileURLToPath(new URL('..', import.meta.url))
 const sandbox = (files: Record<string, string>) => {
@@ -17,10 +18,42 @@ const sandbox = (files: Record<string, string>) => {
 }
 
 describe('React source scan', () => {
-  it('the real tree passes, and tolerates the absent src/components and src/lib', () => {
+  it('the real tree passes: src/components, src/lib and the gallery import only what D4 allows', () => {
     expect(checkReactSources([join(PKG, 'src/components'), join(PKG, 'src/lib'), join(PKG, 'gallery-react')])).toEqual(
       [],
     )
+  })
+
+  it('the allow-list is react and exactly the four D4 packages (448.2)', () => {
+    expect([...IMPORT_ALLOW_LIST].sort()).toEqual(
+      ['class-variance-authority', 'clsx', 'radix-ui', 'react', 'tailwind-merge'].sort(),
+    )
+  })
+
+  it.each(['radix-ui', 'class-variance-authority', 'clsx', 'tailwind-merge'])('accepts %s', (pkg) => {
+    expect(checkReactSources([sandbox({ 'a.tsx': `import x from '${pkg}'` })])).toEqual([])
+  })
+
+  it('accepts a subpath of an allowed package (radix-ui/internal)', () => {
+    expect(checkReactSources([sandbox({ 'a.tsx': "import x from 'radix-ui/internal'" })])).toEqual([])
+  })
+
+  it.each([
+    ['lucide-react (not added, 448.3)', "import { X } from 'lucide-react'", 'lucide-react'],
+    ['a scoped radix package', "import { Slot } from '@radix-ui/react-slot'", '@radix-ui/react-slot'],
+    ['a prefix lookalike of an allowed package', "import x from 'clsx-extra'", 'clsx-extra'],
+    ['an @/ alias import', "import { cn } from '@/lib/utils'", '@/lib/utils'],
+  ])('refuses %s', (_n, source, match) => {
+    const v = checkReactSources([sandbox({ 'a.tsx': source })])
+    expect(v.map((x) => [x.rule, x.match])).toEqual([['import outside the allow-list', match]])
+  })
+
+  it('the old Preact subset scan is gone, and nothing references it (ruling 448.1)', () => {
+    expect(existsSync(join(PKG, 'src/test/subset.ts'))).toBe(false)
+    expect(existsSync(join(PKG, 'src/subset.test.ts'))).toBe(false)
+    const name = ['check', 'Subset'].join('')
+    const hits = spawnSync('git', ['grep', '-n', name], { cwd: PKG, encoding: 'utf-8' }).stdout.split('\n')
+    expect(hits.filter((l) => l && !l.includes('react-scan.test.ts'))).toEqual([])
   })
 
   it.each([

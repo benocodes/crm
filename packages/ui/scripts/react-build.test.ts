@@ -65,13 +65,13 @@ describe('the React build options (group 2)', () => {
 
 describe('the stylesheet step (group 2)', () => {
   it('writes a minified file with a rule for a class used only in the extra source directory, and none for an unused class', async () => {
-    const src = write(tmp(), { 'page.tsx': 'export const a = <p className="bg-destructive underline-offset-8" />' })
+    const src = write(tmp(), { 'page.tsx': 'export const a = <p className="bg-pink-500 underline-offset-8" />' })
     const out = join(tmp(), 'nested', 'page.css')
     await buildStylesheet({ outFile: out, sources: [src] })
     const css = readFileSync(out, 'utf-8')
-    expect(css).toContain('.bg-destructive{')
+    expect(css).toContain('.bg-pink-500{')
     expect(css).toContain('.underline-offset-8{')
-    expect(css).not.toContain('.bg-primary{') // used nowhere
+    expect(css).not.toContain('.bg-yellow-500{') // used nowhere
     expect(css.split('\n').length).toBeLessThanOrEqual(2) // minified
   })
 

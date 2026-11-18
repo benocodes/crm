@@ -1,6 +1,6 @@
 // The scan of the React layer ([[UI445]] D6 (a), D9): non-test sources under `src/components`, `src/lib` and the page code (the React gallery)
 // may import only `react`, relative files and the allow-list below, never `preact`; `react-dom` only in a mount file; and never a `style` prop,
-// a `<style>` element or `dangerouslySetInnerHTML`. Absent directories are tolerated (UI448 creates `src/components` and `src/lib`).
+// a `<style>` element or `dangerouslySetInnerHTML`.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
@@ -10,8 +10,14 @@ export interface ReactScanViolation {
   match: string
 }
 
-/** Packages the React layer may import beyond `react`; UI448 adds the shadcn dependencies here, each by a recorded decision (UI445 D4). */
-export const IMPORT_ALLOW_LIST: readonly string[] = ['react']
+/** Packages the React layer may import beyond `react`; UI448 added the four D4 dependencies, pinned by decision 448.2; a later one needs its own decision. */
+export const IMPORT_ALLOW_LIST: readonly string[] = [
+  'react',
+  'radix-ui',
+  'class-variance-authority',
+  'clsx',
+  'tailwind-merge',
+]
 /** Only a page's mount file may import `react-dom` (D1, D9). */
 const MOUNT_FILE = /(^|[\\/])main\.tsx?$/
 

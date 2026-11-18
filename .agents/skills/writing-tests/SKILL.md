@@ -29,6 +29,12 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   fixture field turned 14 red). **A vendored copy of a dependency's function** keeps a parity test against the
   original in Node, proven by swapping in a near-miss implementation ([[CORE69]]: `mdast-util-to-string` for
   `toPlainText`, 7 parity tests red).
+- **A "this is gone" test is red only if it is committed before the removal.** When the red commit also `git rm`s the
+  file, the test never fails on its own; prove it instead by restoring the file from `main` and seeing it turn red
+  ([[UI448]]: restoring `src/test/subset.ts` turned `the old Preact subset scan is gone` red). Likewise a "something
+  unused is absent" check needs a sentinel nothing will ever use: [[UI448]]'s components started using cycle 1's
+  "unused" classes (`bg-primary`, `bg-destructive`), and two reused bundle tests had to be repointed
+  (`packages/ui/scripts/react-build.test.ts`, `gallery-react-bundle.test.ts`).
 - **Commit the green implementation before the first mutation.** Restoring a mutant with `git checkout <file>` (or
   `git restore`) resets the whole file to the last commit, so it also deletes any uncommitted real work in that file:
   [[CORE188]]'s mutation session reverted the uncommitted green `executions/definition.ts` this way and the coder had
