@@ -125,12 +125,12 @@ describe('the request', () => {
     })
   })
 
-  it('success navigates to /connect', async () => {
+  it('success navigates to /home', async () => {
     fakeFetch({ 'POST /auth/sign-up/email': { status: 200, json: { user: { email: 'ann@x.test' } } } })
     const go = vi.fn()
     render(<InvitePage navigate={go} />)
     await submit(await fill())
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/connect'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
   })
 
   it('the submit button is busy while the request is in flight', async () => {
@@ -303,12 +303,12 @@ describe('the sign-in mode (CORE302 P6)', () => {
     expect(screen.getByLabelText('Name')).toBeTruthy()
   })
 
-  it('posts /auth/sign-in/email with { email, password } and the token in the vibase-invitation header; success navigates to /connect', async () => {
+  it('posts /auth/sign-in/email with { email, password } and the token in the vibase-invitation header; success navigates to /home', async () => {
     const f = fakeFetch({ 'POST /auth/sign-in/email': { status: 200, json: { user: { email: 'ann@x.test' } } } })
     const go = vi.fn()
     render(<InvitePage navigate={go} />)
     await signInFields(await switchToSignIn())
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/connect'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
     expect(f.requests()).toEqual(['POST /auth/sign-in/email'])
     expect(f.calls[0]!.body).toEqual({ email: 'ann@x.test', password: PASSWORD })
     expect(new Headers(f.calls[0]!.init.headers as HeadersInit).get('vibase-invitation')).toBe(TOKEN)
@@ -335,7 +335,7 @@ describe('the sign-in mode (CORE302 P6)', () => {
     expect((await screen.findByRole('alert')).textContent).toBe(message)
     expect(go).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: /^sign in$/i }))
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/connect'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
     expect(screen.queryByText(message)).toBeNull()
   })
 

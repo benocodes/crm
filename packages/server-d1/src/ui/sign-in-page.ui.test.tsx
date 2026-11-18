@@ -84,7 +84,7 @@ describe('the session on load', () => {
 })
 
 describe('signing in', () => {
-  it('posts { email, password } to /auth/sign-in/email and continues to /connect (#375)', async () => {
+  it('posts { email, password } to /auth/sign-in/email and continues to /home (#375)', async () => {
     const f = fakeFetch({
       'GET /auth/get-session': NO_SESSION,
       'POST /auth/sign-in/email': {
@@ -95,7 +95,7 @@ describe('signing in', () => {
     const go = vi.fn()
     render(<SignInPage navigate={go} />)
     await signInWith()
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/connect'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
     expect(f.calls.find((c) => c.method === 'POST')!.body).toEqual({
       email: 'ann@x.test',
       password: 'a long enough password',
@@ -222,12 +222,12 @@ describe('the OAuth continuation (D6 a)', () => {
     expect(f.requests().filter((r) => r.startsWith('POST'))).toEqual([])
   })
 
-  it('a success without a redirect continues to /connect (#375)', async () => {
+  it('a success without a redirect continues to /home (#375)', async () => {
     fakeFetch({ 'POST /auth/sign-in/email': { status: 200, json: { redirect: false, user: { email: 'ann@x.test' } } } })
     const go = vi.fn()
     render(<SignInPage navigate={go} />)
     await signInWith()
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/connect'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
   })
 
   it.each(['javascript:alert(1)', 'data:text/html,x'])(
@@ -279,11 +279,11 @@ describe('return_to (D6 b)', () => {
     expect(link.getAttribute('href')).toBe('/device?user_code=ABCDEFGH')
   })
 
-  it('a signed-in visitor with no return_to is offered a Continue link to /connect (#375)', async () => {
+  it('a signed-in visitor with no return_to is offered a Continue link to /home (#375)', async () => {
     fakeFetch({ 'GET /auth/get-session': session({ email: 'ann@x.test' }) })
     render(<SignInPage />)
     const link = await screen.findByRole('link', { name: /continue/i })
-    expect(link.getAttribute('href')).toBe('/connect')
+    expect(link.getAttribute('href')).toBe('/home')
   })
 
   it('Google sign-in from /sign-in?return_to=/device lands on that target, not /sign-in (#375)', async () => {
@@ -303,7 +303,7 @@ describe('return_to (D6 b)', () => {
   })
 
   it.each(['https://evil.example/device', '//evil.example/device', '/device/../x', '/devices', 'javascript:alert(1)'])(
-    'return_to=%s is ignored: sign-in continues to /connect, not the target',
+    'return_to=%s is ignored: sign-in continues to /home, not the target',
     async (target) => {
       history.replaceState(null, '', `/sign-in?return_to=${encodeURIComponent(target)}`)
       fakeFetch({
@@ -313,7 +313,7 @@ describe('return_to (D6 b)', () => {
       const go = vi.fn()
       render(<SignInPage navigate={go} />)
       await signInWith()
-      await waitFor(() => expect(go).toHaveBeenCalledWith('/connect'))
+      await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
       expect(go).toHaveBeenCalledTimes(1)
     },
   )

@@ -82,3 +82,51 @@ describe('createApi', () => {
     expect(await api.me()).toEqual({ status: 502, body: null })
   })
 })
+
+// [[UI461]] P4 (group 3): hasEnabledAgent follows the cursor until it finds an agent with disabled_at null or the list ends.
+describe('hasEnabledAgent', () => {
+  const agent = (id: string, disabled: string | null) => ({ id, disabled_at: disabled })
+  const walk = (...pages: Response[]) => {
+    const q = [...pages]
+    return rig(() => q.shift()!)
+  }
+  it('an empty list is false after one request', async () => {
+    const { api, calls } = walk(json({ data: [], next_cursor: null }))
+    expect(await api.hasEnabledAgent()).toEqual({ status: 200, body: false })
+    expect(calls).toHaveLength(1)
+  })
+  it('only disabled agents on every page is false (a disabled agent is not connected)', async () => {
+    const { api, calls } = walk(
+      json({ data: [agent('a', '2026-01-01')], next_cursor: 'c1' }),
+      json({ data: [agent('b', '2026-01-02')], next_cursor: null }),
+    )
+    expect((await api.hasEnabledAgent()).body).toBe(false)
+    expect(calls).toHaveLength(2)
+  })
+  it('an enabled agent on the first page stops the walk after one request', async () => {
+    const { api, calls } = walk(json({ data: [agent('a', null)], next_cursor: 'c1' }))
+    expect((await api.hasEnabledAgent()).body).toBe(true)
+    expect(calls).toHaveLength(1)
+  })
+  it('an enabled agent only on the second page is found, with after= and a token per page', async () => {
+    const { api, calls } = walk(
+      json({ data: [agent('a', '2026-01-01')], next_cursor: 'c1' }),
+      json({ data: [agent('b', null)], next_cursor: null }),
+    )
+    expect((await api.hasEnabledAgent()).body).toBe(true)
+    expect(calls.map((c) => c.url)).toEqual([
+      `${ORIGIN}/meta/v1/agents?limit=200`,
+      `${ORIGIN}/meta/v1/agents?limit=200&after=c1`,
+    ])
+    expect(calls.map((c) => c.init.method ?? 'GET')).toEqual(['GET', 'GET'])
+  })
+  it('a non-2xx page ends the walk with that status and no answer', async () => {
+    const { api } = walk(json({}, 403))
+    expect(await api.hasEnabledAgent()).toEqual({ status: 403, body: null })
+  })
+  it('a cursor that never ends is bounded (100 requests), and the answer is false', async () => {
+    const { api, calls } = rig(() => json({ data: [agent('a', '2026-01-01')], next_cursor: 'again' }))
+    expect((await api.hasEnabledAgent()).body).toBe(false)
+    expect(calls).toHaveLength(100)
+  })
+})

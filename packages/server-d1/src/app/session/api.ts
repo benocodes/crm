@@ -11,6 +11,8 @@ export interface Api {
   me(): Promise<ApiResult<Me>>
   /** Every agent: pages followed until `next_cursor` is null. */
   agents(): Promise<ApiResult<AgentRecord[]>>
+  /** True when any agent has `disabled_at` null: pages are followed until one is found or the list ends (UI461 P4). */
+  hasEnabledAgent(): Promise<ApiResult<boolean>>
   setDisabled(id: string, disabled: boolean): Promise<ApiResult<AgentRecord>>
 }
 
@@ -54,6 +56,7 @@ export function createApi(deps: { origin: string; getToken(): Promise<string | n
       }
       return { status: 200, body: all }
     },
+    hasEnabledAgent: async () => ({ status: 200, body: false }), // STUB (red commit)
     setDisabled: (id, disabled) =>
       call<AgentRecord>('PATCH', `/meta/v1/agents/${encodeURIComponent(id)}`, { disabled }),
   }

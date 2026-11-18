@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axe from 'axe-core'
+import { readFileSync } from 'node:fs'
 import { App } from './app.js'
 import type { AppState } from './state.js'
 
@@ -14,11 +15,22 @@ const READY: AppState = {
   who: { name: 'Ann', email: 'ann@x.test', role: 'owner', workspaceName: 'Acme' },
   scopes: [],
   manageAccountHref: null,
+  connectAgent: { status: 'hidden' },
 }
-const handlers = () => ({ onSignIn: vi.fn(), onSignOut: vi.fn(), onRetry: vi.fn() })
-const show = (state: AppState, over: { provider?: string | null; path?: string } = {}) => {
+const SHOW: AppState = { ...READY, connectAgent: { status: 'show' } } as AppState
+const handlers = () => ({ onSignIn: vi.fn(), onSignOut: vi.fn(), onRetry: vi.fn(), onCheckAgain: vi.fn() })
+const show = (state: AppState, over: { provider?: string | null; path?: string; mcpUrl?: string | null } = {}) => {
   const h = handlers()
-  render(<App state={state} provider={over.provider ?? 'better-auth'} path={over.path ?? '/home'} {...h} />)
+  render(
+    <App
+      state={state}
+      provider={over.provider === undefined ? 'better-auth' : over.provider}
+      path={over.path ?? '/home'}
+      origin="https://w.test"
+      mcpUrl={over.mcpUrl === undefined ? null : over.mcpUrl}
+      {...h}
+    />,
+  )
   return h
 }
 const noShell = () => {
@@ -51,7 +63,7 @@ describe('ready: the shell and Home (D7, D8, P5)', () => {
     expect(screen.getByText('Acme', { selector: 'aside span' })).toBeTruthy() // the shell names the workspace too
   })
 
-  it('has no Get started section and no Connect prompt (those are UI461 and UI458)', () => {
+  it('with an enabled agent connected there is no Get started section and no Connect prompt', () => {
     show(READY)
     expect(screen.queryByText(/get started/i)).toBeNull()
     expect(screen.queryByText(/connect an agent/i)).toBeNull()
@@ -154,5 +166,60 @@ describe('the states without a shell (D4)', () => {
     show(state)
     const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } })
     expect(r.violations.map((v) => v.id)).toEqual([])
+  })
+})
+
+// [[UI461]] D9, D10, D11 (group 5): Home with the Connect an agent prompt.
+describe('Home: Get started (D9, D10)', () => {
+  it('Get started comes before Who you are, with Connect an agent holding the instructions and Check again', async () => {
+    const h = show(SHOW, { mcpUrl: 'https://w.test/mcp' })
+    const regions = screen
+      .getAllByRole('region')
+      .map((r) => r.getAttribute('aria-label') ?? r.querySelector('h2,h3')?.textContent)
+    expect(regions.indexOf('Get started')).toBeGreaterThanOrEqual(0)
+    expect(regions.indexOf('Get started')).toBeLessThan(regions.indexOf('Who you are'))
+    const prompt = screen.getByRole('region', { name: 'Connect an agent' })
+    expect([...prompt.querySelectorAll('pre code')].map((c) => c.textContent)).toContain(
+      'vibase login --server https://w.test',
+    )
+    expect([...prompt.querySelectorAll('pre code')].map((c) => c.textContent)).toContain('https://w.test/mcp')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Check again' }))
+    expect(h.onCheckAgain).toHaveBeenCalledTimes(1)
+  })
+
+  it('no provider: no login command; the API-key line stays', () => {
+    show(SHOW, { provider: null })
+    expect(document.body.textContent).not.toContain('vibase login --server https')
+    expect(screen.getByText(/VIBASE_API_KEY/)).toBeTruthy()
+  })
+
+  it('a failed read shows its one line in Get started and no prompt', () => {
+    show({ ...READY, connectAgent: { status: 'error', message: 'The agents could not be read (500).' } } as AppState)
+    expect(screen.getByRole('region', { name: 'Get started' })).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toContain('could not be read (500)')
+    expect(screen.queryByRole('region', { name: 'Connect an agent' })).toBeNull()
+  })
+
+  it('an owner and a member with the same lists see the same Home', () => {
+    show(SHOW)
+    const owner = document.querySelector('main')!.textContent!
+    cleanup()
+    show({ ...SHOW, who: { ...(SHOW as { who: object }).who, role: 'member' } } as AppState)
+    const member = document.querySelector('main')!.textContent!
+    expect(member).toBe(owner.replace('owner', 'member'))
+  })
+
+  it.each(['light', 'dark'])('axe is clean with the prompt in the %s theme', async (theme) => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    show(SHOW, { mcpUrl: 'https://w.test/mcp' })
+    const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } })
+    document.documentElement.classList.remove('dark')
+    expect(r.violations.map((v) => v.id)).toEqual([])
+  })
+
+  it('Home imports no bare shadcn primitive: the shared composites only', () => {
+    const src = readFileSync(new URL('./home.tsx', import.meta.url), 'utf8')
+    expect(src).not.toMatch(/components\/ui\//)
+    expect(src).toMatch(/PromptCard/)
   })
 })
