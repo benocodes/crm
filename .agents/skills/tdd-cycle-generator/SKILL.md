@@ -354,6 +354,13 @@ link, a password the classifier would not let the agent read) was not planned, a
 copied from a vendor's docs (the always-pass Turnstile secret "accepts only the dummy token"; it passes any token). When a
 charter states how a third-party test fixture behaves, probe it once at plan time (one `curl`) or name it in Watch out as a
 premise; and an E2E step that needs a human-in-the-loop secret names who supplies it and how, before the run.
+**UI460** (`knowledge/specs/021-UI460-workspace-app-served/RETRO.md`): 6 groups (1 matrix), 8 decisions, no migration,
+1 local E2E part, at the limit on two lines. Cost ~299k / 112+ calls over two runs (+773 code / +1,173 test lines, 56
+files), one review fix round. Within budget, at the top of the range: the riders hid work. "The release layout" was ~80
+lines over `stage`, `layout`, `check` and the fixtures, plus four test edits. A charter that adds a page or asset directory
+to the tarball counts the release package as its own rider with a line count ("rider: release package, ~4 files"). A
+charter that names a non-gate check (`release:check`, `smoke:worker`, an E2E script) says what `main` shows for it, since
+both were red on `main` here (`writing-tests` §7, "Checks outside the gate rot unseen").
 
 ### Step 3: Resolve identities
 

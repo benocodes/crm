@@ -744,8 +744,9 @@ only an empty `div` (the [[UI256]] E2E found the stray text; `packages/server-d1
 - **`page.emulateMedia({ colorScheme })` flips the scheme at once; a CSS transition does not.** shadcn's `Button`
   has `transition-colors`, so for 150 ms after the flip it still shows light colours on a dark card, and an axe
   contrast check or a screenshot taken immediately fails (UI446 E2E run 1, auth-pages and oauth-pages step 3). The
-  auth pages disable transitions on their wrapper (`[&_*]:transition-none!`, pinned in `scripts/build-ui.test.ts`); a
-  page that keeps transitions waits for them to finish before axe or a screenshot. It is not a missing dark token:
+  auth pages and the workspace app disable transitions on their mount (`[&_*]:transition-none!`, pinned in
+  `scripts/build-ui.test.ts` and `scripts/build-app.test.ts`; the app's was added after its E2E hit the same failure,
+  [[UI460]] 460.15); a page that keeps transitions waits for them to finish before axe or a screenshot. It is not a missing dark token:
   check the computed colour before and after a pause before editing the theme.
 - **Axe sees only what is open.** A closed `<details>` keeps its region out of the accessibility tree, so axe on a
   page's default state passed while two open `ScopeList` disclosures, both named "Requested permissions", failed
@@ -757,8 +758,14 @@ only an empty `div` (the [[UI256]] E2E found the stray text; `packages/server-d1
   `style` set through CSSOM: `PAGE_CSP` and axe pass, but a keyboard check that counts focusable `input`s counts it
   though Tab skips it. Exclude `[aria-hidden="true"]` from Tab-stop selectors (`packages/ui/e2e/gallery-react.e2e.ts`,
   [[UI449]] 449.22). Component suites that run axe in happy-dom need `axe-core` as a `@vibase/ui` devDependency.
-- **Page suites on real React** live in the root `page-ui` project (`packages/server-d1/src/ui/**/*.ui.test.tsx`,
-  no Preact alias, [[UI446]] D3); a sentinel (`src/ui/react-runtime.ui.test.tsx`) turns red if the project ever
+- **`userEvent.setup()` installs its own `navigator.clipboard`**, replacing a `vi` stub of `writeText` made before it,
+  so a Copy test asserts on a stub nothing calls. Stub after `setup()`, or click with `fireEvent` ([[UI443]] 443.39,
+  the `CommandBlock` suite).
+- **A gallery or test mount root must not be a landmark the component renders too.** `<main id="root">` around an
+  `AppShell` that renders its own `<main>` fails axe's landmark rules in the browser, not in happy-dom; mount into a
+  `<div>` ([[UI443]] 443.40; the app's `index.html` root is a `<div>`, pinned in `src/app/main.ui.test.tsx`).
+- **Page suites on real React** live in the root `page-ui` project (`packages/server-d1/src/{ui,app}/**/*.ui.test.tsx`,
+  no Preact alias, [[UI446]] D3, [[UI460]] 460.12); a sentinel (`src/ui/react-runtime.ui.test.tsx`) turns red if the project ever
   gets the alias back.
 - **esbuild defaults `process.env.NODE_ENV` to `"production"` under `minify`**, so an absence mutation of the
   helper's define shows nothing on a minified build. Build unminified in that test to give it teeth
@@ -784,6 +791,9 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   `packages/server-d1/e2e/auth-pages.e2e.ts`, [[UI246]]).
 - **`page.goto` to a URL that differs only in its `#fragment` does not reload the page**, so a page that reads the
   fragment on load never sees the new value. Go through `about:blank` first (that spec's `visit()`).
+- **`locator.evaluateAll()` and `locator.count()` do not wait.** On a client-rendered page they run as soon as they are
+  called and can read an empty list before React draws it ([[UI460]] E2E run 1, the app's nav). Wait for the first
+  element (`await expect(locator.first()).toBeVisible()`) before reading the set.
 - **Use `getByLabel(text, { exact: true })`**: the default substring match also hits a section whose accessible
   name contains the label (`New password` matched "Set a new password").
 - **A scenario that runs the real `vibase login` runs the Worker over HTTPS.** The CLI refuses a non-https issuer
@@ -885,8 +895,19 @@ The browser E2E scripts. None is in the gate; each file's header holds its recip
 Clerk dev instance and `.env.dev` only (AGENTS.md, "Environments"). `e2e:rail` runs against a deployed
 instance, so it is in `ship-branch`, "Command reference".
 
+**Checks outside the gate rot unseen.** `scripts/gate.sh` runs the suites, typecheck, build and lint only. The E2E scripts
+below, `smoke:worker` and `release:check` are not in it, and `main` can stay red on them across several merged cycles:
+`release:check` failed from OPS249 (#464) and `smoke:worker` aborted at 25b from CORE283 (#295, #334) until [[UI460]]'s
+charter asked for both. So a cycle whose charter names one of these:
+- runs it on a clean `main` worktree first and records that result (the same rule as an edited E2E script, above);
+- cites the issue when `main` is red, or opens one (`open-issue`);
+- proves its own legs past the shared failure: an uncommitted, restored bypass of the one failing assertion, with the
+  decisive lines quoted, or the `ok` count before a shared abort set against `main`'s (UI460's RESULT.md has both).
+A red `main` is not this cycle's to fix, and not a reason to skip its own legs.
+
 ```bash
-pnpm -C packages/ui e2e:gallery-react             # the React/Tailwind gallery (UI445) built with @vibase/ui/build, served on 127.0.0.1:4174 under PAGE_CSP: four theme modes (system light/dark, data-theme overrides), axe zero violations, focus ring, zero CSP violations; E2E_GALLERY_MUTATION=style-attr|style-element injects an inline style to see the CSP check fail; not in the gate
+pnpm -C packages/ui e2e:gallery-react             # the React/Tailwind gallery (UI445) built with @vibase/ui/build, served on 127.0.0.1:4174: the components page `/` under PAGE_CSP and the composites page `/composites` (UI443, `?view=parts|shell|shell-bare`) under APP_CSP; four theme modes, axe zero violations, focus ring, skip link, Copy, the 375 px row, zero CSP violations; its seen-failing proof is built in (no env var): a leg injects a `<style>` and an inline `<script>` at runtime, the `<style>` must violate PAGE_CSP only and the script must be blocked on both pages; not in the gate
+pnpm -C packages/server-d1 e2e:auth-pages          # the Better Auth pages /invite, /sign-in, /reset-password (UI246), Google buttons (CORE294), a trusted app origin (UI255) and, from UI460, the workspace app (steps 10-12: `/` 302 /home, the signed-out card, the shell with APP_CSP and axe in both themes, 375 px, sign out); local Worker on better-auth, fresh local state, recipe in the file header; not in the gate
 pnpm -C packages/ui e2e:gallery                   # builds the test-only gallery, serves it on localhost, Playwright screenshots per state in light/dark (forced and emulated) into the gitignored packages/ui/e2e-screenshots/, axe zero violations, keyboard order; not in the gate. If `playwright install chromium` fails (it does on the dev Mac), run with E2E_BROWSER_CHANNEL=chrome (installed Google Chrome)
 pnpm -C packages/server-d1 e2e:oauth-pages         # Better Auth /device and /consent with the real `vibase login` and an MCP-style client (UI247); local Worker over HTTPS (`wrangler dev --local-protocol https`, recipe in the file header and writing-tests §7), no Clerk; `e2e:auth-pages` is UI246's sibling; not in the gate
 pnpm -C packages/server-d1 e2e:auth-pages-reset      # self-service reset by email on /sign-in (CORE304): its own email-on Worker from the test-only entry src/test/entry-email.ts (a recording EMAIL binding read at /__emails), over HTTPS, fresh local state (recipe in the spec file header); no Clerk; not in the gate

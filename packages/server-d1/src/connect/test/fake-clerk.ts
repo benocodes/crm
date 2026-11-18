@@ -1,7 +1,7 @@
-import type { ClerkLike } from '../types.js'
+import type { SessionSeam } from '../../app/session/types.js'
 
-/** A scripted `ClerkLike`: every call is counted, and each token is distinct so a reused token is visible. */
-export class FakeClerk implements ClerkLike {
+/** A scripted `SessionSeam`: every call is counted, and each token is distinct so a reused token is visible. */
+export class FakeClerk implements SessionSeam {
   loads = 0
   tokens = 0
   rechecks = 0

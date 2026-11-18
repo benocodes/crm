@@ -1,7 +1,5 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
-import { createPage } from './controller.js'
-import { createApi } from './api.js'
 import { selectSeam } from './seam.js'
 import type { Discovery } from './types.js'
 
@@ -50,15 +48,10 @@ describe('selectSeam', () => {
       return
     }
     expect(seam).not.toBeNull()
-    // The page over this seam: a signed-out start. On better-auth the only traffic is the same-origin session read.
-    const page = createPage({
-      clerk: seam,
-      api: createApi({ origin: 'https://w.test', getToken: async () => null, fetch: async () => new Response('{}') }),
-      origin: 'https://w.test',
-    })
+    // A signed-out start. On better-auth the only traffic is the same-origin session read.
     if (expected === 'better-auth') {
-      await page.start()
-      expect(page.state().kind).toBe('signed-out')
+      await seam!.load()
+      expect(seam!.isSignedIn()).toBe(false)
       expect(scripts).toEqual([])
       expect(requests).toEqual(['GET /auth/get-session'])
     }
@@ -71,6 +64,30 @@ describe('selectSeam', () => {
     await seam!.load()
     expect(scripts).toHaveLength(1)
     expect(scripts[0]).toContain('x.clerk.accounts.dev')
+    delete (window as unknown as { Clerk?: unknown }).Clerk
+  })
+})
+
+describe('selectSeam passes the caller’s return paths through (UI460 P2, P3)', () => {
+  it('better-auth: Sign in goes to /sign-in?return_to=<returnPath>', async () => {
+    const urls: string[] = []
+    const seam = selectSeam(
+      { auth: { provider: 'better-auth', issuer: 'https://w.test/auth', cli_client_id: null, publishable_key: null } },
+      { returnPath: '/home', navigate: (u) => void urls.push(u) },
+    )
+    await seam!.redirectToSignIn('x')
+    expect(urls).toEqual(['/sign-in?return_to=/home'])
+  })
+  it('clerk: Sign out returns to the signOutReturn it is given', async () => {
+    const calls: unknown[] = []
+    ;(window as unknown as { Clerk?: unknown }).Clerk = {
+      load: async () => {},
+      signOut: async (o?: unknown) => void calls.push(o),
+    }
+    const seam = selectSeam(clerk(PK), { loadScript: async () => {}, signOutReturn: 'https://w.test/home' })
+    await seam!.load()
+    await seam!.signOut()
+    expect(calls).toEqual([{ redirectUrl: 'https://w.test/home' }])
     delete (window as unknown as { Clerk?: unknown }).Clerk
   })
 })

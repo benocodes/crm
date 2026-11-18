@@ -23,6 +23,8 @@ export interface StageInput {
   assetsConnectDir: string
   /** The built `ui/` directory of the auth pages ([[UI246]] D2): `index.html`, `app.js`, `ui.css`, copied to `assets/ui/`. */
   assetsUiDir: string
+  /** The built `app/` directory of the workspace app ([[UI460]] D6): `index.html`, `app.js`, `app.css`, copied to `assets/app/`. */
+  assetsAppDir: string
   migrationsDir: string
   /** The control-plane database's compiled migrations ([[CORE259]] D4), shipped as `control-migrations/` ([[OPS260]] D14). */
   controlMigrationsDir: string
@@ -129,6 +131,7 @@ export function stageServer(i: StageInput): ReleaseManifest {
   for (const f of readdirSync(i.assetsConnectDir))
     copyInto(join(out, 'assets', 'connect', f), join(i.assetsConnectDir, f))
   for (const f of readdirSync(i.assetsUiDir)) copyInto(join(out, 'assets', 'ui', f), join(i.assetsUiDir, f))
+  for (const f of readdirSync(i.assetsAppDir)) copyInto(join(out, 'assets', 'app', f), join(i.assetsAppDir, f))
   for (const f of readdirSync(i.migrationsDir).filter((n) => n.endsWith('.sql')))
     copyInto(join(out, 'migrations', f), join(i.migrationsDir, f))
   for (const f of readdirSync(i.controlMigrationsDir).filter((n) => n.endsWith('.sql')))

@@ -7,6 +7,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { getPlatformProxy, unstable_readConfig } from 'wrangler'
+import { APP_PAGE_PATHS, APP_PREFIX, APP_RUN_WORKER_FIRST } from './app/paths.js'
 import { UI_PAGE_PATHS, UI_PREFIX, UI_RUN_WORKER_FIRST } from './ui-serving.js'
 
 const CONFIG = fileURLToPath(new URL('../wrangler.jsonc', import.meta.url))
@@ -112,9 +113,18 @@ describe('assets (UI30 D2)', () => {
       const c = unstable_readConfig({ config: CONFIG, env })
       expect(c.assets?.binding).toBe('ASSETS')
       // Derived from the constants the Worker serves, never a copied list: a page or prefix the Worker serves but `run_worker_first` omits would be answered by the assets binding without the headers.
-      expect(c.assets?.run_worker_first).toEqual(['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST])
+      expect(c.assets?.run_worker_first).toEqual([
+        '/connect',
+        '/connect/*',
+        ...UI_RUN_WORKER_FIRST,
+        ...APP_RUN_WORKER_FIRST,
+      ])
       for (const p of UI_PAGE_PATHS) expect(c.assets?.run_worker_first, p).toContain(p)
       expect(c.assets?.run_worker_first).toContain(`${UI_PREFIX}/*`)
+      // [[UI460]] D6: the app's root, its page paths and its bundle prefix.
+      for (const p of APP_PAGE_PATHS) expect(c.assets?.run_worker_first, p).toContain(p)
+      expect(c.assets?.run_worker_first).toContain('/')
+      expect(c.assets?.run_worker_first).toContain(`${APP_PREFIX}/*`)
       expect(resolve(dirname(CONFIG), c.assets!.directory!)).toMatch(/packages\/server-d1\/dist\/assets$/)
     },
   )
@@ -122,7 +132,7 @@ describe('assets (UI30 D2)', () => {
 
 // [[UI247]] D1: every list that must equal the constant, read from the real files (the release fixture and the setup fixture are strings and files that stay in step with `wrangler.jsonc` by hand).
 describe('every run_worker_first list equals the constants the Worker serves (UI247 D1)', () => {
-  const EXPECTED = ['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST]
+  const EXPECTED = ['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST, ...APP_RUN_WORKER_FIRST]
   const listIn = (text: string): unknown =>
     (parse(text) as { assets?: { run_worker_first?: unknown } }).assets?.run_worker_first
   it('wrangler.jsonc lists the five pages and /ui/*', () => {

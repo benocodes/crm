@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest'
 import { checkReactSources } from '../../ui/src/test/react-scan'
 
 const UI_TREE = fileURLToPath(new URL('./ui', import.meta.url))
+/** [[UI460]] D5: the workspace app's tree is held to the same scan. */
+const APP_TREE = fileURLToPath(new URL('./app', import.meta.url))
 /** This tree's allow-list entries beyond the scan's own: the component set (never the root `@vibase/ui`, the Preact layer) the dependency-free scope catalogue leaf ([[UI247]] D5), and `vitest` (only the test-support `fake-fetch.ts` imports it). */
 const PAGE_ALLOW = [
   '@vibase/ui/components',
@@ -28,6 +30,11 @@ const scan = (files: Record<string, string>) => checkReactSources([sandbox(files
 describe('the auth pages tree against the React scan', () => {
   it('src/ui has no violation: components only from @vibase/ui/components, no preact, react-dom only in main.tsx, no style prop, <style> or dangerouslySetInnerHTML', () => {
     expect(checkReactSources([UI_TREE], { allow: PAGE_ALLOW })).toEqual([])
+  })
+
+  it('src/app has no violation either (UI460 D5): the scan reaches the workspace app', () => {
+    expect(checkReactSources([APP_TREE], { allow: PAGE_ALLOW })).toEqual([])
+    expect(checkReactSources([APP_TREE]).length).toBeGreaterThan(0) // non-empty: the app's component imports are read
   })
 
   it('the tree is non-empty (the scan reads the page sources)', () => {

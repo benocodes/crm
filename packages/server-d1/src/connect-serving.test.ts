@@ -60,9 +60,9 @@ const get = async (
 
 const I = () => new URL(kit.issuer.issuer).origin
 const csp = (i: string) =>
-  `default-src 'self'; script-src 'self' ${i} https://challenges.cloudflare.com https://*.protect.clerk.com; connect-src 'self' ${i} https://*.protect.clerk.com:*; img-src 'self' https://img.clerk.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; frame-src https://challenges.cloudflare.com https://*.protect.clerk.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`
+  `default-src 'self'; script-src 'self' ${i} https://challenges.cloudflare.com https://*.protect.clerk.com; style-src 'self' 'unsafe-inline'; connect-src 'self' ${i} https://*.protect.clerk.com:*; img-src 'self' https://img.clerk.com; worker-src 'self' blob:; frame-src https://challenges.cloudflare.com https://*.protect.clerk.com; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`
 const NO_PROVIDER_CSP =
-  "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 let expectedCsp = (): string => csp(I())
 
 // D9: the same header rules on every response kind of every test (HTML, HEAD, asset, 308, 404, 405).
@@ -141,7 +141,8 @@ describe('D1 serving', () => {
 })
 
 describe('no asset is reachable outside /connect*', () => {
-  const outside = ['/connect.js', '/index.html', '/', '/connectx', '/connect-assets/connect.js', '/api/connect.js']
+  // `/` is no longer here: it is the app's redirect to /home ([[UI460]] D2, pinned in app-serving.test.ts), and never reaches the binding either.
+  const outside = ['/connect.js', '/index.html', '/connectx', '/connect-assets/connect.js', '/api/connect.js']
   it.each(outside)(
     "%s is not served from assets: the assets binding is not asked, and the answer is the Worker's own",
     async (path) => {
@@ -180,12 +181,13 @@ describe('D9 headers', () => {
     expect(res.headers.get('content-security-policy')).not.toContain(I())
   })
 
-  it('with no provider no Clerk host appears and style-src carries no unsafe-inline', async () => {
+  it('with no provider no Clerk host appears and script-src carries no unsafe-* (style-src has unsafe-inline since UI460 P4)', async () => {
     expectedCsp = () => NO_PROVIDER_CSP
     for (const path of ['/connect', '/connect/connect.js', '/connect/', '/connect/nope']) {
       const res = await get(worker({ AUTH_PROVIDER: undefined }), path)
       const policy = res.headers.get('content-security-policy')!
-      expect(policy).not.toMatch(/clerk|cloudflare|unsafe-/)
+      expect(policy).not.toMatch(/clerk|cloudflare/)
+      expect(policy.split('; ').find((d) => d.startsWith('script-src'))).not.toMatch(/unsafe-/)
     }
   })
 

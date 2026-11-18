@@ -13,7 +13,7 @@
     "./test": "./src/test/kit.ts"
   },
   "scripts": {
-    "build": "tsx scripts/build-connect.ts && tsx scripts/build-ui.ts",
+    "build": "tsx scripts/build-connect.ts && tsx scripts/build-ui.ts && tsx scripts/build-app.ts",
     "dev": "pnpm build && wrangler dev --local --port 8787",
     "e2e:connect": "playwright test --config playwright.config.ts connect.e2e.ts",
     "e2e:mcp-oauth": "playwright test --config playwright.config.ts mcp-oauth.e2e.ts",
@@ -67,6 +67,7 @@
     "esbuild": "0.28.2",
     "happy-dom": "21.0.4",
     "jsonc-parser": "3.3.1",
+    "lucide-react": "1.68.0",
     "miniflare": "4.20260730.0",
     "preact": "11.2.0",
     "tsx": "4.23.15",

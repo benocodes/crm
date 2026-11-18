@@ -41,8 +41,10 @@ import {
   testIssuer,
 } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from '../src/bootstrap-d1.js'
+import { buildApp } from './build-app.js'
 import { buildConnect } from './build-connect.js'
 import { buildUi } from './build-ui.js'
+import { APP_RUN_WORKER_FIRST } from '../src/app/paths.js'
 import { UI_RUN_WORKER_FIRST } from '../src/ui-serving.js'
 import { ALLOWED_NODE_MODULES, BUNDLE_SIZE_CEILING, nodeImportProblems, nodeImportsOf } from './node-imports.js'
 
@@ -145,6 +147,8 @@ try {
   await buildConnect(assetsDir)
   // [[UI246]] D2: and the auth pages' bundle beside it, routed to the Worker first by the same list `wrangler.jsonc` carries.
   await buildUi(assetsDir)
+  // [[UI460]] D6: and the workspace app's, routed by the app's own list.
+  await buildApp(assetsDir)
 
   mf = new Miniflare({
     // Explicit module list: Better Auth's `import(variable)` defeats Miniflare's own module scan (wrangler and workerd accept it).
@@ -162,7 +166,7 @@ try {
       binding: 'ASSETS',
       routerConfig: {
         has_user_worker: true,
-        static_routing: { user_worker: ['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST] },
+        static_routing: { user_worker: ['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST, ...APP_RUN_WORKER_FIRST] },
       },
     },
     handleRuntimeStdio: (stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream) => {
@@ -1063,6 +1067,41 @@ try {
       { status: res.status },
     )
   }
+  // [[UI460]] D1, D2, D5, D6: the workspace app from workerd's real assets binding, for every provider (here clerk): the page, the bundle, and the root redirect, with the app's policy and Clerk's issuer.
+  res = await call('GET', '/home')
+  const homePage = await res.text()
+  const homePolicy = res.headers.get('content-security-policy') ?? ''
+  check(
+    '24c GET /home -> 200 HTML from a fresh build with its bundle, the app policy (style-src unsafe-inline, issuer in script-src, none in script-src unsafe), nosniff, no-store',
+    res.status === 200 &&
+      (res.headers.get('content-type') ?? '').startsWith('text/html') &&
+      homePage.includes('/app/app.js') &&
+      homePolicy.includes("style-src 'self' 'unsafe-inline'") &&
+      homePolicy.includes(`script-src 'self' ${issuerOrigin} `) &&
+      !/script-src[^;]*unsafe-/.test(homePolicy) &&
+      res.headers.get('x-content-type-options') === 'nosniff' &&
+      res.headers.get('cache-control') === 'no-store',
+    { status: res.status, homePolicy },
+  )
+  res = await fetch(new URL('/', base), { redirect: 'manual' })
+  check(
+    '24d GET / -> 302 to /home with the headers',
+    res.status === 302 &&
+      res.headers.get('location') === '/home' &&
+      (res.headers.get('content-security-policy') ?? '') !== '',
+    { status: res.status, location: res.headers.get('location') },
+  )
+  res = await call('GET', '/app/app.js')
+  check(
+    '24e GET /app/app.js -> 200 javascript with the headers; /home/, /app/ and /app -> 404',
+    res.status === 200 &&
+      (res.headers.get('content-type') ?? '').includes('javascript') &&
+      (res.headers.get('content-security-policy') ?? '') !== '' &&
+      (await call('GET', '/home/')).status === 404 &&
+      (await call('GET', '/app/')).status === 404 &&
+      (await call('GET', '/app')).status === 404,
+    { status: res.status },
+  )
   res = await call('GET', '/.well-known/vibase')
   body = await json(res)
   check(

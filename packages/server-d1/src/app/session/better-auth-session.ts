@@ -1,11 +1,13 @@
-// [[UI297]] D7: the `ClerkLike` seam over the vault's own Better Auth (`better-auth`): same-origin `fetch` with cookies, no script, no third party.
-// The type keeps its name from [[UI30]]; the rename belongs to [[UI256]].
-import type { ClerkLike } from './types.js'
+// [[UI297]] D7: the `SessionSeam` seam over the vault's own Better Auth (`better-auth`): same-origin `fetch` with cookies, no script, no third party.
+// The type is `SessionSeam` ([[UI443]] D4; it was `ClerkLike`).
+import type { SessionSeam } from './types.js'
 
-const SIGN_IN = '/sign-in?return_to=/connect'
-
-export function betterAuthSession(deps: { fetch?: typeof fetch; navigate?: (url: string) => void } = {}): ClerkLike {
+export function betterAuthSession(
+  deps: { fetch?: typeof fetch; navigate?: (url: string) => void; returnPath?: string } = {},
+): SessionSeam {
   const doFetch: typeof fetch = deps.fetch ?? ((input, init) => fetch(input, init))
+  // [[UI460]] P2, P3: the page path the person comes back to, from the caller (`/connect` today, `/home` for the app); a path only, never a query.
+  const signIn = `/sign-in?return_to=${deps.returnPath ?? '/connect'}`
   const navigate = deps.navigate ?? ((url: string) => location.assign(url))
   let signedIn = false
 
@@ -43,9 +45,9 @@ export function betterAuthSession(deps: { fetch?: typeof fetch; navigate?: (url:
       signedIn = await readSession()
       return signedIn
     },
-    // R3: the argument is ignored; `/sign-in` admits exactly this target.
+    // R3: the argument is ignored; the target is the seam's own `returnPath` (`/sign-in` admits an allow-listed path).
     async redirectToSignIn() {
-      navigate(SIGN_IN)
+      navigate(signIn)
     },
     // R4: Better Auth's handler wants a JSON body and the page origin (the browser sends it).
     async signOut() {

@@ -34,6 +34,7 @@ import { assertRelease, type ReleaseManifest } from '../src/manifest.js'
 import { readMigrationState, type D1Like } from '@vibase/storage-d1'
 import { verifySums } from '../src/pack.js'
 import { readReleaseVersion } from '../src/version.js'
+import { APP_RUN_WORKER_FIRST } from '../../server-d1/src/app/paths.js'
 import { UI_RUN_WORKER_FIRST } from '../../server-d1/src/ui-serving.js'
 import { withGeneratedConfig } from '../../server-d1/scripts/instance/config.js'
 import { deployArgs } from '../../server-d1/scripts/instance/upgrade.js'
@@ -350,7 +351,7 @@ export async function checkRelease(
         binding: 'ASSETS',
         routerConfig: {
           has_user_worker: true,
-          static_routing: { user_worker: ['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST] },
+          static_routing: { user_worker: ['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST, ...APP_RUN_WORKER_FIRST] },
         },
       },
       bindings: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '', VERSION: manifest.version, COMMIT: manifest.commit },
@@ -393,6 +394,20 @@ export async function checkRelease(
           `/connect is not served: /connect ${connect.status}, /connect/connect.js ${connectJs.status}`,
         )
       log(`/connect ${connect.status}, /connect/connect.js ${connectJs.status}`)
+      // [[UI460]] D6: the workspace app is served beside it: the page, its bundle, and the root redirect.
+      const home = await fetch(new URL('/home', url), { redirect: 'manual' })
+      const appJs = await fetch(new URL('/app/app.js', url))
+      const root = await fetch(new URL('/', url), { redirect: 'manual' })
+      if (
+        home.status !== 200 ||
+        appJs.status !== 200 ||
+        root.status !== 302 ||
+        root.headers.get('location') !== '/home'
+      )
+        throw new ReleaseRefusal(
+          `the workspace app is not served: /home ${home.status}, /app/app.js ${appJs.status}, / ${root.status} -> ${root.headers.get('location')}`,
+        )
+      log(`/home ${home.status}, /app/app.js ${appJs.status}, / ${root.status} -> ${root.headers.get('location')}`)
       return {
         clientInstallPath: clientInstall,
         serverInstallPath: install,

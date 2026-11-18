@@ -15,7 +15,7 @@ export const BASE_SOURCE = `{
     { "binding": "DB", "database_name": "vb-crm", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "../storage-d1/migrations" },
     { "binding": "CONTROL_DB", "database_name": "vb-control", "database_id": "00000000-0000-0000-0000-000000000001", "migrations_dir": "../storage-d1/control-migrations" }
   ],
-  "assets": { "directory": "./dist/assets", "binding": "ASSETS", "run_worker_first": ["/connect", "/connect/*", "/sign-in", "/invite", "/reset-password", "/consent", "/device", "/ui/*"] },
+  "assets": { "directory": "./dist/assets", "binding": "ASSETS", "run_worker_first": ["/connect", "/connect/*", "/sign-in", "/invite", "/reset-password", "/consent", "/device", "/ui/*", "/", "/home", "/app", "/app/*"] },
   "triggers": { "crons": ["*/15 * * * *"] },
   "vars": { "AUTH_PROVIDER": "" },
   "env": { "prod": { "name": "vb-prod", "d1_databases": [{ "binding": "DB", "database_name": "p", "database_id": "11111111-2222-3333-4444-555555555555" }] } }
@@ -36,6 +36,11 @@ export function sources(): Omit<StageInput, 'outDir'> & { root: string } {
   writeFileSync(join(root, 'ui-assets', 'index.html'), '<html></html>')
   writeFileSync(join(root, 'ui-assets', 'app.js'), 'y')
   writeFileSync(join(root, 'ui-assets', 'ui.css'), 'z')
+  // [[UI460]] D6: the workspace app's build output (`app/` of the assets directory): index, bundle and stylesheet.
+  mkdirSync(join(root, 'app-assets'), { recursive: true })
+  writeFileSync(join(root, 'app-assets', 'index.html'), '<html></html>')
+  writeFileSync(join(root, 'app-assets', 'app.js'), 'a')
+  writeFileSync(join(root, 'app-assets', 'app.css'), 'b')
   const mig = [
     ['0001_a.sql', 'create table a(id integer);\n'],
     ['0002_b.sql', 'create table b(id integer);\n'],
@@ -59,6 +64,7 @@ export function sources(): Omit<StageInput, 'outDir'> & { root: string } {
     workerEntry: join(root, 'worker.js'),
     assetsConnectDir: join(root, 'assets'),
     assetsUiDir: join(root, 'ui-assets'),
+    assetsAppDir: join(root, 'app-assets'),
     migrationsDir: join(root, 'migrations'),
     controlMigrationsDir: join(root, 'control-migrations'),
     baseConfigText: BASE_SOURCE,

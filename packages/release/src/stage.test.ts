@@ -32,6 +32,17 @@ describe('UI246 D2: the auth pages ship in the server package', () => {
   })
 })
 
+describe('UI460 D6: the workspace app ships in the server package', () => {
+  it('assets/app/ holds the build output of the app (index, bundle, stylesheet), beside assets/connect/ and assets/ui/', () => {
+    const s = sources()
+    const outDir = mkdtempSync(join(tmpdir(), 'ui460-out-'))
+    dirs.push(s.root, outDir)
+    stageServer({ ...s, outDir })
+    for (const f of ['index.html', 'app.js', 'app.css'])
+      expect(readFileSync(join(outDir, 'assets', 'app', f), 'utf8')).toBe(readFileSync(join(s.assetsAppDir, f), 'utf8'))
+  })
+})
+
 describe('D3 layout', () => {
   it('the staged package holds exactly the cycle-1 files', () => {
     const s = sources()
@@ -41,6 +52,9 @@ describe('D3 layout', () => {
     expect(listFiles(outDir)).toEqual([
       'LICENSE',
       'README.md',
+      'assets/app/app.css',
+      'assets/app/app.js',
+      'assets/app/index.html',
       'assets/connect/connect.js',
       'assets/connect/index.html',
       'assets/ui/app.js',

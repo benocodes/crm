@@ -1,5 +1,5 @@
-// [[UI30]] D3, D4: the real `ClerkLike`, over Clerk's browser bundle loaded from the instance's own Frontend API. The one file that touches `window.Clerk`.
-import type { ClerkLike, Discovery } from './types.js'
+// [[UI30]] D3, D4: the real `SessionSeam`, over Clerk's browser bundle loaded from the instance's own Frontend API. The one file that touches `window.Clerk`.
+import type { SessionSeam, Discovery } from './types.js'
 
 /** The pinned `@clerk/clerk-js` build, served by the Frontend API ([[UI30]] D3: exact version, at least two weeks old). */
 export const CLERK_JS_PATH = '/npm/@clerk/clerk-js@6.39.1/dist/clerk.browser.js'
@@ -36,8 +36,8 @@ function loadScript(src: string, publishableKey: string): Promise<void> {
 
 export function windowClerk(
   auth: NonNullable<Discovery['auth']>,
-  deps: { loadScript?: (src: string, publishableKey: string) => Promise<void> } = {},
-): ClerkLike {
+  deps: { loadScript?: (src: string, publishableKey: string) => Promise<void>; signOutReturn?: string } = {},
+): SessionSeam {
   let clerk: ClerkBrowser | undefined
   const need = (): ClerkBrowser => {
     if (!clerk) throw new Error('Clerk is not loaded')
@@ -68,8 +68,8 @@ export function windowClerk(
       await need().redirectToSignIn({ redirectUrl })
     },
     async signOut() {
-      // Back to this page: with no redirect Clerk sends the browser to the origin root, a 404 on the API.
-      await need().signOut({ redirectUrl: '/connect' })
+      // Back to the caller's page ([[UI460]] P3; `/connect` unless told): with no redirect Clerk sends the browser to the origin root.
+      await need().signOut({ redirectUrl: deps.signOutReturn ?? '/connect' })
     },
     profileUrl() {
       try {

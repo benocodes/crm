@@ -11,6 +11,7 @@ import { parse } from 'jsonc-parser'
 import { CONTROL_MIGRATIONS, MIGRATIONS } from '@vibase/storage-d1'
 import { buildCli } from '../../cli/scripts/build.js'
 import { buildConnect } from '../../server-d1/scripts/build-connect.js'
+import { buildApp } from '../../server-d1/scripts/build-app.js'
 import { buildUi } from '../../server-d1/scripts/build-ui.js'
 import { buildInstance } from '../../server-d1/scripts/instance/build.js'
 import { envDatabaseIds, assertNoForbidden } from '../src/forbidden.js'
@@ -50,6 +51,7 @@ export async function buildRelease(
     const assets = join(work, 'assets')
     await buildConnect(assets)
     await buildUi(assets)
+    await buildApp(assets)
     const migrationsDir = join(REPO, 'packages', 'storage-d1', 'migrations')
     const controlMigrationsDir = join(REPO, 'packages', 'storage-d1', 'control-migrations')
     const buildConfig = join(work, 'wrangler.build.jsonc')
@@ -82,6 +84,7 @@ export async function buildRelease(
       workerEntry: join(work, 'wout', 'worker.js'),
       assetsConnectDir: join(assets, 'connect'),
       assetsUiDir: join(assets, 'ui'),
+      assetsAppDir: join(assets, 'app'),
       migrationsDir,
       controlMigrationsDir,
       baseConfigText: sourceConfig,

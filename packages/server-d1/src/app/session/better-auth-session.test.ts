@@ -137,3 +137,17 @@ describe('profileUrl', () => {
     expect(make({}).seam.profileUrl()).toBeNull()
   })
 })
+
+// [[UI460]] P2, P3: where Sign in goes comes from the caller's page path: `/connect` by default, `/home` for the app. A path only, never a query.
+describe('redirectToSignIn (UI460 P2, P3)', () => {
+  it.each([
+    [undefined, '/sign-in?return_to=/connect'],
+    ['/connect', '/sign-in?return_to=/connect'],
+    ['/home', '/sign-in?return_to=/home'],
+  ])('returnPath %s goes to %s, whatever URL it is given', async (returnPath, expected) => {
+    const urls: string[] = []
+    const seam = betterAuthSession({ navigate: (u) => void urls.push(u), ...(returnPath ? { returnPath } : {}) })
+    await seam.redirectToSignIn('https://w.test/anything?x=1')
+    expect(urls).toEqual([expected])
+  })
+})

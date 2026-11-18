@@ -1,32 +1,11 @@
-// [[UI30]] D1, D2, D9: `/connect*` on the API origin, from the Workers Static Assets binding, with the security headers on every response.
+// [[UI30]] D1, D2, D9, [[UI460]] P4: `/connect*` on the API origin, from the Workers Static Assets binding, with the security headers on every response.
+import { appCsp } from './app-serving.js'
+
 export interface AssetsLike {
   fetch(req: Request): Promise<Response>
 }
 
 const PREFIX = '/connect'
-
-/**
- * The Content Security Policy of the page ([[UI30]] D9), from Clerk's CSP guide for `clerk-js` without components. `<I>` is the
- * `CLERK_ISSUER` origin: it serves the script and the Frontend API. `'unsafe-inline'` is only in `style-src` (clerk-js sets runtime styles);
- * `script-src` has neither `'unsafe-inline'` nor `'unsafe-eval'`. With no provider the page loads no Clerk script, so no Clerk host appears.
- */
-export function connectCsp(issuer?: string): string {
-  const directives = issuer
-    ? (() => {
-        const i = new URL(issuer).origin
-        return [
-          "default-src 'self'",
-          `script-src 'self' ${i} https://challenges.cloudflare.com https://*.protect.clerk.com`,
-          `connect-src 'self' ${i} https://*.protect.clerk.com:*`,
-          "img-src 'self' https://img.clerk.com",
-          "worker-src 'self' blob:",
-          "style-src 'self' 'unsafe-inline'",
-          'frame-src https://challenges.cloudflare.com https://*.protect.clerk.com',
-        ]
-      })()
-    : ["default-src 'self'", "script-src 'self'", "connect-src 'self'", "img-src 'self'", "style-src 'self'"]
-  return [...directives, "object-src 'none'", "base-uri 'none'", "frame-ancestors 'none'"].join('; ')
-}
 
 function withHeaders(res: Response, csp: string): Response {
   const out = new Response(res.body, res)
@@ -51,7 +30,7 @@ export async function serveConnect(
 ): Promise<Response | undefined> {
   const url = new URL(req.url)
   if (!isConnectPath(url.pathname)) return undefined
-  const csp = connectCsp(opts.issuer)
+  const csp = appCsp(opts.issuer)
   const reply = (res: Response) => withHeaders(res, csp)
   if (req.method !== 'GET' && req.method !== 'HEAD')
     return reply(

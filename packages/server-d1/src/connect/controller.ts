@@ -1,7 +1,8 @@
-// [[UI30]] D4, D6, D8: the page's state machine over a `ClerkLike` and an `Api`. It decides nothing about markup: it only moves between
+// [[UI30]] D4, D6, D8: the page's state machine over a `SessionSeam` and an `Api`. It decides nothing about markup: it only moves between
 // `PageState`s, which `buildView` turns into what is shown.
-import type { Api, ApiResult } from './api.js'
-import type { AgentRecord, ClerkLike, Me, PageState } from './types.js'
+import type { Api, ApiResult } from '../app/session/api.js'
+import type { AgentRecord, SessionSeam, Me } from '../app/session/types.js'
+import type { PageState } from './types.js'
 
 export interface Page {
   state(): PageState
@@ -15,7 +16,7 @@ const ok = (r: ApiResult<unknown>): boolean => r.status >= 200 && r.status < 300
 
 /** `clerk` is the sign-in seam, or `null` when sign-in is unavailable ([[UI297]] D7). */
 export function createPage(deps: {
-  clerk: ClerkLike | null
+  clerk: SessionSeam | null
   api: Api
   origin: string
   onChange?: (s: PageState) => void
