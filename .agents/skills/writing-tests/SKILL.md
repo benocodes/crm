@@ -393,6 +393,10 @@ One program, two engines: the same assertions run on Postgres and D1.
     event-type map after CORE347) is proven through a test-only registration on the test kit's registry, plus one
     assertion against the real registry that no production entry uses it, so a later caller is a deliberate choice
     (`packages/api/src/events/owner-predicate.integration.d1.test.ts`).
+  - A **no-caller test** (a dormant cycle's "no non-test module calls X") matches a use, never the bare name: an import
+    specifier or a call (`/\bX\s*\(/`, `/import[^;]*\bX\b/`), or the sources with comments stripped. A substring grep is
+    turned red by a comment naming X, and the only fix that keeps it green is rewording the comment ([[CHN428]]: a header
+    comment naming `formIngressRead` failed the gate, `packages/api/src/forms/ingress-read.integration.d1.test.ts`).
     Event payloads in a transcript are written in Postgres `jsonb` key order (shorter key first, then bytewise,
     `jsonbOrder` in `d1-backend.ts`), so a regeneration does not churn when a program builds a payload in a different
     order ([[CORE69]] D21 ruling).

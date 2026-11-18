@@ -102,6 +102,9 @@ For every **Must be tested** obligation in the charter, write the test(s) that p
   groups' tests after the code and had no red commit at all. Write the tests first. If you did not, say so per
   group in `RESULT.md`'s Deviations, and give every such group a raw absence mutation that turns *that group's*
   tests red; a group with neither a red run nor its own mutation is not proven, and the reviewer returns it.
+  That includes pure-function groups (a mapper, a matrix of inputs): [[CHN428]] mutated only its integration groups
+  and lost a review round on the submitter matrix, the mapper and the first-submission group. Before reporting, check
+  that every "Must be tested" bullet has a red run or a mutation listed under its name.
 - **Setting work aside never uses a bare `git checkout <file>` / `git restore <file>`.** Either resets the
   file to the last commit and silently deletes every uncommitted change in it; it cost [[CORE188]] (restoring a
   mutant) and again [[CORE199]] (mid-run, outside any mutation) a rewrite. Before you revert, split or compare
@@ -164,7 +167,9 @@ pnpm -r build      # where a package has a build
 **Waiting costs context cache; wait as few times as possible.** Every wake-up after a long idle gap re-reads the whole
 context uncached, and a Monitor that expires (900 s) and is re-armed is one such wake-up per expiry. So:
 - While iterating, run only the affected files (`pnpm -C packages/<pkg> test <file>`), in the foreground; they finish in
-  seconds to a minute or two. The full gate runs once, when the work is green, not after each change.
+  seconds to a minute or two. The full gate runs once, when the work is green, not after each change. "Affected"
+  includes every test file in a folder you add a source file to: a dormant cycle's no-caller test scans its siblings'
+  sources, and [[CHN428]]'s new module tripped [[CHN424]]'s guard in the same folder, seen first by the gate.
 - Run the whole gate as ONE background script, `scripts/gate.sh [log-dir]` (the four commands above, one log per
   step, `gate.status` ending in `GATE_EXIT=<0|1>`), started with `run_in_background`. Then wait once. Do not start a
   Monitor per suite.
