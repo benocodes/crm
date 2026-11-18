@@ -758,6 +758,11 @@ only an empty `div` (the [[UI256]] E2E found the stray text; `packages/server-d1
   `style` set through CSSOM: `PAGE_CSP` and axe pass, but a keyboard check that counts focusable `input`s counts it
   though Tab skips it. Exclude `[aria-hidden="true"]` from Tab-stop selectors (`packages/ui/e2e/gallery-react.e2e.ts`,
   [[UI449]] 449.22). Component suites that run axe in happy-dom need `axe-core` as a `@vibase/ui` devDependency.
+- **A Radix modal (`AlertDialog`, `Dialog`) portals its content and hides the rest of the page.** Query and run axe on
+  `document.body`, not the render container, and wait for the dialog role before asserting focus. In happy-dom, axe's
+  `aria-hidden-focus` flags the focusable controls Radix's `hideOthers` marks `aria-hidden`/`data-aria-hidden` behind the
+  dialog, and its focus guards: exclude `[data-aria-hidden]` in the unit check and keep a real-browser axe run on the whole
+  page with the dialog open as the proof (`packages/ui/src/components/confirm-dialog.ui.test.tsx`, [[UI458]] 458.23).
 - **`userEvent.setup()` installs its own `navigator.clipboard`**, replacing a `vi` stub of `writeText` made before it,
   so a Copy test asserts on a stub nothing calls. Stub after `setup()`, or click with `fireEvent` ([[UI443]] 443.39,
   the `CommandBlock` suite).
@@ -912,7 +917,7 @@ charter asked for both. So a cycle whose charter names one of these:
 A red `main` is not this cycle's to fix, and not a reason to skip its own legs.
 
 ```bash
-pnpm -C packages/ui e2e:gallery-react             # the React/Tailwind gallery (UI445) built with @vibase/ui/build, served on 127.0.0.1:4174: the components page `/` under PAGE_CSP and the composites page `/composites` (UI443, `?view=parts|shell|shell-bare`) under APP_CSP; four theme modes, axe zero violations, focus ring, skip link, Copy, the 375 px row, zero CSP violations; its seen-failing proof is built in (no env var): a leg injects a `<style>` and an inline `<script>` at runtime, the `<style>` must violate PAGE_CSP only and the script must be blocked on both pages; not in the gate
+pnpm -C packages/ui e2e:gallery-react             # the React/Tailwind gallery (UI445) built with @vibase/ui/build, served on 127.0.0.1:4174: the components page `/` under PAGE_CSP and the composites page `/composites` (UI443, `?view=parts|shell|shell-bare`) and the lists page `/lists` (UI458: ResourceList, StatusBadge, ConfirmDialog, ListEditor, ChoiceGroup; `?view=dialog-*` opens a dialog state at load) under APP_CSP, each its own bundle under the 100 KB gzipped budget (lists.js 97.1 KB, composites.js 88.9 KB at UI458: a new heavy composite needs its own page or a budget ruling); four theme modes, axe zero violations, focus ring, skip link, Copy, the 375 px row, zero CSP violations; its seen-failing proof is built in (no env var): a leg injects a `<style>` and an inline `<script>` at runtime, the `<style>` must violate PAGE_CSP only and the script must be blocked on both pages; not in the gate
 pnpm -C packages/server-d1 e2e:auth-pages          # the Better Auth pages /invite, /sign-in, /reset-password (UI246), Google buttons (CORE294), a trusted app origin (UI255) and, from UI460, the workspace app (steps 10-12: `/` 302 /home, the signed-out card, the shell with APP_CSP and axe in both themes, 375 px, sign out); local Worker on better-auth, fresh local state, recipe in the file header; not in the gate
 pnpm -C packages/ui e2e:gallery                   # builds the test-only gallery, serves it on localhost, Playwright screenshots per state in light/dark (forced and emulated) into the gitignored packages/ui/e2e-screenshots/, axe zero violations, keyboard order; not in the gate. If `playwright install chromium` fails (it does on the dev Mac), run with E2E_BROWSER_CHANNEL=chrome (installed Google Chrome)
 pnpm -C packages/server-d1 e2e:oauth-pages         # Better Auth /device and /consent with the real `vibase login` and an MCP-style client (UI247); local Worker over HTTPS (`wrangler dev --local-protocol https`, recipe in the file header and writing-tests §7), no Clerk; `e2e:auth-pages` is UI246's sibling; not in the gate
