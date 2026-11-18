@@ -69,6 +69,7 @@ describe('migrations manifest (D5)', () => {
       '0022_unattached_identities.sql',
       '0023_forms.sql',
       '0024_form_channel.sql',
+      '0025_capture_defaults.sql',
     ])
   })
   it('catches one edited byte', () => {

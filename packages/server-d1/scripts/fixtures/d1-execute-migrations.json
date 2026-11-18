@@ -72,6 +72,9 @@
       },
       {
         "name": "0024_form_channel.sql"
+      },
+      {
+        "name": "0025_capture_defaults.sql"
       }
     ],
     "success": true,

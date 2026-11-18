@@ -214,9 +214,7 @@ describe('authority (D6, P3)', () => {
     // another member's connection
     expect(refusal(await patch(theirs.id as string, body))).toEqual([403, 'not_connection_owner'])
     for (const c of [mine, theirs, gone, theirsGone])
-      expect((await e.rows('channel_connections')).find((r) => r.id === c.id)?.contact_creation).toBe(
-        'sent_and_received',
-      )
+      expect((await e.rows('channel_connections')).find((r) => r.id === c.id)?.contact_creation).toBe('sent')
     expect(await updatedEvents()).toEqual([])
   })
 
@@ -259,7 +257,7 @@ describe('authority (D6, P3)', () => {
     const res = await patch(c.id as string, { contact_creation: 'none', capture_labels: ['INBOX'] })
     expect(refusal(res)).toEqual([404, 'not_found'])
     const row = (await e.rows('channel_connections')).find((r) => r.id === c.id)
-    expect(row?.contact_creation).toBe('sent_and_received')
+    expect(row?.contact_creation).toBe('sent')
     expect(await e.rows('connection_capture_labels')).toHaveLength(2)
     expect(await updatedEvents()).toEqual([])
   })
@@ -272,7 +270,7 @@ describe('authority (D6, P3)', () => {
     const res = await patch(c.id as string, { contact_creation: 'none', capture_labels: ['INBOX'] })
     expect(refusal(res)).toEqual([403, 'not_connection_owner'])
     const row = (await e.rows('channel_connections')).find((r) => r.id === c.id)
-    expect(row?.contact_creation).toBe('sent_and_received')
+    expect(row?.contact_creation).toBe('sent')
     expect(await e.rows('connection_capture_labels')).toHaveLength(2)
     expect(await updatedEvents()).toEqual([])
   })
