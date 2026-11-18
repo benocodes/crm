@@ -44,7 +44,7 @@ test.beforeAll(async ({ browser, request }) => {
   await sp.getByLabel('Email').fill('owner@e2e.test')
   await sp.getByLabel('Password').fill(PASSWORD)
   await sp.getByRole('button', { name: 'Create account' }).click()
-  await sp.waitForURL('**/connect')
+  await sp.waitForURL('**/home')
   const token = await sp.evaluate(async () => ((await (await fetch('/auth/token')).json()) as { token: string }).token)
   await setup.close()
   const owner = as(request, token)

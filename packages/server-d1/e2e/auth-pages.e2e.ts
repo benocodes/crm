@@ -135,8 +135,8 @@ test('3. the invited address signs up (case-insensitive) and lands on the signed
   await page.getByLabel('Email').fill('Owner@E2E.test')
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Create account' }).click()
-  // A finished sign-up lands on /connect (the default target since #375), where the person is signed in; /sign-in then shows the signed-in view.
-  await page.waitForURL('**/connect')
+  // A finished sign-up lands on /home (UI461 D3), where the person is signed in; /sign-in then shows the signed-in view.
+  await page.waitForURL('**/home')
   await visit('/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
   await axeBoth(page, 'sign-in-signed-in')
@@ -222,8 +222,8 @@ test('6. a wrong password is the one message; the right one signs in', async () 
     await page.waitForTimeout(11_000)
     await attempt(PASSWORD)
   }
-  // With no return_to a finished sign-in continues to /connect (#375); /sign-in then shows the signed-in view.
-  await page.waitForURL('**/connect')
+  // With no return_to a finished sign-in continues to /home (UI461 D3); /sign-in then shows the signed-in view.
+  await page.waitForURL('**/home')
   await visit('/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
 })
@@ -356,12 +356,12 @@ test('10. [UI460] signed out: / redirects to /home, the sign-in card has no side
   await page.getByRole('button', { name: 'Sign in' }).click()
   await page.waitForURL('**/sign-in?**')
   expect(new URL(page.url()).searchParams.get('return_to')).toBe('/home')
-  // P2's accepted interim gap: /sign-in ignores return_to=/home until UI461, so a finished sign-in lands on /connect.
+  // UI461 D3: the allow-list names the app pages, so a finished sign-in returns to /home.
   await page.waitForTimeout(11_000) // Better Auth's 10 s sign-in window
   await page.getByLabel('Email').fill('owner@e2e.test')
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.waitForURL('**/connect')
+  await page.waitForURL('**/home')
 })
 
 test('11. [UI460] signed in: the shell with Home current, Welcome to your CRM and Who you are, the title, the headers, no CSP violation, axe clean in both themes, one row of entries at 375 px', async ({
@@ -397,6 +397,40 @@ test('11. [UI460] signed in: the shell with Home current, Welcome to your CRM an
   await axeBoth(page, 'app-home-375')
   await page.setViewportSize({ width: 1280, height: 720 })
   void request
+})
+
+test('11b. [UI461] Home on the fresh instance: Get started above Who you are, Connect an agent with the login command, the MCP URL and the API-key line; Check again keeps the prompt and sends only GETs; axe clean in both themes, no horizontal scroll at 375 px', async () => {
+  await visit('/home')
+  const started = page.getByRole('region', { name: 'Get started' })
+  await expect(started).toBeVisible()
+  const who = page.getByRole('region', { name: 'Who you are' })
+  const [a, b] = [await started.boundingBox(), await who.boundingBox()]
+  expect(a!.y, 'Get started is above Who you are').toBeLessThan(b!.y)
+  const prompt = page.getByRole('region', { name: 'Connect an agent' })
+  await expect(prompt).toContainText('vibase login --server http://localhost:8787')
+  const blocks = await prompt.locator('pre code').allTextContents()
+  // discovery advertises mcp only when the adapter does: if it does, the URL is the Worker's /mcp.
+  if (blocks.some((t) => t.includes('/mcp'))) expect(blocks).toContain('http://localhost:8787/mcp')
+  expect(blocks.some((t) => t.includes('vibase login --api-key'))).toBe(true)
+  await axeBoth(page, 'app-home-first-steps')
+  const methods: string[] = []
+  const onRequest = (r: { method(): string }) => methods.push(r.method())
+  page.on('request', onRequest)
+  await prompt.getByRole('button', { name: 'Check again' }).click()
+  await page.waitForResponse((r) => r.url().includes('/meta/v1/agents'))
+  page.off('request', onRequest)
+  await expect(prompt).toBeVisible()
+  expect(methods.length).toBeGreaterThan(0)
+  expect(
+    methods.every((m) => m === 'GET'),
+    `only GET requests: ${methods.join(',')}`,
+  ).toBe(true)
+  await page.setViewportSize({ width: 375, height: 800 })
+  await visit('/home')
+  await expect(prompt).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await axeBoth(page, 'app-home-first-steps-375')
+  await page.setViewportSize({ width: 1280, height: 720 })
 })
 
 test('12. [UI460] Sign out from the shell shows the sign-in card, and reloading /home stays signed out', async () => {

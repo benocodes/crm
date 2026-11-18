@@ -124,8 +124,8 @@ test('0. the invited person signs up (the shared session), then signs out', asyn
   await page.getByLabel('Email').fill('owner@e2e.test')
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Create account' }).click()
-  // A finished sign-up lands on /connect (the default target since #375); /sign-in then shows the signed-in view.
-  await page.waitForURL('**/connect')
+  // A finished sign-up lands on /home (UI461 D3); /sign-in then shows the signed-in view.
+  await page.waitForURL('**/home')
   await visit('/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
   await signOutHere()
@@ -429,6 +429,14 @@ test('6. /connect signed in: the person and the delegated agent agents.list retu
   for (const a of delegated)
     await expect(page.locator('[data-section="agents"]').getByText(a.name, { exact: true }).first()).toBeVisible()
   await axeBoth('connect-signed-in')
+})
+
+// [[UI461]] D10: leg 2 left a delegated agent, so Home has no Connect an agent prompt and no Get started section.
+test('6b. /home with a delegated agent: no Get started and no Connect an agent prompt', async () => {
+  await page.goto('/home')
+  await expect(page.getByRole('region', { name: 'Who you are' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Get started' })).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Connect an agent' })).toHaveCount(0)
 })
 
 test('7. /connect: Sign out shows the signed-out view; get-session answers null', async () => {
