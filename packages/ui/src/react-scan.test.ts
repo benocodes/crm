@@ -39,11 +39,7 @@ describe('React source scan', () => {
   })
 
   it.each([
-    [
-      'lucide-react/dynamic (a subpath is allowed, a lookalike is not)',
-      "import x from 'lucide-react-native'",
-      'lucide-react-native',
-    ],
+    ['a lookalike of lucide-react (lucide-react-native)', "import x from 'lucide-react-native'", 'lucide-react-native'],
     ['a scoped radix package', "import { Slot } from '@radix-ui/react-slot'", '@radix-ui/react-slot'],
     ['a prefix lookalike of an allowed package', "import x from 'clsx-extra'", 'clsx-extra'],
     ['an @/ alias import', "import { cn } from '@/lib/utils'", '@/lib/utils'],

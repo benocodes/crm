@@ -1,7 +1,8 @@
 // The SettingsRow composite ([[UI443]] D11): a label with an optional description beside a value or a control. Inside a read-only
 // `SettingsSection` the rows form a `<dl>` (a `<div>` of `<dt>`/`<dd>`, valid HTML); elsewhere the label names the control (`htmlFor`).
 import type { ReactNode } from 'react'
-import { createContext, useContext, useId } from 'react'
+import { createContext, useContext } from 'react'
+import { Label } from './ui/label'
 
 /** Set by `SettingsSection`: true when its rows are a read-only definition list. */
 export const ReadOnlyRowsContext = createContext(false)
@@ -18,7 +19,6 @@ export interface SettingsRowProps {
 
 export function SettingsRow({ label, description, htmlFor, children }: SettingsRowProps) {
   const readOnly = useContext(ReadOnlyRowsContext)
-  const descId = useId()
   if (readOnly) {
     return (
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-6">
@@ -33,18 +33,8 @@ export function SettingsRow({ label, description, htmlFor, children }: SettingsR
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
       <div className="flex flex-col gap-1">
-        {htmlFor ? (
-          <label htmlFor={htmlFor} className="text-sm font-medium">
-            {label}
-          </label>
-        ) : (
-          <span className="text-sm font-medium">{label}</span>
-        )}
-        {description ? (
-          <p id={descId} className="text-xs text-muted-foreground">
-            {description}
-          </p>
-        ) : null}
+        {htmlFor ? <Label htmlFor={htmlFor}>{label}</Label> : <span className="text-sm font-medium">{label}</span>}
+        {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
       </div>
       <div className="text-sm">{children}</div>
     </div>
