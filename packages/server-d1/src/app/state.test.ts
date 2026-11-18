@@ -99,13 +99,48 @@ describe('the states by input (D4)', () => {
   })
 
   it.each([
-    ['a 403', bad(403)],
-    ['a 200 with no active organisation', ok(ME({ active_organization: null }))],
-    ['a 200 for an agent principal (no user)', ok(ME({ user: null, principal: { id: 'a1', kind: 'agent' } }))],
-  ])('%s: no-access', async (_n, answer) => {
+    ['a 403', bad(403), undefined],
+    ['a 200 with no active organisation', ok(ME({ active_organization: null })), 'Ann'],
+    [
+      'a 200 for an agent principal (no user)',
+      ok(ME({ user: null, principal: { id: 'a1', kind: 'agent' } })),
+      undefined,
+    ],
+  ])('%s: no-access, with who only when a person is known', async (_n, answer, who) => {
     const c = make(seam(), api(answer))
     await c.start()
     expect(c.state().kind).toBe('no-access')
+    expect((c.state() as { who?: string }).who).toBe(who)
+  })
+
+  it('no-access for a person with no name shows their email as who', async () => {
+    const c = make(
+      seam(),
+      api(
+        ok(
+          ME({ active_organization: null, user: { id: 'u1', email: 'ann@x.test', name: null, email_verified: true } }),
+        ),
+      ),
+    )
+    await c.start()
+    expect(c.state()).toMatchObject({ kind: 'no-access', who: 'ann@x.test' })
+  })
+
+  it('a refused sign-out from no-access keeps the card with an error that clears on the next attempt', async () => {
+    const signOut = vi.fn().mockRejectedValueOnce(new Error('refused')).mockResolvedValueOnce(undefined)
+    const c = make(seam({ signOut }), api(ok(ME({ active_organization: null }))))
+    await c.start()
+    await c.signOut()
+    expect(c.state()).toMatchObject({
+      kind: 'no-access',
+      who: 'Ann',
+      signOutError: expect.stringMatching(/sign.?out/i),
+    })
+    const during: unknown[] = []
+    c.subscribe(() => during.push((c.state() as { signOutError?: string }).signOutError))
+    await c.signOut()
+    expect(during[0]).toBeUndefined()
+    expect(c.state().kind).toBe('signed-out')
   })
 
   it.each([

@@ -117,6 +117,19 @@ describe('the states without a shell (D4)', () => {
     expect(h.onSignOut).toHaveBeenCalledTimes(1)
   })
 
+  it('no-access with who: the card shows the signed-in person, and a refused sign-out error', async () => {
+    show({
+      kind: 'no-access',
+      who: 'ann@x.test',
+      signOutError: 'Sign-out did not complete. Reload the page and try again.',
+    })
+    noShell()
+    expect(screen.getByText(/ann@x\.test/)).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toContain('Sign-out did not complete')
+    const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } })
+    expect(r.violations.map((v) => v.id)).toEqual([])
+  })
+
   it('error: the message and a Retry button that calls the handler, no shell', async () => {
     const h = show({ kind: 'error', message: 'The workspace could not be read (500).' })
     noShell()

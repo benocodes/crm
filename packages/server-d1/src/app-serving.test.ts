@@ -69,7 +69,7 @@ beforeEach(async () => {
   await w.d1.prepare('drop table if exists d1_migrations').run()
   await createMigrationTracker(w.d1) // the database is behind: every gate would answer 503 if the app route came after it
 })
-const isApp = (at: string) => /^(GET|HEAD|POST) \/(home|app\/)/.test(at) || /^(GET|HEAD) \/ \(302\)/.test(at)
+const isApp = (at: string) => /^(GET|HEAD|POST) \/(home|app)/.test(at) || /^(GET|HEAD) \/ \(302\)/.test(at)
 // D5: every app answer (page, asset, 404, 405, 302) carries the policy, nosniff and the referrer policy; HTML is no-store.
 afterEach(() => {
   for (const { at, res, issuer } of seen) {
@@ -136,7 +136,7 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
     }
   })
 
-  it.each(['/app/', '/app/index.html', '/home/', '/home/x'])(
+  it.each(['/app', '/app/', '/app/index.html', '/home/', '/home/x'])(
     "%s is the Worker's 404 not_found, and the binding is not asked for the page",
     async (path) => {
       const res = await send(make(), path)
@@ -146,8 +146,8 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
     },
   )
 
-  it('POST /home is 405 with Allow: GET, HEAD', async () => {
-    const res = await send(make(), '/home', 'POST')
+  it.each(['/home', '/app'])('POST %s is 405 with Allow: GET, HEAD', async (path) => {
+    const res = await send(make(), path, 'POST')
     expect(res.status).toBe(405)
     expect(res.headers.get('allow')).toBe('GET, HEAD')
     expect(assetCalls).toEqual([])
