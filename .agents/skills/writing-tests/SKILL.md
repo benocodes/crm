@@ -104,6 +104,13 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   (and their absence mutations) at the adapter on hand-signed Ed25519 tokens (`packages/api/src/auth/better-auth.test.ts`)
   and kept the composed workerd test for real tokens of each kind. A charter asking for such a mutation "in workerd"
   is asking for the impossible: ask for it at the unit, and for real-producer tokens at the composition.
+- **A premise about a pinned library is proven green-first, with a control case as its teeth.** Library code cannot be
+  mutated, so a test of what the library does (Better Auth's consent `scope` narrows the grant and re-prompts) is
+  green on its first run by design. Pair each assertion with a control that takes the other branch through the same
+  harness (consent without `scope`: the full set granted, the second authorize skips `/consent`), so the assertion
+  cannot pass for the wrong reason; say "green on first run, control is the discriminator" in `RESULT.md`. Prove such
+  a premise in a cycle before any page code depends on it ([[UI449]] cycle 1, group 3 of
+  `packages/server-d1/src/oauth-default-scope-workerd.test.ts`).
 - **A fake external provider sits at the network edge, never in shipped configuration** ([[CORE294]], [[UI246]] D9).
   In workerd, Miniflare's outbound service (`startWorkerd({ outbound })` in `packages/auth/src/test/harness.ts`)
   answers every subrequest, so the test also proves nothing else was called; the default throws. In Node, Better
@@ -740,6 +747,10 @@ only an empty `div` (the [[UI256]] E2E found the stray text; `packages/server-d1
   auth pages disable transitions on their wrapper (`[&_*]:transition-none!`, pinned in `scripts/build-ui.test.ts`); a
   page that keeps transitions waits for them to finish before axe or a screenshot. It is not a missing dark token:
   check the computed colour before and after a pause before editing the theme.
+- **Radix's Switch (and Checkbox) inside a `<form>` render a hidden bubble `<input aria-hidden>`** with an inline
+  `style` set through CSSOM: `PAGE_CSP` and axe pass, but a keyboard check that counts focusable `input`s counts it
+  though Tab skips it. Exclude `[aria-hidden="true"]` from Tab-stop selectors (`packages/ui/e2e/gallery-react.e2e.ts`,
+  [[UI449]] 449.22). Component suites that run axe in happy-dom need `axe-core` as a `@vibase/ui` devDependency.
 - **Page suites on real React** live in the root `page-ui` project (`packages/server-d1/src/ui/**/*.ui.test.tsx`,
   no Preact alias, [[UI446]] D3); a sentinel (`src/ui/react-runtime.ui.test.tsx`) turns red if the project ever
   gets the alias back.
