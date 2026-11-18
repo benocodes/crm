@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Alert, Button, Card, Field, FormLayout } from '@vibase/ui'
+import { Alert, Button, Card, Field, FormLayout } from '@vibase/ui/components'
 import { signIn, signUp } from './auth-api.js'
 import { takeFragmentToken } from './fragment.js'
 import { GoogleButton, useGoogleEnabled } from './google-button.js'
@@ -89,15 +89,18 @@ export function InvitePage({ navigate = goTo }: PageProps) {
     <FormLayout title="Accept your invitation" onSubmit={onSubmit} error={googleError}>
       {google ? (
         <>
-          <div className="vb-providers">
+          <div className="flex flex-col gap-2">
             <GoogleButton invitationToken={token} onError={setGoogleError} navigate={navigate} />
           </div>
-          <div className="vb-divider" aria-hidden="true">
+          <div
+            className="flex items-center gap-3 text-sm text-muted-foreground before:flex-1 before:border-t after:flex-1 after:border-t"
+            aria-hidden="true"
+          >
             OR
           </div>
         </>
       ) : null}
-      <h2 className="vb-card__subtitle">{signingIn ? 'Sign in' : 'Create a new account'}</h2>
+      <h2 className="text-base font-semibold">{signingIn ? 'Sign in' : 'Create a new account'}</h2>
       {signingIn ? null : (
         <Field
           label="Name"
@@ -134,7 +137,11 @@ export function InvitePage({ navigate = goTo }: PageProps) {
       <Button type="submit" block busy={busy}>
         {signingIn ? 'Sign in' : 'Create account'}
       </Button>
-      <button type="button" className="vb-link" onClick={() => switchMode(signingIn ? 'sign-up' : 'sign-in')}>
+      <button
+        type="button"
+        className="self-start text-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        onClick={() => switchMode(signingIn ? 'sign-up' : 'sign-in')}
+      >
         {signingIn ? 'Create an account instead' : 'Already have an account? Sign in to accept'}
       </button>
     </FormLayout>

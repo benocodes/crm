@@ -218,21 +218,21 @@ beforeEach(async () => {
 afterEach(() => vi.stubGlobal('fetch', realFetch))
 
 describe('configuration (D7)', () => {
-  const E = (o: Record<string, string | undefined>) => o
+  const env = (o: Record<string, string | undefined>) => o
   it.each([
     [
       'the AUTH pair',
-      E({ AUTH_GOOGLE_CLIENT_ID: 'a-id', AUTH_GOOGLE_CLIENT_SECRET: 'a-secret' }),
+      env({ AUTH_GOOGLE_CLIENT_ID: 'a-id', AUTH_GOOGLE_CLIENT_SECRET: 'a-secret' }),
       { clientId: 'a-id', clientSecret: 'a-secret' },
     ],
     [
       'the Gmail pair',
-      E({ GOOGLE_CLIENT_ID: 'g-id', GOOGLE_CLIENT_SECRET: 'g-secret' }),
+      env({ GOOGLE_CLIENT_ID: 'g-id', GOOGLE_CLIENT_SECRET: 'g-secret' }),
       { clientId: 'g-id', clientSecret: 'g-secret' },
     ],
     [
       'both pairs: the AUTH pair wins',
-      E({
+      env({
         AUTH_GOOGLE_CLIENT_ID: 'a-id',
         AUTH_GOOGLE_CLIENT_SECRET: 'a-secret',
         GOOGLE_CLIENT_ID: 'g-id',
@@ -240,11 +240,11 @@ describe('configuration (D7)', () => {
       }),
       { clientId: 'a-id', clientSecret: 'a-secret' },
     ],
-    ['half of the Gmail pair: off', E({ GOOGLE_CLIENT_ID: 'g-id' }), undefined],
-    ['the other half of the Gmail pair: off', E({ GOOGLE_CLIENT_SECRET: 'g-secret' }), undefined],
+    ['half of the Gmail pair: off', env({ GOOGLE_CLIENT_ID: 'g-id' }), undefined],
+    ['the other half of the Gmail pair: off', env({ GOOGLE_CLIENT_SECRET: 'g-secret' }), undefined],
     [
       'half of the AUTH pair beside a complete Gmail pair is still an error (below); a blank AUTH pair is unset',
-      E({
+      env({
         AUTH_GOOGLE_CLIENT_ID: ' ',
         AUTH_GOOGLE_CLIENT_SECRET: '',
         GOOGLE_CLIENT_ID: 'g-id',
@@ -252,7 +252,7 @@ describe('configuration (D7)', () => {
       }),
       { clientId: 'g-id', clientSecret: 'g-secret' },
     ],
-    ['no variable at all: off', E({}), undefined],
+    ['no variable at all: off', env({}), undefined],
   ])('%s', (_n, env, want) => {
     expect(resolveGoogleSignIn(env)).toEqual(want)
   })

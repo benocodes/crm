@@ -45,10 +45,20 @@ const stripComments = (text: string): string =>
 
 const isPreact = (s: string) => s === 'preact' || s.startsWith('preact/') || s.startsWith('@preact/')
 const isReactDom = (s: string) => s === 'react-dom' || s.startsWith('react-dom/')
-const allowed = (s: string) =>
-  s.startsWith('./') || s.startsWith('../') || IMPORT_ALLOW_LIST.some((a) => s === a || s.startsWith(`${a}/`)) // `react/jsx-runtime` is react
+const allowed = (s: string, extra: readonly string[]) =>
+  s.startsWith('./') ||
+  s.startsWith('../') ||
+  [...IMPORT_ALLOW_LIST, ...extra].some((a) => s === a || s.startsWith(`${a}/`)) // `react/jsx-runtime` is react
 
-export function checkReactSources(dirs: readonly string[]): ReactScanViolation[] {
+export interface ReactScanOptions {
+  /** Specifiers a tree may import beyond `IMPORT_ALLOW_LIST` (UI446 D2: the auth pages add `@vibase/ui/components`); exact or a subpath. */
+  allow?: readonly string[]
+}
+
+export function checkReactSources(
+  dirs: readonly string[],
+  { allow = [] }: ReactScanOptions = {},
+): ReactScanViolation[] {
   const out: ReactScanViolation[] = []
   for (const root of dirs) {
     for (const file of sources(root)) {
@@ -60,7 +70,7 @@ export function checkReactSources(dirs: readonly string[]): ReactScanViolation[]
         if (isPreact(s)) out.push({ file: rel, rule: 'preact', match: s })
         else if (isReactDom(s)) {
           if (!MOUNT_FILE.test(rel)) out.push({ file: rel, rule: 'react-dom outside a mount file', match: s })
-        } else if (!allowed(s)) out.push({ file: rel, rule: 'import outside the allow-list', match: s })
+        } else if (!allowed(s, allow)) out.push({ file: rel, rule: 'import outside the allow-list', match: s })
       }
       for (const { rule, pattern } of SPELLINGS) {
         for (const m of text.matchAll(pattern)) out.push({ file: rel, rule, match: m[0] })

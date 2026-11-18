@@ -1259,9 +1259,14 @@ message bodies or addresses at info level (customer communications are personal 
   prefix are one exported constant (`UI_RUN_WORKER_FIRST`) that the Worker serves from and that the `wrangler.jsonc`
   test, `release:check` and `smoke:worker` read; never a copied list. A provider-specific page is gated in the
   composition before `/auth` and every other gate (`404 not_found` on any other provider), and its directory's
-  `index.html` is reachable only through the page paths (`/ui/` itself is `404`). A Preact bundle is a separate
-  esbuild entry (`scripts/build-ui.ts`) whose metafile test proves no `react`, with a Worker-bundle check that holds
-  no `preact` and no page module.
+  `index.html` is reachable only through the page paths (`/ui/` itself is `404`). The pages are a separate React
+  esbuild entry (`scripts/build-ui.ts`, [[UI446]]) whose metafile test proves `react`, `react-dom` and
+  `@vibase/ui/components` and no `preact` or Preact-layer module, with a Worker-bundle check that holds no `preact`,
+  no `react` page code and no page module. `/connect` is still the Preact bundle until [[UI447]].
+- **A React page mounts synchronously** (`src/ui/main.tsx`): `flushSync(() => root.render(...))`. React 19's
+  `root.render` is scheduled where Preact's `render` was synchronous, so a page that reads and strips a token from the
+  URL fragment during its first render left it in the address at load (UI446 E2E, auth-pages step 7). Pinned by
+  `src/ui/main.ui.test.tsx` (red under plain `root.render`).
 - **The page's API client returns `{ status, code }` only** (`src/ui/auth-api.ts`): a server `message` never reaches
   a component, so no page can render server text. Codes map to the page's own copy, pinned by tests. Better Auth's
   OAuth and device endpoints answer `{ error, error_description }`, not `{ code, message }`: `code` falls back to

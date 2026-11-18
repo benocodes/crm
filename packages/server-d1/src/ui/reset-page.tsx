@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Alert, Button, Card, Field, FormLayout } from '@vibase/ui'
+import { Alert, Button, Card, Field, FormLayout } from '@vibase/ui/components'
 import { resetPassword } from './auth-api.js'
 import { takeFragmentToken } from './fragment.js'
 import { MESSAGES, genericFailure } from './messages.js'

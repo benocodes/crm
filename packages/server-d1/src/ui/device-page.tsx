@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, CodeInput, FormLayout, ScopeList, normaliseCode } from '@vibase/ui'
+import { Alert, Button, Card, CodeInput, FormLayout, ScopeList, normaliseCode } from '@vibase/ui/components'
 import {
   approveDevice,
   claimDeviceCode,
@@ -40,6 +40,7 @@ type Outcome = 'approved' | 'denied' | undefined
  */
 export function DevicePage({ navigate = goTo }: PageProps) {
   const [session, setSession] = useState<SessionUser | null | undefined>(undefined)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once on mount; the session is read once
   useEffect(() => {
     let live = true
     void getSession().then((r) => {
@@ -107,6 +108,7 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
     return undefined
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once on mount (the `autoClaimed` ref guards a second claim)
   useEffect(() => {
     if (autoClaimed.current || !isCompleteDeviceCode(code)) return
     autoClaimed.current = true
@@ -122,7 +124,7 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
     else fail(failureMessage(r, true))
   }
 
-  const useAnother = async () => {
+  const signInAsAnother = async () => {
     setBusy('out')
     const r = await signOut()
     setBusy(undefined)
@@ -146,7 +148,7 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
   const account = (
     <div>
       <p>{`Signed in as ${user.email}`}</p>
-      <Button variant="secondary" busy={busy === 'out'} onClick={useAnother}>
+      <Button variant="secondary" busy={busy === 'out'} onClick={signInAsAnother}>
         {MESSAGES.useAnotherAccount}
       </Button>
     </div>

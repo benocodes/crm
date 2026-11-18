@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Alert, Button, Card, Field, FormLayout } from '@vibase/ui'
+import { Alert, Button, Card, Field, FormLayout } from '@vibase/ui/components'
 import { getSession, signIn, signOut, type SessionUser } from './auth-api.js'
 import { MESSAGES, genericFailure } from './messages.js'
 import { crossOriginTarget, returnTarget } from './continuation.js'
@@ -19,6 +19,7 @@ export function SignInPage({ navigate = goTo }: PageProps) {
   const [session, setSession] = useState<SessionUser | null | undefined>(undefined)
   const oauthQuery = new URLSearchParams(location.search).has('sig') ? location.search.slice(1) : undefined
   const target = oauthQuery === undefined ? returnTarget(location.search) : null
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once on mount; the address and session are read once
   useEffect(() => {
     // An OAuth flow sent the person here to sign in (even `prompt=login` with a live session): the form, without reading the session.
     if (oauthQuery !== undefined) {
@@ -70,7 +71,10 @@ function SignedIn({ user, target, onSignedOut }: { user: SessionUser; target: st
     >
       {error ? <Alert variant="error">{error}</Alert> : null}
       <p>{`Signed in as ${user.email}`}</p>
-      <a className="vb-link" href={target}>
+      <a
+        className="self-start text-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        href={target}
+      >
         Continue
       </a>
     </Card>

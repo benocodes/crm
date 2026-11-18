@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Alert, Button, Card, Field, FormLayout } from '@vibase/ui'
+import { Alert, Button, Card, Field, FormLayout } from '@vibase/ui/components'
 import { getSelfServiceReset, requestPasswordReset } from './auth-api.js'
 import { MESSAGES, genericFailure } from './messages.js'
 import { emailError } from './page.js'

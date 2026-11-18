@@ -164,7 +164,10 @@ a path in `git diff --name-only main...`, test-only and `scripts/` files include
 `packages/webhook-receiver-example/scripts/`, typechecked only `api`, and lost a gate round to a TS2339), and `pnpm lint`
 (about a second; Biome's a11y rules fire only there: UI381 lost a gate round to `useSemanticElements` refusing
 `div role="region"`, which wants `<section aria-label>`; a scrollable region keeps `tabIndex={0}` under a scoped
-`biome-ignore` of `noNoninteractiveTabindex` with the reason); report the gate
+`biome-ignore` of `noNoninteractiveTabindex` with the reason. Biome turns its React rules on per package once `react`
+is in that package's `package.json`, so adding the dependency can surface errors in files the cycle never touched:
+UI446's 15 errors, first misreported as baseline. An error is baseline only if the same command on a `main`
+checkout shows it, never a run that already holds the branch's files); report the gate
 as "not run: gate-tester". The orchestrator then spawns the gate-tester, which runs `scripts/gate.sh` and writes
 `GATE.md`; you are woken only if it is red, and that round is free (it does not count toward the reviewer-round
 cap). Outside a sprint, run the gate yourself, as below. Never report a test as passing without having run it.

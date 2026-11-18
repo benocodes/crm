@@ -734,6 +734,15 @@ only an empty `div` (the [[UI256]] E2E found the stray text; `packages/server-d1
   (`E2E_GALLERY_MUTATION`) is its seen-failing proof.
 - **Tailwind's `outline-none` removes the focus ring** that `focus-visible:ring-*` alone does not replace in every
   element; the gallery's Tab-and-screenshot check caught it. Assert a visible ring per focusable element.
+- **`page.emulateMedia({ colorScheme })` flips the scheme at once; a CSS transition does not.** shadcn's `Button`
+  has `transition-colors`, so for 150 ms after the flip it still shows light colours on a dark card, and an axe
+  contrast check or a screenshot taken immediately fails (UI446 E2E run 1, auth-pages and oauth-pages step 3). The
+  auth pages disable transitions on their wrapper (`[&_*]:transition-none!`, pinned in `scripts/build-ui.test.ts`); a
+  page that keeps transitions waits for them to finish before axe or a screenshot. It is not a missing dark token:
+  check the computed colour before and after a pause before editing the theme.
+- **Page suites on real React** live in the root `page-ui` project (`packages/server-d1/src/ui/**/*.ui.test.tsx`,
+  no Preact alias, [[UI446]] D3); a sentinel (`src/ui/react-runtime.ui.test.tsx`) turns red if the project ever
+  gets the alias back.
 - **esbuild defaults `process.env.NODE_ENV` to `"production"` under `minify`**, so an absence mutation of the
   helper's define shows nothing on a minified build. Build unminified in that test to give it teeth
   (`packages/ui/scripts/react-build.test.ts`).
