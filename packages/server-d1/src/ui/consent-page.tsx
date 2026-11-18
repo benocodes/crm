@@ -38,6 +38,7 @@ export function ConsentPage({ navigate = goTo }: PageProps) {
   const alertRef = useRef<HTMLDivElement>(null)
   const toSignIn = () => navigate(`/sign-in?${oauthQuery}`)
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once on mount; the page reads its address and session once
   useEffect(() => {
     if (!signed) return
     let live = true
@@ -71,7 +72,7 @@ export function ConsentPage({ navigate = goTo }: PageProps) {
     if (r.status === 401) return toSignIn()
     fail(failureMessage(r))
   }
-  const useAnother = async () => {
+  const signInAsAnother = async () => {
     setBusy('out')
     const r = await signOut()
     setBusy(undefined)
@@ -100,7 +101,7 @@ export function ConsentPage({ navigate = goTo }: PageProps) {
         </Alert>
       ) : null}
       <p>{`Signed in as ${session.email}`}</p>
-      <Button variant="secondary" busy={busy === 'out'} onClick={useAnother}>
+      <Button variant="secondary" busy={busy === 'out'} onClick={signInAsAnother}>
         {MESSAGES.useAnotherAccount}
       </Button>
       <p>

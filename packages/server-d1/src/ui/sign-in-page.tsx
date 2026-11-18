@@ -19,6 +19,7 @@ export function SignInPage({ navigate = goTo }: PageProps) {
   const [session, setSession] = useState<SessionUser | null | undefined>(undefined)
   const oauthQuery = new URLSearchParams(location.search).has('sig') ? location.search.slice(1) : undefined
   const target = oauthQuery === undefined ? returnTarget(location.search) : null
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once on mount; the address and session are read once
   useEffect(() => {
     // An OAuth flow sent the person here to sign in (even `prompt=login` with a live session): the form, without reading the session.
     if (oauthQuery !== undefined) {
