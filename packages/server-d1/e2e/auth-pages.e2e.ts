@@ -480,13 +480,13 @@ test('12. [UI460] Sign out from the shell shows the sign-in card, and reloading 
   expect(await page.evaluate(async () => (await fetch('/auth/get-session')).json())).toBeNull()
 })
 
-test('13. [UI467] signed out: /accounts shows the Sign in card; Sign in goes to /sign-in?return_to=%2Faccounts and a finished sign-in lands on /accounts', async () => {
+test('13. [UI467] signed out: /accounts shows the Sign in card; Sign in goes to /sign-in?return_to=/accounts and a finished sign-in lands on /accounts', async () => {
   await visit('/accounts')
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
   await expect(page.getByRole('navigation')).toHaveCount(0)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await page.waitForURL('**/sign-in?**')
-  expect(page.url()).toContain('return_to=%2Faccounts')
+  expect(page.url()).toContain('return_to=/accounts')
   await page.waitForTimeout(11_000) // Better Auth's 10 s sign-in window
   await page.getByLabel('Email').fill('owner@e2e.test')
   await page.getByLabel('Password').fill(PASSWORD)
