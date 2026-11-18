@@ -820,6 +820,20 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   `wrong`. A wrong-token refusal cannot be shown against it; the always-fail secret (`2x0000000000000000000000000000000AA`)
   answers `invalid-input-response`. Refusals are proven with a fake verifier (`packages/api/src/forms/turnstile.test.ts`,
   `ingress.integration.d1.test.ts`; [[CHN433]] 433.11).
+- **The always-pass Turnstile site key (`1x00000000000000000000AA`) hides what a browser test would look at:** it
+  issues one constant token, and its iframe sits in a closed shadow root. Prove the render by the widget's hidden
+  `cf-turnstile-response` input, and a reset by counting `turnstile.reset(<widget id>)` calls (a wrapped
+  `window.turnstile`), never by "a new token" or the iframe. Render explicitly (`?render=explicit`) inside a
+  `<dialog>`, after `showModal()` ([[DX422]] 422.38, `knowledge/specs/016-DX422-makelinks-contact-form/harness/run.mjs`).
+- **Chromium adds `pragma` and `cache-control` headers to a request Playwright routes**, so a "no
+  custom headers" assertion allows exactly those two beyond the browser's standard set ([[DX422]]).
+- **On macOS Chromium a real Ctrl+click opens the context menu and Alt+click downloads**, so neither reaches a page's
+  click handler. Prove modifier-click handling with dispatched `MouseEvent`s (each of `ctrlKey`, `metaKey`,
+  `shiftKey`, `altKey`, and `button: 1`), asserting `defaultPrevented` and the page's state, plus real Meta and
+  Shift clicks ([[DX422]] 422.35).
+- **A shell harness sets its cleanup `trap` right after `mktemp`**, before any step that can fail, so a file it
+  copies into the worktree (a script that needs workspace imports, copied under `packages/<pkg>/scripts/`) or its
+  temp dir never outlives a failed run ([[DX422]] review).
 
 ### Scripts
 
