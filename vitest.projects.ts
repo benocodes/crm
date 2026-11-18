@@ -12,7 +12,7 @@ import './vitest.tmpdir.ts'
 // `.tsx` too (UI254 D4): page tests render with the shipping runtime.
 const TESTS = '**/{src,scripts}/**/*.test.{ts,tsx}'
 // `@vibase/ui`'s component suites (`*.ui.test.tsx`) run once per runtime in the package's own `ui-preact` / `ui-react` projects (UI254 D3a,
-// packages/ui/vitest.config.ts) and expect the runtime of that project, so the shared projects never collect them.
+// packages/ui/vitest.config.ts; `src/components` suites run in `ui-components`, React only, UI448) and expect the runtime of that project, so the shared projects never collect them.
 const UI_SUITES = '**/*.ui.test.tsx'
 // Not workspace tests: vendored sources, other worktrees (`.claude/worktrees/*`) and the knowledge repo. The root run starts at the repo root, so the globs reach them.
 const EXCLUDE = [...configDefaults.exclude, '**/dist/**', '**/vendor/**', '**/.claude/**', '**/knowledge/**']

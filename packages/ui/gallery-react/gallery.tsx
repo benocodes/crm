@@ -60,6 +60,7 @@ function Codes() {
       <CodeInput label="Code (empty)" value={empty} onChange={setEmpty} />
       <CodeInput label="Code (filled)" value={filled} onChange={setFilled} />
       <CodeInput label="Code (error)" value={bad} onChange={setBad} error="That code is not recognised." />
+      <CodeInput label="Code (disabled)" value="ABCD-EFGH" onChange={() => {}} disabled />
     </Section>
   )
 }

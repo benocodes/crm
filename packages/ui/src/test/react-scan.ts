@@ -1,6 +1,6 @@
 // The scan of the React layer ([[UI445]] D6 (a), D9): non-test sources under `src/components`, `src/lib` and the page code (the React gallery)
 // may import only `react`, relative files and the allow-list below, never `preact`; `react-dom` only in a mount file; and never a `style` prop,
-// a `<style>` element or `dangerouslySetInnerHTML`..
+// a `<style>` element or `dangerouslySetInnerHTML`.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
