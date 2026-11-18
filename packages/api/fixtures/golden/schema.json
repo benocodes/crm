@@ -5673,7 +5673,7 @@
                     "primary_key": false,
                     "default": null,
                     "label": "Channel",
-                    "description": "The channel it happened on (email today).",
+                    "description": "The channel it happened on: email or form.",
                     "values": ["email", "form"],
                     "exposed": true,
                     "references": null
@@ -6476,7 +6476,7 @@
                     "primary_key": false,
                     "default": null,
                     "label": "Channel",
-                    "description": "The channel the message arrived on (email today).",
+                    "description": "The channel the message arrived on: email or form.",
                     "values": ["email", "form"],
                     "exposed": true,
                     "references": null
@@ -8178,7 +8178,7 @@
                     "primary_key": false,
                     "default": null,
                     "label": "Channel",
-                    "description": "Where the conversation happens (email today).",
+                    "description": "Where the conversation happens: email or form.",
                     "values": ["email", "form"],
                     "exposed": true,
                     "references": null

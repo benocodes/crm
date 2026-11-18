@@ -4,8 +4,7 @@ import { formIngressRead, type FormIngress } from './ingress-read.js'
 import { formSubmitter, type FormAnswer } from './map-submission.js'
 import { captureFormSubmission, formSubmitterBlocked, type FormSubmissionContext } from './submission.js'
 
-// [[CHN429]]: the public form ingress ([[CHN421]] D2-D7) as a function of a Request and injected ports. Dormant: no non-test module calls it until
-// [[CHN432]]'s Worker routes `/f/*` (P6, 429.7). D1 only, like the ingress read it uses.
+// [[CHN429]]: the public form ingress ([[CHN421]] D2-D7) as a function of a Request and injected ports. The D1 Worker routes `/f/*` to it ([[CHN432]]). D1 only, like the ingress read it uses.
 
 /** D6, P1 (429.2): the verifier's answer. `hostname` is what siteverify returned; the handler compares it with the origin's host. */
 export type TurnstileVerdict =
@@ -57,7 +56,25 @@ const TOKEN_FIELD = 'cf-turnstile-response'
 const HONEYPOT_FIELD = '_vb_hp'
 const CONSENT_FIELD = '_vb_consent'
 const ANONYMOUS_FIELD = '_vb_anonymous_id'
-const isReserved = (name: string): boolean => name === TOKEN_FIELD || name.startsWith('_vb_')
+/** The reserved prefix: any `_vb_` name is consumed by the ingress (D3). */
+export const RESERVED_PREFIX = '_vb_'
+/** D3: the reserved field names the ingress reads; the docs page ([[CHN432]] D20) is checked against this list. */
+export const RESERVED_FIELDS: readonly string[] = [TOKEN_FIELD, HONEYPOT_FIELD, CONSENT_FIELD, ANONYMOUS_FIELD]
+/** The answers of the route (the spec's "The route" block): `status` and error `code` (`received` for the 202 body); the docs page is checked against this list and the handler's `ApiError`s against both. */
+export const INGRESS_ANSWERS: ReadonlyArray<{ status: number; code: string }> = [
+  { status: 202, code: 'received' },
+  { status: 400, code: 'validation_error' },
+  { status: 403, code: 'origin_not_allowed' },
+  { status: 403, code: 'challenge_failed' },
+  { status: 404, code: 'not_found' },
+  { status: 405, code: 'method_not_allowed' },
+  { status: 413, code: 'payload_too_large' },
+  { status: 415, code: 'unsupported_media_type' },
+  { status: 429, code: 'rate_limited' },
+  { status: 503, code: 'challenge_unavailable' },
+  { status: 503, code: 'temporarily_unavailable' },
+]
+const isReserved = (name: string): boolean => name === TOKEN_FIELD || name.startsWith(RESERVED_PREFIX)
 
 type Raw = string | string[]
 

@@ -603,6 +603,17 @@ understated length cannot be built directly; wrap the request in a `Proxy` whose
 `ReadableStream` body (`duplex: 'half'`). Both prove a cap enforced while reading, not only from the header
 (`packages/api/src/forms/ingress.integration.d1.test.ts`, [[CHN429]]).
 
+**A value another module queries is asserted through that module's read, not by selecting the column just
+written.** [[CHN428]]'s tests checked the tag links' stored `a_type = 'contact'`, `b_type = 'tag'` and passed, while
+every association read matches table names (`contacts`, `tags`); only [[CHN432]]'s E2E (`contacts?tag_id=` empty)
+caught it. When a write produces an association type, status, channel or key that a read path filters on, at least
+one test reads it back through the public surface (`GET /contacts?tag_id=…`). A row-level assertion may stay beside it,
+but it pins the literal, it does not prove the contract (`packages/api/src/forms/submission.integration.d1.test.ts`).
+
+**`startWorkerd`'s `extra` options are a shallow spread** (`packages/auth/src/test/harness.ts`, [[CHN432]]): a key given
+there (`bindings`, `d1Databases`) replaces the harness's own instead of merging with it. Pass keys the harness does not
+set (`ratelimits`, `r2Buckets`), or repeat its values in full.
+
 **The test pool behaves like production: nothing is preset.** The predecessor's test pool presets
 `app.organization_id` and `service_role` globally, so a query that skips its tenancy wrapper passes every
 test and reads or writes zero rows in production. The vault's pool (`createTestDb()` from `@vibase/db/test`)
@@ -790,6 +801,11 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   builds its own `/auth` handler; when it omitted `defaultScopes`, the default scope list silently fell back to the ceiling
   and its tests proved the wrong configuration ([[CORE330]]). When you add a field to the auth config in `compose.ts`, add
   it to every test entry in the same commit.
+- **A local E2E script owns its state.** It keeps every D1 file in a `mkdtempSync` directory removed at the end:
+  `--persist-to <dir>` on both `d1 migrations apply` calls and on `wrangler dev`, `persist.path` for an in-process
+  `getPlatformProxy` (bootstrap, owner-only setup), and the Worker's variables from a script-owned `--env-file`. It never
+  reads, deletes or rewrites `packages/server-d1/.wrangler/state` or `.dev.vars`: they are the developer's dev database
+  and secrets ([[CHN432]] review, `packages/server-d1/scripts/e2e-forms.ts`).
 - **Local setup:** `wrangler d1 migrations apply DB --local` and `... apply CONTROL_DB --local` before `bootstrap` (it writes the control marker, CORE259); in `.dev.vars` write the
   `CLERK_JWT_KEY` PEM on one line with `\n` escapes. Delete every DCR client the run creates through BAPI by
   its application id (`DELETE /v1/oauth_applications/oa_…`), not its client id.
@@ -806,6 +822,7 @@ pnpm -C packages/server-d1 e2e:oauth-pages         # Better Auth /device and /co
 pnpm -C packages/server-d1 e2e:auth-pages-reset      # self-service reset by email on /sign-in (CORE304): its own email-on Worker from the test-only entry src/test/entry-email.ts (a recording EMAIL binding read at /__emails), over HTTPS, fresh local state (recipe in the spec file header); no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:approvals-app      # the approvals app (:8788, started by the config) signs in, approves and signs out through Better Auth against a local better-auth Worker on :8787 that the operator starts (UI388); E2E_INVITE_URL from bootstrap; recipe in e2e/approvals-app.e2e.ts; no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:auth-migration     # the hq auth migration end to end (OPS397, OPS394): the real `auth:migrate:remote` plan, apply, claim and revert through a test-only driver (e2e/auth-migration-driver.ts: local D1 pair, fixed Time Travel bookmark, `deploy` = restart the local Worker on the committed record's provider) against the Clerk dev instance (users and sessions by the Backend API, keys from `.env.dev`, E2E_DEV_ENV_FILE may name it), then a claim link opened in the browser; own temp state, removed at the end; recipe in the spec header; E2E_BROWSER_CHANNEL=chrome if Playwright's Chromium is not installed; not in the gate
+pnpm -C packages/server-d1 e2e:forms               # a website form posted to the real Worker under `wrangler dev --local` (CHN432): real Turnstile siteverify with the always-pass test secret (needs network), live `ratelimits` bindings, owner-created form in-process; own temp state and env file, removed at the end; no browser, no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:connect             # Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only); not in the gate
 pnpm -C packages/server-d1 e2e:mcp-oauth          # MCP OAuth end to end (DCR, consent, delegated agent, revocation) on the Clerk dev instance; same harness, not in the gate
 ```

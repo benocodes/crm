@@ -18,6 +18,8 @@ import {
   parseGmailConfig,
   parsePushConfig,
   renewWatches,
+  handleFormIngress,
+  siteverifyVerifier,
   discoveryResponse,
   openApiPath,
   createBetterAuthAdapter,
@@ -45,7 +47,9 @@ import {
   type MailSyncParams,
   type MailSyncRuntime,
   type MailSyncSummary,
+  type ObjectStore,
   type R2BucketLike,
+  type RateLimiter,
   type Registry,
   type StreamPrimitives,
   type TransportRegistry,
@@ -167,6 +171,11 @@ export interface D1WorkerEnv {
    * exchanges are written to `BODIES` under `_recordings/`. Absent, past, malformed or too far ahead: off (the last two logged by name). A var or a secret; never committed with a value.
    */
   GOOGLE_RECORDING_UNTIL?: string
+  /** [[CHN432]] D6: the Turnstile secret for the public form route (a Worker secret). Absent or empty: the route answers `503 challenge_unavailable` and makes no request. */
+  TURNSTILE_SECRET_KEY?: string
+  /** [[CHN432]] D7: the `ratelimits` bindings of the form route (per IP and form: 10 per 60 s; per form: 60 per 60 s). Absent: that limit is skipped. */
+  FORM_IP_LIMITER?: RateLimiter
+  FORM_LIMITER?: RateLimiter
   /** The `MailSyncWorkflow` binding ([[CHN141]] D34). Absent: `connections.sync` answers 501, connect requests no sync, the cron skips Gmail work. */
   MAIL_SYNC?: MailSyncInstances
 }
@@ -206,6 +215,16 @@ const NO_UNITS: D1Binding = {
   authProvider: '',
   authOrgId: '',
 }
+
+/** [[CHN432]]: the object store of a Worker without the `BODIES` bucket: a form submission cannot be stored, so the handler answers its `503 temporarily_unavailable`. */
+const NO_OBJECTS: ObjectStore = {
+  put: () => Promise.reject(new Error('the BODIES bucket is missing')),
+  putStream: () => Promise.reject(new Error('the BODIES bucket is missing')),
+  get: () => Promise.reject(new Error('the BODIES bucket is missing')),
+  delete: () => Promise.reject(new Error('the BODIES bucket is missing')),
+}
+/** [[CHN432]] D1 (432.2): `/f/<one non-empty segment>` is the public form route; `/f` and every deeper path are no route. */
+const FORM_ROUTE = /^\/f\/([^/]+)$/
 
 const json = (body: unknown, status: number) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -984,6 +1003,36 @@ export function composeD1Worker(
           if (refused) return refused
         }
         const ready = await ensure()
+        // [[CHN432]] D1, P1: the public form route (CHN421 D1). It sits after the migration, configuration, control and marker gates and before the app and its authentication: the handler owns its answers, its CORS headers and
+        // its failures (it never throws), so nothing is added here. Any other `/f` path is no route.
+        if (ready && appBinding && (url.pathname === '/f' || url.pathname.startsWith('/f/'))) {
+          const form = FORM_ROUTE.exec(url.pathname)
+          if (!form) return json(NO_SUCH_ROUTE, 404)
+          // P2 (432.3): the connecting IP is `CF-Connecting-IP`, absent when missing or empty; no other header is trusted for it.
+          const ip = req.headers.get('cf-connecting-ip')
+          return await handleFormIngress(
+            {
+              ctx: {
+                binding: appBinding,
+                organizationId: appBinding.organizationId,
+                objects: env.BODIES ? r2ObjectStore(env.BODIES) : NO_OBJECTS,
+                streams: deps.streams ?? workerdStreams(),
+                clock,
+                newId,
+                randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
+              },
+              turnstile: siteverifyVerifier({
+                secret: typeof env.TURNSTILE_SECRET_KEY === 'string' ? env.TURNSTILE_SECRET_KEY : undefined,
+                ...(deps.fetch ? { fetch: deps.fetch } : {}),
+              }),
+              ipLimiter: env.FORM_IP_LIMITER,
+              formLimiter: env.FORM_LIMITER,
+              log: (message, err) => console.error(`[d1-worker] ${message}`, err instanceof Error ? err.name : 'error'),
+            },
+            req,
+            { publicId: form[1]!, ip: ip === null || ip === '' ? undefined : ip },
+          )
+        }
         // D78: the connect callback records under its own request id, so it gets an app whose Gmail `fetch` is a recorder of this one request (only while recording is on).
         // D92: so does a connection's delete (its `users.stop` is a Google call), under its own request id.
         const ownRun =

@@ -86,6 +86,8 @@ export async function startWorkerd(o: {
   paired?: boolean
   /** The outbound service ([[CORE294]] D9): what answers every request the Worker makes to the network (a fake Google). Default: any outbound request throws. */
   outbound?: (req: Request) => Response | Promise<Response>
+  /** More Miniflare options ([[CHN432]]): `ratelimits`, `r2Buckets`. Spread over the harness's own options: a key given here replaces the harness's (`bindings`, `d1Databases`, ...), it does not merge with it. */
+  extra?: Partial<MiniflareOptions>
 }): Promise<Workerd> {
   const logs: string[] = []
   const capture = (stream: NodeJS.ReadableStream) =>
@@ -113,7 +115,7 @@ export async function startWorkerd(o: {
         throw new Error('the auth tests make no outbound request')
       }),
   }
-  const mf = new Miniflare(options)
+  const mf = new Miniflare({ ...options, ...(o.extra as object) } as MiniflareOptions)
   try {
     await mf.ready
     const d1 = (await mf.getD1Database('DB')) as unknown as D1Like

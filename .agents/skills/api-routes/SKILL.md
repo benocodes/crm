@@ -760,7 +760,10 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
 - **Associations** ([[CORE62]], `src/associations/`): a polymorphic edge `(a_type, a_id) ↔ (b_type, b_id)` stored once in
   canonical order. A table joins the graph with `associable: true` on its definition (load-time checks: an `id` column, a
   lowercase-identifier table name); the associable set and each type's read scope (`scopeResource`) come from the registry, and
-  **a table name reaches SQL only from a definition, never from input**. `cascadeDelete` soft-deletes an associable parent's live
+  **a table name reaches SQL only from a definition, never from input**. The types are the **table names**
+  (`contacts`, `tags`), and a side-path writer that links records (capture, a form submission) takes them from the
+  definition too, never a hand-written literal: [[CHN428]] wrote `'contact'`/`'tag'`, no read matched, and nothing
+  refused it (fixed in [[CHN432]], `packages/api/src/forms/submission.ts`). `cascadeDelete` soft-deletes an associable parent's live
   edges on either side automatically (`touches(table, id)` in `src/identity/cascades.ts`), so a new associable resource with a
   delete needs no extra code there, only a cascade test; `contacts.merge` re-points edges and lists `associations` in
   `CONTACT_NON_FK_REFERENCES`. Associations are custom operations over a prepared definition, not generic CRUD.

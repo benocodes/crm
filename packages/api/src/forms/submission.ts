@@ -160,8 +160,8 @@ function formUnitProgram(
       boundIds(qc, form.tag_ids)
       const links = sql`
         select "associations"."b_id" as "tag_id" from "identities"
-        join "associations" on "associations"."organization_id" = "identities"."organization_id" and "associations"."a_type" = 'contact'
-          and "associations"."a_id" = "identities"."contact_id" and "associations"."b_type" = 'tag' and "associations"."relation" = 'related_to'
+        join "associations" on "associations"."organization_id" = "identities"."organization_id" and "associations"."a_type" = 'contacts'
+          and "associations"."a_id" = "identities"."contact_id" and "associations"."b_type" = 'tags' and "associations"."relation" = 'related_to'
           and "associations"."deleted_at" is null and ${memberOf(qc, 'associations', 'b_id', form.tag_ids)}
         where "identities"."organization_id" = ${org} and "identities"."kind" = ${submitter.kind} and "identities"."value" = ${submitter.value}
           and "identities"."deleted_at" is null`.compile(qc.db)
@@ -218,19 +218,19 @@ function formUnitProgram(
       if (toLink.length > 0) {
         const set = jsonRows(qc, 'r', { id: 'uuid', tag_id: 'uuid' }, toLink)
         const R = (c: string) => sql.ref(`r.${c}`)
-        // The contact is whichever the identity holds at commit (a new contact exists only inside this unit). `contact` sorts before `tag`, so the
+        // The contact is whichever the identity holds at commit (a new contact exists only inside this unit). `contacts` sorts before `tags`, so the
         // contact is the `a` end ([[CORE62]] D2, canonical order by type). Skips a link that exists live or a tag no longer live; `exactly` then drifts.
         steps.push(
           ...exactly(
             qc,
             step(
               sql`insert into "associations" ("id", "created_at", "updated_at", "organization_id", "created_by", "a_type", "a_id", "b_type", "b_id", "relation")
-                select ${R('id')}, ${bind(qc, 'timestamp', at)}, ${bind(qc, 'timestamp', at)}, ${bind(qc, 'uuid', org)}, ${bind(qc, 'uuid', actor)}, 'contact', "i"."contact_id", 'tag', ${R('tag_id')}, 'related_to'
+                select ${R('id')}, ${bind(qc, 'timestamp', at)}, ${bind(qc, 'timestamp', at)}, ${bind(qc, 'uuid', org)}, ${bind(qc, 'uuid', actor)}, 'contacts', "i"."contact_id", 'tags', ${R('tag_id')}, 'related_to'
                 from ${set}
                 join "identities" as "i" on "i"."organization_id" = ${org} and "i"."kind" = ${submitter.kind} and "i"."value" = ${submitter.value}
                   and "i"."deleted_at" is null and "i"."contact_id" is not null
-                where not exists (select 1 from "associations" as "a" where "a"."organization_id" = ${org} and "a"."a_type" = 'contact' and "a"."a_id" = "i"."contact_id"
-                    and "a"."b_type" = 'tag' and "a"."b_id" = ${R('tag_id')} and "a"."relation" = 'related_to' and "a"."deleted_at" is null)
+                where not exists (select 1 from "associations" as "a" where "a"."organization_id" = ${org} and "a"."a_type" = 'contacts' and "a"."a_id" = "i"."contact_id"
+                    and "a"."b_type" = 'tags' and "a"."b_id" = ${R('tag_id')} and "a"."relation" = 'related_to' and "a"."deleted_at" is null)
                   and exists (select 1 from "tags" where "tags"."id" = ${R('tag_id')} and "tags"."organization_id" = ${org} and "tags"."deleted_at" is null)
                 order by ${R('ord')}`.compile(qc.db),
             ),

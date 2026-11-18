@@ -189,7 +189,7 @@ export const CATALOG: Catalog = {
       label: 'Threads',
       description: 'A conversation: the messages that belong together, on one channel.',
       columns: {
-        channel: 'Where the conversation happens (email today).',
+        channel: 'Where the conversation happens: email or form.',
         subject: 'The conversation subject, if the channel has one.',
       },
     },
@@ -199,7 +199,7 @@ export const CATALOG: Catalog = {
         'One captured message (or reaction) in a thread. The body is not in the database: content_key points at stored content.',
       columns: {
         thread_id: 'The thread the message belongs to.',
-        channel: 'The channel the message arrived on (email today).',
+        channel: 'The channel the message arrived on: email or form.',
         kind: 'message or reaction.',
         external_id: "The channel's own id for the message (for email, the Message-ID header).",
         in_reply_to: 'The external id of the message this one replies to, if any.',
@@ -218,7 +218,7 @@ export const CATALOG: Catalog = {
         'Something that happened between the organisation and others, on a timeline. Today each interaction is a message or reaction.',
       columns: {
         kind: 'message or reaction.',
-        channel: 'The channel it happened on (email today).',
+        channel: 'The channel it happened on: email or form.',
         direction: "inbound or outbound, from the organisation's point of view.",
         occurred_at: 'When it happened.',
         thread_id: 'The thread of the underlying message.',

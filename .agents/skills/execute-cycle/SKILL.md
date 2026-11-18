@@ -137,7 +137,8 @@ node scripts/decisions.mjs add --issue <the cycle's issue> --by coder --stage co
 
 then list it in `RESULT.md` (with the `ref` the command printed) and your report. `add` has no duplicate guard: if
 you are unsure whether an `add` landed, run `find <issue>` before adding again ([[CHN407]] 407.21 and 407.23 are
-one decision recorded twice). The script finds the knowledge
+one decision recorded twice; [[CHN432]] 432.13 and 432.16 repeated it, so this is a pattern, not a slip). Read
+`find <issue>` once before writing RESULT.md's decision list, and check each row appears once. The script finds the knowledge
 repo from any worktree; an earlier cycle's rows are `node scripts/decisions.mjs find <issue or spec ID>`.
 **A decision that adds a branch needs a test that takes each side of it**, with an
 absence mutation per side: a recorded but untested decision is a review round ([[CHN149]] D-b: records

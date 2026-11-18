@@ -19,6 +19,7 @@
     "e2e:mcp-oauth": "playwright test --config playwright.config.ts mcp-oauth.e2e.ts",
     "e2e:action-requests": "playwright test --config playwright.config.ts action-requests.e2e.ts",
     "e2e:rail": "tsx scripts/e2e-rail.ts",
+    "e2e:forms": "tsx scripts/e2e-forms.ts",
     "e2e:gmail-send": "tsx scripts/e2e-gmail-send.ts",
     "e2e:webhook-example": "tsx scripts/e2e-webhook-example.ts",
     "test": "VITEST_MAX_WORKERS=${VITEST_MAX_WORKERS:-4} vitest run --config ../../vitest.config.ts",

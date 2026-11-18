@@ -5,6 +5,8 @@ import { openD1Engine, SEED_AT, type Engine } from '../test/engines.js'
 import { recordingObjectStore, type RecordingStore } from '../test/objects.js'
 import { nodeStreams } from '../test/streams.js'
 import { ApiError } from '../errors.js'
+import { createApp } from '../rest/app.js'
+import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
 import type { FormIngress } from './ingress-read.js'
 import { formSubmitter, type FormAnswer, type FormSubmissionInput } from './map-submission.js'
 import { captureFormSubmission, formSubmitterBlocked, type FormSubmissionContext } from './submission.js'
@@ -285,8 +287,8 @@ describe('the contact is added to, never changed (D14, P3)', () => {
     await submit(form, [f('email', 'jane@acme.test'), f('name', 'Jane')])
     const links = await e.rows('associations')
     expect(links.map((r) => [r.a_type, r.a_id, r.b_type, r.b_id, r.relation, r.created_by, r.deleted_at])).toEqual([
-      ['contact', contact.id, 'tag', t1, 'related_to', form.form_id, null],
-      ['contact', contact.id, 'tag', t2, 'related_to', form.form_id, null],
+      ['contacts', contact.id, 'tags', t1, 'related_to', form.form_id, null],
+      ['contacts', contact.id, 'tags', t2, 'related_to', form.form_id, null],
     ])
     expect(await eventTypes()).toEqual([
       'thread.created',
@@ -300,21 +302,45 @@ describe('the contact is added to, never changed (D14, P3)', () => {
     expect(created.map((r) => r.resource_id)).toEqual(links.map((r) => r.id))
   })
 
+  it("a linked tag is visible through the REST read: the contact list's tag_id filter finds it (the association types are table names, [[CHN432]] E2E finding)", async () => {
+    const t1 = await tag()
+    const other = await tag()
+    const form = await seedForm({ tag_ids: [t1] })
+    const { contact } = await seedContact()
+    await submit(form, [f('email', 'jane@acme.test')])
+    const app = createApp({ storage: () => e.binding, userAuthenticator: fakeUserAuthenticator() })
+    const token = mintTestUserToken({
+      userId: form.form_id,
+      organizationId: e.organizationId,
+      scopes: ['contacts:read', 'tags:read', 'associations:read'],
+    })
+    const ids = async (tagId: string) =>
+      (
+        (await (
+          await app.request(`/api/v1/contacts?tag_id=${tagId}`, { headers: { authorization: `Bearer ${token}` } })
+        ).json()) as {
+          data: Array<{ id: string }>
+        }
+      ).data.map((r) => r.id)
+    expect(await ids(t1)).toEqual([contact.id])
+    expect(await ids(other)).toEqual([])
+  })
+
   it('an existing live link is left alone (no event); a soft-deleted one is linked afresh', async () => {
     const [t1, t2] = [await tag(), await tag()].sort()
     const form = await seedForm({ tag_ids: [t1!, t2!] })
     const { contact } = await seedContact({ name: 'Existing' })
     await e.insert('associations', {
-      a_type: 'contact',
+      a_type: 'contacts',
       a_id: contact.id,
-      b_type: 'tag',
+      b_type: 'tags',
       b_id: t1,
       relation: 'related_to',
     })
     await e.insert('associations', {
-      a_type: 'contact',
+      a_type: 'contacts',
       a_id: contact.id,
-      b_type: 'tag',
+      b_type: 'tags',
       b_id: t2,
       relation: 'related_to',
       deleted_at: SEED_AT,
