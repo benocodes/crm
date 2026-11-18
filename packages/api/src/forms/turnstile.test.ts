@@ -32,7 +32,8 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-const run = async (answer: Parameters<typeof fetcher>[0], ip?: string, secret: string | undefined = SECRET) => {
+const run = async (answer: Parameters<typeof fetcher>[0], ip?: string, ...given: [secret?: string | undefined]) => {
+  const secret = given.length > 0 ? given[0] : SECRET
   const f = fetcher(answer)
   const verdict = await siteverifyVerifier({ secret, fetch: f.fake }).verify(
     ip ? { token: TOKEN, ip } : { token: TOKEN },

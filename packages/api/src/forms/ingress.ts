@@ -4,8 +4,7 @@ import { formIngressRead, type FormIngress } from './ingress-read.js'
 import { formSubmitter, type FormAnswer } from './map-submission.js'
 import { captureFormSubmission, formSubmitterBlocked, type FormSubmissionContext } from './submission.js'
 
-// [[CHN429]]: the public form ingress ([[CHN421]] D2-D7) as a function of a Request and injected ports. Dormant: no non-test module calls it until
-// [[CHN432]]'s Worker routes `/f/*` (P6, 429.7). D1 only, like the ingress read it uses.
+// [[CHN429]]: the public form ingress ([[CHN421]] D2-D7) as a function of a Request and injected ports. The D1 Worker routes `/f/*` to it ([[CHN432]]). D1 only, like the ingress read it uses.
 
 /** D6, P1 (429.2): the verifier's answer. `hostname` is what siteverify returned; the handler compares it with the origin's host. */
 export type TurnstileVerdict =

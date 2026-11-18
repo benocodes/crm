@@ -56,6 +56,7 @@ export default defineConfig({
             { label: 'Command line', slug: 'guides/cli' },
             { label: 'MCP and REST', slug: 'guides/mcp-and-rest' },
             { label: 'Webhooks', slug: 'guides/webhooks' },
+            { label: 'Website forms', slug: 'guides/forms' },
           ],
         },
         {

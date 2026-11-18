@@ -56,7 +56,13 @@
     "AUTH_PROVIDER": "",
     "CORS_ALLOWED_ORIGINS": ""
   },
-  // vars, d1_databases, r2_buckets and routes are not inherited by an env, so each env repeats what it needs (assets is inherited).
+  // The public form route's rate limits ([[CHN432]] D7): `POST /f/<public_id>` counts a request per IP and form (10 a minute) and per form (60 a minute) before any database read. They are Worker config, not account
+  // resources. `ratelimits` is not inherited by an env, so each env states its own, with namespace ids of its own (bindings sharing an id share counters across Workers). Needs wrangler 4.36 or later.
+  "ratelimits": [
+    { "name": "FORM_IP_LIMITER", "namespace_id": "432001", "simple": { "limit": 10, "period": 60 } },
+    { "name": "FORM_LIMITER", "namespace_id": "432002", "simple": { "limit": 60, "period": 60 } }
+  ],
+  // vars, d1_databases, r2_buckets, ratelimits and routes are not inherited by an env, so each env repeats what it needs (assets is inherited).
   "env": {
     "smoked1": {
       "name": "vb-smoked1",
@@ -92,6 +98,10 @@
           "binding": "BODIES",
           "bucket_name": "vb-bodies-smoked1"
         }
+      ],
+      "ratelimits": [
+        { "name": "FORM_IP_LIMITER", "namespace_id": "432003", "simple": { "limit": 10, "period": 60 } },
+        { "name": "FORM_LIMITER", "namespace_id": "432004", "simple": { "limit": 60, "period": 60 } }
       ],
       "workflows": [
         {
@@ -142,6 +152,11 @@
           "binding": "BODIES",
           "bucket_name": "vault-hq-bodies"
         }
+      ],
+      // [[CHN432]] D7: the form route's ratelimits bindings (namespace ids of their own); they take effect only when the user deploys `hq` (a hard stop for agents).
+      "ratelimits": [
+        { "name": "FORM_IP_LIMITER", "namespace_id": "432005", "simple": { "limit": 10, "period": 60 } },
+        { "name": "FORM_LIMITER", "namespace_id": "432006", "simple": { "limit": 60, "period": 60 } }
       ],
       // The binding and the 15-minute cron ([[CHN5]] D76, D92): the supervised first backfill ran, so the cron renews watches and serves missed pushes. It takes
       // effect only when the user deploys (a hard stop for agents).

@@ -14,7 +14,9 @@ const DUMMY_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX'
 const TEST_SECRET = '1x0000000000000000000000000000000AA'
 const SEEDED_AT = '2026-11-18T09:00:00.000Z'
 
-const config = unstable_readConfig({ config: CONFIG })
+const config = unstable_readConfig({ config: CONFIG }) as unknown as {
+  ratelimits?: Array<{ name: string; namespace_id: string; simple: { limit: number; period: number } }>
+}
 const ratelimits = Object.fromEntries(
   (config.ratelimits ?? []).map((r) => [r.name, { namespace_id: r.namespace_id, simple: r.simple }]),
 )

@@ -10,7 +10,14 @@ const PACKAGE = fileURLToPath(new URL('../package.json', import.meta.url))
 const ENVS = [undefined, 'smoked1', 'hq'] as const
 const LIMITS = { FORM_IP_LIMITER: 10, FORM_LIMITER: 60 }
 
-const read = (env?: string) => unstable_readConfig({ config: CONFIG, ...(env ? { env } : {}) })
+interface Limiter {
+  name: string
+  namespace_id: string
+  simple: { limit: number; period: number }
+}
+/** The config wrangler itself reads; its public type does not yet list `ratelimits`. */
+const read = (env?: string) =>
+  unstable_readConfig({ config: CONFIG, ...(env ? { env } : {}) }) as unknown as { ratelimits?: Limiter[] }
 
 describe.each(ENVS)('wrangler.jsonc env %s', (env) => {
   it('declares FORM_IP_LIMITER {10 per 60 s} and FORM_LIMITER {60 per 60 s}, and no other limiter', () => {

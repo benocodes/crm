@@ -1,6 +1,3 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { uuidv7, type PreparedOperation } from '@vibase/storage'
 import { memoryObjectStore } from '../objects/store.js'
@@ -493,32 +490,6 @@ describe('what reaches the capture (D3)', () => {
     const s = await seedForm()
     expect((await form(s, { ...good, _vb_anonymous_id: 'A_b.c:d-9' })).status).toBe(202)
     expect((await storedOriginal()).anonymous_id).toBe('A_b.c:d-9')
-  })
-
-  it('no non-test module calls the handler: a match on an import of it or a call of it, not a substring (428.20)', () => {
-    const root = fileURLToPath(new URL('..', import.meta.url))
-    const importsIt = /from\s+['"][^'"]*\/ingress(\.js)?['"]/
-    const callsIt = /\bhandleFormIngress\s*\(/
-    const hits: string[] = []
-    const walk = (dir: string) => {
-      for (const name of readdirSync(dir)) {
-        const p = join(dir, name)
-        if (statSync(p).isDirectory()) walk(p)
-        else if (p.endsWith('.ts') && !/\.test\.ts$|\.suite\.ts$/.test(p) && !p.endsWith(join('forms', 'ingress.ts'))) {
-          const code = readFileSync(p, 'utf8')
-            .replace(/\/\*[\s\S]*?\*\//g, '')
-            .replace(/^\s*\/\/.*$/gm, '')
-          if (importsIt.test(code) || callsIt.test(code)) hits.push(p.slice(root.length))
-        }
-      }
-    }
-    walk(root)
-    expect(hits).toEqual([])
-    // the matcher itself matches what it must
-    expect(importsIt.test("import { handleFormIngress } from './forms/ingress.js'")).toBe(true)
-    expect(importsIt.test("export * from './ingress'")).toBe(true)
-    expect(importsIt.test("import { x } from './ingress-read.js'")).toBe(false)
-    expect(callsIt.test('await handleFormIngress (ports, req, x)')).toBe(true)
   })
 })
 
