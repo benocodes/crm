@@ -48,7 +48,7 @@ export const MAX_VALUE_LENGTH = 5000
 export const MAX_ARRAY_ITEMS = 20
 export const UNKNOWN_IP = 'unknown'
 
-/** The limiter keys (429.9): the pair of limits D7 names, the IP one first. */
+/** The limiter keys (429.10): the pair of limits D7 names, the IP one first. */
 export const ipLimiterKey = (ip: string | null | undefined, publicId: string): string =>
   `${ip ? ip : UNKNOWN_IP}:${publicId}`
 export const formLimiterKey = (publicId: string): string => publicId
@@ -193,7 +193,7 @@ function extract(parsed: Map<string, Raw>): Extracted {
   const fields: FormAnswer[] = []
   for (const [name, value] of parsed) if (!isReserved(name)) fields.push({ name, value })
   const hp = parsed.get(HONEYPOT_FIELD)
-  // 429.10: a value is trimmed when parsed, so whitespace alone is empty and does not trip the honeypot.
+  // 429.12: a value is trimmed when parsed, so whitespace alone is empty and does not trip the honeypot.
   const honeypot = (Array.isArray(hp) ? hp : hp === undefined ? [] : [hp]).some((v) => v !== '')
   const consent = asString(parsed.get(CONSENT_FIELD))
   const anonymous = asString(parsed.get(ANONYMOUS_FIELD))
@@ -238,7 +238,14 @@ export async function handleFormIngress(
   if (limited) return limited
 
   // 3. The form: unknown, deleted and disabled are one answer.
-  const form = await readForm(ports.ctx, publicId)
+  let form: FormIngress | null
+  try {
+    form = await readForm(ports.ctx, publicId)
+  } catch (err) {
+    // 429.14: the origin is not judged yet, so no CORS headers (P4).
+    ports.log?.('form ingress read failed', err)
+    return refusal(new ApiError(503, 'temporarily_unavailable', 'the submission could not be recorded; try again'))
+  }
   if (form === null || !form.enabled) return refusal(new ApiError(404, 'not_found', 'not found'))
 
   // 4. The origin: exact equality with a stored value (D5).

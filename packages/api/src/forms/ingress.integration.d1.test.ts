@@ -379,6 +379,25 @@ describe('formats and caps (D2)', () => {
     expect((await form(s, { ...good, note: ' '.repeat(3000) + 'v'.repeat(5000) + ' '.repeat(3000) })).status).toBe(202)
   })
 
+  it('a storage failure on the form read is 503 temporarily_unavailable, logged, with no CORS headers; the verifier is not called and nothing is written', async () => {
+    const s = await seedForm()
+    const failing = {
+      ...e.binding,
+      runtime: {
+        ...e.binding.runtime,
+        execute: (() => Promise.reject(new Error('d1 down'))) as typeof e.binding.runtime.execute,
+      },
+    } as typeof e.binding
+    const logged: string[] = []
+    const res = await form(s, good, {}, portsOf({ ctx: ctxOf({ binding: failing }), log: (m) => logged.push(m) }))
+    expect(res.status).toBe(503)
+    expect((await bodyOf(res)).error.code).toBe('temporarily_unavailable')
+    expect(res.headers.get('access-control-allow-origin')).toBeNull()
+    expect(logged).toHaveLength(1)
+    expect(verifier.calls).toEqual([])
+    await expectNothingWritten()
+  })
+
   it('a method other than POST or OPTIONS is 405, with no database query', async () => {
     const s = await seedForm()
     const res = await post(s, null, null, { method: 'GET' })
