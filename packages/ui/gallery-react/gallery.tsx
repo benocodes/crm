@@ -90,6 +90,35 @@ function SignIn() {
   )
 }
 
+function Switches() {
+  const [on, setOn] = useState(true)
+  const [off, setOff] = useState(false)
+  return (
+    <Section state="switch" title="Switch">
+      <div className="flex items-center gap-2">
+        <ui.Switch id="gallery-switch-off" checked={off} onCheckedChange={setOff} />
+        <ui.Label htmlFor="gallery-switch-off">Off</ui.Label>
+      </div>
+      <div className="flex items-center gap-2">
+        <ui.Switch id="gallery-switch-on" checked={on} onCheckedChange={setOn} />
+        <ui.Label htmlFor="gallery-switch-on">On</ui.Label>
+      </div>
+      <div className="flex items-center gap-2">
+        <ui.Switch id="gallery-switch-disabled-off" disabled />
+        <ui.Label htmlFor="gallery-switch-disabled-off">Disabled, off</ui.Label>
+      </div>
+      <div className="flex items-center gap-2">
+        <ui.Switch id="gallery-switch-disabled-on" disabled defaultChecked />
+        <ui.Label htmlFor="gallery-switch-disabled-on">Disabled, on</ui.Label>
+      </div>
+      <form className="flex items-center gap-2" onSubmit={(e) => e.preventDefault()}>
+        <ui.Switch id="gallery-switch-form" name="read" />
+        <ui.Label htmlFor="gallery-switch-form">Inside a form</ui.Label>
+      </form>
+    </Section>
+  )
+}
+
 export function Gallery() {
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-8 p-6">
@@ -112,6 +141,7 @@ export function Gallery() {
           <ui.Input id="gallery-plain" placeholder="Placeholder" />
         </div>
       </Section>
+      <Switches />
       <Fields />
       <Codes />
       <Section state="alert" title="Alert">

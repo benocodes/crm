@@ -75,6 +75,7 @@ export const SCOPE_POLICY: ScopePolicy = {
 }
 
 export { SCOPE_DESCRIPTIONS } from './scope-descriptions.js'
+import { NOT_DEFAULT_GRANT } from './scope-areas.js'
 
 /** Owner: every declared scope. Member: declared scopes flagged `member`; no entry means not granted (fail closed). */
 export function scopesForRole(role: Role, declared: readonly string[], policy: ScopePolicy = SCOPE_POLICY): ScopeSet {
@@ -105,8 +106,8 @@ export function assertAgentGrantable(
   }
 }
 
-/** Scopes grantable to an agent but never part of a default grant ([[CORE261]] P2). */
-export const NOT_DEFAULT_GRANT: readonly string[] = ['audit:read']
+// One source ([[UI449]] D2): the leaf, so the consent page can embed it.
+export { NOT_DEFAULT_GRANT } from './scope-areas.js'
 
 /** What a dynamically registered client or a default agent holds when nothing narrower is asked: the grantable scopes minus `NOT_DEFAULT_GRANT`. */
 export function defaultGrantScopes(declared: readonly string[], policy: ScopePolicy = SCOPE_POLICY): string[] {

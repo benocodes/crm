@@ -16,7 +16,17 @@ const MODES = [
   { name: 'light-emulated', url: '/', colorScheme: 'light' as const },
 ]
 
-const SECTIONS = ['buttons', 'input-label', 'field', 'code-input', 'alert', 'card', 'scope-list', 'form-layout']
+const SECTIONS = [
+  'buttons',
+  'input-label',
+  'switch',
+  'field',
+  'code-input',
+  'alert',
+  'card',
+  'scope-list',
+  'form-layout',
+]
 
 /** Collects CSP violations (browser event and console errors) for the whole page life; the page's own listener is installed before any script. */
 async function watchCsp(page: Page) {
@@ -51,6 +61,14 @@ for (const mode of MODES) {
       expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'the theme applied').toBe(
         dark ? 'rgb(10, 10, 10)' : 'rgb(255, 255, 255)',
       )
+      const switchBg = (name: string) =>
+        page
+          .locator('[data-gallery-state="switch"]')
+          .getByRole('switch', { name, exact: true })
+          .evaluate((el) => getComputedStyle(el).backgroundColor)
+      expect(await switchBg('On'), 'an on Switch looks different from an off one in this mode').not.toBe(
+        await switchBg('Off'),
+      )
       const results = await new AxeBuilder({ page }).analyze()
       expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
       expect(await csp()).toEqual([])
@@ -62,8 +80,11 @@ test('Tab reaches every focusable element, each with a visible focus ring (outli
   const csp = await watchCsp(page)
   await page.goto('/?theme=light')
   await expect(page.locator('[data-gallery-state]').first()).toBeVisible()
+  // Radix's Switch renders a hidden `aria-hidden` bubble input inside a form: it is no Tab stop.
   const expected = await page.evaluate(
-    () => document.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]').length,
+    () =>
+      document.querySelectorAll('button:not(:disabled), input:not(:disabled):not([aria-hidden="true"]), [tabindex="0"]')
+        .length,
   )
   expect(expected).toBeGreaterThan(12)
   const seen = new Set<string>()
@@ -89,6 +110,42 @@ test('Tab reaches every focusable element, each with a visible focus ring (outli
   }
   expect(seen.size).toBe(expected)
   expect(await page.locator('[data-focus-seen]').count(), 'each Tab stop was a different element').toBe(expected)
+  expect(await csp()).toEqual([])
+})
+
+test('the Switch: Tab reaches it, a click turns it on (visibly), a disabled one does not change', async ({ page }) => {
+  const csp = await watchCsp(page)
+  await page.goto('/?theme=light')
+  const section = page.locator('[data-gallery-state="switch"]')
+  const off = section.getByRole('switch', { name: 'Off', exact: true })
+  const on = section.getByRole('switch', { name: 'On', exact: true })
+  const disabledOff = section.getByRole('switch', { name: 'Disabled, off' })
+  const disabledOn = section.getByRole('switch', { name: 'Disabled, on' })
+  await expect(section.getByRole('switch')).toHaveCount(5)
+  const bg = (l: typeof off) => l.evaluate((el) => getComputedStyle(el).backgroundColor)
+  const offBg = await bg(off)
+  expect(await bg(on), 'the on state is visibly distinct from off').not.toBe(offBg)
+  // Tab until the Off switch has focus, then check its ring.
+  for (let i = 0; i < 40 && !(await off.evaluate((el) => el === document.activeElement)); i++)
+    await page.keyboard.press('Tab')
+  expect(await off.evaluate((el) => el === document.activeElement)).toBe(true)
+  const ring = await off.evaluate((el) => {
+    const s = getComputedStyle(el)
+    return { style: s.outlineStyle, width: parseFloat(s.outlineWidth), shadow: s.boxShadow }
+  })
+  expect(ring.style).not.toBe('none')
+  expect(ring.width).toBeGreaterThanOrEqual(2)
+  expect(ring.shadow).not.toBe('none')
+  await page.keyboard.press('Space')
+  await expect(off).toHaveAttribute('aria-checked', 'true')
+  await expect
+    .poll(async () => bg(off), { message: 'the clicked switch takes the on styling (after its transition)' })
+    .toBe(await bg(on))
+  await disabledOff.click({ force: true })
+  await disabledOn.click({ force: true })
+  await expect(disabledOff).toHaveAttribute('aria-checked', 'false')
+  await expect(disabledOn).toHaveAttribute('aria-checked', 'true')
+  await page.screenshot({ path: join(SHOTS, 'switch.png') })
   expect(await csp()).toEqual([])
 })
 

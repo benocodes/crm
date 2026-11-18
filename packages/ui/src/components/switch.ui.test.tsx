@@ -1,13 +1,19 @@
 // [[UI449]] cycle 1 group 3 (D7): the Switch behaves as a switch: role, state, keyboard, disabled, accessible name, axe, no inline style.
 import axe from 'axe-core'
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, userEvent } from '#render'
 import { Label } from './ui/label'
 import { Switch } from './ui/switch'
 
-function Labelled(props: { checked?: boolean; disabled?: boolean; onCheckedChange?: (v: boolean) => void; label?: boolean }) {
+function Labelled(props: {
+  checked?: boolean
+  disabled?: boolean
+  onCheckedChange?: (v: boolean) => void
+  label?: boolean
+}) {
   const { label = true, ...rest } = props
   return (
     <div>
@@ -17,12 +23,14 @@ function Labelled(props: { checked?: boolean; disabled?: boolean; onCheckedChang
   )
 }
 
+function Parent() {
+  const [on, setOn] = useState(true)
+  return <Labelled checked={on} onCheckedChange={setOn} />
+}
+
 describe('Switch', () => {
   it('is role=switch with aria-checked following the state, off by default', async () => {
-    function Uncontrolled() {
-      return <Labelled />
-    }
-    render(<Uncontrolled />)
+    render(<Labelled />)
     const sw = screen.getByRole('switch', { name: 'Read' })
     expect(sw.getAttribute('aria-checked')).toBe('false')
     await userEvent.setup().click(sw)
@@ -57,10 +65,6 @@ describe('Switch', () => {
   })
 
   it('a controlled switch follows its parent', async () => {
-    function Parent() {
-      const [on, setOn] = useState(true)
-      return <Labelled checked={on} onCheckedChange={setOn} />
-    }
     render(<Parent />)
     const sw = screen.getByRole('switch', { name: 'Read' })
     await userEvent.setup().click(sw)
@@ -137,7 +141,7 @@ describe('Switch', () => {
   })
 
   it('the source has no style prop and no <style> element (UI445 D6)', () => {
-    const src = readFileSync(new URL('./ui/switch.tsx', import.meta.url), 'utf8')
+    const src = readFileSync(join(import.meta.dirname, 'ui/switch.tsx'), 'utf8')
     expect(src).not.toMatch(/\bstyle\s*=/)
     expect(src).not.toMatch(/<style\b/)
   })
