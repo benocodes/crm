@@ -125,11 +125,13 @@ describe('D8 (2), (3), (4), (9): the server package', () => {
     expect(serverProblems(dir, s.version)).toEqual([])
     expect(() => assertServerLayout(dir, s.version)).not.toThrow()
   })
-  it('an extra root file, a client in the server, an asset outside assets/connect and a migration release.json does not list are each refused by name', () => {
+  it('an extra root file, a client in the server, an asset outside assets/ui and assets/app, a connect page (UI476) and a migration release.json does not list are each refused by name', () => {
     for (const f of [
       'notes.txt',
       'cli/vibase.js',
       'assets/other/x.js',
+      'assets/connect/index.html',
+      'assets/connect/connect.js',
       'migrations/0003_c.sql',
       'control-migrations/0003_e.sql',
       'worker/worker.js.map',

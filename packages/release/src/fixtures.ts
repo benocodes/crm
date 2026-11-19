@@ -23,14 +23,11 @@ export const BASE_SOURCE = `{
 
 export function sources(): Omit<StageInput, 'outDir'> & { root: string } {
   const root = mkdtempSync(join(tmpdir(), 'ops210-src-'))
-  mkdirSync(join(root, 'assets'), { recursive: true })
   mkdirSync(join(root, 'migrations'), { recursive: true })
   mkdirSync(join(root, 'control-migrations'), { recursive: true })
   writeFileSync(join(root, 'vibase.js'), '#!/usr/bin/env node\nconsole.log(1)\n')
   writeFileSync(join(root, 'server.js'), '#!/usr/bin/env node\nconsole.log(2)\n')
   writeFileSync(join(root, 'worker.js'), 'export default {}\n')
-  writeFileSync(join(root, 'assets', 'index.html'), '<html></html>')
-  writeFileSync(join(root, 'assets', 'connect.js'), 'x')
   // [[UI246]] D2: the auth pages' build output (`ui/` of the assets directory): index, bundle and stylesheet.
   mkdirSync(join(root, 'ui-assets'), { recursive: true })
   writeFileSync(join(root, 'ui-assets', 'index.html'), '<html></html>')
@@ -62,7 +59,6 @@ export function sources(): Omit<StageInput, 'outDir'> & { root: string } {
     cliJs: join(root, 'vibase.js'),
     serverJs: join(root, 'server.js'),
     workerEntry: join(root, 'worker.js'),
-    assetsConnectDir: join(root, 'assets'),
     assetsUiDir: join(root, 'ui-assets'),
     assetsAppDir: join(root, 'app-assets'),
     migrationsDir: join(root, 'migrations'),

@@ -42,7 +42,6 @@ import {
 } from '@vibase/api/test/clerk'
 import { bootstrapD1 } from '../src/bootstrap-d1.js'
 import { buildApp } from './build-app.js'
-import { buildConnect } from './build-connect.js'
 import { buildUi } from './build-ui.js'
 import { APP_RUN_WORKER_FIRST } from '../src/app/paths.js'
 import { UI_RUN_WORKER_FIRST } from '../src/ui-serving.js'
@@ -143,9 +142,7 @@ try {
     nodeProblems.length === 0,
     nodeProblems,
   )
-  // [[UI30]] D2, D3: a fresh build of the connect page, mounted as Workers Static Assets the way wrangler maps run_worker_first.
-  await buildConnect(assetsDir)
-  // [[UI246]] D2: and the auth pages' bundle beside it, routed to the Worker first by the same list `wrangler.jsonc` carries.
+  // [[UI246]] D2: a fresh build of the auth pages' bundle, mounted as Workers Static Assets the way wrangler maps run_worker_first, routed to the Worker first by the same list `wrangler.jsonc` carries.
   await buildUi(assetsDir)
   // [[UI460]] D6: and the workspace app's, routed by the app's own list.
   await buildApp(assetsDir)
@@ -1012,41 +1009,39 @@ try {
     { status: res.status, body },
   )
 
-  // 20-24: the connect page from workerd's real assets binding, with the headers a deploy would send ([[UI30]] D1, D2, D9)
+  // 20-24: `/connect` is a redirect to Home and nothing under it is served, with the headers a deploy would send ([[UI476]] P2; the Preact page is gone)
   const issuerOrigin = new URL(issuer.issuer).origin
-  res = await call('GET', '/connect')
-  const page = await res.text()
+  const manual = (path: string, method = 'GET') => fetch(new URL(path, base), { method, redirect: 'manual' })
+  res = await manual('/connect?x=1')
   const policy = res.headers.get('content-security-policy') ?? ''
   check(
-    '20 GET /connect -> 200 HTML from a fresh build, CSP from CLERK_ISSUER, nosniff, referrer policy, no-store',
-    res.status === 200 &&
-      (res.headers.get('content-type') ?? '').startsWith('text/html') &&
-      page.includes('/connect/connect.js') &&
+    '20 GET /connect?x=1 -> 302 to /home (the query dropped), CSP from CLERK_ISSUER, nosniff, referrer policy',
+    res.status === 302 &&
+      res.headers.get('location') === '/home' &&
       policy.includes(`script-src 'self' ${issuerOrigin} `) &&
       !/script-src[^;]*unsafe-/.test(policy) &&
       policy.includes("frame-ancestors 'none'") &&
       res.headers.get('x-content-type-options') === 'nosniff' &&
-      res.headers.get('referrer-policy') === 'strict-origin-when-cross-origin' &&
-      res.headers.get('cache-control') === 'no-store',
-    { status: res.status, policy },
+      res.headers.get('referrer-policy') === 'strict-origin-when-cross-origin',
+    { status: res.status, location: res.headers.get('location'), policy },
   )
-  res = await fetch(new URL('/connect/', base), { redirect: 'manual' })
+  res = await manual('/connect/')
   check(
-    '21 GET /connect/ -> 308 to /connect, headers present',
-    res.status === 308 &&
-      res.headers.get('location') === '/connect' &&
+    '21 GET /connect/ -> 302 to /home, headers present',
+    res.status === 302 &&
+      res.headers.get('location') === '/home' &&
       res.headers.get('x-content-type-options') === 'nosniff',
+    { status: res.status, location: res.headers.get('location') },
+  )
+  res = await manual('/connect/connect.js')
+  check(
+    '22 GET /connect/connect.js -> 404 not_found (the page is gone) with the headers',
+    res.status === 404 &&
+      (await json(res)).error?.code === 'not_found' &&
+      (res.headers.get('content-security-policy') ?? '') !== '',
     { status: res.status },
   )
-  res = await call('GET', '/connect/connect.js')
-  check(
-    '22 GET /connect/connect.js -> 200 javascript with the headers',
-    res.status === 200 &&
-      (res.headers.get('content-type') ?? '').includes('javascript') &&
-      (res.headers.get('content-security-policy') ?? '') !== '',
-    { status: res.status, type: res.headers.get('content-type') },
-  )
-  res = await call('GET', '/connect/nope')
+  res = await manual('/connect/nope')
   check(
     '23 GET /connect/nope -> 404 with the headers',
     res.status === 404 && (res.headers.get('content-security-policy') ?? '') !== '',
@@ -1054,7 +1049,7 @@ try {
   )
   res = await call('GET', '/connect.js')
   check(
-    '24 GET /connect.js (an asset name outside /connect) -> not served',
+    '24 GET /connect.js (a name outside /connect) -> not served',
     res.status !== 200 && !(res.headers.get('content-type') ?? '').includes('javascript'),
     { status: res.status },
   )

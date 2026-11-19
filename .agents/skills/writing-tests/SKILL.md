@@ -322,6 +322,15 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   `scripts/setup/clerk-keys.ts` into `cli/instance.js` (now `cli/server.js`, [[OPS240]]), its error message `neither sk_test_… nor sk_live_…`
   failed `release:build`. The prose now assembles the prefixes at run time (`sk_${'test'}_`), with a comment
   naming the scan. A cycle that adds an import to a shipped bundle runs `release:build` in its gate ([[OPS232]]).
+- **A source scan for a path literal matches the path, not the substring.** UI476's no-`/connect` scan
+  (`packages/server-d1/src/ui/no-connect-default.test.ts`) matches `/connect` as a whole segment and skips a
+  preceding `(`, `\` or host (a regex literal `/connect an agent/`, an escaped `\/connect`, `https://h/connect`);
+  it carries an explicit allow-list with a stale-entry test (each allowed file must still name the path), and the
+  absence mutations restore the old default and add a link in an app file. A host-qualified destination is then
+  outside the scan: say so in the charter if it matters.
+- **A build that stops producing an asset directory deletes it.** `dist/assets/` is gitignored and survives
+  between builds, so `wrangler dev` and a deploy would keep serving the removed page from a stale copy; UI476's
+  `pnpm build` starts with `rm -rf dist/assets/connect`, pinned in `packages/server-d1/scripts/build.test.ts`.
 - **A bundle loaded at run time is proven by running the installed artifact.** Unit tests import the
   TypeScript source, so they cannot see a broken bundle. `cli/instance.js` (now `cli/server.js`) passed every suite. It then failed when installed,
   with "Dynamic require of ./impl/format": esbuild took `jsonc-parser`'s UMD `main` into an ESM bundle. The fix is
@@ -832,7 +841,8 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   packages/*/e2e`) and runs each script that matches. The scripts are not in the gate: #375 moved the post-sign-in landing
   to `/connect`, fixed `e2e:auth-pages` only, and `e2e:oauth-pages` leg 0 stayed red until [[UI381]]'s E2E paid for it.
   A cycle that edits an existing script runs it unchanged once first, so a leg already broken on `main` is told apart from
-  its own.
+  its own; when the branch run is green on every leg there is nothing to attribute and the `main` run may be skipped
+  ([[UI476]]).
 - **A fit property ("the button is visible without scrolling") is proven in the browser at named viewports**, never by a
   CSS-rule test alone: measure the element's bounding box against the viewport at the page unscrolled (1280×720 and
   390×844 in `oauth-pages.e2e.ts`'s `foldCheck`). [[UI381]]'s CSS suite passed a fixed `10rem` scope cap that left Approve
@@ -854,7 +864,7 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   elsewhere ([[UI246]] D9), so route `accounts.google.com` with `page.route`, assert the captured navigation
   (`redirect_uri`, `scope`, no secret in any part), and prove the callback in workerd against a fake provider.
 - **Never write "Playwright" in a non-test file under `packages/server-d1/src/`**, comments included:
-  `scripts/build-connect.test.ts` scans `src/**/*.ts` (except `*.test.ts`) for `/playwright/i` and `@clerk/testing`, and a
+  `scripts/build.test.ts` scans `src/**/*.ts` (except `*.test.ts`) for `/playwright/i` and `@clerk/testing`, and a
   test-only entry under `src/test/` is scanned too. Say "browser E2E". Run that file in the affected tests when adding
   anything under `src/` for an E2E ([[CORE304]] gate round).
 - **An E2E that needs a different Worker configuration (bindings, vars, entry) is its own script** with its own

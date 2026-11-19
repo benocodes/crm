@@ -26,6 +26,10 @@ const FILES: Record<string, { type: string; body: string }> = {
   '/agents': { type: 'text/html; charset=utf-8', body: HTML },
   '/agents/': { type: 'text/html; charset=utf-8', body: HTML },
   '/': { type: 'text/html; charset=utf-8', body: HTML },
+  // The old connect page's files, deliberately still "in the binding": a Worker that sent /connect* to it (UI476) would answer 200.
+  '/connect/': { type: 'text/html; charset=utf-8', body: HTML },
+  '/connect/connect.js': { type: 'text/javascript', body: 'console.log(1)' },
+  '/connect': { type: 'text/html; charset=utf-8', body: HTML },
 }
 const assetCalls: { method: string; path: string }[] = []
 const ASSETS = {
@@ -74,7 +78,7 @@ beforeEach(async () => {
   await createMigrationTracker(w.d1) // the database is behind: every gate would answer 503 if the app route came after it
 })
 const isApp = (at: string) =>
-  /^(GET|HEAD|POST) \/(home|accounts|agents|app)/.test(at) || /^(GET|HEAD) \/ \(302\)/.test(at)
+  /^(GET|HEAD|POST) \/(home|accounts|agents|app|connect(?=[/?\s]))/.test(at) || /^(GET|HEAD) \/ \(302\)/.test(at)
 // D5: every app answer (page, asset, 404, 405, 302) carries the policy, nosniff and the referrer policy; HTML is no-store.
 afterEach(() => {
   for (const { at, res, issuer } of seen) {
@@ -217,6 +221,75 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
   })
 })
 
+// [[UI476]] P2 (476.2), group 1: /connect is a redirect to /home and nothing else under /connect/ is served; every answer carries the app's headers (the afterEach above), never asks the binding.
+describe.each(PROVIDERS)('/connect redirects to /home (UI476 P2): %s', (_name, make) => {
+  const REDIRECTS = ['/connect', '/connect/', '/connect?return=x', '/connect/?return=x']
+  const GONE = ['/connect/connect.js', '/connect/nope', '/connect/x/y']
+
+  it.each(REDIRECTS)(
+    'GET and HEAD %s are 302 Location: /home (the query dropped), the binding is not asked',
+    async (path) => {
+      const wk = make()
+      for (const method of ['GET', 'HEAD']) {
+        const res = await send(wk, path, method)
+        expect(res.status, `${method} ${path}`).toBe(302)
+        expect(res.headers.get('location'), `${method} ${path}`).toBe('/home')
+      }
+      expect(assetCalls).toEqual([])
+    },
+  )
+
+  it.each(REDIRECTS)('POST %s is 405 with Allow: GET, HEAD, with or without the binding', async (path) => {
+    for (const wk of [make(), make({ ASSETS: undefined })]) {
+      const res = await send(wk, path, 'POST')
+      expect(res.status, path).toBe(405)
+      expect(res.headers.get('allow'), path).toBe('GET, HEAD')
+    }
+    expect(assetCalls).toEqual([])
+  })
+
+  it.each(REDIRECTS)('without the binding GET and HEAD %s are 404, never a redirect', async (path) => {
+    const wk = make({ ASSETS: undefined })
+    for (const method of ['GET', 'HEAD']) {
+      const res = await send(wk, path, method)
+      expect(res.status, `${method} ${path}`).toBe(404)
+      expect(res.headers.get('location'), `${method} ${path}`).toBeNull()
+    }
+  })
+
+  it.each(GONE)("%s is the app's JSON 404 not_found for every method, with or without the binding", async (path) => {
+    for (const wk of [make(), make({ ASSETS: undefined })])
+      for (const method of ['GET', 'HEAD', 'POST']) {
+        const res = await send(wk, path, method)
+        expect(res.status, `${method} ${path}`).toBe(404)
+        expect(res.headers.get('location'), `${method} ${path}`).toBeNull()
+        if (method !== 'HEAD') expect(await res.json(), `${method} ${path}`).toEqual(NOT_FOUND)
+      }
+    expect(assetCalls).toEqual([])
+  })
+
+  it('/connectx and /connect.js are not claimed: the Worker answers them as any unknown path, never the redirect', async () => {
+    const wk = make()
+    for (const path of ['/connectx', '/connect.js']) {
+      const res = await send(wk, path)
+      expect(res.headers.get('location'), path).toBeNull()
+      expect(res.status, path).not.toBe(302)
+    }
+    expect(assetCalls).toEqual([])
+  })
+})
+
+describe('/connect redirects before the gates (UI476 P2)', () => {
+  it('with the database behind and a misconfigured provider, /connect is still 302 /home', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const wk = betterAuthWorker({ AUTH_SECRET: 'too short' })
+    expect((await send(wk, '/meta/v1/me')).status).not.toBe(302)
+    const res = await send(wk, '/connect')
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe('/home')
+  })
+})
+
 describe('before the gates (D1)', () => {
   it('a misconfigured provider still serves /home (it answers before the configuration gate)', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -279,6 +352,20 @@ describe('appCsp and the headers (D5, group 2)', () => {
     expect(res.headers.get('content-security-policy')).toContain(new URL(kit.issuer.issuer).origin)
   })
 
+  it('per provider, the composed Worker serves /home under APP_CSP (no issuer) or APP_CSP plus the issuer origin and the Clerk hosts (UI476 P3, carried from connect-csp-providers)', async () => {
+    const SELF_ONLY =
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    for (const make of [betterAuthWorker, unsetWorker]) {
+      const csp = (await send(make(), '/home')).headers.get('content-security-policy')!
+      expect(csp).toBe(SELF_ONLY)
+      expect(csp).not.toMatch(/clerk|challenges\.cloudflare\.com|\/auth|vibase\.test/)
+    }
+    const i = new URL(kit.issuer.issuer).origin
+    expect((await send(clerkWorker(), '/home')).headers.get('content-security-policy')).toBe(
+      `default-src 'self'; script-src 'self' ${i} https://challenges.cloudflare.com https://*.protect.clerk.com; style-src 'self' 'unsafe-inline'; connect-src 'self' ${i} https://*.protect.clerk.com:*; img-src 'self' https://img.clerk.com; worker-src 'self' blob:; frame-src https://challenges.cloudflare.com https://*.protect.clerk.com; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`,
+    )
+  })
+
   it('the auth pages keep PAGE_CSP, without unsafe-inline styles', async () => {
     const res = await send(betterAuthWorker(), '/sign-in')
     expect(res.headers.get('content-security-policy')).not.toContain("'unsafe-inline'")
@@ -286,7 +373,7 @@ describe('appCsp and the headers (D5, group 2)', () => {
 })
 
 describe('connectCsp is gone (P4)', () => {
-  it('no source file under src (tests aside) names the old symbol, and connect-serving imports appCsp', async () => {
+  it('no source file under src (tests aside) names the old symbol', async () => {
     const { readdirSync, readFileSync, statSync } = await import('node:fs')
     const { join } = await import('node:path')
     const dir = fileURLToPath(new URL('.', import.meta.url))
@@ -297,6 +384,5 @@ describe('connectCsp is gone (P4)', () => {
       (f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && readFileSync(f, 'utf8').includes(old),
     )
     expect(hits).toEqual([])
-    expect(readFileSync(join(dir, 'connect-serving.ts'), 'utf8')).toContain('appCsp')
   })
 })

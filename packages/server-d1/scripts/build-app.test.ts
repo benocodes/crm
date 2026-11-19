@@ -64,10 +64,9 @@ describe('buildApp', () => {
     expect(inputs.filter((i) => /(^|\/)ui\/src\/[^/]+$/.test(i))).toEqual([])
   })
 
-  it('the bundle holds no @vibase/api module and no connect-page module (the seam lives in src/app/session)', () => {
+  it('the bundle holds no @vibase/api module (the seam lives in src/app/session)', () => {
     const inputs = Object.keys(metafile.inputs)
     expect(inputs.filter((i) => /(^|\/)api\/src\//.test(i))).toEqual([])
-    expect(inputs.filter((i) => /(^|\/)src\/connect\//.test(i))).toEqual([])
     expect(inputs.some((i) => /(^|\/)src\/app\/session\/seam\.ts$/.test(i))).toBe(true)
   })
 

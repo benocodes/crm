@@ -15,20 +15,6 @@ afterEach(() => {
   delete (window as unknown as { Clerk?: unknown }).Clerk
 })
 
-describe('windowClerk', () => {
-  it('signOut asks Clerk to come back to /connect', async () => {
-    const calls: unknown[] = []
-    ;(window as unknown as { Clerk: unknown }).Clerk = {
-      load: async () => {},
-      signOut: async (o?: unknown) => void calls.push(o),
-    }
-    const c = windowClerk(AUTH, { loadScript: async () => {} })
-    await c.load()
-    await c.signOut()
-    expect(calls).toEqual([{ redirectUrl: '/connect' }])
-  })
-})
-
 describe('windowClerk sign-out return (UI460 P3)', () => {
   const fake = () => {
     const calls: unknown[] = []
@@ -45,12 +31,13 @@ describe('windowClerk sign-out return (UI460 P3)', () => {
     await c.signOut()
     expect(calls).toEqual([{ redirectUrl: 'https://w.test/home' }])
   })
-  it('with nothing given it still returns to /connect', async () => {
+  it('signOutReturn is required (UI476 P4): a seam built without it does not typecheck, and no connect default is invented', async () => {
     const calls = fake()
+    // @ts-expect-error UI476 P4: `signOutReturn` is a required dependency
     const c = windowClerk(AUTH, { loadScript: async () => {} })
     await c.load()
     await c.signOut()
-    expect(calls).toEqual([{ redirectUrl: '/connect' }])
+    expect(JSON.stringify(calls)).not.toContain('connect')
   })
   it('Sign in is redirectToSignIn with the URL it is given', async () => {
     const urls: unknown[] = []
@@ -58,7 +45,7 @@ describe('windowClerk sign-out return (UI460 P3)', () => {
       load: async () => {},
       redirectToSignIn: async (o: unknown) => void urls.push(o),
     }
-    const c = windowClerk(AUTH, { loadScript: async () => {} })
+    const c = windowClerk(AUTH, { loadScript: async () => {}, signOutReturn: 'https://w.test/home' })
     await c.load()
     await c.redirectToSignIn('https://w.test/home')
     expect(urls).toEqual([{ redirectUrl: 'https://w.test/home' }])

@@ -19,8 +19,6 @@ export interface StageInput {
   serverJs: string
   /** The built Worker entry, copied to `worker/worker.js` (the source map and README of wrangler's outdir are not shipped). */
   workerEntry: string
-  /** The built `connect/` directory, copied to `assets/connect/`. */
-  assetsConnectDir: string
   /** The built `ui/` directory of the auth pages ([[UI246]] D2): `index.html`, `app.js`, `ui.css`, copied to `assets/ui/`. */
   assetsUiDir: string
   /** The built `app/` directory of the workspace app ([[UI460]] D6): `index.html`, `app.js`, `app.css`, copied to `assets/app/`. */
@@ -81,7 +79,7 @@ export function serverPackageJson(version: string, wrangler: string): Record<str
     name: '@vibase/server-d1',
     version,
     description:
-      'A prebuilt vibase Worker for Cloudflare D1, its migrations, connect page and auth pages, and vibase-server: setup, status and upgrade of an instance.',
+      'A prebuilt vibase Worker for Cloudflare D1, its migrations, workspace app and auth pages, and vibase-server: setup, status and upgrade of an instance.',
     license: 'AGPL-3.0-only',
     type: 'module',
     bin: { 'vibase-server': 'cli/server.js' },
@@ -123,13 +121,11 @@ export function stageClient(i: StageInput): void {
   writeFileSync(join(out, 'package.json'), `${JSON.stringify(clientPackageJson(i.version), null, 2)}\n`)
 }
 
-/** `@vibase/server-d1`: the `vibase-server` program, the Worker, the connect assets, the migrations (CRM and control plane), the base config and `release.json` ([[OPS210]] D3, D4). */
+/** `@vibase/server-d1`: the `vibase-server` program, the Worker, the page assets (`ui/`, `app/`), the migrations (CRM and control plane), the base config and `release.json` ([[OPS210]] D3, D4). */
 export function stageServer(i: StageInput): ReleaseManifest {
   const out = i.outDir
   copyInto(join(out, 'cli', 'server.js'), i.serverJs)
   copyInto(join(out, 'worker', 'worker.js'), i.workerEntry)
-  for (const f of readdirSync(i.assetsConnectDir))
-    copyInto(join(out, 'assets', 'connect', f), join(i.assetsConnectDir, f))
   for (const f of readdirSync(i.assetsUiDir)) copyInto(join(out, 'assets', 'ui', f), join(i.assetsUiDir, f))
   for (const f of readdirSync(i.assetsAppDir)) copyInto(join(out, 'assets', 'app', f), join(i.assetsAppDir, f))
   for (const f of readdirSync(i.migrationsDir).filter((n) => n.endsWith('.sql')))

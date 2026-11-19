@@ -377,6 +377,11 @@ round. The first run was in range; the review rounds were layout. The charter ad
 content to a shared row or flex component states the layout at desktop and narrow width and counts it as an E2E part
 with geometric assertions (`writing-tests` §7), not as a gallery rider. A charter that adds a value to an allow-list
 names the grep for that literal in tests as a rider (`execute-cycle` §survey; `continuation.test.ts` cost the gate-fix).
+**UI476** (`knowledge/specs/026-UI476-connect-switch/RETRO.md`): 5 groups (1 matrix), 1 spec decision + 7 planner rules,
+no migration, 1 local E2E part (legs changed in an existing script), riders a page deletion (~20 files) and the release
+package. 218k / 80 calls in one run (+71 code / +357 test lines, −2,373 deleted, 52 files), approved round 1. The budget
+holds: a deletion rider costs little by itself, the matrix and its absence mutations carry the cycle. A charter that fixes
+every answer of a route (status, `Location`, headers, which gates it runs before) leaves the coder only local choices.
 
 ### Step 3: Resolve identities
 

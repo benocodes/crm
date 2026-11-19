@@ -32,7 +32,7 @@ export type ToggleOutcome =
 /** D6: also the sentence shown for `409 form_principal`. */
 export const FORM_MANAGED_LINE = 'Managed by its form: disable or delete the form to stop it.'
 
-/** D3, [[UI459]] P4: the order of `src/connect/view-model.ts`'s checks (`delegated_by` or `auth_client_id` first, then `auth_subject`), new wording. A form's agent (D6) replaces all of them. */
+/** D3, [[UI459]] P4: the order of the deleted connect page's view-model checks (`delegated_by` or `auth_client_id` first, then `auth_subject`), new wording. A form's agent (D6) replaces all of them. */
 export function connectedText(a: AgentRecord, meId: string, formName?: string): string {
   if (formName !== undefined) return `Website form ${formName}`
   if (a.delegated_by !== null)
@@ -84,7 +84,7 @@ export function sortAgents(agents: readonly AgentRecord[]): AgentRecord[] {
   )
 }
 
-/** D7: the line `/connect` shows an owner for an agent with no scopes ([[UI30]] D12). */
+/** D7: the line an owner sees for an agent with no scopes ([[UI30]] D12, kept by [[UI459]]). */
 export const grantCommand = (id: string): string =>
   `vibase agents update ${id} --scopes '["contacts:read","contacts:write"]'`
 

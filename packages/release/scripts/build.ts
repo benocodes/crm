@@ -10,7 +10,6 @@ import { fileURLToPath } from 'node:url'
 import { parse } from 'jsonc-parser'
 import { CONTROL_MIGRATIONS, MIGRATIONS } from '@vibase/storage-d1'
 import { buildCli } from '../../cli/scripts/build.js'
-import { buildConnect } from '../../server-d1/scripts/build-connect.js'
 import { buildApp } from '../../server-d1/scripts/build-app.js'
 import { buildUi } from '../../server-d1/scripts/build-ui.js'
 import { buildInstance } from '../../server-d1/scripts/instance/build.js'
@@ -49,7 +48,6 @@ export async function buildRelease(
     const serverJs = join(work, 'cli', 'server.js')
     await buildInstance({ outfile: serverJs })
     const assets = join(work, 'assets')
-    await buildConnect(assets)
     await buildUi(assets)
     await buildApp(assets)
     const migrationsDir = join(REPO, 'packages', 'storage-d1', 'migrations')
@@ -82,7 +80,6 @@ export async function buildRelease(
       cliJs,
       serverJs,
       workerEntry: join(work, 'wout', 'worker.js'),
-      assetsConnectDir: join(assets, 'connect'),
       assetsUiDir: join(assets, 'ui'),
       assetsAppDir: join(assets, 'app'),
       migrationsDir,

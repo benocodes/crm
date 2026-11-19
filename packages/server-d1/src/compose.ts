@@ -87,8 +87,7 @@ import {
 } from '@vibase/storage-d1'
 import { readDeployment } from './init-deployment.js'
 import { countCalls, countD1 } from './count-d1.js'
-import { serveApp } from './app-serving.js'
-import { serveConnect, type AssetsLike } from './connect-serving.js'
+import { serveApp, type AssetsLike } from './app-serving.js'
 import { isUiPath, serveUi } from './ui-serving.js'
 import { gmailTransport } from '@vibase/api'
 import {
@@ -165,7 +164,7 @@ export interface D1WorkerEnv {
   GMAIL_PUSH_SERVICE_ACCOUNT?: string
   /** The R2 bucket of message bodies and file bytes ([[CORE58]] P12). Absent: the two content routes answer `503 objects_unavailable`. */
   BODIES?: R2BucketLike
-  /** Workers Static Assets: the built `/connect` page ([[UI30]] D2). Absent: `/connect*` answers 404. */
+  /** Workers Static Assets: the built pages (`/home` and the app, `/ui/*`). Absent: those paths, `/` and the connect redirect answer 404. */
   ASSETS?: AssetsLike
   /**
    * The Google recorder's switch ([[CHN5]] D78, [[CHN153]]): an ISO-8601 UTC instant at most 7 days ahead. While the clock is before it, redacted Gmail and token-endpoint
@@ -943,7 +942,7 @@ export function composeD1Worker(
       try {
         const url = new URL(req.url)
         if (req.method === 'GET' && url.pathname === '/health') return await health()
-        // [[UI460]] D1, D2 ([[UI443]]): the workspace app (`/home`, `/app`, `/app/*`) and the `/` redirect exist for every provider and are static: they answer before every gate, with the policy for the provider (Clerk's hosts on Clerk).
+        // [[UI460]] D1, D2 ([[UI443]]): the workspace app (`/home`, `/app`, `/app/*`), the `/` redirect and the connect redirect ([[UI476]]) exist for every provider and are static: they answer before every gate, with the policy for the provider (Clerk's hosts on Clerk).
         const appPage = await serveApp(req, {
           assets: env.ASSETS,
           issuer: discovery.provider?.name === 'clerk' ? discovery.provider.issuer : undefined,
@@ -994,12 +993,6 @@ export function composeD1Worker(
           const res = await answer()
           return trusted === null ? res : withAuthCors(res, trusted)
         }
-        // [[UI30]] D1: the connect page is static: it answers before the migration, marker and configuration gates (its own API calls meet them).
-        const page = await serveConnect(req, {
-          assets: env.ASSETS,
-          issuer: discovery.provider?.name === 'clerk' ? discovery.provider.issuer : undefined,
-        })
-        if (page) return page
         const spec =
           req.method === 'GET' && (url.pathname === openApiPath('api') || url.pathname === openApiPath('meta'))
         // Exempt from the migration and marker gates, not from a bad configuration (CORE84).
