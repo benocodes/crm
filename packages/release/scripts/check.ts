@@ -192,8 +192,23 @@ export async function checkRelease(
     log(`vibase-server: --help ok; status refuses at ${expectedPath} (exit 2)`)
     // [[OPS234]]: `upgrade` is in the installed bundle, refuses at the same missing settings file, and the installed wrangler accepts the exact deploy argument list
     // `upgrade` builds (plus `--dry-run`, which makes no network call) against a config generated from a sample settings file; the settings' vars must survive `--var`.
-    if (!/vibase-server upgrade --env <name> \[--dry-run\] \[--rollback\]/.test(help))
-      throw new ReleaseRefusal('the installed `vibase-server --help` does not list `upgrade [--dry-run] [--rollback]`')
+    // [[OPS487]]: `redeploy` is listed beside `upgrade` (no `--rollback`: `serverHelpProblems` above judged both lines), and refuses at the same missing settings file.
+    if (
+      !/vibase-server redeploy --env <name> \[--dry-run\]/.test(help) ||
+      /upgrade --env <name> \[--dry-run\] \[--rollback\]/.test(help)
+    )
+      throw new ReleaseRefusal(
+        'the installed `vibase-server --help` does not list `redeploy [--dry-run]` and `upgrade [--dry-run]` without `--rollback`',
+      )
+    const noSettingsRedeploy = spawnSync(serverBin, ['redeploy', '--env', 'check'], {
+      cwd: install,
+      env: { ...cleanEnv(), XDG_CONFIG_HOME: emptyConfig },
+      encoding: 'utf8',
+    })
+    if (noSettingsRedeploy.status !== 2 || !noSettingsRedeploy.stderr.includes(expectedPath))
+      throw new ReleaseRefusal(
+        `the installed \`vibase-server redeploy\` did not refuse at the missing settings file (exit ${noSettingsRedeploy.status}): ${noSettingsRedeploy.stderr.trim()}`,
+      )
     const noSettingsUpgrade = spawnSync(serverBin, ['upgrade', '--env', 'check'], {
       cwd: install,
       env: { ...cleanEnv(), XDG_CONFIG_HOME: emptyConfig },
@@ -232,7 +247,7 @@ export async function checkRelease(
         `the installed \`vibase-server owner-reset\` did not refuse at the missing settings file (exit ${noSettingsReset.status}): ${noSettingsReset.stderr.trim()}`,
       )
     log(
-      'vibase-server upgrade: help lists it; refuses at the missing settings file (exit 2); the installed wrangler accepts the deploy argument list (--dry-run) with the settings vars and the VERSION and COMMIT vars',
+      'vibase-server upgrade and redeploy: help lists them; refuses at the missing settings file (exit 2); the installed wrangler accepts the deploy argument list (--dry-run) with the settings vars and the VERSION and COMMIT vars',
     )
 
     // [[OPS232]]: `setup` is in the installed bundle, refuses at the missing secrets file (an empty config home, no Cloudflare values), and the bundle carries the bootstrap

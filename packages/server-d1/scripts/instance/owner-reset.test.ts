@@ -121,7 +121,7 @@ describe('6. help and routing', () => {
     expect(
       serverHelpProblems(INSTANCE_HELP.replace('vibase-server owner-reset --env <name>', 'vibase-server owner-reset')),
     ).toEqual(['owner-reset --env <name>'])
-    expect(serverHelpProblems('')).toHaveLength(4)
+    expect(serverHelpProblems('')).toHaveLength(5)
   })
   it('runInstance routes owner-reset to the command (a missing --env is its refusal, not "unknown command")', async () => {
     const out: string[] = []

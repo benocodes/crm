@@ -2,7 +2,14 @@
 // needs no CONFIRM_REMOTE and never runs a write command.
 import { parseArgs } from 'node:util'
 import { statusOf } from '../remote.js'
-import { databasesCurrent, diffLines, pendingLines, runGate } from './gate.js'
+import {
+  databasesCurrent,
+  differentBuildLines,
+  diffLines,
+  pendingLines,
+  runGate,
+  sameVersionDifferentBuild,
+} from './gate.js'
 import { InstanceRefusal, isRefusal, type InstanceDeps } from './types.js'
 
 /** Exit codes: 0 the instance is at this release and `current`; 1 it is not (a plan or a note was printed); 2 refused. */
@@ -24,7 +31,7 @@ export async function runStatus(argv: string[], deps: InstanceDeps): Promise<num
       const rollback = argv.includes('--rollback')
       throw new InstanceRefusal(
         rollback
-          ? 'status does not accept --rollback (it belongs to upgrade)'
+          ? '--rollback was replaced by vibase-server redeploy; status does not accept it'
           : `${e instanceof Error ? e.message : 'bad arguments'}; usage: vibase-server status --env <name> [--settings <path>] [--secrets-file <path>]`,
       )
     }
@@ -50,6 +57,11 @@ export async function runStatus(argv: string[], deps: InstanceDeps): Promise<num
     for (const n of g.notes) deps.out(`note: ${n}`)
     for (const l of diffLines(g)) deps.out(l)
     const sameVersion = g.live.version === g.manifest.version
+    // [[OPS487]] D7: the same comparison `upgrade` stops on, so the two cannot disagree.
+    if (sameVersionDifferentBuild(g)) {
+      for (const l of differentBuildLines(g)) deps.out(l)
+      return EXIT_BEHIND
+    }
     if (sameVersion && databasesCurrent(g, migrations)) {
       deps.out(`plan: nothing to do, the instance is at ${g.manifest.version}`)
       return EXIT_CURRENT

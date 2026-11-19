@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import type { D1Like } from '@vibase/storage-d1'
 import { runStatus, EXIT_REFUSED } from './status.js'
 import { runSetup } from './setup.js'
-import { runUpgrade } from './upgrade.js'
+import { runRedeploy, runUpgrade } from './upgrade.js'
 import { runOwnerReset } from './owner-reset.js'
 import { InstanceRefusal, type InstanceDeps, type RunResult } from './types.js'
 
@@ -20,14 +20,18 @@ export const INSTANCE_HELP = `vibase-server: manage the Vibase instance this ser
       and prints the upgrade plan. Read-only. Exit 0: the instance is at this release and its
       migrations are current; 1: not (the plan is printed); 2: refused.
 
-  vibase-server upgrade --env <name> [--dry-run] [--rollback] [--settings <path>] [--secrets-file <path>]
-      Migrates the instance's database, deploys this package's own Worker and assets, verifies /health and
-      runs a read-only smoke. Needs CONFIRM_REMOTE=1 (not for --dry-run, which prints the plan and stops).
-      Exit 0: done, or nothing to do; 2: refused before any change; 3: failed after a change began
-      (the instance may be partly upgraded: run status, then upgrade again).
-      --rollback, run from an OLDER installed release, deploys that release's Worker and runs no migration:
-      the database stays at its newer schema. The fast path for a bad deploy is Cloudflare's own
-      \`wrangler rollback\` (previous Worker version), with the same warning: it never reverses a migration.
+  vibase-server upgrade --env <name> [--dry-run] [--settings <path>] [--secrets-file <path>]
+      Moves the instance forward to this release: migrates its databases, deploys this package's own Worker and assets, verifies /health
+      (version and commit) and runs a read-only smoke. Needs CONFIRM_REMOTE=1 (not for --dry-run, which prints the plan and stops).
+      Exit 0: done, or nothing to do; 2: refused before any change (an older or unknown schema, a newer live version, or the same version
+      with a different build: use redeploy); 3: failed after a change began (the instance may be partly upgraded: run status, then upgrade again).
+
+  vibase-server redeploy --env <name> [--dry-run] [--settings <path>] [--secrets-file <path>]
+      Puts this package's build on the instance, whatever is live: a new build of the same version, the same build again, or an older
+      package (the rollback). It asks nothing and refuses no version or schema. It applies only the migrations the instance lacks, then
+      deploys, verifies /health (version and commit) and runs the smoke. Migrations are never reversed: an older build runs on a
+      newer schema and says so in one line. Needs CONFIRM_REMOTE=1 (not for --dry-run). Exit codes as upgrade.
+      The fast path for a bad deploy is Cloudflare's own \`wrangler rollback\` (previous Worker version), with the same warning: it never reverses a migration.
 
   vibase-server setup --env <name> (--api-host <host> | --workers-dev) [--auth better-auth|clerk|none] [--owner-email <email>] [--operator-agent <name> --key-env <NAME>]
                         [--dry-run] [--only <steps>] [--settings <path>] [--secrets-file <path>] [more flags: --web-origin, --extra-origin, --org,
@@ -178,6 +182,7 @@ export async function runInstance(
   if (command === '--version') return printVersion(io, packageDir)
   if (command === 'status') return runStatus(rest, { ...realDeps(io, packageDir), ...overrides })
   if (command === 'upgrade') return runUpgrade(rest, { ...realDeps(io, packageDir), ...overrides })
+  if (command === 'redeploy') return runRedeploy(rest, { ...realDeps(io, packageDir), ...overrides })
   if (command === 'setup') return runSetup(rest, { ...realDeps(io, packageDir), ...overrides })
   if (command === 'owner-reset') return runOwnerReset(rest, { ...realDeps(io, packageDir), ...overrides })
   io.stderr(`vibase-server: unknown command "${command}"\n${INSTANCE_HELP}`)

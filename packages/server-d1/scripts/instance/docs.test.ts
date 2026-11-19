@@ -54,7 +54,7 @@ const stripEnv = (l: string) => l.replace(/^(?:[A-Z_][A-Z0-9_]*=\S+\s+)+/, '')
 const flagsOf = (words: string[]) =>
   words.filter((w) => w.startsWith('--') && w.length > 2).map((w) => w.split('=')[0]!)
 
-const SERVER_COMMANDS = ['status', 'upgrade', 'setup', 'owner-reset']
+const SERVER_COMMANDS = ['status', 'upgrade', 'redeploy', 'setup', 'owner-reset']
 const probes = new Map<string, Promise<boolean>>()
 /** Does the shipped program accept this flag for this command? Asked of its own parser: the flag alone, and only "Unknown option" counts as no. */
 function accepts(command: string, flag: string): Promise<boolean> {
@@ -211,7 +211,7 @@ describe('the docs name only what the programs have (D20, P4)', () => {
     expect(s).toMatch(/until the packages are on npm/i)
     expect(s).toMatch(/SHA256SUMS/)
     expect(s).toMatch(/^## From source$/m)
-    for (const sub of ['setup', 'status', 'upgrade'])
+    for (const sub of ['setup', 'status', 'upgrade', 'redeploy'])
       expect(s).toMatch(new RegExp(`@vibase/server-d1@<version> ${sub} `))
     for (const w of ['vibase_role', 'device', 'dynamic client registration'])
       expect(s.toLowerCase()).toContain(w.toLowerCase())

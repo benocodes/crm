@@ -121,7 +121,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
       compareSemver(live, manifest.version) > 0
     ) {
       throw new InstanceRefusal(
-        `the instance runs ${live} and this package is ${manifest.version}: the instance is newer, install a newer release (or run an older package's \`vibase-server upgrade --rollback\`)`,
+        `the instance runs ${live} and this package is ${manifest.version}: the instance is newer, install a newer release (or run an older package's \`vibase-server redeploy\`)`,
       )
     }
     ctx = {

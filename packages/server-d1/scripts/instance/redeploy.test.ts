@@ -52,6 +52,8 @@ interface Sim {
   /** After the deploy `/health` shows the package's version but no commit at all. */
   noCommitAfter?: boolean
   smoke?: Record<string, [number, unknown]>
+  /** `/health` does not answer at all. */
+  unreachable?: boolean
   crmApplied: boolean
   deployed: boolean
 }
@@ -75,11 +77,10 @@ function worldFor(s: Sim, o: WorldOptions = {}): World {
     fetch: (url) => {
       const path = new URL(url).pathname
       if (path === '/health') {
+        if (s.unreachable) throw new Error('getaddrinfo ENOTFOUND')
         if (s.deployed) polls++
         const switched = s.deployed && !s.neverSwitch && polls > s.lag
-        const shown: Live = switched
-          ? { version: PKG_VERSION, commit: s.noCommitAfter ? null : PKG_COMMIT }
-          : s.live
+        const shown: Live = switched ? { version: PKG_VERSION, commit: s.noCommitAfter ? null : PKG_COMMIT } : s.live
         const { commit: _c, ...rest } = HEALTH
         return json(200, {
           ...rest,
@@ -177,7 +178,10 @@ describe('OPS487 D1/D2 redeploy sequence', () => {
     expect(w.out).toContain(`plan: redeploy, live 0.1.0 (unknown) -> package ${PKG_VERSION} (${PKG_COMMIT})`)
   })
   it('pending migrations in the CRM only: migrate, tracker read for that database, then deploy', async () => {
-    const { w, code } = await run('redeploy', sim({ crm: ['0001_a.sql'], live: { version: PKG_VERSION, commit: '1111111' } }))
+    const { w, code } = await run(
+      'redeploy',
+      sim({ crm: ['0001_a.sql'], live: { version: PKG_VERSION, commit: '1111111' } }),
+    )
     expect(code).toBe(0)
     expect(steps(w)).toEqual([...READS, 'apply:DB', 'read:DB', 'deploy'])
     expect(w.out.join('\n')).toMatch(/\[crm\] migrations to apply \(1\)/)
@@ -191,7 +195,10 @@ describe('OPS487 D1/D2 redeploy sequence', () => {
     expect(steps(w)).toEqual([...READS, 'apply:CONTROL_DB', 'read:CONTROL_DB', 'deploy'])
   })
   it('pending in both: control first, then CRM, then deploy', async () => {
-    const { w, code } = await run('redeploy', sim({ control: null, crm: null, live: { version: PKG_VERSION, commit: '1111111' } }))
+    const { w, code } = await run(
+      'redeploy',
+      sim({ control: null, crm: null, live: { version: PKG_VERSION, commit: '1111111' } }),
+    )
     expect(code).toBe(0)
     expect(steps(w)).toEqual([...READS, 'apply:CONTROL_DB', 'read:CONTROL_DB', 'apply:DB', 'read:DB', 'deploy'])
   })
@@ -227,11 +234,7 @@ describe('OPS487 D1/D2 redeploy sequence', () => {
     expect(w.wrangler).toEqual([])
   })
   it('an unreachable /health refuses; exit 2, no write', async () => {
-    const w = worldFor(sim(), {
-      fetch: () => {
-        throw new Error('getaddrinfo ENOTFOUND')
-      },
-    })
+    const w = worldFor(sim({ unreachable: true }))
     expect(await runRedeploy(['--env', 'demo'], w.deps)).toBe(2)
     expect(w.err.join('\n')).toMatch(/cannot reach/)
     expect(writes(w)).toEqual([])
@@ -352,7 +355,9 @@ describe('OPS487 secrets and side effects, both modes', () => {
       }
     })
     it(`${mode}: the wrangler child gets the allow-listed environment only, on every call`, async () => {
-      const { w } = await run(mode, sim(), [], { processEnv: { CONFIRM_REMOTE: '1', CLERK_SECRET_KEY: 'sk_live_nope' } })
+      const { w } = await run(mode, sim(), [], {
+        processEnv: { CONFIRM_REMOTE: '1', CLERK_SECRET_KEY: 'sk_live_nope' },
+      })
       for (const c of w.wrangler)
         expect(Object.keys(c.env).sort()).toEqual([
           'CI',
@@ -431,7 +436,10 @@ describe('OPS487 D2/D3 rollback and the note', () => {
     expect(w.all()).not.toMatch(/rolling back code/)
   })
   it('an older live version over a newer-schema database still prints the note (no version comparison drives it)', async () => {
-    const { w } = await run('redeploy', sim({ live: { version: '0.0.9', commit: '1111111' }, crm: [...ALL, '0003_c.sql'] }))
+    const { w } = await run(
+      'redeploy',
+      sim({ live: { version: '0.0.9', commit: '1111111' }, crm: [...ALL, '0003_c.sql'] }),
+    )
     expect(noteCount(w)).toBe(1)
   })
   it('upgrade never prints the note and still refuses unknown migrations (D14 d)', async () => {
@@ -495,7 +503,7 @@ describe('OPS487 D4/D6 upgrade tells builds apart', () => {
   it('the same build with a pending migration keeps migrating and deploying (the repair path)', async () => {
     const { w, code } = await run('upgrade', sim({ ...same(PKG_COMMIT), crm: ['0001_a.sql'] }))
     expect(code).toBe(0)
-    expect(writes(w)).toEqual(['apply:DB', 'read:DB', 'deploy'])
+    expect(writes(w)).toEqual(['apply:CONTROL_DB', 'apply:DB', 'deploy'])
   })
   it('a newer live semver still refuses, now naming redeploy', async () => {
     const { w, code } = await run('upgrade', sim({ live: { version: '0.2.0', commit: '2222222' } }))
@@ -511,7 +519,9 @@ describe('OPS487 D4/D6 upgrade tells builds apart', () => {
     ] as const) {
       const w = worldFor(sim())
       expect(await fn(['--env', 'demo', '--rollback'], w.deps)).toBe(2)
-      expect(w.err.join('\n')).toMatch(new RegExp(`^vibase-server ${name}: .*--rollback was replaced by vibase-server redeploy`))
+      expect(w.err.join('\n')).toMatch(
+        new RegExp(`^vibase-server ${name}: .*--rollback was replaced by vibase-server redeploy`),
+      )
       expect(w.fetchUrls).toEqual([])
       expect(w.wrangler).toEqual([])
     }
