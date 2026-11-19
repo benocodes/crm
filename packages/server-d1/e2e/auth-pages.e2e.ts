@@ -364,7 +364,7 @@ test('10. [UI460] signed out: / redirects to /home, the sign-in card has no side
   await page.waitForURL((u) => u.pathname === '/home')
 })
 
-test('11. [UI460] signed in: the shell with Home current, Welcome to your CRM and Who you are, the title, the headers, no CSP violation, axe clean in both themes, one row of entries at 375 px', async ({
+test('11. [UI460] signed in: the shell with Home current, Welcome to your CRM and Who you are, the title, the headers, no CSP violation, axe clean in both themes, every entry inside the viewport at 375 px', async ({
   request,
 }) => {
   await visit('/home')
@@ -389,7 +389,16 @@ test('11. [UI460] signed in: the shell with Home current, Welcome to your CRM an
   const links = await nav
     .getByRole('link')
     .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)))
-  expect(new Set(links).size, 'the entries are in one row').toBe(1)
+  // [[UI459]] D1: with a third entry (Agents) the row of links wraps below `md` (UI443 D8 lets it), so the check is that every entry stays inside the viewport and is not covered, not that they share one line.
+  expect(links.length, 'Home, Connected accounts and Agents').toBe(3)
+  expect(
+    await nav
+      .getByRole('link')
+      .evaluateAll((els) =>
+        els.every((e) => e.getBoundingClientRect().left >= 0 && e.getBoundingClientRect().right <= window.innerWidth),
+      ),
+    'every entry is inside the viewport',
+  ).toBe(true)
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     'no horizontal scroll',

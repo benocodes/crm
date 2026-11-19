@@ -53,6 +53,7 @@ beforeEach(async () => {
   const agent = await post('/meta/v1/agents', { name: 'real-scoped', scopes: ['contacts:read', 'tasks:read'] })
   expect(agent.status).toBe(201)
   scopedId = agent.body.id
+  expect((await post('/meta/v1/agents', { name: 'Real form', scopes: ['tasks:read'] })).status).toBe(201)
   const form = await post('/meta/v1/forms', { name: 'Real form' })
   expect(form.status).toBe(201)
   formId = form.body.id
@@ -129,6 +130,10 @@ describe('the view model over real responses', () => {
     expect(form.formManaged).toBe(true)
     expect(form.action).toBeNull()
     expect(form.meta[0]).toBe('Website form Real form')
+    // an ordinary agent that shares the form's name is not the form's agent
+    const lookalike = view.rows.find((r) => r.name === 'Real form' && r.id !== formId)!
+    expect(lookalike.formManaged).toBe(false)
+    expect(lookalike.action).toBe('disable')
     const scoped = view.rows.find((r) => r.id === scopedId)!
     expect(scoped.formManaged).toBe(false)
     expect(scoped.action).toBe('disable')
