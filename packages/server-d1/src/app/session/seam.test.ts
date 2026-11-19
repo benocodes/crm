@@ -90,7 +90,11 @@ describe('selectSeam passes the caller’s return paths through (UI460 P2, P3)',
       load: async () => {},
       signOut: async (o?: unknown) => void calls.push(o),
     }
-    const seam = selectSeam(clerk(PK), { loadScript: async () => {}, returnPath: '/home', signOutReturn: 'https://w.test/home' })
+    const seam = selectSeam(clerk(PK), {
+      loadScript: async () => {},
+      returnPath: '/home',
+      signOutReturn: 'https://w.test/home',
+    })
     await seam!.load()
     await seam!.signOut()
     expect(calls).toEqual([{ redirectUrl: 'https://w.test/home' }])

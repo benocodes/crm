@@ -45,7 +45,11 @@ const NULL_SESSION = new Response('null', { status: 200, headers: { 'content-typ
 const make = (script: Record<string, Answer[]>) => {
   const f = fake(script)
   const navigated: string[] = []
-  return { ...f, navigated, seam: betterAuthSession({ fetch: f.fetchFn, navigate: (u) => void navigated.push(u), returnPath: '/home' }) }
+  return {
+    ...f,
+    navigated,
+    seam: betterAuthSession({ fetch: f.fetchFn, navigate: (u) => void navigated.push(u), returnPath: '/home' }),
+  }
 }
 
 describe('load (R1)', () => {
@@ -138,7 +142,7 @@ describe('profileUrl', () => {
   })
 })
 
-// [[UI460]] P2, P3, [[UI476]] P4: where Sign in goes comes from the caller's page path, which is required (no `/connect` default). A path only, never a query.
+// [[UI460]] P2, P3, [[UI476]] P4: where Sign in goes comes from the caller's page path, which is required (no connect default). A path only, never a query.
 describe('redirectToSignIn (UI460 P2, P3; UI476 P4)', () => {
   it.each([
     ['/home', '/sign-in?return_to=/home'],
@@ -151,11 +155,11 @@ describe('redirectToSignIn (UI460 P2, P3; UI476 P4)', () => {
     expect(urls).toEqual([expected])
   })
 
-  it('returnPath is required: a seam built without it does not typecheck, and no /connect default is invented', async () => {
+  it('returnPath is required: a seam built without it does not typecheck, and no connect default is invented', async () => {
     const urls: string[] = []
     // @ts-expect-error UI476 P4: `returnPath` is a required dependency
     const seam = betterAuthSession({ navigate: (u) => void urls.push(u) })
     await seam.redirectToSignIn('x')
-    expect(urls.join()).not.toContain('/connect')
+    expect(urls.join()).not.toContain('connect')
   })
 })

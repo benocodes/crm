@@ -1,4 +1,4 @@
-// [[UI461]] D12, P3 ([[UI443]]): the one source of the connect-an-agent text. `ConnectAgentInstructions` (Home, and UI459's Agents page) renders it; `/connect` imports it back until UI447 deletes that page. Dependency-free.
+// [[UI461]] D12, P3 ([[UI443]]): the one source of the connect-an-agent text. `ConnectAgentInstructions` (Home, and UI459's Agents page) renders it ([[UI476]]: the Preact connect page that imported it back is deleted). Dependency-free.
 export const loginCommand = (origin: string): string => `vibase login --server ${origin}`
 export const LOGIN_STEPS =
   'Run this in a terminal. It prints a link: open the link in any browser, sign in, approve the connection, then return to the terminal.'

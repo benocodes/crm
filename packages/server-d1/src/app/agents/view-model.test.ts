@@ -26,7 +26,7 @@ const agent = (id: string, over: Partial<AgentRecord> = {}): AgentRecord => ({
 })
 const fmt = (iso: string) => `D(${iso.slice(0, 10)})`
 
-describe('connectedText (D3: the order of /connect view-model, new wording)', () => {
+describe('connectedText (D3: the order of the old connect view-model, new wording)', () => {
   it.each([
     ['delegated by me', { delegated_by: ME, auth_client_id: 'c1' }, 'Signed in through you'],
     [
@@ -161,7 +161,7 @@ describe('rows by scope x agent state (group 2: D5, D6, D7, D8)', () => {
         }
       })
     }
-  it('the grant command is exactly the one /connect shows, with the agent id', () => {
+  it('the grant command is exactly the one the old connect page showed, with the agent id', () => {
     expect(grantCommand('abc')).toBe(`vibase agents update abc --scopes '["contacts:read","contacts:write"]'`)
   })
   it('the managed-by line reads as D6 says', () => {

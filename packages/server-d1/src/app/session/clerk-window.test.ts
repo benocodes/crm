@@ -31,13 +31,13 @@ describe('windowClerk sign-out return (UI460 P3)', () => {
     await c.signOut()
     expect(calls).toEqual([{ redirectUrl: 'https://w.test/home' }])
   })
-  it('signOutReturn is required (UI476 P4): a seam built without it does not typecheck, and no /connect default is invented', async () => {
+  it('signOutReturn is required (UI476 P4): a seam built without it does not typecheck, and no connect default is invented', async () => {
     const calls = fake()
     // @ts-expect-error UI476 P4: `signOutReturn` is a required dependency
     const c = windowClerk(AUTH, { loadScript: async () => {} })
     await c.load()
     await c.signOut()
-    expect(JSON.stringify(calls)).not.toContain('/connect')
+    expect(JSON.stringify(calls)).not.toContain('connect')
   })
   it('Sign in is redirectToSignIn with the URL it is given', async () => {
     const urls: unknown[] = []

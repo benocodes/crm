@@ -8,6 +8,7 @@ export interface AssetsLike {
 }
 
 const HOME = APP_PAGE_PATHS[0]
+const CONNECT = '/connect'
 /** Where the build puts the page: the assets directory's `app/index.html`, which the binding serves at its directory path. Reached only through the page paths. */
 const INDEX_PATH = `${APP_PREFIX}/`
 
@@ -44,6 +45,9 @@ function withHeaders(res: Response, csp: string): Response {
   return out
 }
 
+/** `/connect` and anything under `/connect/`: nothing else (`/connectx` and `/connect.js` are not ours). The Preact page that lived here is gone ([[UI476]] D10); the path is a redirect to Home. */
+const isConnectPath = (pathname: string): boolean => pathname === CONNECT || pathname.startsWith(`${CONNECT}/`)
+
 const isPagePath = (pathname: string): boolean => (APP_PAGE_PATHS as readonly string[]).includes(pathname)
 /** A page path, anything below one (`/home/`, `/home/x`: not pages, the Worker's own 404, but ours to answer before the gates) and anything under `/app/`. `/homex` and `/appx` are not ours; `/app` exactly is (a 404, never the binding's directory page). */
 const isUnderPage = (pathname: string): boolean => APP_PAGE_PATHS.some((p) => pathname.startsWith(`${p}/`))
@@ -61,7 +65,8 @@ const notFound = (csp: string) =>
   )
 
 /**
- * Answers a request for the root, a page path or under `/app/`, or `undefined` for any other path (and for a method other than `GET`/`HEAD` on `/`, which stays the Worker's own `404`).
+ * Answers a request for the root, a page path, under `/app/` or under `/connect`, or `undefined` for any other path (and for a method other than `GET`/`HEAD` on `/`, which stays the Worker's own `404`).
+ * `GET`/`HEAD` `/connect` and `/connect/` are `302 /home` with the binding, else `404`; another method on them is `405`; anything else under `/connect/` is the app's JSON `404`, any method ([[UI476]] P2).
  * `GET`/`HEAD` `/` is `302 /home` (the query is dropped) when the binding is there, else `404`; `GET`/`HEAD` of a page path is the one `index.html`; `/app/<file>` is the built asset (or the binding's `404`);
  * `/app/`, `/app/index.html`, `/home/` and `/home/x` are not pages (`404`); another method on those is `405`. Without the binding every such path is `404`.
  */
@@ -71,10 +76,13 @@ export async function serveApp(
 ): Promise<Response | undefined> {
   const url = new URL(req.url)
   const isRoot = url.pathname === '/'
-  if (!isRoot && !isAppPath(url.pathname)) return undefined
+  const isConnect = isConnectPath(url.pathname)
+  if (!isRoot && !isConnect && !isAppPath(url.pathname)) return undefined
   const read = req.method === 'GET' || req.method === 'HEAD'
   if (isRoot && !read) return undefined
   const csp = appCsp(opts.issuer)
+  // [[UI476]] P2: below `/connect/` nothing is served (the page and its assets are gone), for every method, with or without the binding.
+  if (isConnect && url.pathname !== CONNECT && url.pathname !== `${CONNECT}/`) return notFound(csp)
   if (!read)
     return withHeaders(
       new Response('method not allowed', {
@@ -84,7 +92,7 @@ export async function serveApp(
       csp,
     )
   if (!opts.assets) return notFound(csp)
-  if (isRoot) return withHeaders(new Response(null, { status: 302, headers: { location: HOME } }), csp)
+  if (isRoot || isConnect) return withHeaders(new Response(null, { status: 302, headers: { location: HOME } }), csp)
   if (
     !isPagePath(url.pathname) &&
     (isUnderPage(url.pathname) ||

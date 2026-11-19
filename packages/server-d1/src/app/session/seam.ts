@@ -7,18 +7,18 @@ export interface SeamDeps {
   fetch?: typeof fetch
   navigate?: (url: string) => void
   loadScript?: (src: string, publishableKey: string) => Promise<void>
-  /** [[UI460]] P3: the page the person returns to after signing in (Better Auth, a path) or out (Clerk, a URL or path). Default `/connect`. */
-  returnPath?: string
-  signOutReturn?: string
+  /** [[UI460]] P3: the page the person returns to after signing in (Better Auth, a path) or out (Clerk, a URL or path). Both are required ([[UI476]] P4): the app is the only caller and always passes them. */
+  returnPath: string
+  signOutReturn: string
 }
 
-export function selectSeam(discovery: Discovery | null | undefined, deps: SeamDeps = {}): SessionSeam | null {
+export function selectSeam(discovery: Discovery | null | undefined, deps: SeamDeps): SessionSeam | null {
   const auth = discovery?.auth
   if (!auth) return null
   if (auth.provider === 'clerk' && auth.publishable_key)
     return windowClerk(auth, {
       ...(deps.loadScript ? { loadScript: deps.loadScript } : {}),
-      ...(deps.signOutReturn ? { signOutReturn: deps.signOutReturn } : {}),
+      signOutReturn: deps.signOutReturn,
     })
   if (auth.provider === 'better-auth') return betterAuthSession(deps)
   return null

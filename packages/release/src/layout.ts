@@ -78,12 +78,7 @@ export function serverProblems(dir: string, version: string): string[] {
   ])
   const out = fileDiff(
     listFiles(dir),
-    (f) =>
-      SERVER_FIXED.includes(f) ||
-      f.startsWith('assets/connect/') ||
-      f.startsWith('assets/ui/') ||
-      f.startsWith('assets/app/') ||
-      migrations.has(f),
+    (f) => SERVER_FIXED.includes(f) || f.startsWith('assets/ui/') || f.startsWith('assets/app/') || migrations.has(f),
     [...SERVER_FIXED, ...SERVER_UI_ASSETS, ...SERVER_APP_ASSETS],
   )
   const pkg = readJson(join(dir, 'package.json'))

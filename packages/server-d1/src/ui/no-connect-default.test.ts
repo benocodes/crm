@@ -16,12 +16,19 @@ describe("no '/connect' default remains in the auth pages", () => {
 // [[UI476]] D10, 476.6 (group 2, source half): the Preact /connect page is deleted and `/connect` is a redirect, so no source under server-d1 `src` and `scripts`, or the release package, names `/connect` as a path outside the allow-list:
 // the redirect and its test, the `return_to` allow-list (`continuation.ts`) and its tests, and the `run_worker_first` lists with their pins.
 const REPO = fileURLToPath(new URL('../../../../', import.meta.url))
-const ROOTS = ['packages/server-d1/src', 'packages/server-d1/scripts', 'packages/release/src', 'packages/release/scripts']
+const ROOTS = [
+  'packages/server-d1/src',
+  'packages/server-d1/scripts',
+  'packages/release/src',
+  'packages/release/scripts',
+]
 const ALLOWED = new Set([
   'packages/server-d1/src/app-serving.ts',
   'packages/server-d1/src/app-serving.test.ts',
   'packages/server-d1/src/ui/continuation.ts',
   'packages/server-d1/src/ui/continuation.test.ts',
+  'packages/server-d1/src/ui/sign-in-page.ui.test.tsx',
+  'packages/server-d1/src/ui/sign-in-return.ui.test.tsx',
   'packages/server-d1/src/ui/no-connect-default.test.ts',
   'packages/server-d1/src/wrangler-config.test.ts',
   'packages/server-d1/scripts/smoke-worker.ts',
@@ -29,8 +36,8 @@ const ALLOWED = new Set([
   'packages/release/src/fixtures.ts',
   'packages/release/scripts/check.ts',
 ])
-/** `/connect` as a whole path segment: not `/connections`, `/connect-return`, `/oauth/connect` or a file name. */
-const CONNECT_PATH = /(?<![\w/.-])\/connect(?![\w-])/
+/** `/connect` as a whole path segment: not `/connections`, `/connect-return`, `/oauth/connect`, a file name, or the start of a regex literal or an escaped slash (`(/connect an agent/`, `\/connect`). */
+const CONNECT_PATH = /(?<![\w/.\-(\\])\/connect(?![\w-])/
 const walk = (d: string): string[] =>
   readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]))
 const sources = ROOTS.flatMap((r) => walk(join(REPO, r)))

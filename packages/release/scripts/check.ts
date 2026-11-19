@@ -387,13 +387,14 @@ export async function checkRelease(
           )
         log(`${binding} tracker: current (${state.applied.length} applied = ${shipped.length} shipped)`)
       }
-      const connect = await fetch(new URL('/connect', url), { redirect: 'manual' })
-      const connectJs = await fetch(new URL('/connect/connect.js', url))
-      if (connect.status !== 200 || connectJs.status !== 200)
+      // [[UI476]] D10: `/connect` is a redirect to Home (the query dropped) and nothing under it is served: the Preact page is not in the package.
+      const connect = await fetch(new URL('/connect?x=1', url), { redirect: 'manual' })
+      const connectJs = await fetch(new URL('/connect/connect.js', url), { redirect: 'manual' })
+      if (connect.status !== 302 || connect.headers.get('location') !== '/home' || connectJs.status !== 404)
         throw new ReleaseRefusal(
-          `/connect is not served: /connect ${connect.status}, /connect/connect.js ${connectJs.status}`,
+          `/connect is not the redirect to /home: /connect ${connect.status} -> ${connect.headers.get('location')}, /connect/connect.js ${connectJs.status} (expected 302 /home and 404)`,
         )
-      log(`/connect ${connect.status}, /connect/connect.js ${connectJs.status}`)
+      log(`/connect ${connect.status} -> ${connect.headers.get('location')}, /connect/connect.js ${connectJs.status}`)
       // [[UI460]] D6: the workspace app is served beside it: the page, its bundle, and the root redirect.
       const home = await fetch(new URL('/home', url), { redirect: 'manual' })
       const appJs = await fetch(new URL('/app/app.js', url))

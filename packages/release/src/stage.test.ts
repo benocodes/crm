@@ -44,7 +44,7 @@ describe('UI460 D6: the workspace app ships in the server package', () => {
 })
 
 describe('UI476 D10: the connect page is not in the server package', () => {
-  it('stage writes no assets/connect/, whatever the source assets hold', () => {
+  it('stage writes no assets/connect/ (only ui/ and app/ under assets/)', () => {
     const s = sources()
     const outDir = mkdtempSync(join(tmpdir(), 'ui476-out-'))
     dirs.push(s.root, outDir)

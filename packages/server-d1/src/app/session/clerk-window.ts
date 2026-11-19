@@ -36,7 +36,7 @@ function loadScript(src: string, publishableKey: string): Promise<void> {
 
 export function windowClerk(
   auth: NonNullable<Discovery['auth']>,
-  deps: { loadScript?: (src: string, publishableKey: string) => Promise<void>; signOutReturn?: string } = {},
+  deps: { loadScript?: (src: string, publishableKey: string) => Promise<void>; signOutReturn: string },
 ): SessionSeam {
   let clerk: ClerkBrowser | undefined
   const need = (): ClerkBrowser => {
@@ -68,8 +68,8 @@ export function windowClerk(
       await need().redirectToSignIn({ redirectUrl })
     },
     async signOut() {
-      // Back to the caller's page ([[UI460]] P3; `/connect` unless told): with no redirect Clerk sends the browser to the origin root.
-      await need().signOut({ redirectUrl: deps.signOutReturn ?? '/connect' })
+      // Back to the caller's page ([[UI460]] P3; required, [[UI476]] P4): with no redirect Clerk sends the browser to the origin root.
+      await need().signOut({ redirectUrl: deps.signOutReturn })
     },
     profileUrl() {
       try {

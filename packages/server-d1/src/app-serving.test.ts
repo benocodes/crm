@@ -226,15 +226,18 @@ describe.each(PROVIDERS)('/connect redirects to /home (UI476 P2): %s', (_name, m
   const REDIRECTS = ['/connect', '/connect/', '/connect?return=x', '/connect/?return=x']
   const GONE = ['/connect/connect.js', '/connect/nope', '/connect/x/y']
 
-  it.each(REDIRECTS)('GET and HEAD %s are 302 Location: /home (the query dropped), the binding is not asked', async (path) => {
-    const wk = make()
-    for (const method of ['GET', 'HEAD']) {
-      const res = await send(wk, path, method)
-      expect(res.status, `${method} ${path}`).toBe(302)
-      expect(res.headers.get('location'), `${method} ${path}`).toBe('/home')
-    }
-    expect(assetCalls).toEqual([])
-  })
+  it.each(REDIRECTS)(
+    'GET and HEAD %s are 302 Location: /home (the query dropped), the binding is not asked',
+    async (path) => {
+      const wk = make()
+      for (const method of ['GET', 'HEAD']) {
+        const res = await send(wk, path, method)
+        expect(res.status, `${method} ${path}`).toBe(302)
+        expect(res.headers.get('location'), `${method} ${path}`).toBe('/home')
+      }
+      expect(assetCalls).toEqual([])
+    },
+  )
 
   it.each(REDIRECTS)('POST %s is 405 with Allow: GET, HEAD, with or without the binding', async (path) => {
     for (const wk of [make(), make({ ASSETS: undefined })]) {

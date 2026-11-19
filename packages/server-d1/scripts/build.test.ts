@@ -7,7 +7,7 @@ import { unstable_readConfig } from 'wrangler'
 import { buildApp } from './build-app.js'
 import { buildUi } from './build-ui.js'
 
-// [[UI476]] D10 (group 2, build half): the Preact /connect page is gone from the build; the package's `pnpm build` makes the auth pages and the app and nothing else, into the directory `wrangler.jsonc` names.
+// [[UI476]] D10 (group 2, build half): the Preact connect page is gone from the build; the package's `pnpm build` makes the auth pages and the app and nothing else, into the directory `wrangler.jsonc` names.
 // Carried from the deleted build-connect.test.ts ([[UI30]] D3): the asset directory is the one wrangler names and git ignores, dev builds first, nothing of the E2E harness is a dependency or reaches the source.
 const PKG = fileURLToPath(new URL('..', import.meta.url))
 const ASSETS_DIR = join(PKG, 'dist', 'assets')
@@ -31,7 +31,7 @@ const pkgJson = () =>
 describe('nothing builds the connect page (UI476 D10)', () => {
   it('the build output has the ui/ and app/ directories and no connect/', () => {
     expect(readdirSync(out).sort()).toEqual(['app', 'ui'])
-    expect(walk(out).filter((f) => /\/connect[/.]/.test(f.slice(out.length)))).toEqual([])
+    expect(walk(out).filter((f) => /(^|\/)connect(\/|\.)/.test(f.slice(out.length)))).toEqual([])
   })
 
   it('the build script builds the auth pages and the app, and removes a stale connect/ left by an earlier build', () => {

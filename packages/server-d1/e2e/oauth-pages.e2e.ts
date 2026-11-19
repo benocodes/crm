@@ -396,10 +396,14 @@ test('5. every new page carries the exact headers; /consent without a request ex
   await axeBoth('consent-no-request')
 })
 
-// [[UI297]] leg 3 of [[UI247]] D8: the connect page on `better-auth`, in the same browser context (the session of the legs above is live, and leg 2 left one delegated agent).
-const emailShown = (p: Page) => p.locator('[data-section="who"]').getByText('owner@e2e.test')
+// [[UI297]] leg 3 of [[UI247]] D8, moved to the Agents page by [[UI476]]: the app's `/agents` on `better-auth`, in the same browser context (the session of the legs above is live, and leg 2 left one delegated agent).
+const sessionEmail = (p: Page) =>
+  p.evaluate(
+    async () =>
+      ((await (await fetch('/auth/get-session')).json()) as { user?: { email?: string } } | null)?.user?.email,
+  )
 
-test('6. /connect signed in: the person and the delegated agent agents.list returns, a self-only CSP, no request leaves the origin', async () => {
+test('6. /agents signed in: the delegated agent agents.list returns is listed as Signed in through you, a self-only CSP, no request leaves the origin', async () => {
   const outside: string[] = []
   const listener = (r: { url(): string }) => {
     if (
@@ -411,13 +415,8 @@ test('6. /connect signed in: the person and the delegated agent agents.list retu
       outside.push(r.url())
   }
   page.on('request', listener)
-  const response = await page.goto(`${BASE}/connect`)
-  await expect(emailShown(page)).toBeVisible()
-  page.off('request', listener)
-  const csp = response!.headers()['content-security-policy']!
-  expect(csp).toContain("default-src 'self'")
-  expect(csp).not.toMatch(/clerk|challenges\.cloudflare\.com/i)
-  expect(outside, 'no request leaves the origin').toEqual([])
+  const response = await page.goto(`${BASE}/agents`)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agents')
   // the name agents.list returns for the delegated agent (delegated_by is the person), read with the session token the page itself uses
   const listed = await page.evaluate(async () => {
     const { token } = (await (await fetch('/auth/token')).json()) as { token: string }
@@ -426,9 +425,15 @@ test('6. /connect signed in: the person and the delegated agent agents.list retu
   })
   const delegated = listed.filter((a) => a.delegated_by !== null)
   expect(delegated.length, 'leg 2 left a delegated agent').toBeGreaterThan(0)
+  const list = page.getByRole('list', { name: 'Connected agents' })
   for (const a of delegated)
-    await expect(page.locator('[data-section="agents"]').getByText(a.name, { exact: true }).first()).toBeVisible()
-  await axeBoth('connect-signed-in')
+    await expect(list.getByRole('listitem').filter({ hasText: a.name }).first()).toContainText('Signed in through you')
+  page.off('request', listener)
+  const csp = response!.headers()['content-security-policy']!
+  expect(csp).toContain("default-src 'self'")
+  expect(csp).not.toMatch(/clerk|challenges\.cloudflare\.com/i)
+  expect(outside, 'no request leaves the origin').toEqual([])
+  await axeBoth('agents-signed-in')
 })
 
 // [[UI461]] D10, [[UI469]] D13: leg 2 left a delegated agent, so Home has no Connect an agent prompt; the owner holds `connections:write` and owns no mailbox, so Get started shows Connect your email alone.
@@ -445,18 +450,35 @@ test('6b. /home with a delegated agent: Get started shows Connect your email and
   await expect(page.getByRole('region', { name: 'Connect an agent' })).toHaveCount(0)
 })
 
-test('7. /connect: Sign out shows the signed-out view; get-session answers null', async () => {
-  await visit(`${BASE}/connect`)
+test('7. /agents: Sign out shows the signed-out card; get-session answers null', async () => {
+  await visit(`${BASE}/agents`)
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
   expect(await page.evaluate(async () => (await (await fetch('/auth/get-session')).text()).trim())).toBe('null')
-  await axeBoth('connect-signed-out')
+  await axeBoth('agents-signed-out')
 })
 
-test('8. /connect: Sign in goes to /sign-in?return_to=/connect and comes back signed in as the same person', async () => {
+test('8. /agents: Sign in goes to /sign-in?return_to=/agents and comes back signed in as the same person', async () => {
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.waitForURL((u) => u.pathname === '/sign-in' && u.searchParams.get('return_to') === '/connect')
+  await page.waitForURL((u) => u.pathname === '/sign-in' && u.searchParams.get('return_to') === '/agents')
   await signInHere()
-  await page.waitForURL((u) => u.pathname === '/connect')
-  await expect(emailShown(page)).toBeVisible()
+  await page.waitForURL((u) => u.pathname === '/agents')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agents')
+  expect(await sessionEmail(page)).toBe('owner@e2e.test')
+})
+
+// [[UI476]] D10: `/connect` is a redirect to Home and nothing under it is served (the Preact page is deleted).
+test('8b. /connect?x=1 ends on /home with the shell shown; the raw GET is 302 /home; /connect/connect.js is 404', async ({
+  request,
+}) => {
+  await page.goto(`${BASE}/connect?x=1`)
+  await page.waitForURL((u) => u.pathname === '/home')
+  expect(new URL(page.url()).search).toBe('')
+  await expect(page.getByRole('navigation', { name: 'Workspace' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Welcome to your CRM')
+  const raw = await request.get(`${BASE}/connect`, { maxRedirects: 0, ignoreHTTPSErrors: true } as never)
+  expect(raw.status()).toBe(302)
+  expect(raw.headers().location).toBe('/home')
+  const gone = await request.get(`${BASE}/connect/connect.js`, { ignoreHTTPSErrors: true } as never)
+  expect(gone.status()).toBe(404)
 })

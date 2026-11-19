@@ -52,7 +52,7 @@ export const engineNeutralProject: TestProjectInlineConfiguration = {
   },
 }
 // UI446 D3, UI460 D4: the auth pages' suites (`packages/server-d1/src/ui/*.ui.test.tsx`) and the workspace app's (`src/app/*.ui.test.tsx`) run on real React, with no Preact alias, so Radix and `react-dom` are tested on
-// the runtime that ships. The shared project above never collects `*.ui.test.tsx`; `/connect`'s suites (`src/connect/**`) stay there under the alias.
+// the runtime that ships. The shared project above never collects `*.ui.test.tsx`; the Preact layer's own suites ([[UI447]]) stay there under the alias.
 // Folds back into the shared project when UI447 removes the alias.
 export const pageUiProject: TestProjectInlineConfiguration = {
   oxc: { jsx: { runtime: 'automatic', importSource: 'react' } },

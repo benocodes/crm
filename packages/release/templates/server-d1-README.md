@@ -1,6 +1,6 @@
 # @vibase/server-d1
 
-A prebuilt vibase Worker for Cloudflare D1: the Worker bundle, the connect page, the D1 migrations and a base Worker config with no instance in it, plus `vibase-server`, the program that sets up, checks and upgrades an instance from them.
+A prebuilt vibase Worker for Cloudflare D1: the Worker bundle, the workspace app and auth pages, the D1 migrations and a base Worker config with no instance in it, plus `vibase-server`, the program that sets up, checks and upgrades an instance from them.
 
 `release.json` lists the version, the source commit, the wrangler version this release was tested with and a sha256 of every file. The package installs that exact wrangler beside `vibase-server`; every command verifies the files against `release.json` before it touches the network.
 

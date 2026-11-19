@@ -1,7 +1,7 @@
-// The connect page's E2E ([[UI30]]): Playwright with @clerk/testing against a local Worker (`wrangler dev --local`) and the Clerk DEVELOPMENT
+// The Clerk E2E specs' config ([[UI30]]; `e2e:mcp-oauth`, `e2e:action-requests`; the connect page's own spec went with the page, [[UI476]]): Playwright with @clerk/testing against a local Worker (`wrangler dev --local`) and the Clerk DEVELOPMENT
 // instance whose keys are in the gitignored `.env.dev`. Run by the tester, never by `pnpm test` or the gate:
 //   pnpm -C packages/server-d1 exec playwright install chromium
-//   pnpm -C packages/server-d1 e2e:connect
+//   pnpm -C packages/server-d1 e2e:mcp-oauth
 // The keys are read from `.env.dev` only (`E2E_DEV_ENV_FILE` may name another file called `.env.dev`), development keys only, and handed to the
 // specs through this process's environment. Nothing here reads the root `.env` or an `.env.hq*` file.
 import { dirname, join } from 'node:path'
