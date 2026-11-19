@@ -1,6 +1,6 @@
 // [[UI460]] D4 ([[UI443]]): the workspace app's state machine over the session seam and the API client. It moves between `AppState`s and decides nothing about markup. Stores nothing: no
 // localStorage, sessionStorage or cookie. Dependency-free (no React), so it is tested in Node.
-import type { ConnectAgentCheck } from './first-steps.js'
+import type { ConnectAgentCheck, ConnectEmailCheck } from './first-steps.js'
 import type { Api, ApiResult } from './session/api.js'
 import type { Me, SessionSeam } from './session/types.js'
 
@@ -36,6 +36,8 @@ export type AppState =
       manageAccountHref: string | null
       /** [[UI461]] D10: whether Home's Connect an agent prompt shows. */
       connectAgent: ConnectAgentCheck
+      /** [[UI469]] D13: whether Home's Connect your email prompt shows. */
+      connectEmail: ConnectEmailCheck
       signOutError?: string
     }
 
@@ -133,6 +135,7 @@ export function createAppController(deps: {
       scopes: [...active.scopes],
       manageAccountHref: seam?.profileUrl() ?? null,
       connectAgent,
+      connectEmail: { status: 'hidden' },
     })
   }
 
@@ -177,6 +180,7 @@ export function createAppController(deps: {
           scopes: state.scopes,
           manageAccountHref: state.manageAccountHref,
           connectAgent: state.connectAgent,
+          connectEmail: state.connectEmail,
         })
       const before = state
       try {

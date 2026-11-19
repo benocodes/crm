@@ -121,6 +121,7 @@ export function App({
           ) : (
             <HomePage
               who={state.who}
+              connectEmail={state.connectEmail}
               connectAgent={state.connectAgent}
               instructions={{ origin, signIn: provider !== null, mcpUrl }}
               onCheckAgain={onCheckAgain}

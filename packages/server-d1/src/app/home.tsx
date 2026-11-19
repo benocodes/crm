@@ -2,26 +2,27 @@
 // An owner and a member see the same Home.
 import { Alert, PromptCard, SettingsPage, SettingsRow, SettingsSection } from '@vibase/ui/components'
 import { ConnectAgentInstructions, type ConnectAgentInstructionsProps } from './connect-agent.js'
-import { type ConnectAgentCheck, getStarted } from './first-steps.js'
+import { type ConnectAgentCheck, type ConnectEmailCheck, getStarted } from './first-steps.js'
 import type { Who } from './state.js'
 
 export interface HomeProps {
   who: Who
   error?: string
+  connectEmail: ConnectEmailCheck
   connectAgent: ConnectAgentCheck
   instructions: ConnectAgentInstructionsProps
   onCheckAgain(): void
 }
 
-export function HomePage({ who, error, connectAgent, instructions, onCheckAgain }: HomeProps) {
-  const first = getStarted(connectAgent)
+export function HomePage({ who, error, connectEmail, connectAgent, instructions, onCheckAgain }: HomeProps) {
+  const first = getStarted(connectEmail, connectAgent)
   return (
     <SettingsPage title="Welcome to your CRM" {...(error ? { error } : {})}>
       {first ? (
         <SettingsSection title="Get started">
           <div className="flex flex-col gap-4">
-            {first.error ? <Alert variant="error">{first.error}</Alert> : null}
-            {first.prompt ? (
+            {first.agentError ? <Alert variant="error">{first.agentError}</Alert> : null}
+            {first.agentPrompt ? (
               <PromptCard
                 title="Connect an agent"
                 text="No agent is connected to this workspace yet. Connect one to let it read and work with your data."

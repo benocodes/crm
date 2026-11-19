@@ -17,6 +17,7 @@ const READY: AppState = {
   scopes: [],
   manageAccountHref: null,
   connectAgent: { status: 'hidden' },
+  connectEmail: { status: 'hidden' },
 }
 const SHOW: AppState = { ...READY, connectAgent: { status: 'show' } } as AppState
 const NO_API = { connections: vi.fn(), identityAddress: vi.fn(), authorizeGmail: vi.fn() } as never
@@ -250,5 +251,68 @@ describe('Home: Get started (D9, D10)', () => {
     const src = readFileSync(join(process.cwd(), 'src/app/home.tsx'), 'utf8')
     expect(src).not.toMatch(/components\/ui\//)
     expect(src).toMatch(/PromptCard/)
+  })
+})
+
+// [[UI469]] D13, P5 (group 4): Home's Connect your email prompt.
+describe('Home: Connect your email (D13, P5)', () => {
+  const EMAIL = { ...SHOW, connectEmail: { status: 'show' } } as AppState
+  const EMAIL_ONLY = { ...READY, connectEmail: { status: 'show' } } as AppState
+  const EMAIL_UNREADABLE = 'The mailbox list could not be read. Reload the page to try again.'
+
+  it('the prompt comes before Connect an agent, with its text and a Connect Gmail link to /accounts', () => {
+    show(EMAIL)
+    const email = screen.getByRole('region', { name: 'Connect your email' })
+    const agent = screen.getByRole('region', { name: 'Connect an agent' })
+    expect(email.compareDocumentPosition(agent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(email.textContent).toContain('Connect your Gmail so your conversations land in your CRM.')
+    const link = within(email).getByRole('link', { name: 'Connect Gmail' })
+    expect(link.getAttribute('href')).toBe('/accounts')
+    expect(within(email).queryByRole('button')).toBeNull()
+  })
+
+  it('Home never calls connections.authorize, in any state', () => {
+    const authorizeGmail = vi.fn()
+    const handlersLocal = handlers()
+    for (const state of [EMAIL, EMAIL_ONLY, READY, { ...EMAIL, connectEmail: { status: 'error', message: EMAIL_UNREADABLE } }]) {
+      render(
+        <App
+          state={state as AppState}
+          provider="better-auth"
+          path="/home"
+          origin="https://w.test"
+          mcpUrl={null}
+          api={{ connections: vi.fn(), identityAddress: vi.fn(), authorizeGmail } as never}
+          {...handlersLocal}
+        />,
+      )
+      cleanup()
+    }
+    expect(authorizeGmail).not.toHaveBeenCalled()
+  })
+
+  it('a failed read shows its line in place of the prompt, and the agent prompt stays', () => {
+    show({ ...EMAIL, connectEmail: { status: 'error', message: EMAIL_UNREADABLE } } as AppState)
+    expect(screen.getByRole('alert').textContent).toBe(EMAIL_UNREADABLE)
+    expect(screen.queryByRole('region', { name: 'Connect your email' })).toBeNull()
+    expect(screen.getByRole('region', { name: 'Connect an agent' })).toBeTruthy()
+  })
+
+  it('Get started renders for the email prompt alone, and is absent when both checks are hidden', () => {
+    show(EMAIL_ONLY)
+    expect(screen.getByRole('region', { name: 'Get started' })).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Connect an agent' })).toBeNull()
+    cleanup()
+    show(READY)
+    expect(screen.queryByRole('region', { name: 'Get started' })).toBeNull()
+  })
+
+  it.each([
+    ['both prompts', EMAIL],
+    ['an error beside a prompt', { ...EMAIL, connectEmail: { status: 'error', message: EMAIL_UNREADABLE } } as AppState],
+  ] as [string, AppState][])('axe is clean with %s', async (_n, state) => {
+    show(state, { mcpUrl: 'https://w.test/mcp' })
+    const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } })
+    expect(r.violations.map((v) => v.id)).toEqual([])
   })
 })

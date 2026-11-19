@@ -59,7 +59,7 @@ let app: ReturnType<typeof createApp>
 
 const buildApp = (
   envVars: Record<string, string | undefined>,
-  over: { roleOf?: (s: string) => Promise<Role | null> } = {},
+  over: { roleOf?: (s: string) => Promise<Role | null>; defaultReturnPath?: string } = {},
 ) => {
   const { config, problems } = parseGmailConfig(envVars)
   return createApp({
@@ -74,6 +74,7 @@ const buildApp = (
       fetch: google.fetch,
       gmailBaseUrl: FAKE_GMAIL_BASE,
       policy,
+      ...(over.defaultReturnPath ? { defaultReturnPath: over.defaultReturnPath } : {}),
       roleOf:
         over.roleOf ??
         (async (subject) => {
@@ -129,8 +130,12 @@ const api = (
     },
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
   })
-const authorize = async (as = e.userId) => {
-  const res = await api('POST', '/meta/v1/connections/authorize', { as, body: { provider: 'google' } })
+const authorize = async (as = e.userId, via?: ReturnType<typeof createApp>) => {
+  const res = await api('POST', '/meta/v1/connections/authorize', {
+    as,
+    body: { provider: 'google' },
+    ...(via ? { app: via } : {}),
+  })
   expect(res.status).toBe(200)
   return (await res.json()) as { authorize_url: string; expires_at: string }
 }
@@ -144,7 +149,7 @@ async function connect(
     app?: ReturnType<typeof createApp>
   } = {},
 ) {
-  const { authorize_url } = await authorize(opts.as)
+  const { authorize_url } = await authorize(opts.as, opts.app)
   const callback = new URL(await google.consent(authorize_url, account, opts.consent))
   await opts.mutateCallback?.(callback)
   return (opts.app ?? app).request(callback.toString())
@@ -710,5 +715,54 @@ describe('the role re-check follows the live membership (CORE244 D7)', () => {
     expect(await snapshot()).toEqual(before)
     await e.insert('memberships', { user_id: e.userId, role: 'owner' })
     expect(await (await connect()).text()).not.toContain('not_a_member')
+  })
+})
+
+// [[UI469]] D5 (group 1): the return target when CONNECT_RETURN_URL is unset. A set URL always wins; unset with a default path it is
+// <PUBLIC_BASE_URL or the callback request's origin><default>; unset without one, the built-in page.
+describe('the return target (UI469 D5)', () => {
+  const SET = 'https://app.example.test/connected'
+  const PUBLIC = 'https://public.example.test'
+  const REQUEST_ORIGIN = 'https://vibase.test'
+  type Kind = 'refusal' | 'success'
+  const run = async (opts: { returnUrl: boolean; path: boolean; publicBase: boolean; kind: Kind }) => {
+    const { PUBLIC_BASE_URL: _drop, ...rest } = env
+    const vars = {
+      ...rest,
+      ...(opts.publicBase ? { PUBLIC_BASE_URL: PUBLIC } : {}),
+      ...(opts.returnUrl ? { CONNECT_RETURN_URL: SET } : {}),
+    }
+    const a = buildApp(vars, opts.path ? { defaultReturnPath: '/accounts' } : {})
+    return connect(ANN, {
+      app: a,
+      mutateCallback: (u) => {
+        // With PUBLIC_BASE_URL set the callback request arrives on another host, so a base built from the request would differ.
+        if (opts.publicBase) u.host = 'internal.example.test'
+        if (opts.kind === 'refusal') u.searchParams.delete('state')
+      },
+    })
+  }
+  const cases: Array<[boolean, boolean, boolean, Kind]> = []
+  for (const returnUrl of [true, false])
+    for (const path of [true, false])
+      for (const publicBase of [true, false])
+        for (const kind of ['refusal', 'success'] as const) cases.push([returnUrl, path, publicBase, kind])
+
+  it.each(cases)('CONNECT_RETURN_URL set=%s, default path=%s, PUBLIC_BASE_URL set=%s, %s', async (returnUrl, path, publicBase, kind) => {
+    const res = await run({ returnUrl, path, publicBase, kind })
+    const param = kind === 'refusal' ? 'error' : 'connection_id'
+    if (returnUrl || path) {
+      expect(res.status).toBe(302)
+      expect(res.headers.get('cache-control')).toBe('no-store')
+      expect(res.headers.get('referrer-policy')).toBe('no-referrer')
+      const location = new URL(res.headers.get('location')!)
+      const expectedBase = returnUrl ? SET : `${publicBase ? PUBLIC : REQUEST_ORIGIN}/accounts`
+      expect(`${location.origin}${location.pathname}`).toBe(expectedBase)
+      expect(location.searchParams.get(param)).toBe(kind === 'refusal' ? 'state_invalid' : (await rows('channel_connections'))[0]!.id)
+    } else {
+      expect(res.status).toBe(kind === 'refusal' ? 400 : 200)
+      expect(res.headers.get('location')).toBeNull()
+      expect(res.headers.get('content-type')).toContain('text/html')
+    }
   })
 })
