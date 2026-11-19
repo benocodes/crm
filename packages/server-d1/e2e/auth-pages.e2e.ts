@@ -545,6 +545,90 @@ test('11d. [UI468] a mailbox: Settings, Sync now and Disconnect on its row; Sync
   await axeBoth(page, 'app-accounts-settings-not-connected')
 })
 
+test('11e. [UI459] Agents: the sidebar row opens /agents; the list above Connect an agent; an API-key agent, one with no permissions and a form agent; Disable is confirmed, Enable is at once; axe clean in both themes, no horizontal scroll at 375 px', async () => {
+  await visit('/home')
+  // The owner's agents and form, through the API with the session's own token (as leg 4 does).
+  const made = await page.evaluate(async () => {
+    const t = (await (await fetch('/auth/token')).json()) as { token: string }
+    const post = async (path: string, body: unknown) => {
+      const res = await fetch(path, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${t.token}`, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      return { status: res.status, body: (await res.json()) as { id: string } }
+    }
+    return {
+      scoped: await post('/meta/v1/agents', {
+        name: 'e2e-scoped',
+        scopes: ['contacts:read', 'contacts:write', 'tasks:read'],
+      }),
+      bare: await post('/meta/v1/agents', { name: 'e2e-bare', scopes: [] }),
+      form: await post('/meta/v1/forms', { name: 'E2E form' }),
+    }
+  })
+  expect([made.scoped.status, made.bare.status, made.form.status]).toEqual([201, 201, 201])
+  await page.getByRole('navigation', { name: 'Workspace' }).getByRole('link', { name: 'Agents' }).click()
+  await page.waitForURL((u) => u.pathname === '/agents')
+  await expect(
+    page.getByRole('navigation', { name: 'Workspace' }).getByRole('link', { name: 'Agents' }),
+  ).toHaveAttribute('aria-current', 'page')
+  await expect(page).toHaveTitle('Agents · Vibase')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agents')
+  const headings = await page.getByRole('heading', { level: 2 }).allTextContents()
+  expect(headings).toEqual(['Connected agents', 'Connect an agent'])
+  const list = page.getByRole('list', { name: 'Connected agents' })
+  const scoped = list.getByRole('listitem').filter({ hasText: 'e2e-scoped' })
+  await expect(scoped).toContainText('Enabled')
+  await expect(scoped).toContainText('API-key agent')
+  await expect(scoped).toContainText('Permissions: contacts (read, write), tasks (read)')
+  const bare = list.getByRole('listitem').filter({ hasText: 'e2e-bare' })
+  await expect(bare).toContainText('No permissions yet')
+  await expect(bare).toContainText(`vibase agents update ${made.bare.body.id} --scopes`)
+  const form = list.getByRole('listitem').filter({ hasText: 'Website form E2E form' })
+  await expect(form).toContainText('Managed by its form')
+  await expect(form.getByRole('button')).toHaveCount(0)
+  await axeBoth(page, 'app-agents-list')
+  // Disable is confirmed: focus starts on Cancel, Escape closes it with focus back on Disable.
+  const disable = scoped.getByRole('button', { name: 'Disable: e2e-scoped' })
+  await disable.click()
+  const dialog = page.getByRole('alertdialog', { name: 'Disable e2e-scoped?' })
+  await expect(dialog).toContainText('stops working at once')
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
+  await axeBoth(page, 'app-agents-disable-dialog')
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(disable).toBeFocused()
+  await disable.click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Disable', exact: true }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Disabled e2e-scoped.' })).toBeVisible()
+  const rows = await list.getByRole('listitem').evaluateAll((els) => els.map((e) => e.textContent ?? ''))
+  expect(
+    rows.findIndex((r) => r.includes('e2e-scoped')),
+    'the disabled agent sorts below the enabled ones',
+  ).toBeGreaterThan(rows.findIndex((r) => r.includes('e2e-bare')))
+  await expect(list.getByRole('listitem').filter({ hasText: 'e2e-scoped' })).toContainText('Disabled')
+  await axeBoth(page, 'app-agents-disabled')
+  await page.reload()
+  const after = list.getByRole('listitem').filter({ hasText: 'e2e-scoped' })
+  await expect(after).toContainText('disabled')
+  // Enable acts at once.
+  await after.getByRole('button', { name: 'Enable: e2e-scoped' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Enabled e2e-scoped.' })).toBeVisible()
+  await expect(
+    list.getByRole('listitem').filter({ hasText: 'e2e-scoped' }).getByRole('button', { name: 'Disable: e2e-scoped' }),
+  ).toBeVisible()
+  await page.setViewportSize({ width: 375, height: 800 })
+  await visit('/agents')
+  await expect(list).toBeVisible()
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    'no horizontal scroll',
+  ).toBe(true)
+  await axeBoth(page, 'app-agents-375')
+  await page.setViewportSize({ width: 1280, height: 720 })
+})
+
 test('12. [UI460] Sign out from the shell shows the sign-in card, and reloading /home stays signed out', async () => {
   await visit('/home')
   await page.getByRole('button', { name: 'Sign out' }).click()

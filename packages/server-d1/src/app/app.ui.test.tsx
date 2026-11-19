@@ -133,7 +133,7 @@ describe('ready on /agents (UI459 D1, D2, D8)', () => {
         path="/agents"
         origin="https://w.test"
         mcpUrl={null}
-        api={{ ...NO_API, ...API } as never}
+        api={{ ...(NO_API as object), ...API } as never}
         {...h}
       />,
     )

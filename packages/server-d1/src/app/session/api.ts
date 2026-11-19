@@ -1,5 +1,5 @@
 // [[UI30]] D8: the three calls the page makes. A fresh token from Clerk per request, sent only as `Authorization: Bearer`.
-import type { AgentRecord, ConnectionRecord, Me } from './types.js'
+import type { AgentRecord, ConnectionRecord, FormRecord, Me } from './types.js'
 
 export interface ApiResult<T> {
   status: number
@@ -18,6 +18,8 @@ export interface Api {
   /** True when any agent has `disabled_at` null: pages are followed until one is found or the list ends (UI461 P4). */
   hasEnabledAgent(): Promise<ApiResult<boolean>>
   setDisabled(id: string, disabled: boolean): Promise<ApiResult<AgentRecord>>
+  /** [[UI459]] D6: every form (`forms.list`), pages followed until `next_cursor` is null. */
+  forms(): Promise<ApiResult<FormRecord[]>>
   /** [[UI467]] D2: every connection, pages followed until `next_cursor` is null. */
   connections(): Promise<ApiResult<ConnectionRecord[]>>
   /** [[UI467]] D2, P5: a mailbox's address, the `value` of its own identity. */
@@ -75,6 +77,22 @@ export function createApi(deps: { origin: string; getToken(): Promise<string | n
         )
         if (r.status < 200 || r.status >= 300 || !r.body)
           return { status: r.status, body: null, ...(r.noToken ? { noToken: true as const } : {}) }
+        all.push(...r.body.data)
+        if (r.body.next_cursor === null) return { status: r.status, body: all }
+        after = r.body.next_cursor
+      }
+      return { status: 200, body: all }
+    },
+    async forms() {
+      const all: FormRecord[] = []
+      let after: string | null = null
+      // A page is a request with its own token; a server that never ends the cursor is bounded, as `agents()` is.
+      for (let i = 0; i < 100; i++) {
+        const r: ApiResult<{ data: FormRecord[]; next_cursor: string | null }> = await call(
+          'GET',
+          `/meta/v1/forms?limit=200${after ? `&after=${encodeURIComponent(after)}` : ''}`,
+        )
+        if (r.status < 200 || r.status >= 300 || !r.body) return { ...r, body: null }
         all.push(...r.body.data)
         if (r.body.next_cursor === null) return { status: r.status, body: all }
         after = r.body.next_cursor

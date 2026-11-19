@@ -115,6 +115,22 @@ function Lists() {
       <State state="resource-list" title="ResourceList, with rows and every tone">
         <ResourceList label="Mailboxes" items={ROWS} emptyText="No mailboxes yet." />
       </State>
+      <State state="resource-detail" title="ResourceList, a row with a detail slot">
+        <ResourceList
+          label="Agents"
+          items={[
+            {
+              id: 'x',
+              title: 'e2e-bare',
+              meta: ['API-key agent', 'No permissions yet'],
+              status: <StatusBadge tone="success">Enabled</StatusBadge>,
+              actions: [{ label: 'Disable', onClick: () => {}, destructive: true }],
+              detail: <p className="text-sm">It has no permissions yet. To grant some, run the command below.</p>,
+            },
+          ]}
+          emptyText="No agents."
+        />
+      </State>
       <State state="resource-empty" title="ResourceList, empty with an action">
         <ResourceList
           label="Mailboxes"

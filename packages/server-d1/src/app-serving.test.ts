@@ -73,7 +73,8 @@ beforeEach(async () => {
   await w.d1.prepare('drop table if exists d1_migrations').run()
   await createMigrationTracker(w.d1) // the database is behind: every gate would answer 503 if the app route came after it
 })
-const isApp = (at: string) => /^(GET|HEAD|POST) \/(home|accounts|agents|app)/.test(at) || /^(GET|HEAD) \/ \(302\)/.test(at)
+const isApp = (at: string) =>
+  /^(GET|HEAD|POST) \/(home|accounts|agents|app)/.test(at) || /^(GET|HEAD) \/ \(302\)/.test(at)
 // D5: every app answer (page, asset, 404, 405, 302) carries the policy, nosniff and the referrer policy; HTML is no-store.
 afterEach(() => {
   for (const { at, res, issuer } of seen) {

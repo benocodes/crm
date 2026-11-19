@@ -62,7 +62,8 @@ describe('the Connected accounts row', () => {
 
 // [[UI459]] D1, D8 (group 4): the Agents row.
 describe('the Agents row', () => {
-  const labels = (scopes: string[], path = '/home') => visibleNav(NAV, { provider: 'better-auth', scopes }, path).map((e) => e.label)
+  const labels = (scopes: string[], path = '/home') =>
+    visibleNav(NAV, { provider: 'better-auth', scopes }, path).map((e) => e.label)
   it('follows Connected accounts, links to /agents with an icon, and shows only with agents:read', () => {
     const i = NAV.findIndex((r) => r.label === 'Agents')
     expect(i).toBe(NAV.findIndex((r) => r.label === 'Connected accounts') + 1)

@@ -38,6 +38,7 @@
       "/",
       "/home",
       "/accounts",
+      "/agents",
       "/app",
       "/app/*"
     ]

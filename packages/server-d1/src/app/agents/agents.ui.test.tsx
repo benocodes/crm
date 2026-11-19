@@ -35,7 +35,9 @@ const fakeApi = (
   agents: vi.fn(over.agents ?? (async () => ok(DEFAULT()))),
   forms: vi.fn(over.forms ?? (async () => ok([]))),
   setDisabled: vi.fn(
-    over.setDisabled ?? (async (id: string, disabled: boolean) => ok(rec(id, { disabled_at: disabled ? '2026-11-19T00:00:00.000Z' : null }))),
+    over.setDisabled ??
+      (async (id: string, disabled: boolean) =>
+        ok(rec(id, { disabled_at: disabled ? '2026-11-19T00:00:00.000Z' : null }))),
   ),
 })
 const show = (api: ReturnType<typeof fakeApi>, scopes: string[] = RW) =>

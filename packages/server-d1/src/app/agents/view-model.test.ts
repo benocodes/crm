@@ -29,12 +29,24 @@ const fmt = (iso: string) => `D(${iso.slice(0, 10)})`
 describe('connectedText (D3: the order of /connect view-model, new wording)', () => {
   it.each([
     ['delegated by me', { delegated_by: ME, auth_client_id: 'c1' }, 'Signed in through you'],
-    ['delegated by another member', { delegated_by: 'other', auth_client_id: 'c1' }, 'Signed in through another member'],
+    [
+      'delegated by another member',
+      { delegated_by: 'other', auth_client_id: 'c1' },
+      'Signed in through another member',
+    ],
     ['OAuth client, no delegator', { auth_client_id: 'client-9' }, 'Connected through OAuth client client-9'],
     ['agent account', { auth_subject: 'sub-1' }, 'Agent account'],
     ['API key', {}, 'API-key agent'],
-    ['delegated wins over an agent subject', { delegated_by: 'other', auth_subject: 's' }, 'Signed in through another member'],
-    ['OAuth client wins over an agent subject', { auth_client_id: 'c2', auth_subject: 's' }, 'Connected through OAuth client c2'],
+    [
+      'delegated wins over an agent subject',
+      { delegated_by: 'other', auth_subject: 's' },
+      'Signed in through another member',
+    ],
+    [
+      'OAuth client wins over an agent subject',
+      { auth_client_id: 'c2', auth_subject: 's' },
+      'Connected through OAuth client c2',
+    ],
   ] as const)('%s', (_n, over, text) => {
     expect(connectedText(agent('a', over), ME)).toBe(text)
   })
@@ -88,7 +100,9 @@ describe('sortAgents (D3)', () => {
     expect(sorted.map((a) => a.id)).toEqual(['4', '2', '5', '1', '3'])
   })
   it('a disabled agent named A sorts after an enabled agent named Z (state before name)', () => {
-    expect(sortAgents([agent('1', { name: 'A', disabled_at: 'x' }), agent('2', { name: 'Z' })]).map((a) => a.id)).toEqual(['2', '1'])
+    expect(
+      sortAgents([agent('1', { name: 'A', disabled_at: 'x' }), agent('2', { name: 'Z' })]).map((a) => a.id),
+    ).toEqual(['2', '1'])
   })
   it('does not mutate its input', () => {
     const input = [agent('b'), agent('a')]

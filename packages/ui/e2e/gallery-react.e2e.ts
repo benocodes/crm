@@ -362,6 +362,7 @@ test('an injected <style> is a violation on the components page only; an injecte
 
 const LIST_STATES = [
   'resource-list',
+  'resource-detail',
   'resource-empty',
   'resource-loading',
   'status-badges',
