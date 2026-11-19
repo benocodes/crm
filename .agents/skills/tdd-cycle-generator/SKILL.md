@@ -369,6 +369,14 @@ E2E seed, `connectOperation` in-process via `getPlatformProxy`, imported from `.
 up front. And when a charter states an operation's answer in a given Worker configuration, read the handler's check order
 first: unconfigured `connections.sync` answers `501` before it reads the connection, so the charter's `409` needed a
 second, configured Worker (468.15).
+**UI459** cycle 1 (`knowledge/specs/026-UI459-workspace-agents/RETRO.md`): 6 groups (1 matrix), 8 decisions + 5 planner
+rules, no migration, 1 local E2E part, at the limit on groups and decisions. ~793k over three coder runs (~253k / 112+
+calls first, then ~263k and ~277k) (+461 code / +1,033 test lines, 30 files), two review fix rounds and one gate-fix
+round. The first run was in range; the review rounds were layout. The charter added a slot to a shared layout component
+(`ResourceList`'s `detail`) and said nothing about how it sits beside the row's actions or at 375 px. A charter that adds
+content to a shared row or flex component states the layout at desktop and narrow width and counts it as an E2E part
+with geometric assertions (`writing-tests` §7), not as a gallery rider. A charter that adds a value to an allow-list
+names the grep for that literal in tests as a rider (`execute-cycle` §survey; `continuation.test.ts` cost the gate-fix).
 
 ### Step 3: Resolve identities
 
