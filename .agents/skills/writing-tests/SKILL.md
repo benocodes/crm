@@ -15,7 +15,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
 - **Red first, per file.** Run each new test file alone before the code it tests exists and record the run
   (N failed, and why) in the completion report's `Red runs` line. A file never seen failing is the same gap
   as an absence test never seen failing ([[CORE27]] review). A missing-module error is not a useful red:
-  stub the module so the assertion itself fails. **Paste the red run into the cycle's RESULT.md when you
+  stub the module so the assertion itself fails. A stub that throws `not implemented` is the same non-red in
+  disguise: every row fails on the throw, not on what it asserts. Make the stub return a plausible wrong answer
+  (exit 0, no runner calls) so each row's own assertion turns red ([[OPS487]]'s `runRedeploy` stub threw, and
+  only the absence mutations showed its rows could fail). **Paste the red run into the cycle's RESULT.md when you
   make the red commit**, not only into the final report: a report can be lost with its agent, and
   [[CORE38]] then had red commits but no red output, so review had to accept the commit order plus the
   absence mutations instead.
