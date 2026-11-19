@@ -361,6 +361,14 @@ lines over `stage`, `layout`, `check` and the fixtures, plus four test edits. A 
 to the tarball counts the release package as its own rider with a line count ("rider: release package, ~4 files"). A
 charter that names a non-gate check (`release:check`, `smoke:worker`, an E2E script) says what `main` shows for it, since
 both were red on `main` here (`writing-tests` §7, "Checks outside the gate rot unseen").
+**UI468** (`knowledge/specs/026-UI468-accounts-settings/RETRO.md`): 6 groups (1 matrix), 4 decisions + 6 planner rules, no
+migration, 1 local E2E part. ~272k / 107 calls over two runs (+725 code / +986 test lines, 18 files), one review fix round.
+Within budget; the hidden part was an E2E seed the charter left to "the way the coder can do it faithfully". When an E2E's
+initial state is something the UI cannot create (a connected mailbox), name the seed as a rider with its method ("rider:
+E2E seed, `connectOperation` in-process via `getPlatformProxy`, imported from `../../api/src`") so the coder records it
+up front. And when a charter states an operation's answer in a given Worker configuration, read the handler's check order
+first: unconfigured `connections.sync` answers `501` before it reads the connection, so the charter's `409` needed a
+second, configured Worker (468.15).
 
 ### Step 3: Resolve identities
 
