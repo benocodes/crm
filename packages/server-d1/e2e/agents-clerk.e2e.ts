@@ -128,9 +128,10 @@ test('C. agent role: the app admits no agent principal (No access to this worksp
   page,
   browser,
 }) => {
-  // UI479 finding (479.6): the charter expected "You don't have access to the agents list." plus Connect an agent, but `state.ts` ([[UI443]]) refuses a principal that is not a person ("The app is for people"), so the agent-role person gets the no-access card.
+  // UI479 479.10/479.12: `state.ts` ([[UI443]]) refuses a principal that is not a person ("The app is for people"), so the agent-role person gets the no-access card.
   await open(page, 'agent', '/agents')
   await expect(page.getByRole('heading', { name: 'No access to this workspace' })).toBeVisible()
+  await expect(page.getByText('An agent should use the MCP, the CLI or the SDK instead.')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Agents' })).toHaveCount(0)
   const ctx = await browser.newContext()
   const owner = await ctx.newPage()

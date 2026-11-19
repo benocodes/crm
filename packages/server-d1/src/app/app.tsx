@@ -90,6 +90,7 @@ export function App({
             <p className="text-sm">
               You are signed in, but this workspace has not given your account a role. Ask an owner to invite you.
             </p>
+            <p className="text-sm">This app is for people. An agent should use the MCP, the CLI or the SDK instead.</p>
           </Card>
         </Centered>
       )

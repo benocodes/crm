@@ -178,6 +178,11 @@ describe('the states without a shell (D4)', () => {
     expect(h.onSignOut).toHaveBeenCalledTimes(1)
   })
 
+  it('no-access tells an agent to use the MCP, the CLI or the SDK instead (UI479, 479.12)', () => {
+    show({ kind: 'no-access' })
+    expect(screen.getByText(/agents?.*MCP.*CLI.*SDK/i)).toBeTruthy()
+  })
+
   it('no-access with who: the card shows the signed-in person, and a refused sign-out error', async () => {
     show({
       kind: 'no-access',
