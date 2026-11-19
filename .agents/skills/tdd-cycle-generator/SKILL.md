@@ -495,7 +495,13 @@ Write the scenario so a tester can run it literally ([[CORE74]] needed two devia
   local state, a signed-in session remotely). [[CHN432]]'s charter had the agent create the form (432.19).
 - **Name the database as the script's own**: a local scenario runs on a fresh temp-dir state, never "the
   `.wrangler/state` of the worktree", which a coder read as licence to wipe the developer's dev database
-  ([[CHN432]] review, 432.25).
+  ([[CHN432]] review, 432.25). Before writing "temp dir", check the scenario's setup tools take one: `bootstrap` and
+  `e2e/seed-connection.ts` open only the default state (#474), so a scenario built on them names "this cycle worktree's
+  own fresh `.wrangler/state`" instead, as `writing-tests` §7's standing exception says ([[UI469]] chartered a temp dir
+  the tools could not use, 469.9).
+- **A budget in a charter or a review quotes its number and what it bounds** (JS or CSS, gzipped or raw). [[UI469]]'s
+  review compared the app's JavaScript with [[UI443]] D6's 25 KB *CSS* budget and logged an overrun that did not exist
+  (469.12, superseded by 469.13).
 - **A migration over data seeds the old schema directly** (SQL against the database at the previous
   migration, or the previous build), never through the new Worker: since [[CORE61]] the new code answers
   `503 migrations_pending` until the database is current. List that `503` as an expected step.

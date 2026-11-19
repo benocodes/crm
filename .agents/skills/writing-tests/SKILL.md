@@ -881,7 +881,11 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   `--persist-to <dir>` on both `d1 migrations apply` calls and on `wrangler dev`, `persist.path` for an in-process
   `getPlatformProxy` (bootstrap, owner-only setup), and the Worker's variables from a script-owned `--env-file`. It never
   reads, deletes or rewrites `packages/server-d1/.wrangler/state` or `.dev.vars`: they are the developer's dev database
-  and secrets ([[CHN432]] review, `packages/server-d1/scripts/e2e-forms.ts`).
+  and secrets ([[CHN432]] review, `packages/server-d1/scripts/e2e-forms.ts`). **Standing exception, until #474:** the
+  Playwright scripts whose recipe runs `bootstrap` and `e2e/seed-connection.ts` (`e2e:auth-pages`, `e2e:auth-pages-reset`,
+  `e2e:oauth-pages`, `e2e:accounts-connect`) use the package's default `.wrangler/state` and `.dev.vars`, because those
+  tools take no persist directory; they run only in a cycle worktree (its state is its own), never in the main checkout
+  ([[UI469]], 469.9, 469.14). A new script joins that family only if it needs those tools; otherwise it owns its state.
 - **Local setup:** `wrangler d1 migrations apply DB --local` and `... apply CONTROL_DB --local` before `bootstrap` (it writes the control marker, CORE259); in `.dev.vars` write the
   `CLERK_JWT_KEY` PEM on one line with `\n` escapes. Delete every DCR client the run creates through BAPI by
   its application id (`DELETE /v1/oauth_applications/oa_…`), not its client id.
