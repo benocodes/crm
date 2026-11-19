@@ -175,4 +175,46 @@ describe('the Connected accounts calls', () => {
     const { api } = rig(() => json({ error: { code: 'provider_not_configured' } }, 501))
     expect(await api.authorizeGmail()).toEqual({ status: 501, body: null, code: 'provider_not_configured' })
   })
+
+  // [[UI468]] D6 to D9.
+  it('connection(): GET /meta/v1/connections/{id} with the id encoded', async () => {
+    const { api, calls } = rig(() => json({ id: 'c1', capture_labels: ['INBOX'] }))
+    const r = await api.connection('c 1')
+    expect(r).toEqual({ status: 200, body: { id: 'c1', capture_labels: ['INBOX'] } })
+    expect(calls[0]!.url).toBe(`${ORIGIN}/meta/v1/connections/c%201`)
+    expect(calls[0]!.init.method).toBe('GET')
+  })
+
+  it('updateConnection(): PATCH with exactly the given body', async () => {
+    const { api, calls } = rig(() => json({ id: 'c1' }))
+    await api.updateConnection('c1', { contact_creation: 'none' })
+    expect(calls[0]!.url).toBe(`${ORIGIN}/meta/v1/connections/c1`)
+    expect(calls[0]!.init.method).toBe('PATCH')
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ contact_creation: 'none' })
+  })
+
+  it('updateConnection(): a refusal carries its code and the server message', async () => {
+    const { api } = rig(() => json({ error: { code: 'validation_error', message: 'blocked_senders[0]: nope' } }, 400))
+    expect(await api.updateConnection('c1', {})).toEqual({
+      status: 400,
+      body: null,
+      code: 'validation_error',
+      message: 'blocked_senders[0]: nope',
+    })
+  })
+
+  it('syncConnection(): POST /meta/v1/connections/{id}/sync, no body', async () => {
+    const { api, calls } = rig(() => json({ requested_at: 't' }, 202))
+    expect(await api.syncConnection('c1')).toEqual({ status: 202, body: { requested_at: 't' } })
+    expect(calls[0]!.url).toBe(`${ORIGIN}/meta/v1/connections/c1/sync`)
+    expect(calls[0]!.init.method).toBe('POST')
+    expect(calls[0]!.init.body).toBeUndefined()
+  })
+
+  it('deleteConnection(): DELETE; a 204 has no body and is a success status', async () => {
+    const { api, calls } = rig(() => new Response(null, { status: 204 }))
+    expect(await api.deleteConnection('c1')).toEqual({ status: 204, body: null })
+    expect(calls[0]!.url).toBe(`${ORIGIN}/meta/v1/connections/c1`)
+    expect(calls[0]!.init.method).toBe('DELETE')
+  })
 })

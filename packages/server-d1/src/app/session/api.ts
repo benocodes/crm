@@ -8,6 +8,8 @@ export interface ApiResult<T> {
   noToken?: true
   /** The `error.code` of a non-2xx answer, when it has one ([[UI467]] D3). */
   code?: string
+  /** The `error.message` of a non-2xx answer, when it has one ([[UI468]] D7, D9: the server's words are shown). */
+  message?: string
 }
 export interface Api {
   me(): Promise<ApiResult<Me>>
@@ -22,6 +24,14 @@ export interface Api {
   identityAddress(identityId: string): Promise<ApiResult<string>>
   /** [[UI467]] D3: `connections.authorize` for Google; the body is the consent URL to navigate to. */
   authorizeGmail(): Promise<ApiResult<{ authorize_url: string; expires_at: string }>>
+  /** [[UI468]] D6: `connections.get`. */
+  connection(id: string): Promise<ApiResult<ConnectionRecord>>
+  /** [[UI468]] D7: `connections.update` (PATCH), the changed fields only; the body is the returned record. */
+  updateConnection(id: string, body: object): Promise<ApiResult<ConnectionRecord>>
+  /** [[UI468]] D9: `connections.sync`; `202` carries `requested_at`. */
+  syncConnection(id: string): Promise<ApiResult<{ requested_at: string }>>
+  /** [[UI468]] D8: `connections.delete`; `204` has no body. */
+  deleteConnection(id: string): Promise<ApiResult<null>>
 }
 
 export function createApi(deps: { origin: string; getToken(): Promise<string | null>; fetch: typeof fetch }): Api {
@@ -43,8 +53,13 @@ export function createApi(deps: { origin: string; getToken(): Promise<string | n
       parsed = null
     }
     if (res.ok) return { status: res.status, body: parsed }
-    const code = (parsed as { error?: { code?: unknown } } | null)?.error?.code
-    return { status: res.status, body: null, ...(typeof code === 'string' ? { code } : {}) }
+    const error = (parsed as { error?: { code?: unknown; message?: unknown } } | null)?.error
+    return {
+      status: res.status,
+      body: null,
+      ...(typeof error?.code === 'string' ? { code: error.code } : {}),
+      ...(typeof error?.message === 'string' ? { message: error.message } : {}),
+    }
   }
 
   return {
@@ -108,5 +123,11 @@ export function createApi(deps: { origin: string; getToken(): Promise<string | n
       call<{ authorize_url: string; expires_at: string }>('POST', '/meta/v1/connections/authorize', {
         provider: 'google',
       }),
+    connection: (id) => call<ConnectionRecord>('GET', `/meta/v1/connections/${encodeURIComponent(id)}`),
+    updateConnection: (id, body) =>
+      call<ConnectionRecord>('PATCH', `/meta/v1/connections/${encodeURIComponent(id)}`, body),
+    syncConnection: (id) =>
+      call<{ requested_at: string }>('POST', `/meta/v1/connections/${encodeURIComponent(id)}/sync`),
+    deleteConnection: (id) => call<null>('DELETE', `/meta/v1/connections/${encodeURIComponent(id)}`),
   }
 }

@@ -470,6 +470,81 @@ test('11c. [UI467] Connected accounts: the sidebar row opens /accounts with it c
   await page.setViewportSize({ width: 1280, height: 720 })
 })
 
+test('11d. [UI468] a mailbox: Settings, Sync now and Disconnect on its row; Sync now says this instance cannot sync; the settings view edits and saves; Disconnect is confirmed and returns to the list; axe clean in both themes on the list, the form and the open dialog', async () => {
+  // The REAL connect program, in-process against the script's own local D1 (e2e/seed-connection.ts): an active connection owned by the owner, mailbox@e2e.test, labels INBOX and Label_1.
+  const id = execFileSync('pnpm', ['exec', 'tsx', 'e2e/seed-connection.ts', 'mailbox@e2e.test'], {
+    cwd: PKG,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'inherit'],
+  })
+    .trim()
+    .split('\n')
+    .pop()!
+  await visit('/accounts')
+  const yours = page.getByRole('region', { name: 'Your mailboxes' })
+  const row = yours.getByRole('listitem').filter({ hasText: 'mailbox@e2e.test' })
+  await expect(row).toContainText('Connected')
+  await expect(row.getByRole('link', { name: 'Settings: mailbox@e2e.test' })).toBeVisible()
+  await expect(row.getByRole('button', { name: 'Sync now: mailbox@e2e.test' })).toBeVisible()
+  await expect(row.getByRole('button', { name: 'Disconnect: mailbox@e2e.test' })).toBeVisible()
+  await axeBoth(page, 'app-accounts-list')
+  // This Worker has no GOOGLE_CLIENT_ID: connections.sync answers 501, shown on that row.
+  await row.getByRole('button', { name: 'Sync now: mailbox@e2e.test' }).click()
+  await expect(row.getByRole('status')).toContainText('This instance cannot sync mailboxes')
+  await axeBoth(page, 'app-accounts-sync-501')
+  // Settings: the owner's form.
+  await row.getByRole('link', { name: 'Settings: mailbox@e2e.test' }).click()
+  await page.waitForURL((u) => u.pathname === '/accounts' && u.search === `?connection=${id}`)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('mailbox@e2e.test')
+  await expect(page).toHaveTitle('mailbox@e2e.test · Connected accounts · Vibase')
+  await expect(page.getByRole('switch', { name: 'Inbox' })).toBeChecked()
+  await expect(page.getByRole('switch', { name: 'Sent' })).not.toBeChecked()
+  await expect(page.getByRole('list', { name: 'Other labels' })).toContainText('Label_1')
+  const save = page.getByRole('button', { name: 'Save' })
+  await expect(save).toBeDisabled()
+  await axeBoth(page, 'app-accounts-settings')
+  await page.setViewportSize({ width: 375, height: 800 })
+  await visit(`/accounts?connection=${id}`)
+  await expect(save).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await axeBoth(page, 'app-accounts-settings-375')
+  await page.setViewportSize({ width: 1280, height: 720 })
+  // Edit and save: the blocked sender is stored lowercase and the form shows what was stored.
+  await page.getByLabel('Blocked addresses and domains').fill('Spam@Example.com')
+  await page.getByRole('button', { name: 'Add blocked sender' }).click()
+  await page.getByRole('radio', { name: 'Nobody' }).check()
+  await expect(save).toBeEnabled()
+  await save.click()
+  await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Blocked addresses and domains' })).toContainText('spam@example.com')
+  await expect(save).toBeDisabled()
+  await axeBoth(page, 'app-accounts-settings-saved')
+  await page.reload()
+  await expect(page.getByRole('list', { name: 'Blocked addresses and domains' })).toContainText('spam@example.com')
+  await expect(page.getByRole('radio', { name: 'Nobody' })).toBeChecked()
+  await expect(page.getByRole('switch', { name: 'Inbox' })).toBeChecked()
+  await expect(page.getByRole('list', { name: 'Other labels' })).toContainText('Label_1')
+  // Disconnect: focus starts on Cancel, Escape closes with focus back on the opener, then confirm.
+  const disconnect = page.getByRole('button', { name: 'Disconnect', exact: true })
+  await disconnect.click()
+  const dialog = page.getByRole('alertdialog', { name: 'Disconnect mailbox@e2e.test?' })
+  await expect(dialog).toContainText('Mail already captured stays in the CRM.')
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
+  await axeBoth(page, 'app-accounts-disconnect-dialog')
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(disconnect).toBeFocused()
+  await disconnect.click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Disconnect', exact: true }).click()
+  await page.waitForURL((u) => u.pathname === '/accounts' && u.search === '')
+  await expect(page.getByRole('region', { name: 'Your mailboxes' })).toContainText('No mailbox connected yet')
+  await axeBoth(page, 'app-accounts-after-disconnect')
+  // The disconnected id is no longer a mailbox.
+  await visit(`/accounts?connection=${id}`)
+  await expect(page.getByText('This mailbox is not connected.')).toBeVisible()
+  await axeBoth(page, 'app-accounts-settings-not-connected')
+})
+
 test('12. [UI460] Sign out from the shell shows the sign-in card, and reloading /home stays signed out', async () => {
   await visit('/home')
   await page.getByRole('button', { name: 'Sign out' }).click()

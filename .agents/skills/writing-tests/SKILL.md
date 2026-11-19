@@ -863,6 +863,13 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   (`packages/server-d1/e2e/auth-migration-driver.ts`, decision 397.18).
 - **Stop the local Worker around a Node command that opens its persisted D1 state**, then restart it: two processes
   writing one local SQLite file contend ([[OPS397]], 397.15).
+- **Seed state the UI cannot create by running the real program in-process**, not SQL that imitates it: run the
+  operation's batch through `getPlatformProxy` against the script's persisted local D1, as the user it belongs to.
+  A program `@vibase/api` does not export is imported from `../../api/src`; any raw adjustment after it is test-only and
+  recorded as a decision (`packages/server-d1/e2e/seed-connection.ts`, [[UI468]] 468.20).
+- **`connections.sync` refuses `501 provider_not_configured` before it reads the connection** when the Worker has no
+  Google config or `MAIL_SYNC`, so an unconfigured Worker never answers `409` or `202`. Test those on a second Worker
+  with Google env and a fake `MAIL_SYNC` binding (`packages/server-d1/src/app/accounts/accounts-real.test.ts`, 468.15).
 - **A Worker that switches provider mid-run gets its Clerk sessions from the Backend API**, not `@clerk/testing`:
   `POST /v1/sessions` with the user id, then `POST /v1/sessions/<id>/tokens`, and send the JWT as a bearer; the dev JWT
   carries the session-token claims (`vibase_role`). Keep Playwright for the pages the scenario asserts ([[OPS397]], 397.14).

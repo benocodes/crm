@@ -106,7 +106,7 @@ describe('meta, status and actions', () => {
     expect(view([conn('a', { status })]).yours[0]!.status).toEqual({ text, tone })
   })
 
-  // The matrix: scopes x ownership x status.
+  // The matrix: scopes x ownership x status ([[UI468]] group 1, P4: Settings on every row, Disconnect on every row with write, Sync now on active rows with write, Reconnect unchanged).
   const matrix: [string, string[], 'yours' | 'others', string, string[]][] = []
   for (const [label, scopes] of [
     ['read+write', ['connections:read', 'connections:write']],
@@ -119,7 +119,14 @@ describe('meta, status and actions', () => {
           [...scopes],
           who,
           status,
-          label === 'read+write' && who === 'yours' && status !== 'active' ? ['reconnect'] : [],
+          label === 'read+write'
+            ? [
+                'settings',
+                ...(status === 'active' ? ['sync'] : []),
+                ...(who === 'yours' && status !== 'active' ? ['reconnect'] : []),
+                'disconnect',
+              ]
+            : ['settings'],
         ])
   it.each(matrix)('actions: %s, %s row, status %s -> %j', (_label, scopes, who, status, actions) => {
     const v = view([conn('a', { status, owner_id: who === 'yours' ? ME : OTHER })], { scopes })

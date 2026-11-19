@@ -232,7 +232,10 @@ migrated local D1s, a bootstrap invitation, `pnpm dev`) is that case, not a reas
 `e2e:auth-pages` legs type-checked only, and an assertion the charter had spelled out differently cost a coder round. When the script has rate-limited legs (the
 device legs of `e2e:oauth-pages`), rerun only the legs you changed (`-g`); repeated full runs spent [[UI455]]'s
 per-IP limit and left the full run undone. The tester's run is still the evidence; yours
-catches script slips, which cost [[API115]] a full coder and tester round. Note the run (pass, or what failed and
+catches script slips, which cost [[API115]] a full coder and tester round. Start the run only once `pnpm dev` has
+finished its build (a run started over a rebuild failed at an early leg in [[UI468]]), and stop every dev server or
+`wrangler dev` you started before you report (`lsof -i :8787`): [[UI468]]'s coder left one running and the orchestrator
+had to kill it before the gate. Note the run (pass, or what failed and
 why) in RESULT.md. **Before writing a Playwright spec, read `writing-tests` §7** and copy the waits of an existing
 spec (`mcp-oauth.e2e.ts`): [[AGT8]] cycle 1's spec read `window.Clerk.session` right after sign-in, a race §7
 already names, and it cost a coder and tester round. A spec that only type-checks has not been run.
