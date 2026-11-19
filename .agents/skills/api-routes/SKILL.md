@@ -1229,7 +1229,7 @@ message bodies or addresses at info level (customer communications are personal 
 The app and auth pages are the pattern for any page the Worker serves (`packages/server-d1/src/app-serving.ts`, `src/ui-serving.ts`; `/connect` was the first, deleted at [[UI476]], and is now a `302 /home`):
 - **Workers Static Assets with `run_worker_first` for the page's prefix only.** `assets` is the one block every
   env inherits (unlike `vars`, `d1_databases`, `r2_buckets`, `routes`). Build into a directory that mirrors
-  the request prefix (`dist/assets/connect/…`), so no asset exists at any other path even if
+  the request prefix (`dist/assets/app/…`), so no asset exists at any other path even if
   `run_worker_first` were widened. In `smoke:worker`, Miniflare serves it with
   `assets: { directory, binding, routerConfig: { has_user_worker: true, static_routing: { user_worker: [...] } } }`.
 - **The Worker sets the security headers on every response kind** (HTML, asset, `308`, `404`, `405`): a CSP
@@ -1246,7 +1246,7 @@ The app and auth pages are the pattern for any page the Worker serves (`packages
   `clerk` with a publishable key gives `windowClerk`, `better-auth` gives `betterAuthSession` (same-origin `fetch`, no
   third-party script), and anything else gives `null`, which means unavailable. The controller's only availability
   check is "has a seam". The composition hands the app server an issuer only on `clerk`, so every other provider gets
-  the `'self'`-only CSP. Test that through the composed Worker: a `connectCsp` unit test cannot see what `compose.ts`
+  the `'self'`-only CSP. Test that through the composed Worker: an `appCsp` unit test cannot see what `compose.ts`
   passes.
 - **A failed action keeps the page's state and adds an error line.** It never reuses a state that names a different
   failure ([[UI297]] review). A rejected sign-out once became the refused-*load* state, which told a signed-in person

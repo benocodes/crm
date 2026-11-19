@@ -102,6 +102,7 @@ test('B. owner on /agents: e2e-key is an Enabled API-key agent; Disable (confirm
   request,
   baseURL,
 }) => {
+  expect(AGENT_KEY, 'E2E_AGENT_KEY (the key bootstrap printed) must be set: leg B proves the 401 and 200').toBeTruthy()
   await open(page, 'owner', '/agents')
   const key = row(page, 'e2e-key')
   await expect(key).toBeVisible()
@@ -110,16 +111,14 @@ test('B. owner on /agents: e2e-key is an Enabled API-key agent; Disable (confirm
   await key.getByRole('button', { name: 'Disable' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Disable', exact: true }).click()
   await expect(key.getByText('Disabled', { exact: true })).toBeVisible()
-  if (AGENT_KEY)
-    expect(
-      (await request.get('/api/v1/contacts', { headers: { authorization: `Bearer ${AGENT_KEY}` } })).status(),
-    ).toBe(401)
+  expect((await request.get('/api/v1/contacts', { headers: { authorization: `Bearer ${AGENT_KEY}` } })).status()).toBe(
+    401,
+  )
   await key.getByRole('button', { name: 'Enable' }).click()
   await expect(key.getByText('Enabled', { exact: true })).toBeVisible()
-  if (AGENT_KEY)
-    expect(
-      (await request.get('/api/v1/contacts', { headers: { authorization: `Bearer ${AGENT_KEY}` } })).status(),
-    ).toBe(200)
+  expect((await request.get('/api/v1/contacts', { headers: { authorization: `Bearer ${AGENT_KEY}` } })).status()).toBe(
+    200,
+  )
   await expect(page.getByText(`vibase login --server ${baseURL}`)).toBeVisible()
   await expect(page.getByText(`${baseURL}/mcp`).first()).toBeVisible()
 })

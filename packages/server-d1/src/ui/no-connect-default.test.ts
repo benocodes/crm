@@ -123,7 +123,15 @@ describe("no source names '/connect' as a path outside the allow-list (UI476, UI
 
 // [[UI479]] P3 (479.3, group 2): no skill or AGENTS.md cites an artefact UI476 deleted.
 describe('no skill or AGENTS.md cites a deleted /connect artefact (UI479)', () => {
-  const DEAD = ['src/connect/', 'connect-serving', 'build-connect', 'e2e:connect', 'connect.e2e.ts', 'connect-seam']
+  const DEAD = [
+    'src/connect/',
+    'connect-serving',
+    'build-connect',
+    'e2e:connect',
+    'connect.e2e.ts',
+    'connect-seam',
+    'connectCsp',
+  ]
   const docs = [...walk(join(REPO, '.agents/skills')).filter((f) => f.endsWith('.md')), join(REPO, 'AGENTS.md')]
   it('the scan sees the skills', () => {
     expect(docs.length).toBeGreaterThan(10)
