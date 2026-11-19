@@ -37,6 +37,8 @@ describe('selectSeam', () => {
     const scripts: string[] = []
     const requests: string[] = []
     const seam = selectSeam(discovery, {
+      returnPath: '/home',
+      signOutReturn: 'https://w.test/home',
       loadScript: async (src) => void scripts.push(src),
       fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
         requests.push(`${init?.method ?? 'GET'} ${typeof input === 'string' ? input : String(input)}`)
@@ -60,7 +62,11 @@ describe('selectSeam', () => {
   it('on clerk the Clerk script is the one loaded (the seam is the Clerk window seam)', async () => {
     const scripts: string[] = []
     ;(window as unknown as { Clerk?: unknown }).Clerk = { load: async () => {}, session: null }
-    const seam = selectSeam(clerk(PK), { loadScript: async (src) => void scripts.push(src) })
+    const seam = selectSeam(clerk(PK), {
+      returnPath: '/home',
+      signOutReturn: 'https://w.test/home',
+      loadScript: async (src) => void scripts.push(src),
+    })
     await seam!.load()
     expect(scripts).toHaveLength(1)
     expect(scripts[0]).toContain('x.clerk.accounts.dev')
@@ -73,7 +79,7 @@ describe('selectSeam passes the caller’s return paths through (UI460 P2, P3)',
     const urls: string[] = []
     const seam = selectSeam(
       { auth: { provider: 'better-auth', issuer: 'https://w.test/auth', cli_client_id: null, publishable_key: null } },
-      { returnPath: '/home', navigate: (u) => void urls.push(u) },
+      { returnPath: '/home', signOutReturn: 'https://w.test/home', navigate: (u) => void urls.push(u) },
     )
     await seam!.redirectToSignIn('x')
     expect(urls).toEqual(['/sign-in?return_to=/home'])
@@ -84,10 +90,26 @@ describe('selectSeam passes the caller’s return paths through (UI460 P2, P3)',
       load: async () => {},
       signOut: async (o?: unknown) => void calls.push(o),
     }
-    const seam = selectSeam(clerk(PK), { loadScript: async () => {}, signOutReturn: 'https://w.test/home' })
+    const seam = selectSeam(clerk(PK), { loadScript: async () => {}, returnPath: '/home', signOutReturn: 'https://w.test/home' })
     await seam!.load()
     await seam!.signOut()
     expect(calls).toEqual([{ redirectUrl: 'https://w.test/home' }])
     delete (window as unknown as { Clerk?: unknown }).Clerk
+  })
+})
+
+describe('the return paths are required (UI476 P4)', () => {
+  it('selectSeam without them, or with one of them, does not typecheck', () => {
+    const never = () => {
+      // @ts-expect-error UI476 P4: no deps at all
+      selectSeam(clerk(PK))
+      // @ts-expect-error UI476 P4: an empty deps
+      selectSeam(clerk(PK), {})
+      // @ts-expect-error UI476 P4: `signOutReturn` missing
+      selectSeam(clerk(PK), { returnPath: '/home' })
+      // @ts-expect-error UI476 P4: `returnPath` missing
+      selectSeam(clerk(PK), { signOutReturn: 'https://w.test/home' })
+    }
+    expect(never).toBeTypeOf('function')
   })
 })

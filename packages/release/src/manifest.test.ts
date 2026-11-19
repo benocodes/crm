@@ -73,7 +73,7 @@ describe('D4 verify refusals', () => {
   it('a clean stage verifies', () => {
     expect(verifyRelease(stage().outDir)).toEqual([])
   })
-  it.each(['worker/worker.js', 'assets/connect/index.html', 'migrations/0001_a.sql', 'cli/server.js'])(
+  it.each(['worker/worker.js', 'assets/app/index.html', 'migrations/0001_a.sql', 'cli/server.js'])(
     'a changed byte in %s names the path',
     (f) => {
       const { outDir } = stage()
@@ -82,7 +82,7 @@ describe('D4 verify refusals', () => {
       expect(() => assertRelease(outDir)).toThrow(f)
     },
   )
-  it.each(['worker/worker.js', 'assets/connect/connect.js', 'migrations/0002_b.sql'])(
+  it.each(['worker/worker.js', 'assets/app/app.js', 'migrations/0002_b.sql'])(
     'a missing %s names the path',
     (f) => {
       const { outDir } = stage()
@@ -91,7 +91,7 @@ describe('D4 verify refusals', () => {
       expect(() => assertRelease(outDir)).toThrow(f)
     },
   )
-  it.each(['worker/extra.js', 'assets/connect/extra.js', 'migrations/0003_c.sql'])(
+  it.each(['worker/extra.js', 'assets/app/extra.js', 'migrations/0003_c.sql'])(
     'an extra %s names the path',
     (f) => {
       const { outDir } = stage()
