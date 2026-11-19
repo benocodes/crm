@@ -27,11 +27,10 @@ export const INSTANCE_HELP = `vibase-server: manage the Vibase instance this ser
       with a different build: use redeploy); 3: failed after a change began (the instance may be partly upgraded: run status, then upgrade again).
 
   vibase-server redeploy --env <name> [--dry-run] [--settings <path>] [--secrets-file <path>]
-      Puts this package's build on the instance, whatever is live: a new build of the same version, the same build again, or an older
-      package (the rollback). It asks nothing and refuses no version or schema. It applies only the migrations the instance lacks, then
-      deploys, verifies /health (version and commit) and runs the smoke. Migrations are never reversed: an older build runs on a
-      newer schema and says so in one line. Needs CONFIRM_REMOTE=1 (not for --dry-run). Exit codes as upgrade.
-      The fast path for a bad deploy is Cloudflare's own \`wrangler rollback\` (previous Worker version), with the same warning: it never reverses a migration.
+      Advanced: puts this package's build on the instance, whatever is live (same version, a new build, or an older package: the rollback).
+      No prompts, no version or schema refusal. Applies missing migrations, never reverses one (an older build runs on the newer schema);
+      \`upgrade\` is the normal, guarded path.
+      Needs CONFIRM_REMOTE=1 (not for --dry-run). Exit codes as upgrade.
 
   vibase-server setup --env <name> (--api-host <host> | --workers-dev) [--auth better-auth|clerk|none] [--owner-email <email>] [--operator-agent <name> --key-env <NAME>]
                         [--dry-run] [--only <steps>] [--settings <path>] [--secrets-file <path>] [more flags: --web-origin, --extra-origin, --org,
