@@ -74,6 +74,10 @@ branch then carries no code, so there is no gate to run ([[DX422]] D2).
   changes (an audit `detail`, a column list), grep `packages/*/scripts` for the old literal too ([[CORE248]]'s
   only gate-fix round was `packages/server-d1/scripts/bootstrap-invitation.test.ts` pinning the old
   `invitation.created` detail).
+- **Before adding a value to an allow-list, grep the tests for that value as a literal.** A fixture may use it as its
+  example of what is *not* in the list: `packages/server-d1/src/ui/continuation.test.ts` used `/agents` as a non-app
+  path, and adding `/agents` to `APP_PAGE_PATHS` turned two tests red at [[UI459]]'s first gate. Move such fixtures to a
+  value no spec plans.
 - **A new CLI flag goes into every help and usage text that lists its command's flags**, not only the parser and
   the docs: grep the command's neighbouring flag (`--d1-name`) to find them. [[OPS279]]'s review round 1 was only
   this: `--control-d1-name` parsed and documented, missing from `INSTANCE_HELP`
@@ -281,7 +285,10 @@ leaves the orchestrator waiting for one ([[API63]] round 1). The same holds for 
 changes something one of your decision rows states (a file, where a function lives), add the superseding row
 (`--supersedes <ref>`) and update `RESULT.md` in that round. A new choice the fix makes is a new row, listed in
 `RESULT.md`'s Decisions in the same round, with the fix's evidence. [[UI256]]'s review round 1 asked only for these
-records, and [[UI445]]'s round 2 was a gate-fix row (445.24) missing from `RESULT.md`.
+records, and [[UI445]]'s round 2 was a gate-fix row (445.24) missing from `RESULT.md`. A fix that changes layout
+(a flex basis, a wrap, a width) re-runs every width the charter's E2E checks, with a geometric assertion
+(`writing-tests` §7), before reporting: [[UI459]]'s round-1 `flex-1` fix was proven at desktop width only and broke
+375 px, which cost round 2.
 
 If you run low on context, run `/handoff` in the cycle folder and report `handed off`.
 

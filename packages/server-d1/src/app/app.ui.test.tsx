@@ -122,6 +122,37 @@ describe('ready on /accounts (UI467 D1)', () => {
   })
 })
 
+describe('ready on /agents (UI459 D1, D2, D8)', () => {
+  const API = { agents: vi.fn(async () => ({ status: 200, body: [] })), forms: vi.fn(), setDisabled: vi.fn() }
+  const showAgents = (scopes: string[]) => {
+    const h = handlers()
+    render(
+      <App
+        state={{ ...READY, scopes }}
+        provider="better-auth"
+        path="/agents"
+        origin="https://w.test"
+        mcpUrl={null}
+        api={{ ...(NO_API as object), ...API } as never}
+        {...h}
+      />,
+    )
+  }
+  it('draws the Agents page, not Home, with its nav entry current; Connect an agent is always on it', async () => {
+    showAgents(['agents:read'])
+    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Agents'])
+    const nav = screen.getByRole('navigation', { name: 'Workspace' })
+    expect(within(nav).getByRole('link', { name: 'Agents' }).getAttribute('aria-current')).toBe('page')
+    expect(within(nav).getByRole('link', { name: 'Home' }).getAttribute('aria-current')).toBeNull()
+    expect(await screen.findByText('vibase login --server https://w.test')).toBeTruthy()
+  })
+  it('the nav row is absent without agents:read, and the page says so', () => {
+    showAgents([])
+    expect(screen.queryByRole('link', { name: 'Agents' })).toBeNull()
+    expect(screen.getByText("You don't have access to the agents list.")).toBeTruthy()
+  })
+})
+
 describe('the states without a shell (D4)', () => {
   it('signed-out: one Sign in button, a heading, no sidebar; the button calls the handler', async () => {
     const h = show({ kind: 'signed-out' })

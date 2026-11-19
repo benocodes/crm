@@ -748,6 +748,16 @@ only an empty `div` (the [[UI256]] E2E found the stray text; `packages/server-d1
   `scripts/build-ui.test.ts` and `scripts/build-app.test.ts`; the app's was added after its E2E hit the same failure,
   [[UI460]] 460.15); a page that keeps transitions waits for them to finish before axe or a screenshot. It is not a missing dark token:
   check the computed colour before and after a pause before editing the theme.
+- **A colour axe catches after a click may be hover, not transition.** A Radix dialog portals outside the mount's
+  no-transition wrapper, and Playwright leaves the pointer on the last button it clicked: [[UI459]]'s dialog axe step
+  failed in dark on the hovered destructive button (459.32; the hover colour itself fails AA, #477). Before axe or a
+  screenshot on a state reached by clicking, park the pointer away from controls (`page.mouse.move(0, 0)`); a fixed wait
+  does not settle a hover.
+- **"No horizontal scroll" does not prove a narrow layout.** A flex row whose content column is `flex-1` (zero basis)
+  beside actions kept the page within 375 px while collapsing a `CommandBlock`'s `pre` to 0 px; axe and the scroll check
+  were green ([[UI459]] review round 2). When a cycle puts new content in a shared row or flex component, the narrow-width
+  leg asserts geometry: the content's measured width (`boundingBox()`, a floor such as 200 px or half the row) and that
+  the actions' box does not overlap it. Seen red on the broken layout before it counts.
 - **The workspace app's first paint waits on four reads** (discovery, session, `me.get`, the agents walk). Under a
   loaded machine `e2e:auth-pages` legs 11b and 11c each once timed out on Playwright's default 5 s while the shell
   still showed "Loading…" ([[UI467]], 467.16, not reproduced in isolation). A leg that waits for the app's first

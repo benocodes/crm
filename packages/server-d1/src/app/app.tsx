@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react'
 import { Alert, AppShell, Button, Card } from '@vibase/ui/components'
 import { AccountsPage, type AccountsApi } from './accounts/accounts.js'
+import { AgentsPage, type AgentsApi } from './agents/agents.js'
 import { HomePage } from './home.js'
 import { NAV, visibleNav } from './nav.js'
 import type { AppController, AppState } from './state.js'
@@ -18,7 +19,7 @@ export interface AppProps {
   /** The MCP URL when discovery advertises one. */
   mcpUrl: string | null
   /** The client the Connected accounts page reads and connects with ([[UI467]]). */
-  api: AccountsApi
+  api: AccountsApi & AgentsApi
   onCheckAgain(): void
   onSignIn(): void
   onSignOut(): void
@@ -118,6 +119,13 @@ export function App({
         >
           {path === '/accounts' ? (
             <AccountsPage api={api} userId={state.who.userId} scopes={state.scopes} />
+          ) : path === '/agents' ? (
+            <AgentsPage
+              api={api}
+              userId={state.who.userId}
+              scopes={state.scopes}
+              instructions={{ origin, signIn: provider !== null, mcpUrl }}
+            />
           ) : (
             <HomePage
               who={state.who}
@@ -147,7 +155,7 @@ export function AppRoot({
   path: string
   origin: string
   mcpUrl: string | null
-  api: AccountsApi
+  api: AccountsApi & AgentsApi
 }) {
   const state = useSyncExternalStore(controller.subscribe, controller.state)
   return (

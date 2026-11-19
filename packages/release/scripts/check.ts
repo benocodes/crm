@@ -416,6 +416,14 @@ export async function checkRelease(
           `the Connected accounts page is not served: /accounts ${accounts.status}, /accounts/x ${accountsBelow.status}`,
         )
       log(`/accounts ${accounts.status}, /accounts/x ${accountsBelow.status}`)
+      // [[UI459]] D1: the Agents page, likewise.
+      const agentsPage = await fetch(new URL('/agents', url), { redirect: 'manual' })
+      const agentsBelow = await fetch(new URL('/agents/x', url), { redirect: 'manual' })
+      if (agentsPage.status !== 200 || agentsBelow.status !== 404)
+        throw new ReleaseRefusal(
+          `the Agents page is not served: /agents ${agentsPage.status}, /agents/x ${agentsBelow.status}`,
+        )
+      log(`/agents ${agentsPage.status}, /agents/x ${agentsBelow.status}`)
       return {
         clientInstallPath: clientInstall,
         serverInstallPath: install,

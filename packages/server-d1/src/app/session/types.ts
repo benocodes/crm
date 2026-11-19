@@ -39,6 +39,12 @@ export interface AgentRecord {
   delegated_by: string | null
 }
 
+/** [[UI459]] D6: the fields of a form (`forms.list`) the Agents page reads: its id is its agent's id. */
+export interface FormRecord {
+  id: string
+  name: string
+}
+
 /** [[UI467]] D2: the fields of a connection record (`connections.list`) the Connected accounts page reads. */
 export interface ConnectionRecord {
   id: string

@@ -23,6 +23,8 @@ export interface ResourceListItem {
   /** A slot beside the title, usually a `StatusBadge`. */
   status?: ReactNode
   actions?: ResourceRowAction[]
+  /** [[UI459]] D7: content under the meta lines, inside the row (a command to run, a note). Absent: nothing is rendered. */
+  detail?: ReactNode
 }
 
 export interface ResourceListProps {
@@ -56,7 +58,7 @@ export function ResourceList({
         <ul aria-label={label} className="flex flex-col divide-y divide-border rounded-lg border">
           {items.map((item) => (
             <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <div className="flex min-w-0 flex-col gap-1">
+              <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium break-all">{item.title}</span>
                   {item.status}
@@ -66,6 +68,11 @@ export function ResourceList({
                     {line}
                   </p>
                 ))}
+                {item.detail ? (
+                  <div data-slot="detail" className="mt-1 flex flex-col gap-2 text-sm">
+                    {item.detail}
+                  </div>
+                ) : null}
               </div>
               {item.actions?.length ? (
                 <div className="flex flex-wrap items-center gap-2">

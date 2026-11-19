@@ -5,6 +5,7 @@ import { type ReactNode, useState } from 'react'
 import {
   Button,
   ChoiceGroup,
+  CommandBlock,
   ConfirmDialog,
   ListEditor,
   ResourceList,
@@ -114,6 +115,30 @@ function Lists() {
       <h1 className="text-2xl font-semibold">Vibase UI composites: lists, dialogs and forms</h1>
       <State state="resource-list" title="ResourceList, with rows and every tone">
         <ResourceList label="Mailboxes" items={ROWS} emptyText="No mailboxes yet." />
+      </State>
+      <State state="resource-detail" title="ResourceList, a row with a detail slot">
+        <ResourceList
+          label="Agents"
+          items={[
+            {
+              id: 'x',
+              title: 'e2e-bare',
+              meta: ['API-key agent', 'No permissions yet'],
+              status: <StatusBadge tone="success">Enabled</StatusBadge>,
+              actions: [{ label: 'Disable', onClick: () => {}, destructive: true }],
+              detail: (
+                <>
+                  <p className="text-sm">It has no permissions yet. To grant some, run:</p>
+                  <CommandBlock
+                    command={`vibase agents update 0190aaaa --scopes '["contacts:read","contacts:write"]'`}
+                    label="grant command"
+                  />
+                </>
+              ),
+            },
+          ]}
+          emptyText="No agents."
+        />
       </State>
       <State state="resource-empty" title="ResourceList, empty with an action">
         <ResourceList

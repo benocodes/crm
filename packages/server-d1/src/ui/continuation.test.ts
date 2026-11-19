@@ -38,7 +38,8 @@ describe('returnTarget', () => {
     '/home/../x',
     'home',
     '/accounts/x',
-    '/agents',
+    '/members',
+    '/agents/x',
     '/app/app.js',
     '//evil.example/home',
     '/home/..%2Fx',
@@ -62,9 +63,13 @@ describe('the allow-list follows APP_PAGE_PATHS', () => {
     ;(APP_PAGE_PATHS as unknown as string[]).pop()
   })
   it('a path added to the constant is honoured with no edit to continuation.ts', () => {
-    expect(returnTarget(q('/agents'))).toBeNull()
-    ;(APP_PAGE_PATHS as unknown as string[]).push('/agents')
+    expect(returnTarget(q('/members'))).toBeNull()
+    ;(APP_PAGE_PATHS as unknown as string[]).push('/members')
+    expect(returnTarget(q('/members'))).toBe('/members')
+  })
+  it('/agents is a return target (UI459 D1)', () => {
     expect(returnTarget(q('/agents'))).toBe('/agents')
+    expect(returnTarget(q('/agents/'))).toBeNull()
   })
   it('/accounts is a return target (UI467 D1)', () => {
     expect(returnTarget(q('/accounts'))).toBe('/accounts')

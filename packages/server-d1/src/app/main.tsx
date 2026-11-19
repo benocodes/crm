@@ -7,7 +7,7 @@ import { selectSeam } from './session/seam.js'
 import type { Discovery } from './session/types.js'
 import { createAppController } from './state.js'
 
-const TITLES: Record<string, string> = { '/home': 'Home', '/accounts': 'Connected accounts' }
+const TITLES: Record<string, string> = { '/home': 'Home', '/accounts': 'Connected accounts', '/agents': 'Agents' }
 document.title = `${TITLES[location.pathname] ?? 'Home'} · Vibase`
 
 async function discover(): Promise<Discovery | null> {

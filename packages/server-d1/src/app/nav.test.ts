@@ -59,3 +59,22 @@ describe('the Connected accounts row', () => {
     expect(entries.filter((e) => e.current).map((e) => e.label)).toEqual(['Connected accounts'])
   })
 })
+
+// [[UI459]] D1, D8 (group 4): the Agents row.
+describe('the Agents row', () => {
+  const labels = (scopes: string[], path = '/home') =>
+    visibleNav(NAV, { provider: 'better-auth', scopes }, path).map((e) => e.label)
+  it('follows Connected accounts, links to /agents with an icon, and shows only with agents:read', () => {
+    const i = NAV.findIndex((r) => r.label === 'Agents')
+    expect(i).toBe(NAV.findIndex((r) => r.label === 'Connected accounts') + 1)
+    expect(NAV[i]).toMatchObject({ label: 'Agents', href: '/agents' })
+    expect(NAV[i]!.icon).toBeDefined()
+    expect(labels([])).not.toContain('Agents')
+    expect(labels(['agents:write', 'connections:read'])).not.toContain('Agents')
+    expect(labels(['agents:read'])).toContain('Agents')
+  })
+  it('is current on /agents only, and Home is not', () => {
+    const entries = visibleNav(NAV, { provider: 'better-auth', scopes: ['agents:read', 'connections:read'] }, '/agents')
+    expect(entries.filter((e) => e.current).map((e) => e.label)).toEqual(['Agents'])
+  })
+})

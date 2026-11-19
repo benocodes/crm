@@ -1095,6 +1095,18 @@ try {
       (await call('GET', '/accounts/x')).status === 404,
     { status: res.status },
   )
+  res = await call('GET', '/agents')
+  const agentsPage = await res.text()
+  check(
+    '24c3 GET /agents -> 200 HTML with the app bundle and the app policy ([[UI459]] D1); /agents/ and /agents/x -> 404',
+    res.status === 200 &&
+      (res.headers.get('content-type') ?? '').startsWith('text/html') &&
+      agentsPage.includes('/app/app.js') &&
+      (res.headers.get('content-security-policy') ?? '').includes("style-src 'self' 'unsafe-inline'") &&
+      (await call('GET', '/agents/')).status === 404 &&
+      (await call('GET', '/agents/x')).status === 404,
+    { status: res.status },
+  )
   res = await fetch(new URL('/', base), { redirect: 'manual' })
   check(
     '24d GET / -> 302 to /home with the headers',
