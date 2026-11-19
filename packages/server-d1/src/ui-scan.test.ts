@@ -9,11 +9,12 @@ import { checkReactSources } from '../../ui/src/test/react-scan'
 const UI_TREE = fileURLToPath(new URL('./ui', import.meta.url))
 /** [[UI460]] D5: the workspace app's tree is held to the same scan. */
 const APP_TREE = fileURLToPath(new URL('./app', import.meta.url))
-/** This tree's allow-list entries beyond the scan's own: the component set (`@vibase/ui` has no root entry, [[UI447]] D1) the dependency-free scope catalogue leaf ([[UI247]] D5), and `vitest` (only the test-support `fake-fetch.ts` imports it). */
+/** This tree's allow-list entries beyond the scan's own: the component set (`@vibase/ui` has no root entry, [[UI447]] D1) the dependency-free scope catalogue leaf ([[UI247]] D5), `react-router` (the app's client-side router, declarative mode), and `vitest` (only the test-support `fake-fetch.ts` imports it). */
 const PAGE_ALLOW = [
   '@vibase/ui/components',
   '@vibase/api/scope-descriptions',
   '@vibase/api/scope-areas',
+  'react-router',
   'vitest',
 ] as const
 
