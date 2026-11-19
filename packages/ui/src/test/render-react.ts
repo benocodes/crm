@@ -1,4 +1,4 @@
-// The `ui-react` project's render helpers ([[UI254]] D3a): `@testing-library/react` and real React.
+// The `ui-components` project's render helpers (`#render`, [[UI447]] D3): `@testing-library/react` and real React.
 import { cleanup } from '@testing-library/react'
 import { afterEach } from 'vitest'
 

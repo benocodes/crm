@@ -6,7 +6,7 @@ import { build, type BuildOptions } from 'esbuild'
 import { describe, expect, it } from 'vitest'
 import { buildStylesheet, reactBuildOptions } from '../build/index'
 import { PAGE_CSP } from '../src/csp'
-import { packagesIn } from './build-gallery'
+import { packagesIn } from './build-gallery-react'
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'react-build-'))
 const write = (dir: string, files: Record<string, string>) => {

@@ -5,31 +5,21 @@
 // Globs are relative to the directory vitest is started from: the repo root (every package) or one package (`pnpm -C packages/<pkg> test`).
 import { fileURLToPath } from 'node:url'
 import { configDefaults, type TestProjectInlineConfiguration } from 'vitest/config'
-import { REACT_TO_PREACT_ALIAS } from './packages/ui/src/esbuild-options.ts'
 // For its side effect: a private TMPDIR per run, so Miniflare's leaked `miniflare-*` folders go with the run.
 import './vitest.tmpdir.ts'
 
-// `.tsx` too (UI254 D4): page tests render with the shipping runtime.
+// `.tsx` too (UI254 D4): page tests render with the shipping runtime, real React ([[UI447]] D2).
 const TESTS = '**/{src,scripts}/**/*.test.{ts,tsx}'
-// `@vibase/ui`'s component suites (`*.ui.test.tsx`) run once per runtime in the package's own `ui-preact` / `ui-react` projects (UI254 D3a,
-// packages/ui/vitest.config.ts; `src/components` suites run in `ui-components`, React only, UI448) and expect the runtime of that project, so the shared projects never collect them.
+// `@vibase/ui`'s component suites (`*.ui.test.tsx`) run in the package's own `ui-components` project (packages/ui/vitest.config.ts, UI448, UI447 D3)
+// and expect its `#render` alias, so the shared projects never collect them.
 const UI_SUITES = '**/*.ui.test.tsx'
 // Not workspace tests: vendored sources, other worktrees (`.claude/worktrees/*`) and the knowledge repo. The root run starts at the repo root, so the globs reach them.
 const EXCLUDE = [...configDefaults.exclude, '**/dist/**', '**/vendor/**', '**/.claude/**', '**/knowledge/**']
 // Every package's Postgres setup is the same one: it reads `packages/db/.env.test.local` (written by `pnpm db:test:worktree`).
 const POSTGRES_SETUP = fileURLToPath(new URL('./packages/db/src/test-setup.ts', import.meta.url))
 
-/** `react` and its JSX runtimes to Preact, as the page builds do (UI254 D1, D4): bare specifiers, resolved from the importing file. Exact match, so `react/jsx-runtime` is not caught by the `react` entry. */
-export const reactToPreactAlias = () =>
-  Object.entries(REACT_TO_PREACT_ALIAS).map(([from, to]) => ({
-    find: new RegExp(`^${from.replace(/[/-]/g, '\\$&')}$`),
-    replacement: to,
-  }))
-// Vitest 5 transforms with oxc, not esbuild (UI254 D4): the automatic JSX runtime on `react` is set here and the alias above sends it to Preact.
-const preactDefault = {
-  oxc: { jsx: { runtime: 'automatic', importSource: 'react' } },
-  resolve: { alias: reactToPreactAlias() },
-} as const
+// Vitest 5 transforms with oxc, not esbuild (UI254 D4): the automatic JSX runtime on `react`, and no alias ([[UI447]] D2): `react` is React.
+const reactDefault = { oxc: { jsx: { runtime: 'automatic', importSource: 'react' } } } as const
 
 const common = {
   environment: 'node',
@@ -40,7 +30,7 @@ const common = {
 } as const
 
 export const engineNeutralProject: TestProjectInlineConfiguration = {
-  ...preactDefault,
+  ...reactDefault,
   // OPS223 D3: the default projects allow files side by side (each opens a private in-memory D1); the worker count stays the root's
   // `maxWorkers: 1` unless a package's `test` script raises it (`@vibase/api`, D4).
   test: {
@@ -51,9 +41,9 @@ export const engineNeutralProject: TestProjectInlineConfiguration = {
     exclude: [...EXCLUDE, UI_SUITES, '**/*.d1.test.ts', '**/*.postgres.test.ts'],
   },
 }
-// UI446 D3, UI460 D4: the auth pages' suites (`packages/server-d1/src/ui/*.ui.test.tsx`) and the workspace app's (`src/app/*.ui.test.tsx`) run on real React, with no Preact alias, so Radix and `react-dom` are tested on
-// the runtime that ships. The shared project above never collects `*.ui.test.tsx`; the Preact layer's own suites ([[UI447]]) stay there under the alias.
-// Folds back into the shared project when UI447 removes the alias.
+// UI446 D3, UI460 D4: the auth pages' suites (`packages/server-d1/src/ui/*.ui.test.tsx`) and the workspace app's (`src/app/*.ui.test.tsx`) run on real React,
+// so Radix and `react-dom` are tested on the runtime that ships. The shared project above never collects `*.ui.test.tsx`; this one stays its own project
+// (UI447 D3): it collects only the `*.ui.test.tsx` files under `src/{ui,app}`.
 export const pageUiProject: TestProjectInlineConfiguration = {
   oxc: { jsx: { runtime: 'automatic', importSource: 'react' } },
   test: {

@@ -43,6 +43,17 @@ export async function buildGalleryReact(
   return { metafile: result.metafile, files: readdirSync(outDir) }
 }
 
+/** The npm packages whose files are in the bundle (the innermost `node_modules/<name>` of each input). */
+export function packagesIn(metafile: Metafile): string[] {
+  const names = new Set<string>()
+  for (const input of Object.keys(metafile.inputs)) {
+    const all = [...input.matchAll(/node_modules\/((?:@[^/]+\/)?[^/]+)\//g)]
+    const last = all.at(-1)
+    if (last) names.add(last[1]!)
+  }
+  return [...names].sort()
+}
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const out = process.argv[2] ?? GALLERY_REACT_OUT
   await buildGalleryReact(out)

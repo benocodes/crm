@@ -20,9 +20,11 @@ describe('manifest guard', () => {
       mkdirSync(join(root, 'packages', p), { recursive: true })
       writeFileSync(join(root, 'packages', p, 'package.json'), JSON.stringify({ dependencies: { preact: '1' } }))
     }
-    expect(checkManifests(root).map((x) => x.file).sort()).toEqual(
-      ['package.json', 'packages/a/package.json', 'packages/b/package.json'].sort(),
-    )
+    expect(
+      checkManifests(root)
+        .map((x) => x.file)
+        .sort(),
+    ).toEqual(['package.json', 'packages/a/package.json', 'packages/b/package.json'].sort())
   })
 
   it.each(['preact', '@preact/signals', '@testing-library/preact'])('refuses %s', (name) => {

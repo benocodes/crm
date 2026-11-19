@@ -1,5 +1,5 @@
-// [[UI448]] group 2: `@vibase/ui/components` exports every D7 component, and the composites accept the Preact layer's exported props types
-// ([[UI254]]'s props unchanged, P3). The type half is checked by `pnpm -C packages/ui typecheck`; the `@ts-expect-error` lines ARE the test.
+// [[UI448]] group 2: `@vibase/ui/components` exports every D7 component. The type half is checked by `pnpm -C packages/ui typecheck`; the
+// `@ts-expect-error` lines ARE the test. ([[UI447]] D7: the props-parity check against the removed Preact layer is gone.)
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '#render'
 import type {
@@ -10,8 +10,7 @@ import type {
   FieldProps,
   FormLayoutProps,
   ScopeItem,
-} from '../index'
-import { DEFAULT_GROUP_LENGTH as PREACT_GROUP, normaliseCode as preactNormalise } from '../index'
+} from './index'
 import * as entry from './index'
 
 describe('@vibase/ui/components entry', () => {
@@ -55,12 +54,6 @@ describe('@vibase/ui/components entry', () => {
         'Switch',
       ].sort(),
     )
-  })
-
-  it('has the same code helper behaviour as the Preact layer', () => {
-    expect(entry.DEFAULT_GROUP_LENGTH).toBe(PREACT_GROUP)
-    for (const raw of ['abcd-efgh', ' abcd efgh ', 'abcde', ''])
-      expect(entry.normaliseCode(raw)).toBe(preactNormalise(raw))
   })
 
   it('renders a composite from the entry', () => {

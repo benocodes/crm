@@ -312,9 +312,6 @@ importers:
       '@testing-library/dom':
         specifier: 10.4.2
         version: 10.4.2
-      '@testing-library/preact':
-        specifier: 3.2.6
-        version: 3.2.6(preact@11.2.0)
       '@testing-library/react':
         specifier: 16.3.3
         version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -354,9 +351,6 @@ importers:
       miniflare:
         specifier: 4.20260730.0
         version: 4.20260730.0
-      preact:
-        specifier: 11.2.0
-        version: 11.2.0
       tsx:
         specifier: 4.23.15
         version: 4.23.15
@@ -487,9 +481,6 @@ importers:
       lucide-react:
         specifier: 1.68.0
         version: 1.68.0(@types/react@19.3.0)(react@19.3.1)
-      preact:
-        specifier: 11.2.0
-        version: 11.2.0
       radix-ui:
         specifier: 1.8.1
         version: 1.8.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -515,9 +506,6 @@ importers:
       '@testing-library/dom':
         specifier: 10.4.2
         version: 10.4.2
-      '@testing-library/preact':
-        specifier: 3.2.6
-        version: 3.2.6(preact@11.2.0)
       '@testing-library/react':
         specifier: 16.3.3
         version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -3208,12 +3196,6 @@ packages:
     resolution: {integrity: sha512-yzr2S9HyAIdhz2/6qHgbs665Q7PKVcDF05vsOlHPxG1mo36gKVesdYVeDLnXgfjJ03CrKRk08knc6+E/9m8v2Q==}
     engines: {node: '>=18'}
 
-  '@testing-library/preact@3.2.6':
-    resolution: {integrity: sha512-qvl5x9zxY50sY3XukHT874eGK5Q7k+JzWrC1bQIN0vbiXWPfVGjHtBmT78cEQpI6NoDoN8bUbwLvOXDK5p5Fzw==}
-    engines: {node: '>= 12'}
-    peerDependencies:
-      preact: '>=10 || ^10.0.0-alpha.0 || ^10.0.0-beta.0'
-
   '@testing-library/react@16.3.3':
     resolution: {integrity: sha512-Uo193NgQbPMz6lrrhtRQQFcMC6Re/ELLFbbuVL30WDlZxlpZf9/lMHTAVxPRLw1q1iu9OJmR1c2BLiENRstdBg==}
     engines: {node: '>=18'}
@@ -5046,14 +5028,6 @@ packages:
   postgres-interval@1.2.0:
     resolution: {integrity: sha512-9ZhXKM/rw350N1ovuWHbGxnGh/SNJ4cnxHiM0rxE4VN41wsg8P8zWn9hv/buK00RP4WvlOyr/RBDiptyxVbkZQ==}
     engines: {node: '>=0.10.0'}
-
-  preact@11.2.0:
-    resolution: {integrity: sha512-/HfHI/7N84e6GrWBJ3J280z3mLaRJiDcSvj/A+y/4AbLnND/1UlGHe1sR6oYuTGwId0nP7dqDU9OnLxMPZ7xBg==}
-    peerDependencies:
-      preact-render-to-string: '>=6.7.0'
-    peerDependenciesMeta:
-      preact-render-to-string:
-        optional: true
 
   prettier@3.10.0:
     resolution: {integrity: sha512-mBi4765LgjO1PFjlEs7pUeK0nb1bw71c+N4/ItfeUWNdY5cV2pRKaFpbbFRYmDJMO+5ZwzGxHRqHxFZna7iv5w==}
@@ -8450,11 +8424,6 @@ snapshots:
       picocolors: 1.1.1
       pretty-format: 27.5.1
 
-  '@testing-library/preact@3.2.6(preact@11.2.0)':
-    dependencies:
-      '@testing-library/dom': 10.4.2
-      preact: 11.2.0
-
   '@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@babel/runtime': 7.29.13
@@ -10651,8 +10620,6 @@ snapshots:
   postgres-interval@1.2.0:
     dependencies:
       xtend: 4.0.2
-
-  preact@11.2.0: {}
 
   prettier@3.10.0: {}
 

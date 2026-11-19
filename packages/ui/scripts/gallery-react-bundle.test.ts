@@ -6,10 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
 import type { Metafile } from 'esbuild'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { REACT_TO_PREACT_ALIAS } from '../src/esbuild-options'
-import { reactBuildOptions } from '../build/index'
-import { packagesIn } from './build-gallery'
-import { buildGalleryReact } from './build-gallery-react'
+import { buildGalleryReact, packagesIn } from './build-gallery-react'
 
 /** D10: gzipped bytes. */
 export const BUDGET = { jsBytes: 100 * 1024, cssBytes: 20 * 1024 }
@@ -38,14 +35,17 @@ describe('React gallery bundle', () => {
     expect(contentsProblems(metafile)).toEqual([])
   })
 
-  it('has teeth: a preact import in the gallery turns the contents check red', async () => {
-    const aliased = { ...reactBuildOptions, alias: { ...REACT_TO_PREACT_ALIAS } }
-    const { metafile: bad } = await buildGalleryReact(
-      mkdtempSync(join(tmpdir(), 'gallery-react-bad-')),
-      aliased as never,
-    )
+  it('has teeth: a metafile with a node_modules/preact input turns the contents check red ([[UI447]] D6)', () => {
+    const bad = {
+      inputs: {
+        'node_modules/react/index.js': { bytes: 1, imports: [] },
+        'node_modules/react-dom/index.js': { bytes: 1, imports: [] },
+        'node_modules/preact/compat/dist/compat.module.js': { bytes: 1, imports: [] },
+      },
+      outputs: {},
+    } as Metafile
     expect(contentsProblems(bad)).toContain('contains preact')
-  }, 60_000)
+  })
 
   it('its stylesheet holds rules for classes the gallery uses, and none for one it does not', () => {
     const css = readFileSync(join(out, 'gallery.css'), 'utf-8')

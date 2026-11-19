@@ -2,7 +2,12 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
-export const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const
+export const DEPENDENCY_FIELDS = [
+  'dependencies',
+  'devDependencies',
+  'peerDependencies',
+  'optionalDependencies',
+] as const
 /** `preact`, any `@preact/*` package and `@testing-library/preact`. */
 export const isPreactName = (name: string) =>
   name === 'preact' || name.startsWith('@preact/') || name === '@testing-library/preact'
@@ -23,14 +28,16 @@ export function preactDeclarations(file: string, manifest: Record<string, unknow
 /** Every workspace manifest of a repo root: its own `package.json` and each `packages/*`'s. */
 export function workspaceManifests(root: string): string[] {
   const dirs = readdirSync(join(root, 'packages'), { withFileTypes: true }).filter((d) => d.isDirectory())
-  return [join(root, 'package.json'), ...dirs.map((d) => join(root, 'packages', d.name, 'package.json'))].filter((f) => {
-    try {
-      readFileSync(f)
-      return true
-    } catch {
-      return false
-    }
-  })
+  return [join(root, 'package.json'), ...dirs.map((d) => join(root, 'packages', d.name, 'package.json'))].filter(
+    (f) => {
+      try {
+        readFileSync(f)
+        return true
+      } catch {
+        return false
+      }
+    },
+  )
 }
 
 export function checkManifests(root: string): ManifestProblem[] {
