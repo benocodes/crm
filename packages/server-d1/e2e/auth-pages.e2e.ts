@@ -539,6 +539,9 @@ test('11d. [UI468] a mailbox: Settings, Sync now and Disconnect on its row; Sync
   const dialog = page.getByRole('alertdialog', { name: 'Disconnect mailbox@e2e.test?' })
   await expect(dialog).toContainText('Mail already captured stays in the CRM.')
   await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
+  // The pointer rests where the opener was; a layout change can put it over the dialog's destructive button, whose hover colour (an existing contrast finding in dark) is not what this leg checks.
+  await page.mouse.move(0, 0)
+  await page.waitForTimeout(400) // the dialog is portalled outside the no-transition wrapper: let its colour change finish
   await axeBoth(page, 'app-accounts-disconnect-dialog')
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
@@ -630,6 +633,19 @@ test('11e. [UI459] Agents: the sidebar row opens /agents; the list above Connect
   await page.setViewportSize({ width: 375, height: 800 })
   await visit('/agents')
   await expect(list).toBeVisible()
+  // [[UI459]] review: a row's detail keeps a readable width at 375 px and the row's actions wrap below it instead of squeezing it.
+  const bareRow = list.getByRole('listitem').filter({ hasText: 'e2e-bare' })
+  const pre = (await bareRow.locator('pre').first().boundingBox())!
+  const rowBox = (await bareRow.boundingBox())!
+  const btn = (await bareRow.getByRole('button', { name: 'Disable: e2e-bare' }).boundingBox())!
+  expect(pre.width, 'the grant command is at least 200 px wide').toBeGreaterThanOrEqual(200)
+  expect(pre.width, 'and at least half the row').toBeGreaterThanOrEqual(rowBox.width / 2)
+  const apart =
+    btn.x >= pre.x + pre.width ||
+    btn.x + btn.width <= pre.x ||
+    btn.y >= pre.y + pre.height ||
+    btn.y + btn.height <= pre.y
+  expect(apart, 'the Disable button does not overlap the grant command').toBe(true)
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     'no horizontal scroll',

@@ -34,8 +34,8 @@ export function CommandBlock({ command, label }: CommandBlockProps) {
   const copied = message === 'Copied'
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-start gap-2 rounded-md border bg-muted p-3">
-        <pre className="m-0 min-w-0 flex-1 text-sm break-all whitespace-pre-wrap">
+      <div className="flex flex-wrap items-start gap-2 rounded-md border bg-muted p-3">
+        <pre className="m-0 min-w-48 flex-1 text-sm break-all whitespace-pre-wrap">
           <code>{command}</code>
         </pre>
         <Button type="button" variant="outline" size="sm" onClick={copy}>
