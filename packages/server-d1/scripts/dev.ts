@@ -44,7 +44,9 @@ export async function runDev(args: string[], deps: DevDeps): Promise<number> {
       await worker.stop()
       return 1
     }
-    deps.log(`dev: open http://localhost:${DEV_PORT}/home (the built pages and the API stay on http://localhost:${WORKER_PORT})`)
+    deps.log(
+      `dev: open http://localhost:${DEV_PORT}/home (the built pages and the API stay on http://localhost:${WORKER_PORT})`,
+    )
     const first = await Promise.race([
       worker.exited.then((code) => ({ who: 'worker' as const, code })),
       server.exited.then((code) => ({ who: 'server' as const, code })),

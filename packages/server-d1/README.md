@@ -30,7 +30,7 @@ pnpm -C packages/server-d1 exec wrangler d1 migrations apply CONTROL_DB --local
 pnpm -C packages/server-d1 bootstrap -- --org "Acme" --issuer https://clerk.example.com --agent my-agent
 
 # 3. Start the Worker locally (leave it running; stop it with Ctrl-C).
-pnpm -C packages/server-d1 dev   # builds the auth pages and the app first; or: build, then `wrangler dev --local --port 8787`
+pnpm -C packages/server-d1 dev   # builds the auth pages and the app, runs `wrangler dev --local --port 8787` and the Vite dev server on :5173 (open http://localhost:5173/home); `dev:worker` is build + `wrangler dev` alone
 ```
 
 In another terminal, with `KEY` set to the `vk_...` key step 2 printed:
@@ -74,8 +74,9 @@ Signing in lands on **`/home`** ([[UI461]]), the workspace app's Home: a person 
 **`/agents`** ([[UI459]]) lists the agents that act in this workspace (name, Enabled or Disabled, how it connected, its permissions), where an owner can *Disable* (after a confirmation) or *Enable* one; a member sees the list without those buttons. Its *Connect an agent* section shows `vibase login --server <origin>`, the API-key fallback and the MCP URL, which every instance advertises. The page does not edit permissions: for an agent with none it shows the CLI grant command (`vibase agents update <id> --scopes ...`). With no `CLERK_PUBLISHABLE_KEY` the pages say sign-in is not configured. They call only `me.get`, `agents.list`, `agents.update` and the other registered operations, with a Clerk session token as a Bearer header, so the server's scopes decide everything.
 
 ```bash
-pnpm -C packages/server-d1 build        # bundles the auth pages and the app into dist/assets/{ui,app}/ (gitignored); dev, smoke:worker and deploy:remote do it first
-pnpm -C packages/server-d1 dev          # build, then wrangler dev --local on :8787; open http://localhost:8787/home
+pnpm -C packages/server-d1 build        # Vite bundles the auth pages and the app into dist/assets/{ui,app}/ (gitignored); dev, smoke:worker and deploy:remote do it first
+pnpm -C packages/server-d1 dev          # build, then wrangler dev --local on :8787 and the Vite dev server (hot reload) on :5173; open http://localhost:5173/home. Everything but the pages and their sources is proxied to :8787 unchanged; the built pages stay on :8787. Needs `AUTH_TRUSTED_ORIGINS` (Better Auth) / `CLERK_AUTHORIZED_PARTIES` (Clerk) to name http://localhost:5173 (see `.dev.vars.example`). Arguments after `--` go to wrangler dev
+pnpm -C packages/server-d1 dev:worker   # build, then wrangler dev --local on :8787 alone
 # E2E (Playwright + @clerk/testing, Clerk development instance, keys from the gitignored .env.dev only; not part of `pnpm test`):
 pnpm -C packages/server-d1 exec playwright install chromium
 pnpm -C packages/server-d1 e2e:agents-clerk   # the Account Portal round trip and /agents; also e2e:mcp-oauth and e2e:action-requests

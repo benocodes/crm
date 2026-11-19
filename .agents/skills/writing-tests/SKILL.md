@@ -752,7 +752,7 @@ Assert the browser *property* in Chromium, as `packages/ui/e2e/gallery-react.e2e
   has `transition-colors`, so for 150 ms after the flip it still shows light colours on a dark card, and an axe
   contrast check or a screenshot taken immediately fails (UI446 E2E run 1, auth-pages and oauth-pages step 3). The
   auth pages and the workspace app disable transitions on their mount (`[&_*]:transition-none!`, pinned in
-  `scripts/build-ui.test.ts` and `scripts/build-app.test.ts`; the app's was added after its E2E hit the same failure,
+  `scripts/build-ui.test.ts` and `scripts/build-app.test.ts` (the Vite page builds, [[UI489]]; a page build under vitest must force `NODE_ENV=production`, which `buildPage` does, or React's development build ships); the app's was added after its E2E hit the same failure,
   [[UI460]] 460.15); a page that keeps transitions waits for them to finish before axe or a screenshot. It is not a missing dark token:
   check the computed colour before and after a pause before editing the theme.
 - **A colour axe catches after a click may be hover, not transition.** A Radix dialog portals outside the mount's

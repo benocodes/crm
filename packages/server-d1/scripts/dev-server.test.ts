@@ -78,16 +78,20 @@ describe('pages and sources are the dev server’s own', () => {
     expect(await res.text()).toContain('/@vite/client')
   })
 
-  it.each(['/app/main.tsx', '/ui/main.tsx'])('%s answers a transformed module (JSX compiled, imports rewritten)', async (path) => {
-    const before = seen.length
-    const res = await get(path)
-    expect(res.status).toBe(200)
-    expect(res.headers.get('content-type')).toMatch(/javascript/)
-    const js = await res.text()
-    expect(js).not.toMatch(/<[A-Z]\w+[ />]/)
-    expect(js).toContain('_jsxDEV')
-    expect(seen.length).toBe(before)
-  }, 60_000)
+  it.each(['/app/main.tsx', '/ui/main.tsx'])(
+    '%s answers a transformed module (JSX compiled, imports rewritten)',
+    async (path) => {
+      const before = seen.length
+      const res = await get(path)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toMatch(/javascript/)
+      const js = await res.text()
+      expect(js).not.toMatch(/<[A-Z]\w+[ />]/)
+      expect(js).toContain('_jsxDEV')
+      expect(seen.length).toBe(before)
+    },
+    60_000,
+  )
 
   it('a component module answers with React Fast Refresh wired (import.meta.hot)', async () => {
     const res = await get('/app/app.tsx')

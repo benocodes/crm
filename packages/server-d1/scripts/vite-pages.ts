@@ -48,9 +48,7 @@ export function pageBuildConfig(page: PageSpec, outDir: string): InlineConfig {
           entryFileNames: `${page.dir}/${page.js}`,
           chunkFileNames: `${page.dir}/[name].js`,
           assetFileNames: (asset) =>
-            asset.names.some((n) => n.endsWith('.css'))
-              ? `${page.dir}/${page.css}`
-              : `${page.dir}/[name][extname]`,
+            asset.names.some((n) => n.endsWith('.css')) ? `${page.dir}/${page.css}` : `${page.dir}/[name][extname]`,
         },
       },
     },

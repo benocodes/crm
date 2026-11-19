@@ -1260,7 +1260,7 @@ The app and auth pages are the pattern for any page the Worker serves (`packages
   test, `release:check` and `smoke:worker` read; never a copied list. A provider-specific page is gated in the
   composition before `/auth` and every other gate (`404 not_found` on any other provider), and its directory's
   `index.html` is reachable only through the page paths (`/ui/` itself is `404`). The pages are a separate React
-  esbuild entry (`scripts/build-ui.ts`, [[UI446]]) whose metafile test proves `react`, `react-dom` and
+  Vite page build (`scripts/build-ui.ts` over the shared `scripts/vite-pages.ts`, [[UI446]], [[UI489]]) whose module-list test proves `react`, `react-dom` and
   `@vibase/ui/components` and no `preact` or Preact-layer module, with a Worker-bundle check that holds no `preact`,
   no `react` page code and no page module. `/connect` is a redirect to `/home` ([[UI476]]); the Preact layer is gone ([[UI447]]).
 - **A React page mounts synchronously** (`src/ui/main.tsx`): `flushSync(() => root.render(...))`. React 19's
@@ -1278,13 +1278,14 @@ The app and auth pages are the pattern for any page the Worker serves (`packages
   `/auth/device` (the UI247 absence mutation M3).
 - **A page that needs a constant from `@vibase/api`** (the scope catalogue) imports a dependency-free leaf through a
   subpath export (`@vibase/api/scope-descriptions`), never the index. `scripts/build-ui.test.ts` pins the page bundle's
-  `@vibase/api` metafile inputs to exactly that leaf ([[UI247]] D5).
+  `@vibase/api` module ids to exactly that leaf ([[UI247]] D5).
 - **The pages' CSP is one value, `PAGE_CSP` in `@vibase/ui/csp`** (`packages/ui/src/csp.ts`, a plain string with no
   imports); `server-d1`'s `UI_CSP` is that value, never a copy ([[UI445]] D6). It is the one `@vibase/ui` module the
   Worker bundle may hold: `scripts/build-ui.test.ts` ("the Worker bundle") allows exactly `../ui/src/csp.ts` and
   refuses every other ui module. Any new Worker-side import from `@vibase/ui` turns that test red, so run it with
   your affected tests; UI445's only gate-fix round was this test (445.24, 445.25).
-- **React pages build through `@vibase/ui/build`** (`packages/ui/build/`, [[UI445]] D8): the esbuild options
+- **`server-d1`'s pages build on Vite, not through `@vibase/ui/build`** ([[UI489]]): `scripts/vite-pages.ts` is the one config factory (root `src/`, base `/`, `@vitejs/plugin-react` and `@tailwindcss/vite`, fixed output names, no `vite.config.*` at the package root); each page has `src/<page>/styles.css` (`@import "@vibase/ui/styles.css" source(none); @source "./";`, the `source(none)` keeps Tailwind from scanning both pages). `pnpm dev` is a Vite dev server on :5173 in front of `wrangler dev` on :8787 (`scripts/dev.ts`, `scripts/dev-server.ts`); `pnpm dev:worker` is the Worker alone. The gallery (`packages/ui`) still uses the helper below until [[UI490]].
+- **React pages in `packages/ui`'s gallery build through `@vibase/ui/build`** (`packages/ui/build/`, [[UI445]] D8): the esbuild options
   (automatic JSX on `react`, `process.env.NODE_ENV` defined as `"production"`) and `buildStylesheet({ outFile,
   sources })`, which runs the Tailwind 4 CLI on `src/styles.css`. The CLI has no source flag, so the helper writes a
   temp input CSS that `@import`s `src/styles.css` and adds an absolute `@source` per extra directory; a missing

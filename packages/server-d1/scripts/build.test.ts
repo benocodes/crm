@@ -74,7 +74,8 @@ describe('the page toolchain is Vite ([[UI489]] D1, D3, D7, D8)', () => {
   })
 
   it('there is no vite.config at the package root, and no esbuild import, noDynamicImport plugin or @vibase/ui/build in the page build scripts', () => {
-    for (const f of readdirSync(PKG)) expect(f, 'a vite.config would be discovered by vitest, Biome and editors').not.toMatch(/^vite\.config\./)
+    for (const f of readdirSync(PKG))
+      expect(f, 'a vite.config would be discovered by vitest, Biome and editors').not.toMatch(/^vite\.config\./)
     for (const f of ['build-app.ts', 'build-ui.ts', 'vite-pages.ts', 'dev-server.ts', 'dev.ts']) {
       const text = readFileSync(join(PKG, 'scripts', f), 'utf8')
       expect(text, f).not.toMatch(/noDynamicImport|no-dynamic-import/)
