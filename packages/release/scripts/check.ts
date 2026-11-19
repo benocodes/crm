@@ -252,9 +252,9 @@ export async function checkRelease(
 
     // [[OPS232]]: `setup` is in the installed bundle, refuses at the missing secrets file (an empty config home, no Cloudflare values), and the bundle carries the bootstrap
     // program in the one file: no lazy chunk, no root `.env` loader. cli/ holds server.js alone: the client is another package.
-    if (!/vibase-server setup --env <name> --api-host <host>/.test(help))
+    if (!/vibase-server setup --env <name> \(--api-host <host> \| --workers-dev\)/.test(help))
       throw new ReleaseRefusal(
-        'the installed `vibase-server --help` does not list `setup --env <name> --api-host <host>`',
+        'the installed `vibase-server --help` does not list `setup --env <name> (--api-host <host> | --workers-dev)`',
       )
     const noSecretsSetup = spawnSync(
       serverBin,
