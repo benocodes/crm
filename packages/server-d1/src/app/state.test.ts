@@ -87,6 +87,7 @@ describe('the states by input (D4)', () => {
       scopes: ['connections:read'],
       manageAccountHref: null,
       connectAgent: { status: 'show' },
+      connectEmail: { status: 'hidden' },
     })
   })
 
@@ -372,5 +373,51 @@ describe('the Connect an agent check (D10, P4)', () => {
       signOutError: expect.any(String),
     })
     await c.signOut()
+  })
+})
+
+// [[UI469]] D13, P3: the controller wires the Connect your email check with the person's id and scopes, and keeps it through Check again.
+describe('the Connect your email check in the state (D13)', () => {
+  const RW = ME({ active_organization: { id: 'o2', role: 'owner', scopes: ['connections:read', 'connections:write'] } })
+  const own = (over: object = {}) => ({ id: 'c', owner_id: 'u1', identity_id: 'i', status: 'active', ...over })
+  it('with write: one list read; no own connection shows the prompt, an own one hides it', async () => {
+    const a = api(ok(RW))
+    a.connections.mockResolvedValue({ status: 200, body: [own({ owner_id: 'other' })] })
+    const c = make(seam(), a)
+    await c.start()
+    expect(a.connections).toHaveBeenCalledTimes(1)
+    expect(c.state()).toMatchObject({ kind: 'ready', connectEmail: { status: 'show' } })
+    const b = api(ok(RW))
+    b.connections.mockResolvedValue({ status: 200, body: [own({ status: 'reauth_required' })] })
+    const d = make(seam(), b)
+    await d.start()
+    expect(d.state()).toMatchObject({ connectEmail: { status: 'hidden' } })
+  })
+  it('without write: hidden and no connections call', async () => {
+    const a = api(ok(ME()))
+    const c = make(seam(), a)
+    await c.start()
+    expect(a.connections).not.toHaveBeenCalled()
+    expect(c.state()).toMatchObject({ connectEmail: { status: 'hidden' } })
+  })
+  it('a failed list read is the error line and the page stays ready; Check again leaves it alone', async () => {
+    const a = api(ok(RW))
+    a.connections.mockResolvedValue({ status: 500, body: null })
+    const c = make(seam(), a)
+    await c.start()
+    expect(c.state()).toMatchObject({
+      kind: 'ready',
+      connectEmail: { status: 'error', message: 'The mailbox list could not be read. Reload the page to try again.' },
+    })
+    await c.checkAgain()
+    expect(a.connections).toHaveBeenCalledTimes(1)
+    expect(c.state()).toMatchObject({ connectEmail: { status: 'error' } })
+  })
+  it('a 401 on the list re-checks the session once, then signed-out when it is gone', async () => {
+    const a = api(ok(RW))
+    a.connections.mockResolvedValue({ status: 401, body: null, noToken: true })
+    const c = make(seam(), a)
+    await c.start()
+    expect(c.state().kind).toBe('signed-out')
   })
 })

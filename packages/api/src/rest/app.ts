@@ -59,6 +59,8 @@ export interface GmailAppOptions {
   roleOf?: (authSubject: string) => Promise<Role | null>
   /** The scope policy the role re-check applies; default the vault's. */
   policy?: ScopePolicy
+  /** [[UI469]] D5: the page of this instance the callback returns to when `CONNECT_RETURN_URL` is unset (the composition passes `/accounts` when it serves the app). Absent: the built-in result page. */
+  defaultReturnPath?: string
   /** The `MAIL_SYNC` Workflow binding ([[CHN141]] D75). Absent: `connections.sync` answers `501 provider_not_configured` and the callback requests no sync. */
   instances?: MailSyncInstances
   /** Push configuration from `parsePushConfig` ([[CHN5]] D87). Push is on only when this is set AND `config` and `instances` are too; otherwise `POST /gmail/push` answers 404 and no watch is registered. */
@@ -452,6 +454,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
       endpoints: gmail?.endpoints ?? GOOGLE_ENDPOINTS,
       fetch: gmail?.fetch ?? ((input, init) => fetch(input, init)),
       ...(gmail?.gmailBaseUrl ? { gmailBaseUrl: gmail.gmailBaseUrl } : {}),
+      ...(gmail?.defaultReturnPath ? { defaultReturnPath: gmail.defaultReturnPath } : {}),
       roleOf:
         gmail?.roleOf ??
         (profiles

@@ -1,6 +1,6 @@
 // [[UI460]] D4 ([[UI443]]): the workspace app's state machine over the session seam and the API client. It moves between `AppState`s and decides nothing about markup. Stores nothing: no
 // localStorage, sessionStorage or cookie. Dependency-free (no React), so it is tested in Node.
-import type { ConnectAgentCheck } from './first-steps.js'
+import { checkConnectEmail, type ConnectAgentCheck, type ConnectEmailCheck } from './first-steps.js'
 import type { Api, ApiResult } from './session/api.js'
 import type { Me, SessionSeam } from './session/types.js'
 
@@ -36,6 +36,8 @@ export type AppState =
       manageAccountHref: string | null
       /** [[UI461]] D10: whether Home's Connect an agent prompt shows. */
       connectAgent: ConnectAgentCheck
+      /** [[UI469]] D13: whether Home's Connect your email prompt shows. */
+      connectEmail: ConnectEmailCheck
       signOutError?: string
     }
 
@@ -59,7 +61,7 @@ const SIGN_OUT_FAILED = 'Sign-out did not complete. Reload the page and try agai
 export function createAppController(deps: {
   /** The sign-in seam, or `null` when sign-in is unavailable (no provider, or discovery could not be read). */
   seam: SessionSeam | null
-  api: Pick<Api, 'me' | 'hasEnabledAgent'>
+  api: Pick<Api, 'me' | 'hasEnabledAgent' | 'connections'>
   origin: string
   /** The page path the person is on: where signing in returns to. */
   path: string
@@ -121,6 +123,9 @@ export function createAppController(deps: {
     const membership = me.memberships.find((m) => m.organization_id === active.id)
     const connectAgent = await readConnectAgent(active.scopes)
     if (connectAgent === 'signed-out') return set({ kind: 'signed-out' })
+    // [[UI469]] D13, P3: the person's own mailboxes, read only with `connections:write`.
+    const connectEmail = await checkConnectEmail(active.scopes, me.user.id, () => guarded(() => api.connections()))
+    if (connectEmail === 'signed-out') return set({ kind: 'signed-out' })
     set({
       kind: 'ready',
       who: {
@@ -133,6 +138,7 @@ export function createAppController(deps: {
       scopes: [...active.scopes],
       manageAccountHref: seam?.profileUrl() ?? null,
       connectAgent,
+      connectEmail,
     })
   }
 
@@ -177,6 +183,7 @@ export function createAppController(deps: {
           scopes: state.scopes,
           manageAccountHref: state.manageAccountHref,
           connectAgent: state.connectAgent,
+          connectEmail: state.connectEmail,
         })
       const before = state
       try {

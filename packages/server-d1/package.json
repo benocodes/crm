@@ -35,6 +35,7 @@
     "smoke:remote": "tsx scripts/smoke-remote.ts",
     "recordings:pull": "tsx scripts/pull-recordings.ts",
     "e2e:auth-pages": "playwright test --config playwright.auth-pages.config.ts auth-pages.e2e.ts",
+    "e2e:accounts-connect": "playwright test --config playwright.accounts-connect.config.ts accounts-connect.e2e.ts",
     "e2e:auth-pages-reset": "playwright test --config playwright.auth-pages-reset.config.ts auth-pages-reset.e2e.ts",
     "e2e:oauth-pages": "playwright test --config playwright.oauth-pages.config.ts oauth-pages.e2e.ts",
     "e2e:auth-migration": "playwright test --config playwright.auth-migration.config.ts auth-migration.e2e.ts",

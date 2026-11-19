@@ -431,14 +431,17 @@ test('6. /connect signed in: the person and the delegated agent agents.list retu
   await axeBoth('connect-signed-in')
 })
 
-// [[UI461]] D10: leg 2 left a delegated agent, so Home has no Connect an agent prompt and no Get started section.
-test('6b. /home with a delegated agent: no Get started and no Connect an agent prompt', async () => {
-  // Wait for the agents read, so the absence below is a result and not a page still loading.
+// [[UI461]] D10, [[UI469]] D13: leg 2 left a delegated agent, so Home has no Connect an agent prompt; the owner holds `connections:write` and owns no mailbox, so Get started shows Connect your email alone.
+test('6b. /home with a delegated agent: Get started shows Connect your email and no Connect an agent prompt', async () => {
+  // Wait for both reads, so the absence below is a result and not a page still loading.
   const agentsRead = page.waitForResponse((r) => r.url().includes('/meta/v1/agents') && r.status() === 200)
+  const connectionsRead = page.waitForResponse((r) => r.url().includes('/meta/v1/connections') && r.status() === 200)
   await page.goto('/home')
   await agentsRead
+  await connectionsRead
   await expect(page.getByRole('region', { name: 'Who you are' })).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Get started' })).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Get started' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Connect your email' })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Connect an agent' })).toHaveCount(0)
 })
 
