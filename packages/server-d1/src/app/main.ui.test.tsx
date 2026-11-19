@@ -86,6 +86,27 @@ describe('the mount', () => {
   })
 })
 
+// [[UI459]] D1: the third page.
+describe('the mount on /agents', () => {
+  const ME_READER = { ...ME, active_organization: { id: 'o1', role: 'owner', scopes: ['agents:read'] } }
+  it('signed in: the title "Agents · Vibase", the Agents page with its nav entry current, and the list read through the API', async () => {
+    const calls = stubFetch({
+      'GET /.well-known/vibase': () => json(DISCOVERY),
+      'GET /auth/get-session': () => json({ user: { id: 'u1' }, session: { id: 's' } }),
+      'GET /auth/token': () => json({ token: 't' }),
+      'GET /meta/v1/me': () => json(ME_READER),
+      'GET /meta/v1/agents': () => json({ data: [], next_cursor: null }),
+    })
+    await mount('/agents')
+    await vi.waitFor(() => expect(document.querySelector('h1')?.textContent).toBe('Agents'))
+    expect(document.title).toBe('Agents · Vibase')
+    await vi.waitFor(() => expect(document.body.textContent).toContain('No agents connected yet'))
+    expect(document.querySelector('nav a[aria-current="page"]')?.textContent).toBe('Agents')
+    expect(calls).toContain('GET /meta/v1/agents')
+    expect(calls.some((c) => c.includes('/meta/v1/forms'))).toBe(false)
+  })
+})
+
 // [[UI467]] D1: the second page; the mount titles and draws by path, with full page loads.
 describe('the mount on /accounts', () => {
   const ME_READER = { ...ME, active_organization: { id: 'o1', role: 'owner', scopes: ['connections:read'] } }

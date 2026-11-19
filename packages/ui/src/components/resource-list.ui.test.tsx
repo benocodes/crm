@@ -127,6 +127,47 @@ describe('ResourceList', () => {
   })
 })
 
+// [[UI459]] D7 (group 3): the optional `detail` slot.
+describe('ResourceList detail slot', () => {
+  const withDetail = (): ResourceListItem[] => [
+    {
+      id: 'a',
+      title: 'ada',
+      meta: ['Line one', 'Line two'],
+      actions: [{ label: 'Disable', onClick: () => {} }],
+      detail: <p>Run this:</p>,
+    },
+    { id: 'b', title: 'bob', meta: ['Only meta'] },
+  ]
+  it('is rendered inside the row li, after the meta lines', () => {
+    render(<ResourceList label="Agents" items={withDetail()} emptyText="None" />)
+    const [first] = screen.getAllByRole('listitem')
+    const detail = screen.getByText('Run this:')
+    expect(first?.contains(detail)).toBe(true)
+    const lastMeta = screen.getByText('Line two')
+    expect(lastMeta.compareDocumentPosition(detail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+  it('is absent when not given: no empty wrapper in that row', () => {
+    render(<ResourceList label="Agents" items={withDetail()} emptyText="None" />)
+    const rows = screen.getAllByRole('listitem')
+    expect(rows[1]?.querySelector('[data-slot="detail"]')).toBeNull()
+    expect(rows[0]?.querySelectorAll('[data-slot="detail"]')).toHaveLength(1)
+  })
+  it('keeps the row actions and their names', () => {
+    render(<ResourceList label="Agents" items={withDetail()} emptyText="None" />)
+    expect(screen.getByRole('button', { name: 'Disable: ada' })).toBeTruthy()
+  })
+  it('has axe zero violations with a detail slot', async () => {
+    render(
+      <>
+        <h1>Page</h1>
+        <ResourceList label="Agents" items={withDetail()} emptyText="None" />
+      </>,
+    )
+    await noViolations()
+  })
+})
+
 describe('StatusBadge', () => {
   it.each(['neutral', 'success', 'warning', 'danger'] as const)('%s renders its text and names its tone', (tone) => {
     const { container } = render(<StatusBadge tone={tone}>Label {tone}</StatusBadge>)
