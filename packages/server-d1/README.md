@@ -30,7 +30,7 @@ pnpm -C packages/server-d1 exec wrangler d1 migrations apply CONTROL_DB --local
 pnpm -C packages/server-d1 bootstrap -- --org "Acme" --issuer https://clerk.example.com --agent my-agent
 
 # 3. Start the Worker locally (leave it running; stop it with Ctrl-C).
-pnpm -C packages/server-d1 dev   # builds the connect page first; or: build, then `wrangler dev --local --port 8787`
+pnpm -C packages/server-d1 dev   # builds the auth pages and the app first; or: build, then `wrangler dev --local --port 8787`
 ```
 
 In another terminal, with `KEY` set to the `vk_...` key step 2 printed:
@@ -64,24 +64,21 @@ A request carrying an `Origin` header must come from `CORS_ALLOWED_ORIGINS` (emp
 **OAuth sign-in** ([[API115]]): with Clerk configured, a standard MCP client given only `<origin>/mcp` signs a person in with no static key. Its first
 request is `401` with `WWW-Authenticate: Bearer resource_metadata="<origin>/.well-known/oauth-protected-resource/mcp", scope="<read and write scopes>"`;
 the document names the Clerk issuer, the client registers itself (DCR), the person consents on Clerk's screen, and the token resolves to a delegated
-agent for that (client, person) that an owner can disable on `/connect`. `/.well-known/vibase` carries the URL as `mcp`, and the three discovery
+agent for that (client, person) that an owner can disable on `/agents`. `/.well-known/vibase` carries the URL as `mcp`, and the three discovery
 documents answer a browser's `OPTIONS` preflight. `pnpm -C packages/server-d1 e2e:mcp-oauth` proves the whole flow (Playwright, Clerk dev instance, `.env.dev` only).
 
-## The workspace app and the connect page
+## The workspace app
 
-Signing in lands on **`/home`** ([[UI461]]), the workspace app's Home: a person who signs in or accepts an invitation goes there, or back to the app page or `/connect` they came from (`return_to`). Until an enabled agent is connected, Home's *Get started* section shows *Connect an agent* with the login command, the MCP URL (when advertised) and the API-key line, and a *Check again* button that re-reads the agents list.
+Signing in lands on **`/home`** ([[UI461]]), the workspace app's Home: a person who signs in or accepts an invitation goes there, or back to the app page they came from (`return_to`). An old `/connect` link, or an after-sign-in setting that still names it, lands on `/home` ([[UI443]] D3): `/connect` is a redirect and serves nothing. Until an enabled agent is connected, Home's *Get started* section shows *Connect an agent* with the login command, the MCP URL (when advertised) and the API-key line, and a *Check again* button that re-reads the agents list.
 
-Every deployment serves **`/connect`** on its own API origin ([[UI30]]): sign in through Clerk's Account Portal, see who you are and how to
-connect an agent (`vibase login --server <origin>`, the API-key fallback, the MCP URL, which every instance advertises), and, as an owner,
-disable or enable connected agents. With no `CLERK_PUBLISHABLE_KEY` it says sign-in is not configured and shows the API-key directions. It
-calls only `me.get`, `agents.list` and `agents.update`, with a Clerk session token as a Bearer header, so the server's scopes decide everything.
+**`/agents`** ([[UI459]]) lists the agents that act in this workspace (name, Enabled or Disabled, how it connected, its permissions), where an owner can *Disable* (after a confirmation) or *Enable* one; a member sees the list without those buttons. Its *Connect an agent* section shows `vibase login --server <origin>`, the API-key fallback and the MCP URL, which every instance advertises. The page does not edit permissions: for an agent with none it shows the CLI grant command (`vibase agents update <id> --scopes ...`). With no `CLERK_PUBLISHABLE_KEY` the pages say sign-in is not configured. They call only `me.get`, `agents.list`, `agents.update` and the other registered operations, with a Clerk session token as a Bearer header, so the server's scopes decide everything.
 
 ```bash
-pnpm -C packages/server-d1 build        # bundles src/connect/ into dist/assets/connect/ (gitignored); dev, smoke:worker and deploy:remote do it first
-pnpm -C packages/server-d1 dev          # build, then wrangler dev --local on :8787; open http://localhost:8787/connect
+pnpm -C packages/server-d1 build        # bundles the auth pages and the app into dist/assets/{ui,app}/ (gitignored); dev, smoke:worker and deploy:remote do it first
+pnpm -C packages/server-d1 dev          # build, then wrangler dev --local on :8787; open http://localhost:8787/home
 # E2E (Playwright + @clerk/testing, Clerk development instance, keys from the gitignored .env.dev only; not part of `pnpm test`):
 pnpm -C packages/server-d1 exec playwright install chromium
-pnpm -C packages/server-d1 e2e:connect
+pnpm -C packages/server-d1 e2e:agents-clerk   # the Account Portal round trip and /agents; also e2e:mcp-oauth and e2e:action-requests
 ```
 
 The E2E's Account Portal step signs in with a Backend-API sign-in token (`__clerk_ticket` on the portal URL), which works whatever sign-in methods the development instance offers; it does not rely on an email-code or password route.
@@ -97,9 +94,9 @@ Locally set `CLERK_AUTHORIZED_PARTIES=http://localhost:8787` and `CLERK_PUBLISHA
 | `CORS_ALLOWED_ORIGINS` | var | comma-separated origins for the email-client pane; empty allows none |
 | `AUTH_TRUSTED_ORIGINS` | var | `AUTH_PROVIDER=better-auth` only ([[UI255]]): comma-separated origins of first-party apps (`https`, or `http://localhost[:port]`; no path, no wildcard; an entry equal to `PUBLIC_BASE_URL` is dropped). Each is trusted by Better Auth, gets credentialed CORS on `/auth/*` only, and is where `/sign-in?return_to=` may send a person back. Same-site only: the app and the API must share a registrable domain, because the session cookie is host-only on the API origin. An app that also calls `/api` is listed in `CORS_ALLOWED_ORIGINS` too (this variable gives no cookie access to `/api`, `/meta` or `/mcp`). Empty or unset: none; malformed: `500 internal`, the log names the variable. A public var: never a secret |
 | `CLERK_ISSUER` | var | public value, required with `AUTH_PROVIDER=clerk` |
-| `CLERK_AUTHORIZED_PARTIES` | var | optional on D1: comma-separated origins allowed as a session token's `azp`; unset, a token carrying an `azp` is 401. The connect page's own origin must be listed (`setup:remote` adds `https://<api-host>`; locally `http://localhost:8787`) |
-| `CLERK_PUBLISHABLE_KEY` | var | public; returned as `auth.publishable_key` by `/.well-known/vibase` for the connect page. Its Frontend API host must be `CLERK_ISSUER`'s, or every request is `500 internal` (the variable is named, the value never). Unset: the page says sign-in is not configured |
-| `ASSETS` | assets binding | the built connect page (`dist/assets/connect/`), served only under `/connect*` by the Worker, which adds the security headers |
+| `CLERK_AUTHORIZED_PARTIES` | var | optional on D1: comma-separated origins allowed as a session token's `azp`; unset, a token carrying an `azp` is 401. The app's own origin must be listed (`setup:remote` adds `https://<api-host>`; locally `http://localhost:8787`) |
+| `CLERK_PUBLISHABLE_KEY` | var | public; returned as `auth.publishable_key` by `/.well-known/vibase` for the app pages. Its Frontend API host must be `CLERK_ISSUER`'s, or every request is `500 internal` (the variable is named, the value never). Unset: the page says sign-in is not configured |
+| `ASSETS` | assets binding | the built auth pages and app (`dist/assets/ui/`, `dist/assets/app/`), served only at their pages (`/sign-in`, `/invite`, `/reset-password`, `/consent`, `/device`, `/home`, `/accounts`, `/agents`, `/`) and under `/ui/*`, `/app/*` by the Worker, which adds the security headers; `/connect` is a redirect to `/home` |
 | `CLERK_JWT_KEY`, `CLERK_SECRET_KEY` | secrets | required with `AUTH_PROVIDER=clerk`; the key is a PEM (line breaks, or `\n` escapes, optionally quoted) |
 | `AUTH_ROLE_CLAIM` | var | the session-token claim holding `owner`, `member` or `agent`; default `vibase_role`; an empty value fails closed |
 | `AUTH_CLI_CLIENT_ID` | var | the first-party CLI's public OAuth client id; its tokens act as the signed-in person, any other OAuth client is a delegated agent ([[CORE77]]). Unset: no CLI client; set but blank fails closed |
@@ -243,9 +240,9 @@ pnpm -C packages/server-d1 smoke:remote -- --base https://api.smoked1.vibase.ai 
 pnpm -C packages/server-d1 smoke:remote -- --base https://api.smoked1.vibase.ai --phase after --expect-version <sha>
 ```
 
-### Putting the connect page on `hq` (user-run: every step is a hard stop for agents)
+### Putting the workspace app on `hq` (user-run: every step is a hard stop for agents)
 
-`hq` (Worker `vault-hq`, `https://api.hq.vibase.ai`, Clerk production, keys in the gitignored `.env.hq`) gets `/connect` with the next deploy,
+`hq` (Worker `vault-hq`, `https://api.hq.vibase.ai`, Clerk production, keys in the gitignored `.env.hq`) gets the app pages (`/home`, `/agents`) with the next deploy,
 plus two vars: `CLERK_PUBLISHABLE_KEY` and `https://api.hq.vibase.ai` in `CLERK_AUTHORIZED_PARTIES`. Run, from the repository root:
 
 ```bash
@@ -259,13 +256,13 @@ CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env hq --api-host 
 git diff packages/server-d1/wrangler.jsonc
 git add packages/server-d1/wrangler.jsonc && git commit -m "chore(hq): CLERK_PUBLISHABLE_KEY and the api origin as an authorized party (UI30)"
 
-# 4. The same command again: migrate is a no-op, deploy is "update" (it builds the page first), secrets are left alone, verify is ok.
+# 4. The same command again: migrate is a no-op, deploy is "update" (it builds the pages first), secrets are left alone, verify is ok.
 CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env hq --api-host api.hq.vibase.ai --owner-email <owner email> --clerk-production
 
 # 5. Smoke (<sha> is `git rev-parse HEAD`), then open the page in a browser and sign in.
 pnpm -C packages/server-d1 smoke:remote -- --base https://api.hq.vibase.ai --phase after --expect-version <sha>
 curl -s https://api.hq.vibase.ai/.well-known/vibase    # auth.publishable_key is the pk_live_ key
-open https://api.hq.vibase.ai/connect
+open https://api.hq.vibase.ai/home
 ```
 
 Optional, in the Clerk dashboard (Paths): set the Account Portal's after-sign-in URL to `https://api.hq.vibase.ai/home`.

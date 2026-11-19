@@ -26,9 +26,9 @@ the `o` claim in tokens, so nothing breaks, but setup warns (row C2) because it 
 3. **Sign-in methods** (Google, email code, ...): your choice. Google needs your own OAuth client on a production instance. Setup only reports it.
 4. On a **production** instance, the Frontend API custom domain needs DNS records. Also reported only.
 5. **Optional: Account Portal's after-sign-in redirect** (Configure → Paths → Account Portal, after sign-in): `https://<api host>/home` (the workspace app; an older `/connect` setting keeps working).
-   Then a person who signs in straight on Account Portal lands on the connect page. The page's own Sign in button already returns there with
+   Then a person who signs in straight on Account Portal lands on Home. The app's own Sign in button already returns there with
    `redirect_url`, so nothing breaks without this. Setup does not read it. (`setup:remote` also puts `https://<api host>` into
-   `CLERK_AUTHORIZED_PARTIES`, so the page's session tokens are accepted, and the publishable key into `CLERK_PUBLISHABLE_KEY`; neither is a CORS or Clerk allowed origin.)
+   `CLERK_AUTHORIZED_PARTIES`, so the app's session tokens are accepted, and the publishable key into `CLERK_PUBLISHABLE_KEY`; neither is a CORS or Clerk allowed origin.)
 
 ## Done by `setup:remote --auth clerk` (Backend API)
 
