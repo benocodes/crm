@@ -12,11 +12,12 @@ import { buildUi } from './build-ui.js'
 export const JS_BUDGET = 100 * 1024
 export const CSS_BUDGET = 20 * 1024
 const WORKER = fileURLToPath(new URL('../src/worker.ts', import.meta.url))
+const SRC = fileURLToPath(new URL('../src/ui', import.meta.url))
 let out: string
-let metafile: { inputs: Record<string, unknown> }
+let moduleIds: string[]
 beforeAll(async () => {
   out = mkdtempSync(join(tmpdir(), 'ui-build-'))
-  metafile = await buildUi(out)
+  moduleIds = await buildUi(out)
 })
 afterAll(() => rmSync(out, { recursive: true, force: true }))
 
@@ -42,7 +43,15 @@ describe('buildUi (the pages bundle)', () => {
     expect(html).toContain('src="/ui/app.js"')
     expect(html).toContain('href="/ui/ui.css"')
     expect(html).not.toMatch(/<script(?![^>]*\bsrc=)/i)
+    expect(html).not.toMatch(/modulepreload/)
     expect(html).not.toMatch(/<style|\sstyle\s*=|\son[a-z]+\s*=/i)
+  })
+
+  it('the source index.html names its entry module and its CSS entry, which exist ([[UI489]] D1, D4)', () => {
+    const html = readFileSync(join(SRC, 'index.html'), 'utf8')
+    expect(html).toContain('src="/ui/main.tsx"')
+    expect(html).toContain('href="/ui/styles.css"')
+    expect(readFileSync(join(SRC, 'styles.css'), 'utf8')).toContain('@vibase/ui/styles.css')
   })
 
   it('the stylesheet is the Tailwind build ([[UI447]] D7: no comparison with the removed Preact `ui.css`), and holds a rule for a class only the page code uses', () => {
@@ -86,8 +95,8 @@ describe('buildUi (the pages bundle)', () => {
     expect(css).toContain('transition-none\\! *{transition-property:none!important}')
   })
 
-  it('the metafile holds react, react-dom and the component set, and no preact and no Preact-layer module', () => {
-    const inputs = Object.keys(metafile.inputs)
+  it('the module list holds react, react-dom and the component set, and no preact and no Preact-layer module', () => {
+    const inputs = moduleIds
     const pkgs = new Set(inputs.map(packageOf))
     expect(pkgs.has('react')).toBe(true)
     expect(pkgs.has('react-dom')).toBe(true)
@@ -108,7 +117,7 @@ describe('buildUi (the pages bundle)', () => {
   // [[UI247]] D5: the scope catalogue is embedded at build time from its dependency-free leaf; the bundle never holds `@vibase/api`'s index or any other of its modules.
   // [[UI455]] adds `scope-areas` (the area catalogue and `NOT_DEFAULT_GRANT`): leaves only.
   it('the page bundle holds the scope catalogue leaves and no other @vibase/api module', () => {
-    const api = Object.keys(metafile.inputs).filter((i) => /(^|\/)api\/src\//.test(i))
+    const api = moduleIds.filter((i) => /(^|\/)api\/src\//.test(i))
     expect(api.map((i) => i.replace(/^.*api\/src\//, '')).sort()).toEqual([
       'auth/scope-areas.ts',
       'auth/scope-descriptions.ts',
@@ -121,13 +130,13 @@ describe('buildUi (the pages bundle)', () => {
     expect(js).toContain('Stay signed in: keep access until you sign out or the access is revoked')
   })
 
-  it('the script is a single browser bundle with no source map comment, eval or import', () => {
+  it('the script is a single browser bundle with no source map comment, eval, require or static import/export (a dynamic `import(` is bounded by the exact file list, UI489 D3)', () => {
     const js = readFileSync(join(out, 'ui/app.js'), 'utf8')
     expect(js.length).toBeGreaterThan(5000)
     expect(js).not.toMatch(/sourceMappingURL/)
     expect(js).not.toMatch(/\beval\(|new Function\(/)
-    // No static import or export statement, dynamic import or require (a bare `from"` also occurs in Tailwind-merge's class-group names, so the statement forms are matched).
-    expect(js).not.toMatch(/\brequire\(|\bimport\(|(^|[;}])\s*(import|export)\s*[\w{*"']/)
+    // No static import or export statement or require (a bare `from"` also occurs in Tailwind-merge's class-group names, so the statement forms are matched).
+    expect(js).not.toMatch(/\brequire\(|(^|[;}])\s*(import|export)\s*[\w{*"']/)
   })
 })
 
