@@ -361,6 +361,21 @@ describe('toggle outcomes (group 5: D5, D6, P5)', () => {
     await screen.findByText('Enabled Beta.')
   })
 
+  it('a second click on the dialog Disable while the update is pending sends no second call', async () => {
+    const d = deferred<Res<unknown>>()
+    const api = fakeApi({ setDisabled: () => d.promise })
+    show(api)
+    await screen.findByText('alpha')
+    const user = await disable()
+    const confirm = within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Disable' })
+    await user.click(confirm)
+    await user.click(confirm)
+    expect(api.setDisabled).toHaveBeenCalledTimes(1)
+    d.resolve(ok(rec('alpha', { disabled_at: '2026-11-19T00:00:00.000Z' })))
+    await screen.findByText('Disabled alpha.')
+    expect(api.setDisabled).toHaveBeenCalledTimes(1)
+  })
+
   it('a thrown update on Enable is a page Alert', async () => {
     const api = fakeApi({
       setDisabled: async () => {

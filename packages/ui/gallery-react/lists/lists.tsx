@@ -5,6 +5,7 @@ import { type ReactNode, useState } from 'react'
 import {
   Button,
   ChoiceGroup,
+  CommandBlock,
   ConfirmDialog,
   ListEditor,
   ResourceList,
@@ -125,7 +126,15 @@ function Lists() {
               meta: ['API-key agent', 'No permissions yet'],
               status: <StatusBadge tone="success">Enabled</StatusBadge>,
               actions: [{ label: 'Disable', onClick: () => {}, destructive: true }],
-              detail: <p className="text-sm">It has no permissions yet. To grant some, run the command below.</p>,
+              detail: (
+                <>
+                  <p className="text-sm">It has no permissions yet. To grant some, run:</p>
+                  <CommandBlock
+                    command={`vibase agents update 0190aaaa --scopes '["contacts:read","contacts:write"]'`}
+                    label="grant command"
+                  />
+                </>
+              ),
             },
           ]}
           emptyText="No agents."

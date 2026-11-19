@@ -58,7 +58,7 @@ export function ResourceList({
         <ul aria-label={label} className="flex flex-col divide-y divide-border rounded-lg border">
           {items.map((item) => (
             <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <div className="flex min-w-0 flex-col gap-1">
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium break-all">{item.title}</span>
                   {item.status}
