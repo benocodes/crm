@@ -736,6 +736,10 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
 sentinel (`packages/ui/scripts/default-runtime.test.tsx`) turns red if `react` ever resolves to anything else, and a manifest guard
 (`packages/ui/src/manifest-guard.test.ts`) refuses `preact`, `@preact/*` and `@testing-library/preact` in any workspace `package.json`.
 
+**Enumerated attributes: prove the rendered property in a real browser.** `spellCheck`, `draggable` and `contentEditable` are enumerated
+attributes, written as `"true"`/`"false"` strings, so a happy-dom assertion on the attribute or prop shape is not proof of what the browser does.
+Assert the browser *property* in Chromium, as `packages/ui/e2e/gallery-react.e2e.ts:172` does (`input.spellcheck === false`).
+
 **React, Tailwind and the pages' CSP** ([[UI445]]):
 - **Only a browser run under the policy proves a page CSP-safe.** `react-dom` 19's minified bundle itself contains
   `createElement("style")`, so a string scan of the built bundle cannot tell (finding 445.13). The source scan
