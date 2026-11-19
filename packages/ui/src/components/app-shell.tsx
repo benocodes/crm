@@ -67,7 +67,7 @@ export function AppShell({
       >
         Skip to main content
       </a>
-      <aside className="flex flex-col gap-4 border-b p-4 md:w-60 md:shrink-0 md:border-r md:border-b-0">
+      <aside className="flex flex-col gap-4 border-b p-4 md:sticky md:top-0 md:h-screen md:w-60 md:shrink-0 md:self-start md:overflow-y-auto md:border-r md:border-b-0">
         <div className="flex flex-col">
           <span className="text-lg font-semibold">{productName}</span>
           <span className="text-sm text-muted-foreground">{workspaceName}</span>
@@ -110,18 +110,18 @@ export function AppShell({
             <span className="font-medium">{person.name}</span>
             {person.email ? <span className="break-all text-muted-foreground">{person.email}</span> : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col gap-2">
             {manageAccountHref ? (
-              <Button asChild variant="link" size="sm">
+              <Button asChild variant="outline" size="sm" className="w-full">
                 <a href={manageAccountHref}>Manage account</a>
               </Button>
             ) : null}
             {'href' in signOut ? (
-              <Button asChild variant="outline" size="sm">
+              <Button asChild variant="outline" size="sm" className="w-full">
                 <a href={signOut.href}>Sign out</a>
               </Button>
             ) : (
-              <Button type="button" variant="outline" size="sm" onClick={signOut.onClick}>
+              <Button type="button" variant="outline" size="sm" className="w-full" onClick={signOut.onClick}>
                 Sign out
               </Button>
             )}
