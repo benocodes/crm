@@ -20,7 +20,9 @@ describe('instance entry', () => {
       expect(r.out.join('')).toBe(INSTANCE_HELP)
     }
     expect(INSTANCE_HELP).toMatch(/vibase-server status --env/)
-    expect(INSTANCE_HELP).toMatch(/vibase-server upgrade --env <name> \[--dry-run\] \[--rollback\]/)
+    expect(INSTANCE_HELP).toMatch(/vibase-server upgrade --env <name> \[--dry-run\]/)
+    expect(INSTANCE_HELP).toMatch(/vibase-server redeploy --env <name> \[--dry-run\]/)
+    expect(INSTANCE_HELP).not.toMatch(/--rollback/)
     expect(INSTANCE_HELP).toMatch(/wrangler rollback/)
     expect(INSTANCE_HELP).toMatch(/newer schema/)
   })

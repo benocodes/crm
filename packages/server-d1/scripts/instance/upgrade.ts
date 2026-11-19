@@ -230,3 +230,8 @@ export async function verify(
   }
   return ready(h) ? null : h === null ? 'no answer' : `version ${h.version ?? '?'}, migrations ${h.migrations ?? '?'}`
 }
+
+/** `vibase-server redeploy` ([[OPS487]]). */
+export async function runRedeploy(_argv: string[], _deps: InstanceDeps): Promise<number> {
+  throw new Error('not implemented')
+}

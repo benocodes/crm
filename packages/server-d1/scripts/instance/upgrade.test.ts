@@ -293,86 +293,6 @@ describe('D15 failure stops (exit 3, the step named, no later write)', () => {
   })
 })
 
-describe('D16 rollback (P3)', () => {
-  const NEWER = [...ALL, '0003_c.sql']
-  const rollback = ['--env', 'demo', '--rollback']
-  it('a newer live semver: deploy only, no d1 migrations call, the schema warning, verify accepts ahead; exit 0', async () => {
-    const { w, code } = await run(sim({ applied: NEWER, version: '0.2.0' }), rollback)
-    expect(w.err).toEqual([])
-    expect(code).toBe(0)
-    expect(verbs(w)).toEqual(['d1 execute DB', 'deploy'])
-    expect(w.wrangler.some((c) => c.args.includes('migrations'))).toBe(false)
-    expect(w.out.join('\n')).toMatch(/database stays at its newer schema/)
-    expect(crmCalls(w)[1]!.args).toContain('--no-bundle')
-    expect(w.out.join('\n')).toMatch(/rollback/i)
-    noTemp(w)
-  })
-  it('--rollback --dry-run prints the plan and writes nothing', async () => {
-    const { w, code } = await run(sim({ applied: NEWER, version: '0.2.0' }), [...rollback, '--dry-run'], {
-      processEnv: {},
-    })
-    expect(code).toBe(0)
-    expect(writes(w)).toEqual([])
-  })
-  it('--rollback without CONFIRM_REMOTE refuses with no write', async () => {
-    const { w, code } = await run(sim({ applied: NEWER, version: '0.2.0' }), rollback, { processEnv: {} })
-    expect(code).toBe(2)
-    expect(writes(w)).toEqual([])
-  })
-  it('refuses when the package has migrations the database lacks (a rollback cannot add migrations)', async () => {
-    const { w, code } = await run(sim({ applied: ['0001_a.sql'], version: '0.2.0' }), rollback)
-    expect(code).toBe(2)
-    expect(w.err.join('\n')).toMatch(/0002_b\.sql/)
-    expect(w.err.join('\n')).toMatch(/upgrade/)
-    expect(writes(w)).toEqual([])
-  })
-  it('refuses with no tracker table at all', async () => {
-    const { w, code } = await run(sim({ applied: null, version: '0.2.0' }), rollback)
-    expect(code).toBe(2)
-    expect(writes(w)).toEqual([])
-  })
-  it('refuses an equal live version, pointing to upgrade', async () => {
-    const { w, code } = await run(sim({ applied: NEWER, version: PKG_VERSION }), rollback)
-    expect(code).toBe(2)
-    expect(w.err.join('\n')).toMatch(/upgrade/)
-    expect(writes(w)).toEqual([])
-  })
-  it('refuses an older live version, pointing to upgrade', async () => {
-    const { w, code } = await run(sim({ applied: NEWER, version: '0.0.9' }), rollback)
-    expect(code).toBe(2)
-    expect(w.err.join('\n')).toMatch(/upgrade/)
-    expect(writes(w)).toEqual([])
-  })
-  it('a non-semver live version proceeds with the note', async () => {
-    const { w, code } = await run(sim({ applied: NEWER, version: 'dev' }), rollback)
-    expect(code).toBe(0)
-    expect(w.out.join('\n')).toMatch(/dev.*not a release version/)
-    expect(writes(w)).toEqual(['deploy'])
-  })
-  it('a tampered installed file refuses before any call', async () => {
-    const w = worldFor(sim({ applied: NEWER, version: '0.2.0' }))
-    writeFileSync(join(w.pkg.dir, 'worker', 'worker.js'), '// tampered')
-    expect(await runUpgrade(rollback, w.deps)).toBe(2)
-    expect(w.err.join('\n')).toMatch(/worker\/worker\.js/)
-    expect(w.fetchUrls).toEqual([])
-    expect(w.wrangler).toEqual([])
-  })
-  it('without --rollback a newer live version still refuses', async () => {
-    const { w, code } = await run(sim({ applied: NEWER, version: '0.2.0' }))
-    expect(code).toBe(2)
-    expect(writes(w)).toEqual([])
-  })
-  it('plain upgrade on a database with a migration the release lacks still refuses (D14 d), even with an older live version', async () => {
-    const { code } = await run(sim({ applied: NEWER, version: '0.0.9' }))
-    expect(code).toBe(2)
-  })
-  it('verify after a rollback fails if the version does not change', async () => {
-    const { w, code } = await run(sim({ applied: NEWER, version: '0.2.0', deployNoop: true }), rollback)
-    expect(code).toBe(3)
-    expect(w.err.join('\n')).toMatch(/verify/)
-  })
-})
-
 describe('D13 pinning and the installed package', () => {
   it('the generated config the deploy saw points inside the package; nothing but https://<api_host>/ is fetched', async () => {
     const { w } = await run(sim())
@@ -455,11 +375,10 @@ describe('secrets and side effects', () => {
       ])
     leaks(w)
   })
-  it('no secret appears in output, refusal or the generated config across every upgrade and rollback case', async () => {
+  it('no secret appears in output, refusal or the generated config across every upgrade case', async () => {
     const cases: [Partial<Sim>, string[]][] = [
       [{}, ['--env', 'demo']],
       [{ failApply: true }, ['--env', 'demo']],
-      [{ applied: [...ALL, '0003_c.sql'], version: '0.2.0' }, ['--env', 'demo', '--rollback']],
     ]
     for (const [c, argv] of cases) {
       const { w } = await run(sim(c), argv)
@@ -470,7 +389,6 @@ describe('secrets and side effects', () => {
     const all: World[] = []
     const cases: [Partial<Sim>, string[]][] = [
       [{}, ['--env', 'demo']],
-      [{ applied: [...ALL, '0003_c.sql'], version: '0.2.0' }, ['--env', 'demo', '--rollback']],
       [{ failDeploy: true }, ['--env', 'demo']],
     ]
     for (const [c, argv] of cases) all.push((await run(sim(c), argv)).w)
