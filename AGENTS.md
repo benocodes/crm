@@ -237,9 +237,9 @@ pnpm -C packages/server-postgres bootstrap -- --org <n> --email <e> --agent <a>
 pnpm -C packages/server-postgres smoke:auth        # and smoke:admin; both need SMOKE_EXPECT_DATABASE
 pnpm -C packages/api golden:generate               # and golden:check; goldens generated on D1 (Miniflare), review the fixture diff
 pnpm -C packages/server-d1 bootstrap -- --org <n> --issuer <CLERK_ISSUER> [--agent <a>]  # local D1 only; Clerk path creates no human (CORE64 D11); `--auth-provider none --auth-org-id <n> --email <e> --agent <a>` keeps the API-key-only owner; `--auth-provider better-auth --public-base-url <url> [--auth-org-id <label>]` creates no human and seeds `vibase-cli` in the control database (CORE283)
-pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network; builds the /connect page first
-pnpm -C packages/server-d1 build                   # the connect page (UI30) into dist/assets/connect/; `dev` runs it before `wrangler dev --local`
-pnpm -C packages/server-d1 test src/ui            # the auth pages' suites (`src/ui/**/*.ui.test.tsx`) on real React in the root `page-ui` project (UI446 D3); `/connect`'s stay under the Preact alias until UI447
+pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network; builds the auth pages and the app first
+pnpm -C packages/server-d1 build                   # the auth pages and the app into dist/assets/{ui,app}/ (clears a stale connect/; `/connect` is a 302 to `/home`, UI476); `dev` runs it before `wrangler dev --local`
+pnpm -C packages/server-d1 test src/ui            # the auth pages' suites (`src/ui/**/*.ui.test.tsx`) on real React in the root `page-ui` project (UI446 D3)
 pnpm -C packages/ui test                          # @vibase/ui legacy component suites under Preact (`ui-preact`) and React (`ui-react`), the new React-only `src/components` suites (`ui-components`, UI448), plus its node-side suites; component suites are `*.ui.test.tsx`, never run by the root shared projects
 pnpm changeset                                     # add a changeset (a `.changeset/*.md`); a PR that changes what `@vibase/cli` or `@vibase/server-d1` ships adds one (OPS210 D25; the PR check is #264)
 ```
@@ -251,7 +251,7 @@ These are the commands of everyday work. The rest live in the skill that uses th
   `db:migrate:remote`, `deploy:remote`, `smoke:remote`, `owner-reset`, `e2e:rail`): `ship-branch`, "Command
   reference".
 - **Browser E2E scripts** (`e2e:gallery`, `e2e:oauth-pages`, `e2e:auth-pages`, `e2e:auth-pages-reset`,
-  `e2e:connect`, `e2e:mcp-oauth`, `e2e:approvals-app`; none is in the gate): `writing-tests` §7, "Scripts".
+  `e2e:mcp-oauth`, `e2e:approvals-app`; none is in the gate): `writing-tests` §7, "Scripts".
 
 Two rules hold wherever those commands are run. Agents run a remote command only against an environment that
 is theirs ("Environments"). Agents never push a release tag, publish the draft GitHub Release, run
