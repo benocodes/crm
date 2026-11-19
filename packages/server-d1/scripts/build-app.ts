@@ -6,11 +6,26 @@ import { copyFileSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { buildStylesheet, reactBuildOptions } from '@vibase/ui/build'
-import { build } from 'esbuild'
+import { build, type Plugin } from 'esbuild'
+import { readFileSync } from 'node:fs'
 
 const PKG = fileURLToPath(new URL('..', import.meta.url))
 const SRC = join(PKG, 'src', 'app')
 export const APP_DIR_NAME = 'app'
+
+/**
+ * react-router's browser chunk carries `import(route.module)` calls for framework-mode route modules and lazy routes. The app uses declarative mode only, so they are never reached, but
+ * the bundle must hold no dynamic `import(` ([[UI460]] D5, build-app.test.ts). They are turned into a rejected promise.
+ */
+const noDynamicImport: Plugin = {
+  name: 'no-dynamic-import',
+  setup(b) {
+    b.onLoad({ filter: /node_modules[\\/]react-router[\\/]dist[\\/].*\.m?js$/ }, (args) => ({
+      contents: `const __noImport = () => Promise.reject(new Error('dynamic import is not available in this bundle'))\n${readFileSync(args.path, 'utf8').replace(/\bimport\(/g, '__noImport(')}`,
+      loader: 'js',
+    }))
+  },
+}
 
 /** Builds into `<outDir>/app/` and returns esbuild's metafile (the inputs the bundle holds; the build test reads it). */
 export async function buildApp(outDir: string): Promise<{ inputs: Record<string, unknown> }> {
@@ -19,6 +34,7 @@ export async function buildApp(outDir: string): Promise<{ inputs: Record<string,
   mkdirSync(dir, { recursive: true })
   const result = await build({
     ...reactBuildOptions,
+    plugins: [noDynamicImport],
     absWorkingDir: PKG,
     entryPoints: [join(SRC, 'main.tsx')],
     bundle: true,
