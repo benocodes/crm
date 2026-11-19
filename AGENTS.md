@@ -108,7 +108,7 @@ in either runtime's role prompts. Update both sets when changing a shared workfl
 
 **Per cycle:** planner `spec` (if the spec isn't approved) → planner `plan` → coder (affected tests green) →
 gate-tester (full gate; on red: coder → gate-tester, until green; these rounds are free) →
-e2e-tester (only if the charter has an E2E scenario; on failure: coder → e2e-tester, until it passes) → planner `review` (on changes requested: coder → e2e-tester if any → review; **at most two coder rounds in total**) → planner
+e2e-tester (only if the charter has an E2E scenario; on failure: coder → e2e-tester, until it passes) → planner `review` (on changes requested: coder → e2e-tester if any → review; **at most two coder rounds in total**; gate-fix and user-ruling rounds are free) → planner
 `retro` → orchestrator opens the PR, waits for checks, merges (`gh pr merge --squash --delete-branch`),
 removes the worktree and its test DB, and checkpoints SPRINT.md. Cycles that build on each other run in
 order from an up-to-date `main`.

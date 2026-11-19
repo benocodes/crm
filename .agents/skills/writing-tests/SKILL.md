@@ -949,6 +949,16 @@ charter asked for both. So a cycle whose charter names one of these:
   decisive lines quoted, or the `ok` count before a shared abort set against `main`'s (UI460's RESULT.md has both).
 A red `main` is not this cycle's to fix, and not a reason to skip its own legs.
 
+**A decisive assertion that needs an env value expects it set.** A leg whose check depends on a secret or a bootstrap
+output (`E2E_AGENT_KEY` in `e2e:agents-clerk`) `expect`s the value at the top of the leg; an `if (env)` around the
+check passes for the wrong reason when the value is missing ([[UI479]], 479.16).
+
+Known traps in the scripts below:
+- `e2e:action-requests` is not re-runnable on one `.wrangler/state`: a second run fails legs 7-8 on the first run's
+  pending action requests. Reset the state between runs (479.18).
+- `e2e:mcp-oauth` is red on `main` past leg 2 until #481 (the Clerk dev instance's DCR refuses the vault's scopes);
+  a cycle that names it proves its own legs past leg 2 by the rule above.
+
 ```bash
 pnpm -C packages/ui e2e:gallery-react             # the React/Tailwind gallery (UI445) built with @vibase/ui/build, served on 127.0.0.1:4174: the components page `/` under PAGE_CSP and the composites page `/composites` (UI443, `?view=parts|shell|shell-bare`) and the lists page `/lists` (UI458: ResourceList, StatusBadge, ConfirmDialog, ListEditor, ChoiceGroup; `?view=dialog-*` opens a dialog state at load) under APP_CSP, each its own bundle under the 100 KB gzipped budget (lists.js 97.1 KB, composites.js 88.9 KB at UI458: a new heavy composite needs its own page or a budget ruling); four theme modes, axe zero violations, focus ring, skip link, Copy, the 375 px row, zero CSP violations; its seen-failing proof is built in (no env var): a leg injects a `<style>` and an inline `<script>` at runtime, the `<style>` must violate PAGE_CSP only and the script must be blocked on both pages; not in the gate
 pnpm -C packages/server-d1 e2e:auth-pages          # the Better Auth pages /invite, /sign-in, /reset-password (UI246), Google buttons (CORE294), a trusted app origin (UI255) and, from UI460, the workspace app (steps 10-12: `/` 302 /home, the signed-out card, the shell with APP_CSP and axe in both themes, 375 px, sign out) and, from UI467, Connected accounts (11c: `/accounts` lists, Connect Gmail's 501, the connect return removed; 13: signed-out `/accounts` returns there after sign-in); local Worker on better-auth, fresh local state, recipe in the file header; not in the gate
