@@ -522,7 +522,7 @@ Write the scenario so a tester can run it literally ([[CORE74]] needed two devia
   that created it.** [[CHN140]]'s charter said a rebuild kept `UPDATE` *and* `DELETE` refused; `0004` only ever
   refused `UPDATE`, which cost a deviation. Open the original file before writing "still".
 - **A cycle that changes an existing E2E script's expectation** (a step that flips) names that script for the
-  tester too. [[API115]] flipped `e2e:connect`'s MCP step without naming it, and review had to add the run as a
+  tester too. [[API115]] flipped the connect E2E's MCP step without naming it, and review had to add the run as a
   pre-merge condition.
 - **Deletes as the spec defines them:** for a soft delete, say "`deleted_at` set, row kept". Left unsaid,
   the tester asserted that cascaded edges were gone, against [[CORE62]] D15.

@@ -324,10 +324,11 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   naming the scan. A cycle that adds an import to a shipped bundle runs `release:build` in its gate ([[OPS232]]).
 - **A source scan for a path literal matches the path, not the substring.** UI476's no-`/connect` scan
   (`packages/server-d1/src/ui/no-connect-default.test.ts`) matches `/connect` as a whole segment and skips a
-  preceding `(`, `\` or host (a regex literal `/connect an agent/`, an escaped `\/connect`, `https://h/connect`);
-  it carries an explicit allow-list with a stale-entry test (each allowed file must still name the path), and the
-  absence mutations restore the old default and add a link in an app file. A host-qualified destination is then
-  outside the scan: say so in the charter if it matters.
+  regex literal and an escaped slash (`/connect an agent/`, `\/connect`), and counts a host-qualified `https://h/connect`;
+  it carries an explicit allow-list that pins how many mentions each file has (a new mention, or a stale entry, turns it red),
+  and the absence mutations restore the old default and add a link in an app file. From UI479 it also reads `e2e/`, the
+  README, `clerk-setup.md`, `.dev.vars.example`, `wrangler.jsonc`, the docs content and the release templates, and matches a
+  host-qualified `https://h/connect`; skills and AGENTS.md get a dead-artefact check instead (no citation of a deleted file).
 - **A build that stops producing an asset directory deletes it.** `dist/assets/` is gitignored and survives
   between builds, so `wrangler dev` and a deploy would keep serving the removed page from a stale copy; UI476's
   `pnpm build` starts with `rm -rf dist/assets/connect`, pinned in `packages/server-d1/scripts/build.test.ts`.
@@ -706,7 +707,7 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
   Clean free text from external sources inside the function (`cleanName` in `src/identity/resolve.ts`:
   trim, blank is absent, cap at the column limit), or one odd display name fails a whole capture batch.
 - **Prove a browser-side client against the real handler without a browser** ([[UI297]],
-  `packages/server-d1/src/connect-seam-real.test.ts`). Drive the client's own module with a `fetch` bound to
+  `packages/server-d1/src/app/session/better-auth-session.test.ts`). Drive the client's own module with a `fetch` bound to
   `composeD1Worker(env)`. That `fetch` resolves relative URLs against `PUBLIC_BASE_URL`, sends that origin as
   `Origin` (Better Auth checks it) and keeps `Set-Cookie` in a jar. This checks the request and response shapes the
   fake-`fetch` unit suite assumes, inside the gate. The browser E2E then only has to cover what needs a browser.
@@ -740,7 +741,7 @@ case that tells Preact from React cannot inspect elements: `preact/compat` stamp
 Preact's `render(vnode, container)` keeps the container's existing children: a static placeholder in `index.html`
 (a no-JS "Loading") stays beside the rendered page, where hand-written `replaceChildren` code cleared it. Clear it
 on the first draw, and mount at least one page test into a container seeded with the shipped HTML's content, never
-only an empty `div` (the [[UI256]] E2E found the stray text; `packages/server-d1/src/connect/view.tsx` `drawView`).
+only an empty `div` (the [[UI256]] E2E found the stray text, in the Preact connect page since deleted).
 
 **React, Tailwind and the pages' CSP** ([[UI445]]):
 - **Only a browser run under the policy proves a page CSP-safe.** `react-dom` 19's minified bundle itself contains
@@ -961,6 +962,6 @@ pnpm -C packages/server-d1 e2e:auth-pages-reset      # self-service reset by ema
 pnpm -C packages/server-d1 e2e:approvals-app      # the approvals app (:8788, started by the config) signs in, approves and signs out through Better Auth against a local better-auth Worker on :8787 that the operator starts (UI388); E2E_INVITE_URL from bootstrap; recipe in e2e/approvals-app.e2e.ts; no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:auth-migration     # the hq auth migration end to end (OPS397, OPS394): the real `auth:migrate:remote` plan, apply, claim and revert through a test-only driver (e2e/auth-migration-driver.ts: local D1 pair, fixed Time Travel bookmark, `deploy` = restart the local Worker on the committed record's provider) against the Clerk dev instance (users and sessions by the Backend API, keys from `.env.dev`, E2E_DEV_ENV_FILE may name it), then a claim link opened in the browser; own temp state, removed at the end; recipe in the spec header; E2E_BROWSER_CHANNEL=chrome if Playwright's Chromium is not installed; not in the gate
 pnpm -C packages/server-d1 e2e:forms               # a website form posted to the real Worker under `wrangler dev --local` (CHN432): real Turnstile siteverify with the always-pass test secret (needs network; it passes any non-empty token, so the script proves no wrong-token refusal), live `ratelimits` bindings, owner-created form in-process; own temp state and env file, removed at the end; no browser, no Clerk; not in the gate
-pnpm -C packages/server-d1 e2e:connect             # Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only); not in the gate
+pnpm -C packages/server-d1 e2e:agents-clerk        # the Clerk-only legs on /home and /agents (UI479): Account Portal round trip, owner Disable/Enable, agent role, member, sign out; Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only, E2E_AGENT_KEY from bootstrap); same harness and config as the two below; not in the gate
 pnpm -C packages/server-d1 e2e:mcp-oauth          # MCP OAuth end to end (DCR, consent, delegated agent, revocation) on the Clerk dev instance; same harness, not in the gate
 ```

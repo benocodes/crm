@@ -47,9 +47,9 @@ const ALLOWED: Record<string, number> = {
   'packages/release/src/fixtures.ts': 2,
   'packages/release/scripts/check.ts': 10,
   'packages/server-d1/e2e/oauth-pages.e2e.ts': 6,
-  'packages/server-d1/README.md': 1,
+  'packages/server-d1/README.md': 3,
   'packages/server-d1/clerk-setup.md': 1,
-  'packages/server-d1/wrangler.jsonc': 2,
+  'packages/server-d1/wrangler.jsonc': 4,
 }
 /** `/connect` as a whole path segment: not `/connections`, `/connect-return`, `/oauth/connect`, a file name, or the start of a regex literal or an escaped slash (`(/connect an agent/`, `\/connect`). */
 export const CONNECT_PATH = /(?<![\w/.\-\\])\/connect(?![\w-])(?! an agent\/)/g

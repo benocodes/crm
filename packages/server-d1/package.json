@@ -17,6 +17,7 @@
     "dev": "pnpm build && wrangler dev --local --port 8787",
     "e2e:mcp-oauth": "playwright test --config playwright.config.ts mcp-oauth.e2e.ts",
     "e2e:action-requests": "playwright test --config playwright.config.ts action-requests.e2e.ts",
+    "e2e:agents-clerk": "playwright test --config playwright.config.ts agents-clerk.e2e.ts",
     "e2e:rail": "tsx scripts/e2e-rail.ts",
     "e2e:forms": "tsx scripts/e2e-forms.ts",
     "e2e:gmail-send": "tsx scripts/e2e-gmail-send.ts",

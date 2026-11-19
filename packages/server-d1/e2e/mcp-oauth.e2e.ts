@@ -13,7 +13,7 @@ import type {
 // [[API115]] E2E (API106 cycle 2; Milestone A pass P1 and P4 with a real token): a standard MCP client, given only `<origin>/mcp`, discovers Clerk,
 // registers by DCR, gets a person's consent and works through /mcp as that person's delegated agent, which an owner then disables.
 //
-// Prerequisite, as for the connect E2E: a local Worker on E2E_BASE_URL (default http://localhost:8787) from this worktree (`pnpm -C packages/server-d1 dev`),
+// Prerequisite, as for the other Clerk E2E specs: a local Worker on E2E_BASE_URL (default http://localhost:8787) from this worktree (`pnpm -C packages/server-d1 dev`),
 // its local D1 migrated (`wrangler d1 migrations apply DB --local` and `... CONTROL_DB --local`, before `bootstrap`: the control plane is required in every auth mode, [[CORE326]]) and bootstrapped on the Clerk path (`bootstrap -- --org <n> --issuer <CLERK_ISSUER>`), with the full Clerk configuration of
 // `.dev.vars.example` from `.env.dev` (AUTH_PROVIDER=clerk, CLERK_ISSUER, CLERK_JWT_KEY, CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY, AUTH_CLI_CLIENT_ID,
 // CLERK_AUTHORIZED_PARTIES=<base URL>); in `.dev.vars` the CLERK_JWT_KEY PEM needs its newlines escaped as \n. The database it reads is that Worker's LOCAL D1 (`wrangler d1 execute DB --local`), never a remote one.
@@ -271,10 +271,10 @@ test("7. the owner disables the agent and the client's next tools/list is 401 wi
   request,
 }) => {
   await setupClerkTestingToken({ context: page.context() })
-  await page.goto('/connect')
+  await page.goto('/home')
   await clerk.loaded({ page })
   await clerk.signIn({ page, emailAddress: users.owner.email })
-  await page.goto('/connect')
+  await page.goto('/home')
   await page.waitForFunction(() => (window as any).Clerk?.session, null, { timeout: 30000 })
   const owner = await page.evaluate(() =>
     (window as unknown as { Clerk: { session: { getToken(): Promise<string> } } }).Clerk.session.getToken(),
