@@ -34,7 +34,7 @@ describe('CodeInput', () => {
     const input = screen.getByLabelText('Code')
     expect(input.getAttribute('autocomplete')).toBe('one-time-code')
     expect(input.getAttribute('autocapitalize')).toBe('characters')
-    // The attribute reads "false" under both runtimes (Preact drops a boolean `false`; the gallery e2e checks `input.spellcheck` in Chromium).
+    // The attribute reads "false" (the gallery e2e checks `input.spellcheck` in Chromium).
     expect(input.getAttribute('spellcheck')).toBe('false')
   })
 

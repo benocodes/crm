@@ -732,16 +732,9 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
 
 ## 7. Browser E2E scripts (Playwright, Clerk)
 
-**Preact components: prove rendered attributes in a real browser.** Preact removes an attribute whose JSX value is
-boolean `false`, which happy-dom suites asserting the prop shape miss. Enumerated attributes (`spellCheck`,
-`draggable`, `contentEditable`) are written as `"true"`/`"false"` strings (spec [[UI254]] D2). The gallery E2E
-(`packages/ui/e2e/gallery.e2e.ts`) asserts the browser *property* (`input.spellcheck === false`). An identity
-case that tells Preact from React cannot inspect elements: `preact/compat` stamps `$$typeof` on vnodes. Check the
-`react` module's React-only exports instead (`packages/ui/src/runtime.ui.test.tsx`).
-Preact's `render(vnode, container)` keeps the container's existing children: a static placeholder in `index.html`
-(a no-JS "Loading") stays beside the rendered page, where hand-written `replaceChildren` code cleared it. Clear it
-on the first draw, and mount at least one page test into a container seeded with the shipped HTML's content, never
-only an empty `div` (the [[UI256]] E2E found the stray text, in the Preact connect page since deleted).
+**One React layer ([[UI447]]).** `@vibase/ui` and the pages run on real React everywhere; no build or test project aliases `react`. The shared project's
+sentinel (`packages/ui/scripts/default-runtime.test.tsx`) turns red if `react` ever resolves to anything else, and a manifest guard
+(`packages/ui/src/manifest-guard.test.ts`) refuses `preact`, `@preact/*` and `@testing-library/preact` in any workspace `package.json`.
 
 **React, Tailwind and the pages' CSP** ([[UI445]]):
 - **Only a browser run under the policy proves a page CSP-safe.** `react-dom` 19's minified bundle itself contains
@@ -794,8 +787,8 @@ only an empty `div` (the [[UI256]] E2E found the stray text, in the Preact conne
   `AppShell` that renders its own `<main>` fails axe's landmark rules in the browser, not in happy-dom; mount into a
   `<div>` ([[UI443]] 443.40; the app's `index.html` root is a `<div>`, pinned in `src/app/main.ui.test.tsx`).
 - **Page suites on real React** live in the root `page-ui` project (`packages/server-d1/src/{ui,app}/**/*.ui.test.tsx`,
-  no Preact alias, [[UI446]] D3, [[UI460]] 460.12); a sentinel (`src/ui/react-runtime.ui.test.tsx`) turns red if the project ever
-  gets the alias back.
+  no alias, [[UI446]] D3, [[UI460]] 460.12); a sentinel (`src/ui/react-runtime.ui.test.tsx`) turns red if the project ever
+  resolves another runtime.
 - **esbuild defaults `process.env.NODE_ENV` to `"production"` under `minify`**, so an absence mutation of the
   helper's define shows nothing on a minified build. Build unminified in that test to give it teeth
   (`packages/ui/scripts/react-build.test.ts`).
@@ -955,7 +948,6 @@ A red `main` is not this cycle's to fix, and not a reason to skip its own legs.
 ```bash
 pnpm -C packages/ui e2e:gallery-react             # the React/Tailwind gallery (UI445) built with @vibase/ui/build, served on 127.0.0.1:4174: the components page `/` under PAGE_CSP and the composites page `/composites` (UI443, `?view=parts|shell|shell-bare`) and the lists page `/lists` (UI458: ResourceList, StatusBadge, ConfirmDialog, ListEditor, ChoiceGroup; `?view=dialog-*` opens a dialog state at load) under APP_CSP, each its own bundle under the 100 KB gzipped budget (lists.js 97.1 KB, composites.js 88.9 KB at UI458: a new heavy composite needs its own page or a budget ruling); four theme modes, axe zero violations, focus ring, skip link, Copy, the 375 px row, zero CSP violations; its seen-failing proof is built in (no env var): a leg injects a `<style>` and an inline `<script>` at runtime, the `<style>` must violate PAGE_CSP only and the script must be blocked on both pages; not in the gate
 pnpm -C packages/server-d1 e2e:auth-pages          # the Better Auth pages /invite, /sign-in, /reset-password (UI246), Google buttons (CORE294), a trusted app origin (UI255) and, from UI460, the workspace app (steps 10-12: `/` 302 /home, the signed-out card, the shell with APP_CSP and axe in both themes, 375 px, sign out) and, from UI467, Connected accounts (11c: `/accounts` lists, Connect Gmail's 501, the connect return removed; 13: signed-out `/accounts` returns there after sign-in); local Worker on better-auth, fresh local state, recipe in the file header; not in the gate
-pnpm -C packages/ui e2e:gallery                   # builds the test-only gallery, serves it on localhost, Playwright screenshots per state in light/dark (forced and emulated) into the gitignored packages/ui/e2e-screenshots/, axe zero violations, keyboard order; not in the gate. If `playwright install chromium` fails (it does on the dev Mac), run with E2E_BROWSER_CHANNEL=chrome (installed Google Chrome)
 pnpm -C packages/server-d1 e2e:oauth-pages         # Better Auth /device and /consent with the real `vibase login` and an MCP-style client (UI247); local Worker over HTTPS (`wrangler dev --local-protocol https`, recipe in the file header and writing-tests §7), no Clerk; `e2e:auth-pages` is UI246's sibling; not in the gate
 pnpm -C packages/server-d1 e2e:accounts-connect      # the connect return and Home's Connect your email prompt (UI469): its own Worker with the Gmail core four set and no CONNECT_RETURN_URL (Gmail on would flip e2e:auth-pages' 501 legs), Google answered by a Playwright route, the callback's refusal returns real; fresh local state, recipe in the spec header; no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:auth-pages-reset      # self-service reset by email on /sign-in (CORE304): its own email-on Worker from the test-only entry src/test/entry-email.ts (a recording EMAIL binding read at /__emails), over HTTPS, fresh local state (recipe in the spec file header); no Clerk; not in the gate

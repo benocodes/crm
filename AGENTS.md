@@ -240,7 +240,7 @@ pnpm -C packages/server-d1 bootstrap -- --org <n> --issuer <CLERK_ISSUER> [--age
 pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network; builds the auth pages and the app first
 pnpm -C packages/server-d1 build                   # the auth pages and the app into dist/assets/{ui,app}/ (clears a stale connect/; `/connect` is a 302 to `/home`, UI476); `dev` runs it before `wrangler dev --local`
 pnpm -C packages/server-d1 test src/ui            # the auth pages' suites (`src/ui/**/*.ui.test.tsx`) on real React in the root `page-ui` project (UI446 D3)
-pnpm -C packages/ui test                          # @vibase/ui legacy component suites under Preact (`ui-preact`) and React (`ui-react`), the new React-only `src/components` suites (`ui-components`, UI448), plus its node-side suites; component suites are `*.ui.test.tsx`, never run by the root shared projects
+pnpm -C packages/ui test                          # @vibase/ui: the React component suites (`src/components/**/*.ui.test.tsx`, project `ui-components`, UI448, UI447) plus its node-side suites (`engine-neutral`); component suites are `*.ui.test.tsx`, never run by the root shared projects
 pnpm changeset                                     # add a changeset (a `.changeset/*.md`); a PR that changes what `@vibase/cli` or `@vibase/server-d1` ships adds one (OPS210 D25; the PR check is #264)
 ```
 
@@ -250,7 +250,7 @@ These are the commands of everyday work. The rest live in the skill that uses th
   workflows, `vibase-server status`, and every `CONFIRM_REMOTE=1` command: `setup:remote`, `db:status:remote`,
   `db:migrate:remote`, `deploy:remote`, `smoke:remote`, `owner-reset`, `e2e:rail`): `ship-branch`, "Command
   reference".
-- **Browser E2E scripts** (`e2e:gallery`, `e2e:oauth-pages`, `e2e:auth-pages`, `e2e:auth-pages-reset`,
+- **Browser E2E scripts** (`e2e:gallery-react`, `e2e:oauth-pages`, `e2e:auth-pages`, `e2e:auth-pages-reset`,
   `e2e:mcp-oauth`, `e2e:approvals-app`; none is in the gate): `writing-tests` §7, "Scripts".
 
 Two rules hold wherever those commands are run. Agents run a remote command only against an environment that
