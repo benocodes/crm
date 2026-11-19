@@ -5,11 +5,12 @@ import type { SessionSeam } from './types.js'
 export function betterAuthSession(deps: {
   fetch?: typeof fetch
   navigate?: (url: string) => void
-  returnPath: string
+  returnPath: string | (() => string)
 }): SessionSeam {
   const doFetch: typeof fetch = deps.fetch ?? ((input, init) => fetch(input, init))
   // [[UI460]] P2, P3: the page path the person comes back to, from the caller (`/home`, `/accounts` or `/agents` for the app; required, [[UI476]] P4); a path only, never a query.
-  const signIn = `/sign-in?return_to=${deps.returnPath}`
+  const signIn = () =>
+    `/sign-in?return_to=${typeof deps.returnPath === 'function' ? deps.returnPath() : deps.returnPath}`
   const navigate = deps.navigate ?? ((url: string) => location.assign(url))
   let signedIn = false
 
@@ -49,7 +50,7 @@ export function betterAuthSession(deps: {
     },
     // R3: the argument is ignored; the target is the seam's own `returnPath` (`/sign-in` admits an allow-listed path).
     async redirectToSignIn() {
-      navigate(signIn)
+      navigate(signIn())
     },
     // R4: Better Auth's handler wants a JSON body and the page origin (the browser sends it).
     async signOut() {

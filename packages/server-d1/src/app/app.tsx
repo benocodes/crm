@@ -1,7 +1,8 @@
-// [[UI460]] D4, D7, D8 ([[UI443]]): the app's view. The shell (`AppShell`, with the visible NAV rows) renders in `ready` only; every other state is a centred card with no sidebar. Navigation is plain links with full page loads (D7).
+// [[UI460]] D4, D7, D8 ([[UI443]]): the app's view. The shell (`AppShell`, with the visible NAV rows) renders in `ready` only; every other state is a centred card with no sidebar. Navigation is client-side (react-router, declarative mode; reverses D7's full page loads): the router's location picks the page, the current nav row and the title.
 // Every string from the vault is rendered as text, never markup.
-import { useSyncExternalStore } from 'react'
-import { Alert, AppShell, Button, Card } from '@vibase/ui/components'
+import { useLayoutEffect, useSyncExternalStore } from 'react'
+import { Link, NavLink, Route, Routes, useLocation } from 'react-router'
+import { Alert, AppShell, type AppNavLinkProps, Button, Card, SettingsPage } from '@vibase/ui/components'
 import { AccountsPage, type AccountsApi } from './accounts/accounts.js'
 import { AgentsPage, type AgentsApi } from './agents/agents.js'
 import { HomePage } from './home.js'
@@ -12,8 +13,6 @@ export interface AppProps {
   state: AppState
   /** `clerk` or `better-auth`, from discovery; `null` when there is none. */
   provider: string | null
-  /** The page path being shown (marks its nav entry current). */
-  path: string
   /** The page's origin: the server the connect-an-agent commands name. */
   origin: string
   /** The MCP URL when discovery advertises one. */
@@ -26,22 +25,47 @@ export interface AppProps {
   onRetry(): void
 }
 
+/** The nav's link: react-router's `NavLink` (the router sets `aria-current` and the active state from its location). `end` keeps a row current for its own path only. */
+function RouterNavLink({ href, className, children }: AppNavLinkProps) {
+  return (
+    <NavLink to={href} end className={className}>
+      {children}
+    </NavLink>
+  )
+}
+
+export const TITLES: Record<string, string> = {
+  '/home': 'Home',
+  '/accounts': 'Connected accounts',
+  '/agents': 'Agents',
+}
+
+/** document.title follows the route: the page's name, `Home` for an unknown path, then ` · Vibase`. */
+function useRouteTitle(): void {
+  const { pathname } = useLocation()
+  // A layout effect: the title is set in the same commit that draws the page, so nothing can observe the page with the previous title.
+  useLayoutEffect(() => {
+    document.title = `${TITLES[pathname] ?? 'Home'} · Vibase`
+  }, [pathname])
+}
+
+function NotFound() {
+  return (
+    <SettingsPage title="Page not found">
+      <p className="text-sm">There is no page at this address.</p>
+      <Link to="/home" className="text-sm font-medium underline underline-offset-4">
+        Back to Home
+      </Link>
+    </SettingsPage>
+  )
+}
+
 function Centered({ children }: { children: React.ReactNode }) {
   return <main className="mx-auto my-6 max-w-132 px-4">{children}</main>
 }
 
-export function App({
-  state,
-  provider,
-  path,
-  origin,
-  mcpUrl,
-  api,
-  onCheckAgain,
-  onSignIn,
-  onSignOut,
-  onRetry,
-}: AppProps) {
+export function App({ state, provider, origin, mcpUrl, api, onCheckAgain, onSignIn, onSignOut, onRetry }: AppProps) {
+  useRouteTitle()
   switch (state.kind) {
     case 'loading':
       return (
@@ -113,30 +137,43 @@ export function App({
       return (
         <AppShell
           workspaceName={state.who.workspaceName}
-          nav={visibleNav(NAV, { provider, scopes: state.scopes }, path)}
+          nav={visibleNav(NAV, { provider, scopes: state.scopes })}
+          navLink={RouterNavLink}
           person={{ name: state.who.name, email: state.who.email }}
           signOut={{ onClick: onSignOut }}
           {...(state.manageAccountHref ? { manageAccountHref: state.manageAccountHref } : {})}
         >
-          {path === '/accounts' ? (
-            <AccountsPage api={api} userId={state.who.userId} scopes={state.scopes} />
-          ) : path === '/agents' ? (
-            <AgentsPage
-              api={api}
-              userId={state.who.userId}
-              scopes={state.scopes}
-              instructions={{ origin, signIn: provider !== null, mcpUrl }}
+          <Routes>
+            <Route
+              path="/accounts"
+              element={<AccountsPage api={api} userId={state.who.userId} scopes={state.scopes} />}
             />
-          ) : (
-            <HomePage
-              who={state.who}
-              connectEmail={state.connectEmail}
-              connectAgent={state.connectAgent}
-              instructions={{ origin, signIn: provider !== null, mcpUrl }}
-              onCheckAgain={onCheckAgain}
-              {...(state.signOutError ? { error: state.signOutError } : {})}
+            <Route
+              path="/agents"
+              element={
+                <AgentsPage
+                  api={api}
+                  userId={state.who.userId}
+                  scopes={state.scopes}
+                  instructions={{ origin, signIn: provider !== null, mcpUrl }}
+                />
+              }
             />
-          )}
+            <Route
+              path="/home"
+              element={
+                <HomePage
+                  who={state.who}
+                  connectEmail={state.connectEmail}
+                  connectAgent={state.connectAgent}
+                  instructions={{ origin, signIn: provider !== null, mcpUrl }}
+                  onCheckAgain={onCheckAgain}
+                  {...(state.signOutError ? { error: state.signOutError } : {})}
+                />
+              }
+            />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </AppShell>
       )
   }
@@ -146,14 +183,12 @@ export function App({
 export function AppRoot({
   controller,
   provider,
-  path,
   origin,
   mcpUrl,
   api,
 }: {
   controller: AppController
   provider: string | null
-  path: string
   origin: string
   mcpUrl: string | null
   api: AccountsApi & AgentsApi
@@ -163,7 +198,6 @@ export function AppRoot({
     <App
       state={state}
       provider={provider}
-      path={path}
       origin={origin}
       mcpUrl={mcpUrl}
       api={api}

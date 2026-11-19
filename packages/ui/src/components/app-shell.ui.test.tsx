@@ -100,3 +100,37 @@ describe('AppShell', () => {
     expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(' ')}`)).toEqual([])
   })
 })
+
+// Router seam: the shell stays router-free; an app passes its own link component for the nav entries.
+const seen: string[] = []
+function Link({
+  href,
+  className,
+  children,
+}: {
+  href: string
+  className: (s: { isActive: boolean }) => string
+  children: React.ReactNode
+}) {
+  seen.push(href)
+  return (
+    <a data-custom="1" href={href} className={className({ isActive: href === '/agents' })}>
+      {children}
+    </a>
+  )
+}
+
+describe('AppShell navLink seam', () => {
+  it('renders each nav entry through the given link component, with the entry href and a className function', () => {
+    seen.length = 0
+    render(shell({ navLink: Link }))
+    const nav = screen.getByRole('navigation', { name: 'Workspace' })
+    expect(Array.from(nav.querySelectorAll('a[data-custom]')).map((a) => a.getAttribute('href'))).toEqual([
+      '/home',
+      '/agents',
+    ])
+    expect(seen).toEqual(['/home', '/agents'])
+    expect(nav.querySelectorAll('a')[1]!.className).toMatch(/(^| )bg-accent( |$)/)
+    expect(nav.querySelectorAll('a')[0]!.className).not.toMatch(/(^| )bg-accent( |$)/)
+  })
+})

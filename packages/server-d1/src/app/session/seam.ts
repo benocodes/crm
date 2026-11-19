@@ -7,8 +7,8 @@ export interface SeamDeps {
   fetch?: typeof fetch
   navigate?: (url: string) => void
   loadScript?: (src: string, publishableKey: string) => Promise<void>
-  /** [[UI460]] P3: the page the person returns to after signing in (Better Auth, a path) or out (Clerk, a URL or path). Both are required ([[UI476]] P4): the app is the only caller and always passes them. */
-  returnPath: string
+  /** [[UI460]] P3: the page the person returns to after signing in (Better Auth, a path; a function is read when signing in, as the app navigates without a page load) or out (Clerk, a URL or path). Both are required ([[UI476]] P4): the app is the only caller and always passes them. */
+  returnPath: string | (() => string)
   signOutReturn: string
 }
 

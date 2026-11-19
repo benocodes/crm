@@ -12,12 +12,13 @@ const CTXS = [
 describe('NAV', () => {
   it('has the Home row first, to /home, and it is visible for every context, including no scopes', () => {
     expect(NAV[0]).toMatchObject({ label: 'Home', href: '/home' })
-    for (const ctx of CTXS) expect(visibleNav(NAV, ctx, '/home').map((e) => e.label)).toContain('Home')
+    for (const ctx of CTXS) expect(visibleNav(NAV, ctx).map((e) => e.label)).toContain('Home')
   })
 
-  it('Home carries an icon and the entry is a plain link to its path', () => {
-    const [home] = visibleNav(NAV, CTXS[0]!, '/home')
-    expect(home).toMatchObject({ label: 'Home', href: '/home', current: true })
+  it('Home carries an icon and the entry is a link to its path', () => {
+    const [home] = visibleNav(NAV, CTXS[0]!)
+    expect(home).toMatchObject({ label: 'Home', href: '/home' })
+    expect(home).not.toHaveProperty('current') // the router's location marks the current row, not the table
     expect(home!.icon).toBeDefined()
   })
 })
@@ -28,7 +29,7 @@ describe('visible(ctx) on rows other than Home', () => {
     { label: 'Accounts', href: '/accounts', visible: (ctx) => ctx.scopes.includes('connections:read') },
     { label: 'Clerk only', href: '/clerk-only', visible: (ctx) => ctx.provider === 'clerk' },
   ]
-  const labels = (ctx: (typeof CTXS)[number]) => visibleNav(rows, ctx, '/home').map((e) => e.label)
+  const labels = (ctx: (typeof CTXS)[number]) => visibleNav(rows, ctx).map((e) => e.label)
   it('a row needing connections:read is hidden without it and shown with it', () => {
     expect(labels(CTXS[1]!)).not.toContain('Accounts')
     expect(labels(CTXS[3]!)).toContain('Accounts')
@@ -38,15 +39,11 @@ describe('visible(ctx) on rows other than Home', () => {
     expect(labels(CTXS[1]!)).not.toContain('Clerk only')
     expect(labels(CTXS[2]!)).not.toContain('Clerk only')
   })
-  it('only the row whose path is the current page is current', () => {
-    const all = visibleNav(rows, { provider: 'clerk', scopes: ['connections:read'] }, '/accounts')
-    expect(all.filter((e) => e.current).map((e) => e.label)).toEqual(['Accounts'])
-  })
 })
 
 // [[UI467]] D1, D12 (group 4): the Connected accounts row.
 describe('the Connected accounts row', () => {
-  const labels = (ctx: (typeof CTXS)[number], path = '/home') => visibleNav(NAV, ctx, path).map((e) => e.label)
+  const labels = (ctx: (typeof CTXS)[number]) => visibleNav(NAV, ctx).map((e) => e.label)
   it('follows Home, links to /accounts with an icon, and shows only with connections:read', () => {
     expect(NAV[1]).toMatchObject({ label: 'Connected accounts', href: '/accounts' })
     expect(NAV[1]!.icon).toBeDefined()
@@ -54,16 +51,11 @@ describe('the Connected accounts row', () => {
     expect(labels(CTXS[3]!)).toEqual(['Home', 'Connected accounts'])
     expect(labels({ provider: 'clerk', scopes: ['connections:write'] })).not.toContain('Connected accounts')
   })
-  it('is current on /accounts and Home is not', () => {
-    const entries = visibleNav(NAV, CTXS[3]!, '/accounts')
-    expect(entries.filter((e) => e.current).map((e) => e.label)).toEqual(['Connected accounts'])
-  })
 })
 
 // [[UI459]] D1, D8 (group 4): the Agents row.
 describe('the Agents row', () => {
-  const labels = (scopes: string[], path = '/home') =>
-    visibleNav(NAV, { provider: 'better-auth', scopes }, path).map((e) => e.label)
+  const labels = (scopes: string[]) => visibleNav(NAV, { provider: 'better-auth', scopes }).map((e) => e.label)
   it('follows Connected accounts, links to /agents with an icon, and shows only with agents:read', () => {
     const i = NAV.findIndex((r) => r.label === 'Agents')
     expect(i).toBe(NAV.findIndex((r) => r.label === 'Connected accounts') + 1)
@@ -72,9 +64,5 @@ describe('the Agents row', () => {
     expect(labels([])).not.toContain('Agents')
     expect(labels(['agents:write', 'connections:read'])).not.toContain('Agents')
     expect(labels(['agents:read'])).toContain('Agents')
-  })
-  it('is current on /agents only, and Home is not', () => {
-    const entries = visibleNav(NAV, { provider: 'better-auth', scopes: ['agents:read', 'connections:read'] }, '/agents')
-    expect(entries.filter((e) => e.current).map((e) => e.label)).toEqual(['Agents'])
   })
 })
