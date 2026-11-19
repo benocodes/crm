@@ -1,0 +1,4 @@
+/* The app page's Tailwind entry ([[UI489]] D4): the shared theme and component sources from @vibase/ui, then this page's own tree.
+   `source(none)` turns off automatic source detection (it would scan the whole Vite root, both pages), so `@source` is the one list. */
+@import "@vibase/ui/styles.css" source(none);
+@source "./";

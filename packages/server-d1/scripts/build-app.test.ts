@@ -58,6 +58,15 @@ describe('buildApp', () => {
     expect(css).toMatch(/\.md\\:flex-row/)
   })
 
+  // [[UI489]] D4: the page's own `@source` is what puts the app's classes in the stylesheet. `max-w-132` is on the app's pages and nowhere in packages/ui/src/components.
+  it('the stylesheet holds a rule for a class only the app code uses (its own @source)', () => {
+    const components = walk(fileURLToPath(new URL('../../ui/src/components', import.meta.url)))
+      .filter((f) => /\.tsx?$/.test(f))
+      .map((f) => readFileSync(f, 'utf8'))
+    expect(components.some((t) => t.includes('max-w-132'))).toBe(false)
+    expect(readFileSync(join(out, 'app/app.css'), 'utf8')).toMatch(/\.max-w-132\{/)
+  })
+
   // UI460 E2E: the dark-mode axe check caught a button mid-transition (as UI446's did on the auth pages); the app switches transitions off the same way.
   it('the stylesheet switches transitions off under the mount wrapper', () => {
     expect(readFileSync(join(out, 'app/app.css'), 'utf8')).toContain(
