@@ -41,7 +41,9 @@ repro. What I rely on triage to have set:
    ```
    **Knowledge impact:** <spec IDs this may have made stale, design gaps it left standing, or "none">
    ```
-9. **Ship.** Commit, `git push -u origin fix/<N>-<slug>`, then
+9. **Ship.** Commit, `git push -u origin fix/<N>-<slug>`, run the full gate (`scripts/gate.sh`) on the pushed
+   sha and put its result in the PR body (the GitHub check is lint only, same rule as [[work-on-ready-issues]]
+   step 8), then
    `gh pr create -R benocodes/crm --base main --title "fix: …" --body "Closes benocodes/crm#<N>
 
    <repro summary>
