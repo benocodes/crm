@@ -1262,7 +1262,7 @@ The app and auth pages are the pattern for any page the Worker serves (`packages
   `index.html` is reachable only through the page paths (`/ui/` itself is `404`). The pages are a separate React
   esbuild entry (`scripts/build-ui.ts`, [[UI446]]) whose metafile test proves `react`, `react-dom` and
   `@vibase/ui/components` and no `preact` or Preact-layer module, with a Worker-bundle check that holds no `preact`,
-  no `react` page code and no page module. `/connect` is still the Preact bundle until [[UI447]].
+  no `react` page code and no page module. `/connect` is a redirect to `/home` ([[UI476]]); the Preact layer is gone ([[UI447]]).
 - **A React page mounts synchronously** (`src/ui/main.tsx`): `flushSync(() => root.render(...))`. React 19's
   `root.render` is scheduled where Preact's `render` was synchronous, so a page that reads and strips a token from the
   URL fragment during its first render left it in the address at load (UI446 E2E, auth-pages step 7). Pinned by

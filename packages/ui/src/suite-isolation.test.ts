@@ -1,5 +1,5 @@
-// [[UI448]] group 3 (P4, 448.5): which project collects which suite files. The new React-only project collects exactly `src/components`
-// suites; `ui-preact` and `ui-react` collect none of them; the shared engine-neutral project collects no `*.ui.test.tsx` at all.
+// [[UI448]] group 3 (P4, 448.5), reduced by [[UI447]] D3: which project collects which suite files. `ui-components` collects exactly the
+// `src/components` suites, the shared engine-neutral project collects no `*.ui.test.tsx` at all, and no `ui-preact` or `ui-react` project exists.
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -35,12 +35,8 @@ describe('suite isolation', () => {
     expect(files.every((f) => inComponents(f) && f.endsWith('.ui.test.tsx'))).toBe(true)
   })
 
-  it('ui-preact and ui-react collect no src/components suite, and still the same Preact-layer suites', () => {
-    for (const name of ['ui-preact', 'ui-react']) {
-      const files = projects[name] ?? []
-      expect(files.filter(inComponents), name).toEqual([])
-      expect(files.length, name).toBe(7)
-    }
+  it('the project list is exactly engine-neutral and ui-components: no ui-preact, no ui-react', () => {
+    expect(Object.keys(projects).sort()).toEqual(['engine-neutral', 'ui-components'])
   })
 
   it('the shared engine-neutral project collects no component suite', () => {

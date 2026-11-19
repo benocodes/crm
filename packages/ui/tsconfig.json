@@ -12,17 +12,8 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "paths": {
-      "#render": ["./src/test/render-preact.ts"]
+      "#render": ["./src/test/render-react.ts"]
     }
   },
-  "include": [
-    "src",
-    "scripts",
-    "gallery",
-    "gallery-react",
-    "build",
-    "e2e",
-    "playwright.config.ts",
-    "playwright.react.config.ts"
-  ]
+  "include": ["src", "scripts", "gallery-react", "build", "e2e", "playwright.react.config.ts"]
 }

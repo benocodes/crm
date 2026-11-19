@@ -45,9 +45,8 @@ describe('buildUi (the pages bundle)', () => {
     expect(html).not.toMatch(/<style|\sstyle\s*=|\son[a-z]+\s*=/i)
   })
 
-  it("the stylesheet is the Tailwind build, not the Preact layer's ui.css, and holds a rule for a class only the page code uses", () => {
+  it('the stylesheet is the Tailwind build ([[UI447]] D7: no comparison with the removed Preact `ui.css`), and holds a rule for a class only the page code uses', () => {
     const css = readFileSync(join(out, 'ui/ui.css'), 'utf8')
-    expect(css).not.toBe(readFileSync(fileURLToPath(new URL('../../ui/src/ui.css', import.meta.url)), 'utf8'))
     expect(css).not.toContain('--vb-')
     // `max-w-132` is on the pages' mount wrapper (main.tsx) and nowhere in packages/ui/src/components, so only the page source scan can have produced it.
     const components = walk(fileURLToPath(new URL('../../ui/src/components', import.meta.url)))
@@ -94,7 +93,7 @@ describe('buildUi (the pages bundle)', () => {
     expect(pkgs.has('react-dom')).toBe(true)
     expect(inputs.some((i) => /(^|\/)ui\/src\/components\//.test(i))).toBe(true)
     expect(inputs.filter((i) => packageOf(i) === 'preact' || /preact/.test(i))).toEqual([])
-    // The Preact layer is `packages/ui/src/*` (the root `@vibase/ui` entry and its components); `src/components/**` and `src/lib/**` are the React layer.
+    // `@vibase/ui` has no root entry: nothing directly under `packages/ui/src/` is bundled; `src/components/**` and `src/lib/**` are the layer.
     expect(inputs.filter((i) => /(^|\/)ui\/src\/[^/]+$/.test(i))).toEqual([])
   })
 

@@ -9,7 +9,7 @@ import { checkReactSources } from '../../ui/src/test/react-scan'
 const UI_TREE = fileURLToPath(new URL('./ui', import.meta.url))
 /** [[UI460]] D5: the workspace app's tree is held to the same scan. */
 const APP_TREE = fileURLToPath(new URL('./app', import.meta.url))
-/** This tree's allow-list entries beyond the scan's own: the component set (never the root `@vibase/ui`, the Preact layer) the dependency-free scope catalogue leaf ([[UI247]] D5), and `vitest` (only the test-support `fake-fetch.ts` imports it). */
+/** This tree's allow-list entries beyond the scan's own: the component set (`@vibase/ui` has no root entry, [[UI447]] D1) the dependency-free scope catalogue leaf ([[UI247]] D5), and `vitest` (only the test-support `fake-fetch.ts` imports it). */
 const PAGE_ALLOW = [
   '@vibase/ui/components',
   '@vibase/api/scope-descriptions',
@@ -44,7 +44,7 @@ describe('the auth pages tree against the React scan', () => {
   it.each([
     ['a preact import', "import { render } from 'preact'", 'preact', 'preact'],
     [
-      'the @vibase/ui root import (the Preact layer)',
+      'the @vibase/ui root import (no root entry)',
       "import { Button } from '@vibase/ui'",
       'import outside the allow-list',
       '@vibase/ui',

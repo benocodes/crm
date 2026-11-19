@@ -70,6 +70,8 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    (see Stopping). The cap counts fix rounds only (each started by a failed scenario or requested changes; a red gate in step 4b is not one).
    The step-4 implementation is not one of them, even when a usage limit or interruption makes a fresh coder
    continue it: record that as "initial round, continued", not as round 1 (AGT166 retro).
+   A round that applies a user ruling on a finding the cycle stopped on (not a review finding or a failed
+   scenario) is free too: record it as "ruling round", not toward the cap (UI479 retro).
 7. **Retro.** planner, mode `retro`: `/retrospect` on the cycle folder, ingest, spec status and
    changelog, project-state.
 8. **Ship.** You open the PR (`gh pr create`, human `gh` login, body from

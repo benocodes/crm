@@ -382,6 +382,13 @@ no migration, 1 local E2E part (legs changed in an existing script), riders a pa
 package. 218k / 80 calls in one run (+71 code / +357 test lines, −2,373 deleted, 52 files), approved round 1. The budget
 holds: a deletion rider costs little by itself, the matrix and its absence mutations carry the cycle. A charter that fixes
 every answer of a route (status, `Location`, headers, which gates it runs before) leaves the coder only local choices.
+**UI447** (`knowledge/specs/027-UI447-remove-preact-layer/RETRO.md`): 5 groups (1 matrix), 9 decisions (one over, taken
+under the OPS92 mechanical-deletion exception), no migration, no E2E. ~138k / 37 calls in one run plus a 2-call prose
+round (+14 code / +157 test lines, −1,708 deleted, 50 files), gate green first time. The exception held. The one round was
+prose: a deletion's prose pass removed a skill lesson together with the mechanism that motivated it. When a charter deletes
+a mechanism a skill paragraph cites, it says "keep the lesson, drop the reason, re-cite a surviving file" for that
+paragraph. Proof that nothing shipped changed: hash the built `dist/assets` tree on `main` twice (determinism) and on the
+branch.
 
 ### Step 3: Resolve identities
 
@@ -534,6 +541,10 @@ Write the scenario so a tester can run it literally ([[CORE74]] needed two devia
 - **A refusal step is a full command line.** The tool validates its required flags before the check the step
   targets, so a refusal written as "`--clerk-env-file .env` refuses" is refused for a missing `--api-host`
   instead, and never reaches the key check ([[OPS87]] A4).
+- **A step that asserts what a page shows a principal kind checks the app shell's admission first.** A shell-level
+  guard decides what a role sees before any page rule does (`packages/server-d1/src/app/state.ts` refuses every
+  non-person), so "the agent sees its own row on `/agents`" is a premise to test, not a step. [[UI479]]'s leg C was
+  written from [[UI459]] D8 alone and cost a stop and a user ruling.
 - **A step meant to observe a provider's refusal creates the condition for it.** "Record Clerk's raw refusal"
   observed nothing on an instance whose scope catalog was already complete; send one unknown key on purpose
   (and clean up what it creates), or move the observation to an issue ([[OPS87]], #103).
