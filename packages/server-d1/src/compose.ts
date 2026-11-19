@@ -144,7 +144,7 @@ export interface D1WorkerEnv {
   /**
    * The Gmail connect surface ([[CHN5]] D58): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `OAUTH_STATE_SECRET` and `CREDENTIALS_KEY` (base64 of 32 bytes)
    * must all be set for it to be on; `CREDENTIALS_KEY_VERSION` (default 1), `PUBLIC_BASE_URL` (the redirect URI's base; unset: the request's origin)
-   * and `CONNECT_RETURN_URL` (unset: a built-in result page) are optional. The three secrets are Worker secrets, never printed.
+   * and `CONNECT_RETURN_URL` (unset: the instance's own `/accounts` when the app is served, else a built-in result page) are optional. The three secrets are Worker secrets, never printed.
    */
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
@@ -612,6 +612,8 @@ export function composeD1Worker(
         ...(builtIn ? { roleOf: membershipRoleReader(binding, 'better-auth') } : {}),
         config: gmail.config,
         problems: gmail.problems,
+        // [[UI469]] D5: with the app served, an unset CONNECT_RETURN_URL returns the connect flow to the instance's own Connected accounts page.
+        ...(env.ASSETS ? { defaultReturnPath: '/accounts' } : {}),
         push: pushParsed.config,
         pushProblems: pushParsed.problems,
         ...(googleFetch ? { fetch: googleFetch } : {}),

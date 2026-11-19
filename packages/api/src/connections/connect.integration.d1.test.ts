@@ -748,21 +748,26 @@ describe('the return target (UI469 D5)', () => {
       for (const publicBase of [true, false])
         for (const kind of ['refusal', 'success'] as const) cases.push([returnUrl, path, publicBase, kind])
 
-  it.each(cases)('CONNECT_RETURN_URL set=%s, default path=%s, PUBLIC_BASE_URL set=%s, %s', async (returnUrl, path, publicBase, kind) => {
-    const res = await run({ returnUrl, path, publicBase, kind })
-    const param = kind === 'refusal' ? 'error' : 'connection_id'
-    if (returnUrl || path) {
-      expect(res.status).toBe(302)
-      expect(res.headers.get('cache-control')).toBe('no-store')
-      expect(res.headers.get('referrer-policy')).toBe('no-referrer')
-      const location = new URL(res.headers.get('location')!)
-      const expectedBase = returnUrl ? SET : `${publicBase ? PUBLIC : REQUEST_ORIGIN}/accounts`
-      expect(`${location.origin}${location.pathname}`).toBe(expectedBase)
-      expect(location.searchParams.get(param)).toBe(kind === 'refusal' ? 'state_invalid' : (await rows('channel_connections'))[0]!.id)
-    } else {
-      expect(res.status).toBe(kind === 'refusal' ? 400 : 200)
-      expect(res.headers.get('location')).toBeNull()
-      expect(res.headers.get('content-type')).toContain('text/html')
-    }
-  })
+  it.each(cases)(
+    'CONNECT_RETURN_URL set=%s, default path=%s, PUBLIC_BASE_URL set=%s, %s',
+    async (returnUrl, path, publicBase, kind) => {
+      const res = await run({ returnUrl, path, publicBase, kind })
+      const param = kind === 'refusal' ? 'error' : 'connection_id'
+      if (returnUrl || path) {
+        expect(res.status).toBe(302)
+        expect(res.headers.get('cache-control')).toBe('no-store')
+        expect(res.headers.get('referrer-policy')).toBe('no-referrer')
+        const location = new URL(res.headers.get('location')!)
+        const expectedBase = returnUrl ? SET : `${publicBase ? PUBLIC : REQUEST_ORIGIN}/accounts`
+        expect(`${location.origin}${location.pathname}`).toBe(expectedBase)
+        expect(location.searchParams.get(param)).toBe(
+          kind === 'refusal' ? 'state_invalid' : (await rows('channel_connections'))[0]!.id,
+        )
+      } else {
+        expect(res.status).toBe(kind === 'refusal' ? 400 : 200)
+        expect(res.headers.get('location')).toBeNull()
+        expect(res.headers.get('content-type')).toContain('text/html')
+      }
+    },
+  )
 })

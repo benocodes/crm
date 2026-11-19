@@ -24,8 +24,11 @@ describe('checkConnectEmail', () => {
     const { result } = check(W, ok([]))
     expect(await result).toEqual({ status: 'show' })
   })
-  it('show: only others\' connections', async () => {
-    const { result } = check(W, ok([conn({ owner_id: 'someone-else' }), conn({ id: 'c2', owner_id: 'x', status: 'suspended' })]))
+  it("show: only others' connections", async () => {
+    const { result } = check(
+      W,
+      ok([conn({ owner_id: 'someone-else' }), conn({ id: 'c2', owner_id: 'x', status: 'suspended' })]),
+    )
     expect(await result).toEqual({ status: 'show' })
   })
   it.each(['active', 'reauth_required', 'suspended'])('hidden: an own connection with status %s', async (status) => {
@@ -67,7 +70,7 @@ describe('checkConnectEmail', () => {
 describe('getStarted', () => {
   const SHOW = { status: 'show' } as const
   const HIDDEN = { status: 'hidden' } as const
-  const ERR = (message: string) => ({ status: 'error', message }) as const
+  const errored = (message: string) => ({ status: 'error', message }) as const
   const E = 'The mailbox list could not be read. Reload the page to try again.'
   const A = 'The agents list could not be read. Reload the page to try again.'
   const pair = (e: Parameters<typeof getStarted>[0], a: ConnectAgentCheck) => getStarted(e, a)
@@ -82,12 +85,27 @@ describe('getStarted', () => {
     expect(pair(SHOW, SHOW)).toEqual({ emailPrompt: true, emailError: null, agentPrompt: true, agentError: null })
   })
   it('an error replaces its own prompt only', () => {
-    expect(pair(ERR(E), SHOW)).toEqual({ emailPrompt: false, emailError: E, agentPrompt: true, agentError: null })
-    expect(pair(SHOW, ERR(A))).toEqual({ emailPrompt: true, emailError: null, agentPrompt: false, agentError: A })
-    expect(pair(ERR(E), ERR(A))).toEqual({ emailPrompt: false, emailError: E, agentPrompt: false, agentError: A })
+    expect(pair(errored(E), SHOW)).toEqual({ emailPrompt: false, emailError: E, agentPrompt: true, agentError: null })
+    expect(pair(SHOW, errored(A))).toEqual({ emailPrompt: true, emailError: null, agentPrompt: false, agentError: A })
+    expect(pair(errored(E), errored(A))).toEqual({
+      emailPrompt: false,
+      emailError: E,
+      agentPrompt: false,
+      agentError: A,
+    })
   })
   it('an error beside a hidden check still renders the section', () => {
-    expect(pair(ERR(E), HIDDEN)).toEqual({ emailPrompt: false, emailError: E, agentPrompt: false, agentError: null })
-    expect(pair(HIDDEN, ERR(A))).toEqual({ emailPrompt: false, emailError: null, agentPrompt: false, agentError: A })
+    expect(pair(errored(E), HIDDEN)).toEqual({
+      emailPrompt: false,
+      emailError: E,
+      agentPrompt: false,
+      agentError: null,
+    })
+    expect(pair(HIDDEN, errored(A))).toEqual({
+      emailPrompt: false,
+      emailError: null,
+      agentPrompt: false,
+      agentError: A,
+    })
   })
 })

@@ -114,7 +114,7 @@ Locally set `CLERK_AUTHORIZED_PARTIES=http://localhost:8787` and `CLERK_PUBLISHA
 | `GMAIL_PUSH_SERVICE_ACCOUNT` | var | the service account email Pub/Sub signs push requests as; a push token for any other `email` is refused; optional; set by `setup:remote` from `.env.<env>` |
 | `MAIL_SYNC` | Workflow binding | the sync run. Push is **on** only with Gmail configured, this binding, and all four of `GMAIL_TOPIC_NAME`, `GMAIL_PUSH_SUBSCRIPTION`, `GMAIL_PUSH_SERVICE_ACCOUNT` and `PUBLIC_BASE_URL` set and well formed (one parser, shared with `setup:remote`). Off: `POST /gmail/push` answers `404`, no watch is registered or renewed; a partly set group logs `push is off: set or fix <names>` at startup |
 | `PUBLIC_BASE_URL` | var | absolute `https` URL of the Worker, origin only (no path), for OAuth redirects and as push's endpoint base (`<it>/gmail/push` is the token audience); default `https://<api-host>` when the Gmail group is set; set by `setup:remote` from `.env.<env>` |
-| `CONNECT_RETURN_URL` | var | absolute `https` URL the connect flow returns to; optional; set by `setup:remote` from `.env.<env>` |
+| `CONNECT_RETURN_URL` | var | optional; unset, the connect flow returns to the instance's own `/accounts` (Connected accounts) when the app is served, otherwise to a built-in result page; set it only to send people elsewhere (absolute `https` URL); set by `setup:remote` from `.env.<env>` |
 | `GMAIL_BACKFILL_DAYS` | var | positive integer, days of mail to backfill on connect; optional; set by `setup:remote` from `.env.<env>` |
 | `ATTACHMENT_MAX_BYTES` | var | positive integer, the largest attachment kept; optional; set by `setup:remote` from `.env.<env>` |
 | `VERSION` | var | the deployed git sha, set by `deploy:remote`; `/health` reports it (`dev` when absent) |
@@ -393,7 +393,7 @@ the vars `GOOGLE_CLIENT_ID`, `GMAIL_TOPIC_NAME`, `GMAIL_PUSH_SUBSCRIPTION`, `GMA
 
 1. Create the Google resources above (the subscription can exist before the Worker answers: until deploy the route is `404` and Pub/Sub retries).
 2. Set the vars and secrets, **migrate, then deploy** (`db:migrate:remote`, then `deploy:remote`). Push is on once all four push vars are set.
-3. Connect the mailbox (`connections.authorize`). The callback registers the watch (INBOX and SENT) before it writes the connection; if that fails the connection
+3. Connect the mailbox from **Connected accounts** in the app (`/accounts`, **Connect Gmail**; it calls `connections.authorize`). The callback registers the watch (INBOX and SENT) before it writes the connection; if that fails the connection
    still commits and the next cron tick registers it. Mailboxes connected before push was configured get their watch at the next tick (every 15 minutes).
 4. The 15-minute cron renews every watch with less than 6 days left (Google drops a watch after 7 days) and stays the safety net: a push Vibase never got is
    served by the next tick. Deleting a connection calls Gmail's `users.stop` after the delete commits, best effort.

@@ -274,7 +274,12 @@ describe('Home: Connect your email (D13, P5)', () => {
   it('Home never calls connections.authorize, in any state', () => {
     const authorizeGmail = vi.fn()
     const handlersLocal = handlers()
-    for (const state of [EMAIL, EMAIL_ONLY, READY, { ...EMAIL, connectEmail: { status: 'error', message: EMAIL_UNREADABLE } }]) {
+    for (const state of [
+      EMAIL,
+      EMAIL_ONLY,
+      READY,
+      { ...EMAIL, connectEmail: { status: 'error', message: EMAIL_UNREADABLE } },
+    ]) {
       render(
         <App
           state={state as AppState}
@@ -309,7 +314,10 @@ describe('Home: Connect your email (D13, P5)', () => {
 
   it.each([
     ['both prompts', EMAIL],
-    ['an error beside a prompt', { ...EMAIL, connectEmail: { status: 'error', message: EMAIL_UNREADABLE } } as AppState],
+    [
+      'an error beside a prompt',
+      { ...EMAIL, connectEmail: { status: 'error', message: EMAIL_UNREADABLE } } as AppState,
+    ],
   ] as [string, AppState][])('axe is clean with %s', async (_n, state) => {
     show(state, { mcpUrl: 'https://w.test/mcp' })
     const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } })

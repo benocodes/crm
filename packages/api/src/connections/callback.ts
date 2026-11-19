@@ -57,6 +57,8 @@ export interface CallbackDeps {
   roleOf: ((authSubject: string) => Promise<Role | null>) | null
   policy: ScopePolicy
   declaredScopes: readonly string[]
+  /** [[UI469]] D5: where the callback returns when `CONNECT_RETURN_URL` is unset: `<PUBLIC_BASE_URL or the request's origin><defaultReturnPath>`. Absent: the built-in result page. */
+  defaultReturnPath?: string
   /** The `MAIL_SYNC` Workflow binding ([[CHN141]] D55, D75). Absent: the connection is committed and no sync is requested. */
   instances?: MailSyncInstances
   /** The effective push configuration ([[CHN5]] D87): when set, the callback registers the watch. */
@@ -116,9 +118,17 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
     const clock = deps.clock ?? (() => new Date())
     const now = clock()
 
+    // [[UI469]] D5: a set CONNECT_RETURN_URL always wins; else the instance's own page when the composition names one; else null (the built-in page).
+    const returnTarget = (): string | null => {
+      if (config.returnUrl) return config.returnUrl
+      if (!deps.defaultReturnPath) return null
+      return `${config.publicBaseUrl ?? url.origin}${deps.defaultReturnPath}`
+    }
+
     const refuse = (code: ConnectError): Response => {
       console.warn(`[gmail] connect refused: ${code}`)
-      if (config.returnUrl) return redirectTo(config.returnUrl, { error: code })
+      const target = returnTarget()
+      if (target) return redirectTo(target, { error: code })
       return page(
         'Not connected',
         `<p>${escapeHtml(CONNECT_ERROR_TEXT[code])}</p><p><code>${code}</code></p>`,
@@ -268,7 +278,8 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
       } else {
         console.warn('[gmail] connected, but no sync was requested: the MAIL_SYNC Workflow binding is missing')
       }
-      if (config.returnUrl) return redirectTo(config.returnUrl, { connection_id: result.connection_id })
+      const target = returnTarget()
+      if (target) return redirectTo(target, { connection_id: result.connection_id })
       return page('Connected', `<p>Connected <code>${escapeHtml(mailbox)}</code>. You can close this tab.</p>`, 200)
     } catch (err) {
       console.error(`[gmail] connect unit failed: ${err instanceof Error ? err.name : 'error'}`)
