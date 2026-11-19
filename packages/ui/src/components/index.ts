@@ -8,7 +8,7 @@ export { Field, type FieldProps } from './field'
 export { FormLayout, type FormLayoutProps, type SubmitResult } from './form-layout'
 export { ScopeList, type ScopeItem } from './scope-list'
 // [[UI443]] D11: the settings layout the workspace app's pages compose.
-export { AppShell, type AppNavEntry, type AppShellProps } from './app-shell'
+export { AppShell, type AppNavEntry, type AppNavLinkProps, type AppShellProps } from './app-shell'
 export { CommandBlock, type CommandBlockProps } from './command-block'
 export { PromptCard, type PromptAction, type PromptCardProps } from './prompt-card'
 export { SettingsPage, type SettingsPageProps } from './settings-page'

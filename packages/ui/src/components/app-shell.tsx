@@ -12,10 +12,23 @@ export interface AppNavEntry {
   href: string
   /** A decorative icon (lucide); hidden from the accessibility tree. */
   icon?: ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' }>
+  /** Used by the default plain link only; with a `navLink` the router decides. */
   current?: boolean
 }
 
+/**
+ * What a router-aware link component receives for a nav entry. `className` is a function of the active state (the react-router `NavLink` shape), so the
+ * router, not the shell, decides which row is current. The shell imports no router: an app passes its own component as `navLink`.
+ */
+export interface AppNavLinkProps {
+  href: string
+  className: (state: { isActive: boolean }) => string
+  children: ReactNode
+}
+
 export interface AppShellProps {
+  /** Renders each nav entry's link; default a plain `<a>` marked by the entry's `current`. */
+  navLink?: ComponentType<AppNavLinkProps>
   productName?: string
   workspaceName: string
   nav: readonly AppNavEntry[]
@@ -32,6 +45,7 @@ export function AppShell({
   productName = 'Vibase',
   workspaceName,
   nav,
+  navLink: NavLinkComponent,
   person,
   signOut,
   manageAccountHref,
@@ -61,19 +75,32 @@ export function AppShell({
         <nav aria-label="Workspace" className="flex flex-row flex-wrap gap-1 md:flex-col">
           {nav.map((entry) => {
             const Icon = entry.icon
+            const content = (
+              <>
+                {Icon ? <Icon aria-hidden="true" className="size-4" /> : null}
+                {entry.label}
+              </>
+            )
+            const classes = (active: boolean) =>
+              cn(
+                'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground',
+                active && 'bg-accent text-accent-foreground',
+                focusRing,
+              )
+            if (NavLinkComponent)
+              return (
+                <NavLinkComponent key={entry.href} href={entry.href} className={({ isActive }) => classes(isActive)}>
+                  {content}
+                </NavLinkComponent>
+              )
             return (
               <a
                 key={entry.href}
                 href={entry.href}
                 aria-current={entry.current ? 'page' : undefined}
-                className={cn(
-                  'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground',
-                  entry.current && 'bg-accent text-accent-foreground',
-                  focusRing,
-                )}
+                className={classes(Boolean(entry.current))}
               >
-                {Icon ? <Icon aria-hidden="true" className="size-4" /> : null}
-                {entry.label}
+                {content}
               </a>
             )
           })}

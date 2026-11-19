@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -42,16 +43,11 @@ describe('Home over the real API client', () => {
       getToken: () => seam.getToken(),
       fetch: fetchSpy as typeof fetch,
     })
-    const controller = createAppController({ seam, api, origin: 'https://w.test', path: '/home' })
+    const controller = createAppController({ seam, api, origin: 'https://w.test', path: () => '/home' })
     render(
-      <AppRoot
-        controller={controller}
-        provider="better-auth"
-        path="/home"
-        origin="https://w.test"
-        mcpUrl={null}
-        api={api}
-      />,
+      <MemoryRouter initialEntries={['/home']}>
+        <AppRoot controller={controller} provider="better-auth" origin="https://w.test" mcpUrl={null} api={api} />
+      </MemoryRouter>,
     )
     await controller.start()
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Check again' }))

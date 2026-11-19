@@ -12,7 +12,7 @@ export interface NavContext {
 
 export interface NavRow {
   label: string
-  /** The page's exact path: a plain link, a full page load (UI443 D7). */
+  /** The page's exact path: a client-routed link (react-router `NavLink`); the router marks the current row. */
   href: string
   icon?: AppNavEntry['icon']
   /** Absent means always visible. */
@@ -32,9 +32,9 @@ export const NAV: readonly NavRow[] = [
   { label: 'Agents', href: '/agents', icon: Bot, visible: (ctx) => ctx.scopes.includes('agents:read') },
 ]
 
-/** The rows `ctx` may see, as the shell's entries; `current` is true for the one whose path is the page being shown. */
-export function visibleNav(rows: readonly NavRow[], ctx: NavContext, currentPath: string): AppNavEntry[] {
+/** The rows `ctx` may see, as the shell's entries. Which one is current comes from the router's location (`NavLink`), not from here. */
+export function visibleNav(rows: readonly NavRow[], ctx: NavContext): AppNavEntry[] {
   return rows
     .filter((r) => !r.visible || r.visible(ctx))
-    .map(({ label, href, icon }) => ({ label, href, ...(icon ? { icon } : {}), current: href === currentPath }))
+    .map(({ label, href, icon }) => ({ label, href, ...(icon ? { icon } : {}) }))
 }

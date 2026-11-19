@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import axe from 'axe-core'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { MemoryRouter } from 'react-router'
 import { App } from './app.js'
 import { AGENTS_UNREADABLE, type AppState } from './state.js'
 
@@ -25,15 +26,16 @@ const handlers = () => ({ onSignIn: vi.fn(), onSignOut: vi.fn(), onRetry: vi.fn(
 const show = (state: AppState, over: { provider?: string | null; path?: string; mcpUrl?: string | null } = {}) => {
   const h = handlers()
   render(
-    <App
-      state={state}
-      provider={over.provider === undefined ? 'better-auth' : over.provider}
-      path={over.path ?? '/home'}
-      origin="https://w.test"
-      mcpUrl={over.mcpUrl === undefined ? null : over.mcpUrl}
-      api={NO_API}
-      {...h}
-    />,
+    <MemoryRouter initialEntries={[over.path ?? '/home']}>
+      <App
+        state={state}
+        provider={over.provider === undefined ? 'better-auth' : over.provider}
+        origin="https://w.test"
+        mcpUrl={over.mcpUrl === undefined ? null : over.mcpUrl}
+        api={NO_API}
+        {...h}
+      />
+    </MemoryRouter>,
   )
   return h
 }
@@ -127,15 +129,16 @@ describe('ready on /agents (UI459 D1, D2, D8)', () => {
   const showAgents = (scopes: string[]) => {
     const h = handlers()
     render(
-      <App
-        state={{ ...READY, scopes }}
-        provider="better-auth"
-        path="/agents"
-        origin="https://w.test"
-        mcpUrl={null}
-        api={{ ...(NO_API as object), ...API } as never}
-        {...h}
-      />,
+      <MemoryRouter initialEntries={['/agents']}>
+        <App
+          state={{ ...READY, scopes }}
+          provider="better-auth"
+          origin="https://w.test"
+          mcpUrl={null}
+          api={{ ...(NO_API as object), ...API } as never}
+          {...h}
+        />
+      </MemoryRouter>,
     )
   }
   it('draws the Agents page, not Home, with its nav entry current; Connect an agent is always on it', async () => {
@@ -317,15 +320,16 @@ describe('Home: Connect your email (D13, P5)', () => {
       { ...EMAIL, connectEmail: { status: 'error', message: EMAIL_UNREADABLE } },
     ]) {
       render(
-        <App
-          state={state as AppState}
-          provider="better-auth"
-          path="/home"
-          origin="https://w.test"
-          mcpUrl={null}
-          api={{ connections: vi.fn(), identityAddress: vi.fn(), authorizeGmail } as never}
-          {...handlersLocal}
-        />,
+        <MemoryRouter initialEntries={['/home']}>
+          <App
+            state={state as AppState}
+            provider="better-auth"
+            origin="https://w.test"
+            mcpUrl={null}
+            api={{ connections: vi.fn(), identityAddress: vi.fn(), authorizeGmail } as never}
+            {...handlersLocal}
+          />
+        </MemoryRouter>,
       )
       cleanup()
     }

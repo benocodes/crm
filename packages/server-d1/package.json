@@ -48,7 +48,8 @@
     "@vibase/storage-d1": "workspace:*",
     "kysely": "0.29.6",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "react-router": "7.18.5"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

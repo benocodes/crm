@@ -57,7 +57,7 @@ const api = (...answers: (ApiResult<Me> | Error)[]) => {
   } satisfies Api
 }
 const make = (s: SessionSeam | null, a: Api, path = '/home') =>
-  createAppController({ seam: s, api: a, origin: 'https://w.test', path })
+  createAppController({ seam: s, api: a, origin: 'https://w.test', path: () => path })
 
 describe('the states by input (D4)', () => {
   it('no provider (no seam): unavailable, and nothing is called', async () => {
@@ -245,6 +245,16 @@ describe('signing in and out (D4, P2, P3, group 4)', () => {
     await c.start()
     await c.signIn()
     expect(s.redirectToSignIn).toHaveBeenCalledExactlyOnceWith('https://w.test/home')
+  })
+
+  it('Sign in reads the path when called, so a client-side navigation since start is honoured', async () => {
+    const s = seam({ isSignedIn: vi.fn(() => false) })
+    let path = '/home'
+    const c = createAppController({ seam: s, api: api(ok(ME())), origin: 'https://w.test', path: () => path })
+    await c.start()
+    path = '/agents'
+    await c.signIn()
+    expect(s.redirectToSignIn).toHaveBeenCalledExactlyOnceWith('https://w.test/agents')
   })
 
   it('a successful sign-out shows signed-out', async () => {

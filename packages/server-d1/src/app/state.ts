@@ -63,8 +63,8 @@ export function createAppController(deps: {
   seam: SessionSeam | null
   api: Pick<Api, 'me' | 'hasEnabledAgent' | 'connections'>
   origin: string
-  /** The page path the person is on: where signing in returns to. */
-  path: string
+  /** The page path the person is on NOW (read when signing in, not at start: the app navigates without a page load): where signing in returns to. */
+  path: () => string
 }): AppController {
   const { seam, api } = deps
   let state: AppState = { kind: 'loading' }
@@ -173,7 +173,7 @@ export function createAppController(deps: {
       // Only if nothing else moved the state while the read was in flight.
       if (state === before) set({ ...before, connectAgent })
     },
-    signIn: () => Promise.resolve(seam?.redirectToSignIn(`${deps.origin}${deps.path}`)),
+    signIn: () => Promise.resolve(seam?.redirectToSignIn(`${deps.origin}${deps.path()}`)),
     async signOut() {
       // A refused attempt's message clears as the next one begins.
       if (state.kind === 'ready' && state.signOutError)

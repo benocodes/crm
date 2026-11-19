@@ -107,7 +107,7 @@ describe('the mount on /agents', () => {
   })
 })
 
-// [[UI467]] D1: the second page; the mount titles and draws by path, with full page loads.
+// [[UI467]] D1: the second page; the mount titles and draws by path (client-routed; direct load shown here).
 describe('the mount on /accounts', () => {
   const ME_READER = { ...ME, active_organization: { id: 'o1', role: 'owner', scopes: ['connections:read'] } }
   it('signed in: the title "Connected accounts · Vibase", the Connected accounts page in the shell with its nav entry current, and the list read through the API', async () => {
