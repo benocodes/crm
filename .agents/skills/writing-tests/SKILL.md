@@ -290,6 +290,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   turn the named test red: `set_config(..., false)` inside a transaction that rolls back is rolled back too,
   so it cannot redden an "after rollback" leak test ([[CORE1]]). Run each target test alone (`-t`): on a
   shared `max: 1` pool, one test's leak reddens the next for the wrong reason.
+- **A guarded assertion (`if (cond) expect(...)`) can pass with no assertion at all.** In a table over several
+  subjects, a subject whose fixture never reaches the guarded state passes silently. Assert the precondition
+  (`expect(asked).toHaveLength(1)`), or prove each subject in its own suite with a fixture that reaches it ([[OPS493]]
+  review: two of four commands refused before the question and passed).
 - **A test that passes in the red run is vacuous until proven otherwise.** List every one in RESULT.md, then tighten it
   so it fails under the stub (assert the success status, `201`/`200`, before the absence it claims) or name the mutation
   that reddens it. [[CORE245]]'s "no CRM event" test passed in red on a `404`: it proved nothing until it asserted the
