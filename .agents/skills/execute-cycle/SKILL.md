@@ -82,6 +82,11 @@ branch then carries no code, so there is no gate to run ([[DX422]] D2).
   the docs: grep the command's neighbouring flag (`--d1-name`) to find them. [[OPS279]]'s review round 1 was only
   this: `--control-d1-name` parsed and documented, missing from `INSTANCE_HELP`
   (`packages/server-d1/scripts/instance/main.ts`).
+- **A command's help entry is about four lines**: the usage line, what it does, its risk stated plainly (not
+  alarming, not hidden), and, for a power-user command, the guarded command to use instead; guards and exit codes in
+  one line. Background, alternatives and other tools' commands go in the docs page. [[OPS487]]'s `redeploy` entry
+  came out at six dense lines with a `wrangler rollback` aside and cost a user-requested round; the fix was four
+  lines starting `Advanced:` and naming `upgrade` as the normal, guarded path.
 - **A deletion's blast-radius grep is a floor.** Grep the deleted file's basename, its exports, and
   operation names as string literals; treat every surprise as a decision to make and record. A move or rename
   of an entry point is a deletion too: grep for importers of each export the old module had, since a default

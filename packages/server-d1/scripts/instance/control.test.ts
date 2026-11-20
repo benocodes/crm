@@ -1,7 +1,7 @@
 // OPS275: the instance tooling for both databases: `status` per database (the matrix), the gate's control refusals, and `upgrade`'s order and failures.
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { runStatus } from './status.js'
-import { runUpgrade } from './upgrade.js'
+import { runRedeploy, runUpgrade } from './upgrade.js'
 import {
   bindingOf,
   CONTROL_ALL,
@@ -115,14 +115,14 @@ describe('settings without control_d1 are refused before any wrangler call', () 
 })
 
 describe('OPS275 gate refusals reach no write', () => {
-  const upgrade = async (control: Tracker, crm: Tracker, o: { rollback?: boolean; version?: string } = {}) => {
+  const upgrade = async (control: Tracker, crm: Tracker, o: { version?: string } = {}) => {
     const w = makeWorld({
       settings: controlSettings(),
       processEnv: { CONFIRM_REMOTE: '1' },
       health: () => json(200, { ...HEALTH, version: o.version ?? '0.0.9' }),
       runner: (args) => answer(bindingOf(args) === 'CONTROL_DB' ? control : crm),
     })
-    return { w, code: await runUpgrade(['--env', 'demo', ...(o.rollback ? ['--rollback'] : [])], w.deps) }
+    return { w, code: await runUpgrade(['--env', 'demo'], w.deps) }
   }
   const noWrite = (w: World) => {
     expect(w.wrangler.filter((c) => c.args.join(' ').match(/migrations apply|deploy/))).toEqual([])
@@ -131,12 +131,6 @@ describe('OPS275 gate refusals reach no write', () => {
     const { w, code } = await upgrade(['0001_c.sql', '0009_zzz.sql'], CRM_ALL)
     expect(code).toBe(2)
     expect(w.err.join('\n')).toMatch(/control database.*install a newer release.*0009_zzz\.sql/)
-    noWrite(w)
-  })
-  it('--rollback with a package control migration not applied is refused (exit 2)', async () => {
-    const { w, code } = await upgrade(['0001_c.sql'], CRM_ALL, { rollback: true, version: '0.2.0' })
-    expect(code).toBe(2)
-    expect(w.err.join('\n')).toMatch(/control database.*0002_d\.sql/)
     noWrite(w)
   })
 })
@@ -234,7 +228,7 @@ describe('OPS275 upgrade order and failure', () => {
     expect(await runUpgrade(['--env', 'demo', '--dry-run'], w.deps)).toBe(0)
     expect(steps(w)).toEqual(['read:CONTROL_DB', 'read:DB'])
   })
-  it('--rollback records no migrations apply for either binding', async () => {
+  it('OPS487: redeploy over a newer-schema instance records no migrations apply for either binding', async () => {
     let deployed = false
     const w = makeWorld({
       settings: controlSettings(),
@@ -259,7 +253,7 @@ describe('OPS275 upgrade order and failure', () => {
           : answer(bindingOf(args) === 'CONTROL_DB' ? CONTROL_ALL : CRM_ALL)
       },
     })
-    expect(await runUpgrade(['--env', 'demo', '--rollback'], w.deps)).toBe(0)
+    expect(await runRedeploy(['--env', 'demo'], w.deps)).toBe(0)
     expect(w.err).toEqual([])
     expect(w.wrangler.map(step).filter((x) => x.startsWith('apply'))).toEqual([])
     expect(w.wrangler.map(step)).toContain('deploy:')

@@ -291,9 +291,22 @@ npx @vibase/server-d1@<version> upgrade --env mycompany --dry-run
 CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> upgrade --env mycompany
 ```
 
-Upgrade migrates the database, deploys the package's own Worker, verifies `/health` and runs a read-only smoke. An instance behind the migrations required by its code refuses API work with `503 migrations_pending`. If an upgrade fails after it began, run `status`, then upgrade again.
+Upgrade migrates the database, deploys the package's own Worker, verifies `/health` (version and commit) and runs a read-only smoke. An instance behind the migrations required by its code refuses API work with `503 migrations_pending`. If an upgrade fails after it began, run `status`, then upgrade again.
 
-**Rollback does not undo migrations.** `upgrade --rollback`, run from an older installed release, deploys that release's Worker and runs no migration; the database stays at its newer schema. Cloudflare's own `wrangler rollback` has the same limit. Roll back a Worker only to a version whose code works with the current schema.
+Upgrade moves an instance forward by version. When the instance already runs this version but from a different build (a different commit), it does not say "nothing to do": it prints `same version, different build: live <sha>, package <sha>`, changes nothing and exits 2, and `status` reports the same line and exits 1. To put this build on the instance, use redeploy.
+
+## Redeploy
+
+Redeploy puts the installed package's build on the instance, whatever is live: a new build of the same version, the same build again, or an older package over a newer instance (the rollback). It asks nothing and refuses no version or schema.
+
+```bash
+npx @vibase/server-d1@<version> redeploy --env mycompany --dry-run
+CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> redeploy --env mycompany
+```
+
+It runs the same steps as upgrade (the migrations the instance lacks, control database first, then deploy, verify the version and commit on `/health`, smoke) and skips only the version and schema refusals. A database with nothing pending gets no migration command. If a failure happens after it began, run `status`, then redeploy again.
+
+**Rollback does not undo migrations.** Redeploy from an older installed release deploys that release's Worker over the newer schema and never reverses a migration; it prints `note: rolling back code; the database schema is newer than this build and is not reversed`. Cloudflare's own `wrangler rollback` has the same limit. Roll back a Worker only to a version whose code works with the current schema. (`upgrade --rollback` no longer exists: use redeploy.)
 
 ## Troubleshooting
 

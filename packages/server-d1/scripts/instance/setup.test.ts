@@ -373,7 +373,7 @@ describe('refusals and failures (the matrix)', () => {
   it('a live instance that is a newer semver than the package', async () => {
     const s = world({ sim: { deployed: { version: '9.9.9', commit: 'f'.repeat(7) } } })
     refused(s, await run(s), /9\.9\.9.*0\.1\.0|newer/)
-    expect(s.w.err.join('\n')).toMatch(/upgrade --rollback/)
+    expect(s.w.err.join('\n')).toMatch(/vibase-server redeploy/)
     expect(s.w.wrangler).toHaveLength(0)
   })
 

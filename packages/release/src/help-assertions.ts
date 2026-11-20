@@ -3,9 +3,10 @@
 export const SERVER_HELP_NEEDLES: ReadonlyArray<{ name: string; pattern: RegExp }> = [
   { name: 'status --env', pattern: /vibase-server status --env/ },
   {
-    name: 'upgrade [--dry-run] [--rollback]',
-    pattern: /vibase-server upgrade --env <name> \[--dry-run\] \[--rollback\]/,
+    name: 'upgrade [--dry-run] (no --rollback)',
+    pattern: /vibase-server upgrade --env <name> \[--dry-run\](?! \[--rollback\])/,
   },
+  { name: 'redeploy [--dry-run]', pattern: /vibase-server redeploy --env <name> \[--dry-run\]/ },
   {
     name: 'setup --env <name> (--api-host <host> | --workers-dev)',
     pattern: /vibase-server setup --env <name> \(--api-host <host> \| --workers-dev\)/,

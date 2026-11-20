@@ -20,9 +20,20 @@ describe('instance entry', () => {
       expect(r.out.join('')).toBe(INSTANCE_HELP)
     }
     expect(INSTANCE_HELP).toMatch(/vibase-server status --env/)
-    expect(INSTANCE_HELP).toMatch(/vibase-server upgrade --env <name> \[--dry-run\] \[--rollback\]/)
-    expect(INSTANCE_HELP).toMatch(/wrangler rollback/)
+    expect(INSTANCE_HELP).toMatch(/vibase-server upgrade --env <name> \[--dry-run\]/)
+    expect(INSTANCE_HELP).toMatch(/vibase-server redeploy --env <name> \[--dry-run\]/)
+    expect(INSTANCE_HELP).not.toMatch(/--rollback/)
+    expect(INSTANCE_HELP).not.toMatch(/wrangler rollback/)
     expect(INSTANCE_HELP).toMatch(/newer schema/)
+    const redeploy = INSTANCE_HELP.slice(
+      INSTANCE_HELP.indexOf('vibase-server redeploy'),
+      INSTANCE_HELP.indexOf('vibase-server setup'),
+    )
+    expect(redeploy).toMatch(/Advanced/)
+    expect(redeploy).toMatch(/`upgrade` is the normal, guarded path/)
+    expect(redeploy).toContain(
+      'vibase-server redeploy --env <name> [--dry-run] [--settings <path>] [--secrets-file <path>]',
+    )
   })
   it('refuses an unknown command with exit 2', async () => {
     const r = io()

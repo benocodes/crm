@@ -54,7 +54,7 @@ const stripEnv = (l: string) => l.replace(/^(?:[A-Z_][A-Z0-9_]*=\S+\s+)+/, '')
 const flagsOf = (words: string[]) =>
   words.filter((w) => w.startsWith('--') && w.length > 2).map((w) => w.split('=')[0]!)
 
-const SERVER_COMMANDS = ['status', 'upgrade', 'setup', 'owner-reset']
+const SERVER_COMMANDS = ['status', 'upgrade', 'redeploy', 'setup', 'owner-reset']
 const probes = new Map<string, Promise<boolean>>()
 /** Does the shipped program accept this flag for this command? Asked of its own parser: the flag alone, and only "Unknown option" counts as no. */
 function accepts(command: string, flag: string): Promise<boolean> {
@@ -211,7 +211,7 @@ describe('the docs name only what the programs have (D20, P4)', () => {
     expect(s).toMatch(/until the packages are on npm/i)
     expect(s).toMatch(/SHA256SUMS/)
     expect(s).toMatch(/^## From source$/m)
-    for (const sub of ['setup', 'status', 'upgrade'])
+    for (const sub of ['setup', 'status', 'upgrade', 'redeploy'])
       expect(s).toMatch(new RegExp(`@vibase/server-d1@<version> ${sub} `))
     for (const w of ['vibase_role', 'device', 'dynamic client registration'])
       expect(s.toLowerCase()).toContain(w.toLowerCase())
@@ -378,6 +378,20 @@ describe('the docs and help agree with the program on workers.dev (OPS308 D13)',
     expect(serverHelpProblems(INSTANCE_HELP.replace(USAGE, '--api-host <host>'))).toEqual([
       `setup --env <name> ${USAGE}`,
     ])
+  })
+  it('OPS487 D8: release:check needs both `upgrade --env <name> [--dry-run]` and `redeploy --env <name> [--dry-run]`, and rejects an `upgrade ... [--rollback]` line', () => {
+    expect(serverHelpProblems(INSTANCE_HELP)).toEqual([])
+    expect(serverHelpProblems(INSTANCE_HELP.replace('vibase-server redeploy --env <name> [--dry-run]', 'x'))).toEqual([
+      'redeploy [--dry-run]',
+    ])
+    expect(serverHelpProblems(INSTANCE_HELP.replace('vibase-server upgrade --env <name> [--dry-run]', 'x'))).toEqual([
+      'upgrade [--dry-run] (no --rollback)',
+    ])
+    expect(
+      serverHelpProblems(
+        INSTANCE_HELP.replace('upgrade --env <name> [--dry-run]', 'upgrade --env <name> [--dry-run] [--rollback]'),
+      ),
+    ).toEqual(['upgrade [--dry-run] (no --rollback)'])
   })
   it('the setup usage line of the program (printed on a refusal) names the pair', async () => {
     const { runSetup } = await import('./setup.js')

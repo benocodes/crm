@@ -28,12 +28,14 @@ export const mkTmp = (prefix = 'ops231-') => {
   return d
 }
 
-/** The `/health` body exactly as `compose.ts` returns it, captured from the real Worker on a migrated test database. */
+/** The commit of the staged package (`release/src/fixtures.ts`); the captured health body reports it, so "same version" tests mean the same build ([[OPS487]] D4). */
+export const PKG_COMMIT = 'abc1234'
+/** The `/health` body as `compose.ts` returns it, captured from the real Worker on a migrated test database, with `commit` set to the staged package's. */
 export async function captureHealthBody(): Promise<Record<string, any>> {
   const w = await openWorkerD1()
   try {
     const res = await composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '' }).fetch(new Request('https://w.test/health'))
-    return (await res.json()) as Record<string, any>
+    return { ...((await res.json()) as Record<string, any>), commit: PKG_COMMIT }
   } finally {
     await w.dispose()
   }

@@ -14,8 +14,8 @@ export interface GateOptions {
   envName: string
   settingsPath?: string
   secretsPath?: string
-  /** `upgrade --rollback` ([[OPS234]] P3): (d) and (e) are replaced by package migrations ⊆ applied and a live version newer than the package's. */
-  rollback?: boolean
+  /** `redeploy` ([[OPS487]] D1) skips (d) and (e) and every version comparison; `upgrade` and `status` (the default) run them. The only place the mode is read. */
+  mode?: 'upgrade' | 'redeploy'
   /** `status` ([[CORE289]] P6): also read the repair sweep's pending counts (a control database only). */
   sweepCounts?: boolean
 }
@@ -36,6 +36,8 @@ export interface GateOutcome {
     sweep?: SweepCounts | null
   }
   notes: string[]
+  /** Migrations a tracker holds that the package does not know, per database ([[OPS487]] D3): `redeploy` leaves them and says so once; `upgrade` refuses them (D14 d). */
+  unknown: { control: string[]; crm: string[] }
   secrets: Secrets
 }
 
@@ -164,48 +166,28 @@ export async function runGate(o: GateOptions, deps: InstanceDeps): Promise<GateO
   const controlKnown = (manifest.control_migrations ?? []).map((m) => m.name)
   const controlApplied = trackers.control
   const notes: string[] = []
-  if (o.rollback) {
-    // [[OPS234]] P3: a rollback deploys an older Worker on a newer schema; it may not need a migration the database lacks, and the instance must be newer.
-    const have = new Set(applied ?? [])
-    const missing = known.filter((n) => !have.has(n))
-    {
-      const haveControl = new Set(controlApplied ?? [])
-      const controlMissing = controlKnown.filter((n) => !haveControl.has(n))
-      if (controlMissing.length > 0)
-        throw new InstanceRefusal(
-          `a rollback cannot add migrations: the control database lacks ${controlMissing.join(', ')} that this release has; run upgrade without --rollback`,
-        )
-    }
-    if (missing.length > 0)
-      throw new InstanceRefusal(
-        `a rollback cannot add migrations: the database lacks ${missing.join(', ')} that this release has; run upgrade without --rollback`,
-      )
-    if (parseSemver(live.version) === null)
-      notes.push(`live version "${live.version}" is not a release version (a source deploy?): continuing`)
-    else if (parseSemver(manifest.version) !== null && compareSemver(live.version, manifest.version) <= 0) {
-      throw new InstanceRefusal(
-        `the instance runs ${live.version} and this package is ${manifest.version}: --rollback needs a newer instance; use upgrade without --rollback`,
-      )
-    }
-  } else {
+  const unknown = {
+    control: (controlApplied ?? []).filter((n) => !controlKnown.includes(n)),
+    crm: (applied ?? []).filter((n) => !known.includes(n)),
+  }
+  // [[OPS487]] D1: `redeploy` puts this build on the instance whatever is live: no version or schema refusal, so (d) to (f) are for the other modes.
+  if (o.mode !== 'redeploy') {
     // (d, control) the control database's applied migrations are all known too (shipped ⊇ applied).
-    const controlUnknown = (controlApplied ?? []).filter((n) => !controlKnown.includes(n))
-    if (controlUnknown.length > 0)
+    if (unknown.control.length > 0)
       throw new InstanceRefusal(
-        `the control database has migrations this release does not know: install a newer release (${controlUnknown.join(', ')})`,
+        `the control database has migrations this release does not know: install a newer release (${unknown.control.join(', ')})`,
       )
     // (d) the database's applied migrations are all known to this release.
-    const unknown = (applied ?? []).filter((n) => !known.includes(n))
-    if (unknown.length > 0)
+    if (unknown.crm.length > 0)
       throw new InstanceRefusal(
-        `the database has migrations this release does not know: install a newer release (${unknown.join(', ')})`,
+        `the database has migrations this release does not know: install a newer release (${unknown.crm.join(', ')})`,
       )
     // (e) a newer semver live version refuses; (f) a non-semver one proceeds with a note.
     if (parseSemver(live.version) === null)
       notes.push(`live version "${live.version}" is not a release version (a source deploy?): continuing`)
     else if (parseSemver(manifest.version) !== null && compareSemver(live.version, manifest.version) > 0) {
       throw new InstanceRefusal(
-        `the instance runs ${live.version} and this package is ${manifest.version}: the instance is newer, install a newer release (or run an older package with --rollback)`,
+        `the instance runs ${live.version} and this package is ${manifest.version}: the instance is newer, install a newer release, or run \`vibase-server redeploy --env ${settings.env}\` to deploy this older build over it`,
       )
     }
   }
@@ -226,9 +208,33 @@ export async function runGate(o: GateOptions, deps: InstanceDeps): Promise<GateO
     pending: known.filter((n) => !have.has(n)),
     control,
     notes,
+    unknown,
     secrets,
   }
 }
+
+/** The shortest commit prefix that identifies a build ([[OPS487]] D4). */
+const MIN_COMMIT_PREFIX = 7
+/**
+ * [[OPS487]] D4: two commits are the same build when both are known and one is a prefix of the other (a short and a full sha), at least 7 characters. A live `/health` with no commit
+ * is never proven the same. A `-dirty` build ([[OPS210]]) and a clean one are different ([[OPS487]] 487.18), so the suffix must agree.
+ */
+export function sameCommit(live: string | null, pkg: string): boolean {
+  if (live === null || live.length < MIN_COMMIT_PREFIX || pkg.length < MIN_COMMIT_PREFIX) return false
+  if (live.endsWith('-dirty') !== pkg.endsWith('-dirty')) return false
+  return live.startsWith(pkg) || pkg.startsWith(live)
+}
+/** True when the live instance reports the package's version but not its commit: the case `upgrade` and `status` must not call "nothing to do" ([[OPS487]] D4, D7). */
+export const sameVersionDifferentBuild = (g: GateOutcome): boolean =>
+  g.live.version === g.manifest.version && !sameCommit(g.live.commit, g.manifest.commit)
+/** The two lines of D4's stop and D7's report. */
+export const differentBuildLines = (g: GateOutcome): [string, string] => [
+  `same version, different build: live ${g.live.commit ?? 'unknown'}, package ${g.manifest.commit}`,
+  `run vibase-server redeploy --env ${g.settings.env} to deploy this build`,
+]
+/** [[OPS487]] D3: printed once by `redeploy`'s plan when either tracker holds migrations the package lacks. */
+export const ROLLBACK_NOTE = 'note: rolling back code; the database schema is newer than this build and is not reversed'
+export const hasUnknownMigrations = (g: GateOutcome): boolean => g.unknown.control.length + g.unknown.crm.length > 0
 
 /** The tracker diff of each database ([[OPS275]] D14): each is prefixed `[control]` / `[crm]`. */
 export function diffLines(g: GateOutcome): string[] {

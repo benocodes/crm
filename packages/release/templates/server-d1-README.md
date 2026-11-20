@@ -1,6 +1,6 @@
 # @vibase/server-d1
 
-A prebuilt vibase Worker for Cloudflare D1: the Worker bundle, the workspace app and auth pages, the D1 migrations and a base Worker config with no instance in it, plus `vibase-server`, the program that sets up, checks and upgrades an instance from them.
+A prebuilt vibase Worker for Cloudflare D1: the Worker bundle, the workspace app and auth pages, the D1 migrations and a base Worker config with no instance in it, plus `vibase-server`, the program that sets up, checks, upgrades and redeploys an instance from them.
 
 `release.json` lists the version, the source commit, the wrangler version this release was tested with and a sha256 of every file. The package installs that exact wrangler beside `vibase-server`; every command verifies the files against `release.json` before it touches the network.
 
@@ -8,9 +8,10 @@ A prebuilt vibase Worker for Cloudflare D1: the Worker bundle, the workspace app
 npx @vibase/server-d1@<version> setup --env <name> --api-host <host> [--auth better-auth|clerk|none] [--dry-run]
 npx @vibase/server-d1@<version> status --env <name>
 npx @vibase/server-d1@<version> upgrade --env <name> [--dry-run]
+npx @vibase/server-d1@<version> redeploy --env <name> [--dry-run]
 ```
 
-Or install it, then run `vibase-server <command>`. The package that runs is the version that deploys: upgrading a server is running a newer pinned version. Until the package is on the registry, use the release's tarball by file: `npx --package ./vibase-server-d1-<version>.tgz vibase-server <command>`.
+Or install it, then run `vibase-server <command>`. The package that runs is the version that deploys: upgrading a server is running a newer pinned version (`upgrade` moves forward by version and stops, naming `redeploy`, when the instance runs the same version from a different build). `redeploy` puts this package's build on the instance whatever is live: a new build of the same version, the same build again, or an older package as a rollback. It asks nothing, refuses no version or schema, applies only the migrations the instance lacks and never reverses one, so a rollback runs older code on the newer schema (it prints one line saying so). Until the package is on the registry, use the release's tarball by file: `npx --package ./vibase-server-d1-<version>.tgz vibase-server <command>`.
 
 The settings and secrets of an instance are files outside the package: `$XDG_CONFIG_HOME/vibase/instances/<env>.json` and `<env>.env` (mode 600, with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`). Remote commands need `CONFIRM_REMOTE=1`; `--dry-run` reads only. `vibase-server --help` lists every flag.
 

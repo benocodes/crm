@@ -111,7 +111,7 @@ describe('D15 status', () => {
     expect(code).toBe(2)
   })
 
-  it('--env is required; --rollback is not accepted (it arrives with upgrade); no call is made', async () => {
+  it('--env is required; --rollback is not accepted (it was replaced by redeploy, OPS487 D6); no call is made', async () => {
     for (const argv of [[], ['--env', 'demo', '--rollback']]) {
       const { w, code } = await status({ argv })
       expect(code).toBe(2)
