@@ -1,5 +1,5 @@
 // [[OPS307]] D9, D10 on `vibase-server owner-reset`: the shared suite (refusals and targeting, the reset link, the no-owner invitation), then what only this front-end has: its arguments, its exit codes,
-// the CONFIRM_REMOTE rule and its place in the help text. Settings and secrets are real files; the instance's databases are the two local D1s behind the kit's `openD1`.
+// the question and its place in the help text. Settings and secrets are real files; the instance's databases are the two local D1s behind the kit's `openD1`.
 import { afterEach, describe, expect, it } from 'vitest'
 import { runInstance, INSTANCE_HELP } from './main.js'
 import { runOwnerReset } from './owner-reset.js'
@@ -19,9 +19,10 @@ function world(o: RunOptions) {
   const settings = controlSettings({ vars, ...(r.control === false ? { control_d1: undefined } : {}) })
   const secrets = r.secret === null ? SECRETS_TEXT : `${SECRETS_TEXT}AUTH_SECRET=${r.secret ?? SECRET}\n`
   return makeWorld({
+    terminal: o.answers !== undefined,
+    answers: o.answers,
     settings,
     secretsText: secrets,
-    processEnv: { CONFIRM_REMOTE: '1' },
     openD1: async () => ({ d1: o.crm, control: o.control, dispose: async () => {} }),
   })
 }
@@ -33,10 +34,10 @@ const driver: Driver = {
     const w = world(o)
     const argv = ['--env', 'demo', ...(o.email ? ['--email', o.email] : []), ...(o.dryRun ? ['--dry-run'] : [])]
     const code = await runOwnerReset(argv, w.deps)
-    return { code, out: w.out, err: w.err }
+    return { code, out: w.out, err: w.err, asked: w.asked.map((a) => ({ prompt: a.prompt, out: a.out })) }
   },
 }
-ownerResetSuite('vibase-server owner-reset', () => driver, { dryRun: true })
+ownerResetSuite('vibase-server owner-reset', () => driver, { dryRun: true, question: true })
 
 describe('vibase-server owner-reset: arguments and exit codes', () => {
   const go = async (argv: string[], env: Record<string, string | undefined> = {}) => {
@@ -54,21 +55,20 @@ describe('vibase-server owner-reset: arguments and exit codes', () => {
 
   it('--env is required, an unknown flag is refused, and each refusal is exit 2 with the usage', async () => {
     for (const argv of [[], ['--env', 'demo', '--bogus'], ['--env', 'Bad_Name']]) {
-      const r = await go(argv, { CONFIRM_REMOTE: '1' })
+      const r = await go(argv, {})
       expect(r.code, argv.join(' ')).toBe(2)
       expect(r.text).toContain('vibase-server owner-reset')
     }
   })
 
-  it('a real run needs CONFIRM_REMOTE=1 and is refused before the databases are opened', async () => {
+  it('OPS493 D1: CONFIRM_REMOTE is not needed: a real run opens the databases (and a set one is not a substitute for --yes)', async () => {
     const r = await go(['--env', 'demo'], {})
-    expect(r.code).toBe(2)
-    expect(r.text).toMatch(/CONFIRM_REMOTE=1/)
-    expect(r.w.openD1Calls).toEqual([])
+    expect(r.text).not.toMatch(/CONFIRM_REMOTE/)
+    expect(r.w.openD1Calls).toHaveLength(1)
   })
 
   it('a missing settings file is refused naming the path', async () => {
-    const w = makeWorld({ settings: null, processEnv: { CONFIRM_REMOTE: '1' } })
+    const w = makeWorld({ settings: null })
     expect(await runOwnerReset(['--env', 'demo'], w.deps)).toBe(2)
     expect(w.all()).toContain(w.settingsPath)
   })
@@ -78,7 +78,6 @@ describe('vibase-server owner-reset: arguments and exit codes', () => {
       settings: controlSettings({ vars: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE } }),
       secretsMode: 0o644,
       secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET}\n`,
-      processEnv: { CONFIRM_REMOTE: '1' },
     })
     expect(await runOwnerReset(['--env', 'demo'], w.deps)).toBe(2)
     expect(w.all()).not.toContain(SECRET)
@@ -89,7 +88,6 @@ describe('vibase-server owner-reset: arguments and exit codes', () => {
     const w = makeWorld({
       settings: controlSettings({ vars: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: BASE } }),
       secretsText: `${SECRETS_TEXT}AUTH_SECRET=${SECRET}\n`,
-      processEnv: { CONFIRM_REMOTE: '1' },
       openD1: async (o) => {
         opened.push(o)
         throw new Error('stop here')
@@ -120,8 +118,13 @@ describe('6. help and routing', () => {
     expect(serverHelpProblems(INSTANCE_HELP)).toEqual([])
     expect(
       serverHelpProblems(INSTANCE_HELP.replace('vibase-server owner-reset --env <name>', 'vibase-server owner-reset')),
-    ).toEqual(['owner-reset --env <name>'])
-    expect(serverHelpProblems('')).toHaveLength(5)
+    ).toEqual(['owner-reset --env <name> ... [--dry-run] [--yes]'])
+    expect(serverHelpProblems('')).toHaveLength(6)
+    expect(serverHelpProblems(`${INSTANCE_HELP}\nNeeds CONFIRM_REMOTE=1. No prompts.`)).toEqual([
+      'no CONFIRM_REMOTE',
+      'no "No prompts"',
+    ])
+    expect(serverHelpProblems(INSTANCE_HELP.replace(/ \[--yes\]/g, ''))).toHaveLength(4)
   })
   it('runInstance routes owner-reset to the command (a missing --env is its refusal, not "unknown command")', async () => {
     const out: string[] = []

@@ -144,7 +144,7 @@ describe('D10 secrets are never printed', () => {
     }
   }
   it('reach the wrangler child environment and nothing else', async () => {
-    const { w, code } = await status({ processEnv: { CONFIRM_REMOTE: '1', CLERK_SECRET_KEY: 'sk_live_nope' } })
+    const { w, code } = await status({ processEnv: { CLERK_SECRET_KEY: 'sk_live_nope' } })
     expect(code).toBe(0)
     const env = w.wrangler[0]!.env
     expect(env.CLOUDFLARE_API_TOKEN).toBe(TOKEN)

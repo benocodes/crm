@@ -11,6 +11,7 @@ import { runStatus, EXIT_REFUSED } from './status.js'
 import { runSetup } from './setup.js'
 import { runRedeploy, runUpgrade } from './upgrade.js'
 import { runOwnerReset } from './owner-reset.js'
+import { makeQuestion } from './prompt.js'
 import { InstanceRefusal, type InstanceDeps, type RunResult } from './types.js'
 
 export const INSTANCE_HELP = `vibase-server: manage the Vibase instance this server package deploys
@@ -140,6 +141,7 @@ export function realDeps(
     env: io.env,
     homedir: homedir(),
     tmpRoot: tmpdir(),
+    question: makeQuestion(process.stdin, { write: (t: string) => (io.stderr(t), true) } as never),
     out: (l) => io.stdout(`${l}\n`),
     err: (l) => io.stderr(`${l}\n`),
     now: () => Date.now(),

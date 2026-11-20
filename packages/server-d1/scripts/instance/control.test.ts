@@ -103,7 +103,7 @@ describe('settings without control_d1 are refused before any wrangler call', () 
   for (const [name, vars] of providers) {
     for (const command of ['status', 'upgrade'] as const) {
       it(`${command} with AUTH_PROVIDER ${name}: exit 2, naming vibase-server setup --env demo, zero wrangler calls`, async () => {
-        const w = makeWorld({ settings: noControlSettings({ vars }), processEnv: { CONFIRM_REMOTE: '1' } })
+        const w = makeWorld({ settings: noControlSettings({ vars }) })
         const code = await (command === 'status' ? runStatus : runUpgrade)(['--env', 'demo'], w.deps)
         expect(code).toBe(2)
         expect(w.err.join('\n')).toContain('vibase-server setup --env demo')
@@ -118,7 +118,6 @@ describe('OPS275 gate refusals reach no write', () => {
   const upgrade = async (control: Tracker, crm: Tracker, o: { version?: string } = {}) => {
     const w = makeWorld({
       settings: controlSettings(),
-      processEnv: { CONFIRM_REMOTE: '1' },
       health: () => json(200, { ...HEALTH, version: o.version ?? '0.0.9' }),
       runner: (args) => answer(bindingOf(args) === 'CONTROL_DB' ? control : crm),
     })
@@ -146,7 +145,6 @@ describe('OPS275 upgrade order and failure', () => {
   function worldFor(s: Sim, o: WorldOptions = {}): World {
     return makeWorld({
       settings: controlSettings(),
-      processEnv: { CONFIRM_REMOTE: '1' },
       ...o,
       fetch: (url) => {
         const path = new URL(url).pathname
@@ -232,7 +230,6 @@ describe('OPS275 upgrade order and failure', () => {
     let deployed = false
     const w = makeWorld({
       settings: controlSettings(),
-      processEnv: { CONFIRM_REMOTE: '1' },
       fetch: (url) => {
         const path = new URL(url).pathname
         if (path === '/health')

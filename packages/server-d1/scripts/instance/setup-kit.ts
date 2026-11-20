@@ -181,7 +181,7 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
   const world = makeWorld({
     settings: null,
     ...o,
-    processEnv: { CONFIRM_REMOTE: '1', ...o.processEnv },
+    processEnv: { ...o.processEnv },
     fetch: (url, init) => {
       const over = o.interceptFetch?.(url, init)
       if (over) return over

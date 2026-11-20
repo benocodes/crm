@@ -13,6 +13,7 @@ import {
 import { join } from 'node:path'
 import { parse } from 'jsonc-parser'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { CLERK_ONLY_STEPS, STEP_NAMES } from '../setup/types.js'
 import { reconcileEnvBlock } from '../setup/config-editor.js'
 import { makeClerk } from '../setup/test/clerk-world.js'
 import { runInstance } from './main.js'
@@ -48,7 +49,9 @@ afterEach(async () => {
   await d1.reset()
 })
 
-const world = (o: Partial<SetupWorldOptions> = {}): SetupWorld => setupWorld({ d1, ...o })
+// [[OPS493]]: a person at a terminal who says yes; a refusal must have happened before the question (`refused` checks it).
+const world = (o: Partial<SetupWorldOptions> = {}): SetupWorld =>
+  setupWorld({ d1, terminal: true, answers: ['y'], ...o })
 const run = (s: SetupWorld, argv: string[] = NONE_ARGS) => runSetup(argv, s.w.deps)
 const verbs = (s: SetupWorld) =>
   s.w.wrangler.map((c) =>
@@ -304,6 +307,7 @@ describe('refusals and failures (the matrix)', () => {
     expect(s.w.err.join('\n')).toMatch(re)
     expect(s.w.err.join('\n')).toMatch(/^vibase-server setup: /)
     expect(s.writes()).toEqual([])
+    expect(s.w.asked).toEqual([])
     expect(s.sim.opened).toEqual([])
     expect(s.sim.bulk).toEqual([])
     if (!existingSettings) expect(s.settings()).toBeNull()
@@ -322,12 +326,64 @@ describe('refusals and failures (the matrix)', () => {
     refused(s, await run(s), /group or others/)
     expect(s.w.wrangler).toHaveLength(0)
   })
-  it('a missing CONFIRM_REMOTE (a dry run does not need it)', async () => {
-    const s = world({ processEnv: { CONFIRM_REMOTE: undefined } })
-    refused(s, await run(s), /CONFIRM_REMOTE=1/)
-    expect(s.w.wrangler).toHaveLength(0)
-    const d = world({ processEnv: { CONFIRM_REMOTE: undefined } })
+  it('OPS493 P3: the steps: line lists the selected steps in run order, in real and dry runs; --only and the auth mode filter it', async () => {
+    const d = world()
     expect(await run(d, [...NONE_ARGS, '--dry-run'])).toBe(0)
+    const line = d.w.out.find((l) => l.startsWith('steps: '))
+    expect(line).toBe(`steps: ${STEP_NAMES.filter((n) => !CLERK_ONLY_STEPS.includes(n)).join(', ')}`)
+    expect(d.w.out.indexOf(line!)).toBeGreaterThan(d.w.out.findIndex((l) => l.startsWith('setup: env')))
+    const o = world()
+    expect(await run(o, [...NONE_ARGS, '--dry-run', '--only', 'preflight,migrate'])).toBe(0)
+    expect(o.w.out).toContain('steps: preflight, migrate')
+    const r = world()
+    expect(await run(r), r.w.all()).toBe(0)
+    expect(r.w.out.find((l) => l.startsWith('steps: '))).toBe(line)
+    const c = world({ answers: [] })
+    expect(await run(c, [...CLERK_ARGS, '--dry-run'])).toBe(0)
+    expect(c.w.out.find((l) => l.startsWith('steps: '))).toBe(`steps: ${STEP_NAMES.join(', ')}`)
+  })
+  it('OPS493 D4: on a terminal `n` after the header and steps: exit 0, the abort line, no write call, no settings, no API write; the header precedes the question', async () => {
+    const s = world({ answers: ['n'] })
+    expect(await run(s)).toBe(0)
+    expect(s.w.asked).toHaveLength(1)
+    const before = s.w.out.slice(0, s.w.asked[0]!.out)
+    expect(before.some((l) => l.startsWith('setup: env'))).toBe(true)
+    expect(before.some((l) => l.startsWith('steps: '))).toBe(true)
+    expect(s.w.out.slice(s.w.asked[0]!.out)).toEqual(['aborted: nothing was changed'])
+    expect(s.w.wrangler).toHaveLength(0)
+    expect(s.writes()).toEqual([])
+    expect(s.settings()).toBeNull()
+    expect(s.sim.opened).toEqual([])
+    expect(s.sim.subdomain.puts).toEqual([])
+    expect(
+      s.w.fetchCalls.filter((c) => c.url.includes('api.cloudflare.com') && (c.init?.method ?? 'GET') !== 'GET'),
+    ).toEqual([])
+  })
+  it('OPS493 D4: `y` runs the steps as a --yes run does; --yes, -y, --dry-run and no terminal never ask', async () => {
+    const a = world({ answers: ['y'] })
+    expect(await run(a), a.w.all()).toBe(0)
+    expect(a.w.asked).toHaveLength(1)
+    const b = world({ terminal: false })
+    expect(await run(b, [...NONE_ARGS, '--yes']), b.w.all()).toBe(0)
+    expect(b.writes()).toEqual(a.writes())
+    for (const argv of [
+      [...NONE_ARGS, '-y'],
+      [...NONE_ARGS, '--yes', '--dry-run'],
+      [...NONE_ARGS, '--dry-run'],
+    ]) {
+      const s = world({ answers: ['n'] })
+      expect(await run(s, argv), s.w.all()).toBe(0)
+      expect(s.w.asked, argv.join(' ')).toEqual([])
+    }
+    const n = world({ terminal: false })
+    expect(await run(n), n.w.all()).toBe(0)
+    expect(n.w.asked).toEqual([])
+    expect(n.writes().length).toBeGreaterThan(0)
+  })
+  it('OPS493 D1: CONFIRM_REMOTE unset is not a refusal', async () => {
+    const s = world({ terminal: false, processEnv: {} })
+    expect(await run(s), s.w.all()).toBe(0)
+    expect(s.w.all()).not.toMatch(/CONFIRM_REMOTE/)
   })
   it('worker "vb" in an existing settings file', async () => {
     const s = world({ settings: noControlSettings({ worker: 'vb' }) })
@@ -360,7 +416,7 @@ describe('refusals and failures (the matrix)', () => {
       {
         stdout: (t) => void out.push(t),
         stderr: (t) => void err.push(t),
-        env: { XDG_CONFIG_HOME: s.w.config, PATH: process.env.PATH, HOME: s.w.deps.homedir, CONFIRM_REMOTE: '1' },
+        env: { XDG_CONFIG_HOME: s.w.config, PATH: process.env.PATH, HOME: s.w.deps.homedir },
       },
       pkgDir,
       { fetch: s.w.deps.fetch, now: s.w.deps.now, sleep: s.w.deps.sleep },
@@ -408,13 +464,13 @@ describe('refusals and failures (the matrix)', () => {
     expect(s.w.clock.t).toBeLessThan(400_000)
   })
   it('OPS240 P1: prints the package line as vibase-server/<version> (<commit>), <n> files verified, before the first step', async () => {
-    const s = world({ processEnv: { CONFIRM_REMOTE: undefined } })
+    const s = world({ processEnv: {} })
     expect(await run(s, [...NONE_ARGS, '--dry-run'])).toBe(0)
     expect(s.w.out[0]).toBe(packageLine(s.w.pkg.dir))
     expect(s.w.out.join('\n')).not.toMatch(/package: vibase /)
   })
   it('--dry-run exits 0 and writes nothing: no resource, no settings file, no deploy, no D1', async () => {
-    const s = world({ processEnv: { CONFIRM_REMOTE: undefined } })
+    const s = world({ processEnv: {} })
     expect(await run(s, [...NONE_ARGS, '--dry-run'])).toBe(0)
     expect(s.writes()).toEqual([])
     expect(s.settings()).toBeNull()
