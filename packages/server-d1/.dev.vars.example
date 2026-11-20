@@ -3,8 +3,8 @@
 # AUTH_ROLE_CLAIM (default vibase_role) and AUTH_CLI_CLIENT_ID (the CLI's OAuth client id; leave the line out when unset, a blank value fails closed) are optional. CLERK_JWT_KEY is a PEM: write it on one line with literal \n escapes (a PEM pasted with raw line breaks did not load here, API115).
 # There is no CLERK_WEBHOOK_SECRET on D1 (CORE64): membership lives in Clerk, as the vibase_role claim.
 CLERK_ISSUER=
-# The app pages (/home, /agents) are served from the API origin, so that origin is an authorized party; the publishable key is public and its host must be CLERK_ISSUER's.
-CLERK_AUTHORIZED_PARTIES=http://localhost:8787
+# The app pages (/home, /agents) are served from the API origin, so that origin is an authorized party (and the Vite dev origin of `pnpm dev`, UI489 D6); the publishable key is public and its host must be CLERK_ISSUER's.
+CLERK_AUTHORIZED_PARTIES=http://localhost:8787,http://localhost:5173
 CLERK_PUBLISHABLE_KEY=
 CLERK_JWT_KEY=
 CLERK_SECRET_KEY=
@@ -14,3 +14,5 @@ CLERK_API_URL=
 # The public form route (CHN432): the Turnstile secret for /f/<public_id>. Without it the route answers 503 challenge_unavailable. This is Cloudflare's always-pass TEST secret: it accepts only the token XXXX.DUMMY.TOKEN.XXXX and
 # answers hostname example.com, so a form tried locally must allow the origin https://example.com. A deployed instance sets its own secret (`wrangler secret put TURNSTILE_SECRET_KEY`), never this one.
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+# The Vite dev server (pnpm dev, UI489 D6) is a first-party origin of this Worker: the proxy keeps the browser's Origin, so the Worker must trust it (Better Auth).
+AUTH_TRUSTED_ORIGINS=http://localhost:5173

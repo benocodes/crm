@@ -276,8 +276,15 @@ directory list), the count in `packages/release/src/version.test.ts` and `.chang
 (every package but `@vibase/cli` and `@vibase/server-d1`), or the gate goes red ([[UI254]]'s gate-fix round).
 
 Commit on the cycle branch with Conventional Commits, staging explicit paths (never `git add -A`), and
-push. In a sprint, stop here: the PR, the retro and the merge belong to other stages. Outside a sprint,
-run `/retrospect` on the cycle folder, then open the PR (`gh pr create`) and leave the merge to a human.
+push. Commit `RESULT.md` in the knowledge repo together with your decision rows: `git -C knowledge add
+specs/<cycle folder>/RESULT.md decisions/`, one commit, push. A `RESULT.md` that cites refs the knowledge repo's
+`main` does not hold leaves the reviewer reading rows from your working tree and the orchestrator committing them
+after you ([[UI489]]: `RESULT.md` landed in one commit, rows 489.16–489.22 in a later one). In a sprint, stop here:
+the PR, the retro and the merge belong to other stages. Outside a sprint, run the full gate (`scripts/gate.sh`) on
+the pushed sha, run `/retrospect` on the cycle folder, then open the PR (`gh pr create`) with the gate's
+`gate.status` result in its body, and leave the merge to a human. The PR's GitHub check is lint only
+(`.github/workflows/ci.yml`), so a green check is not a green gate: #486 was merged with only `lint` green and
+put two red tests on `main` until #488.
 
 When applying review findings, change only what the findings ask for, rerun the gate, commit, push,
 and **end with the `CYCLE REPORT`** (§7). A review round is a run like any other: a fix pushed without a report

@@ -70,7 +70,10 @@ If these are missing the item isn't really Ready; flag it back instead of invent
    ```
    Never edit `knowledge/` specs or `project-state.md` from this skill. A spec amendment written before
    review can describe a change review then alters.
-8. **Ship.** Commit, push the branch, open the PR:
+8. **Ship.** Commit, push the branch, run the full gate (`scripts/gate.sh`) from the worktree on the pushed
+   sha, and say its result (`GATE_EXIT` and the counts) in the PR body; a red gate is not a PR. The PR's GitHub
+   check is lint only (`.github/workflows/ci.yml`): #486 merged with `lint` green and two red tests (fixed in #488).
+   Then open the PR:
    ```bash
    git push -u origin <type>/<N>-<slug>
    gh pr create -R benocodes/crm --base main --title "<type>: …" --body "Closes benocodes/crm#<N>

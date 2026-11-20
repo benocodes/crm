@@ -14,7 +14,8 @@
   },
   "scripts": {
     "build": "rm -rf dist/assets/connect && tsx scripts/build-ui.ts && tsx scripts/build-app.ts",
-    "dev": "pnpm build && wrangler dev --local --port 8787",
+    "dev": "tsx scripts/dev.ts",
+    "dev:worker": "pnpm build && wrangler dev --local --port 8787",
     "e2e:mcp-oauth": "playwright test --config playwright.config.ts mcp-oauth.e2e.ts",
     "e2e:action-requests": "playwright test --config playwright.config.ts action-requests.e2e.ts",
     "e2e:agents-clerk": "playwright test --config playwright.config.ts agents-clerk.e2e.ts",
@@ -56,6 +57,7 @@
     "@clerk/testing": "2.2.47",
     "@modelcontextprotocol/sdk": "1.32.2",
     "@playwright/test": "1.64.1",
+    "@tailwindcss/vite": "4.3.5",
     "@testing-library/dom": "10.4.2",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.10",
@@ -63,6 +65,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vibase/ui": "workspace:*",
+    "@vitejs/plugin-react": "6.1.2",
     "axe-core": "4.14.0",
     "better-auth": "1.7.22",
     "esbuild": "0.28.2",
@@ -72,6 +75,7 @@
     "miniflare": "4.20260730.0",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
+    "vite": "8.3.4",
     "vitest": "5.0.3",
     "wrangler": "4.149.0"
   }
