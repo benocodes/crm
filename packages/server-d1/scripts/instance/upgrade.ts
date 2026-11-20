@@ -20,6 +20,7 @@ import {
   sameCommit,
   sameVersionDifferentBuild,
 } from './gate.js'
+import { isDnsFailure } from './reach.js'
 import { dnsHint, waitLine } from '../setup/verify-better-auth.js'
 import { isRefusal, InstanceRefusal, type InstanceDeps } from './types.js'
 
@@ -191,7 +192,7 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
     if (seen !== null)
       throw new StepFailure(
         'verify',
-        `${url}/health did not show version ${manifest.version} (commit ${manifest.commit}) with migrations ${accept.join(' or ')} within ${VERIFY_BOUND_MS / 1000}s (${seen})${seen === 'no answer' ? `; ${dnsHint(url, `vibase-server status --env ${settings.env}`)}` : ''}`,
+        `${url}/health did not show version ${manifest.version} (commit ${manifest.commit}) with migrations ${accept.join(' or ')} within ${VERIFY_BOUND_MS / 1000}s (${seen})${seen.startsWith('no answer') ? `; ${dnsHint(url, `vibase-server status --env ${settings.env}`)}` : ''}`,
       )
     deps.out(`verify: ${url}/health is at ${manifest.version}`)
 
@@ -232,7 +233,10 @@ export async function verify(
   /** The package's commit. A `/health` that reports none is judged on the version alone, as before. */
   commit?: string,
 ): Promise<string | null> {
+  let dnsFailed = false
+  const host = new URL(url).host
   const read = async (): Promise<{ version?: string; migrations?: string; commit?: string } | null> => {
+    dnsFailed = false
     try {
       const res = await deps.fetch(`${url}/health`, {
         method: 'GET',
@@ -246,7 +250,9 @@ export async function verify(
         version: typeof j.version === 'string' ? j.version : undefined,
         migrations: typeof j.migrations?.status === 'string' ? j.migrations.status : undefined,
       }
-    } catch {
+    } catch (e) {
+      // [[OPS496]] D6: the last failure's cause is kept, so a final "no answer" can say the name did not resolve.
+      dnsFailed = isDnsFailure(e)
       return null
     }
   }
@@ -267,6 +273,8 @@ export async function verify(
   return ready(h)
     ? null
     : h === null
-      ? 'no answer'
+      ? dnsFailed
+        ? `no answer (DNS: ${host} does not resolve)`
+        : 'no answer'
       : `version ${h.version ?? '?'}, commit ${h.commit ?? 'none'}, migrations ${h.migrations ?? '?'}`
 }

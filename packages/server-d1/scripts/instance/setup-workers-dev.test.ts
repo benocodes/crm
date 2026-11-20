@@ -341,28 +341,31 @@ describe('4. one base URL and one verify bound (P1, P2)', () => {
     expect(bad.w.err.join('\n')).toMatch(/PUBLIC_BASE_URL/)
     expect(bad.settings()).toBeNull()
   })
-  it("health current after 200 s, then discovery answering 5xx: fails by 300 s from verify's start, and says so", async () => {
-    const s: SetupWorld = recordedWorld(RECORD_WD, {
-      sim: { ba: { vibase: [{ status: 500 }] } },
-      interceptFetch: (url) =>
-        url.endsWith('/health') && s.w.clock.t < 200_000
-          ? new Response(JSON.stringify({ status: 'ok', version: 'x', migrations: { status: 'behind' } }), {
-              status: 200,
-            })
-          : undefined,
-    })
+  it('OPS496 D3: discovery answering 5xx fails at once with no second read and no sleep', async () => {
+    const s: SetupWorld = recordedWorld(RECORD_WD, { sim: { ba: { vibase: [{ status: 500 }] } } })
     expect(await run(s, [...WD, '--only', 'verify'])).toBe(3)
     expect(row(s, 'verify').status).toBe('fail')
-    expect(row(s, 'verify').detail).toContain('300s')
-    expect(sleptTotal(s)).toBe(300_000)
+    expect(row(s, 'verify').detail).toContain('500')
+    expect(s.w.fetchUrls.filter((u) => u === `${WD_BASE}/.well-known/vibase`)).toHaveLength(1)
+    expect(sleptTotal(s)).toBe(0)
   })
-  it('health at once and discovery 5xx for 290 s still passes', async () => {
-    const answer = { status: 200, body: discoveryAnswer(WD_BASE) }
-    const s = recordedWorld(RECORD_WD, {
-      sim: { ba: { vibase: [...Array.from({ length: 29 }, () => ({ status: 500 })), answer] } },
-    })
+})
+
+describe('OPS496: verify on a workers.dev host', () => {
+  it('D1 (c): the subdomain read decides, not the domains read; enabled false fails the host check, with no later check', async () => {
+    const s = recordedWorld(RECORD_WD, { sim: { workersDevEnabled: false } })
+    expect(await run(s, [...WD, '--only', 'verify'])).toBe(3)
+    expect(row(s, 'verify').detail).toMatch(/host check failed: the workers\.dev subdomain of vb-demo is not enabled/)
+    const paths = s.w.fetchUrls.filter((u) => /workers\/(domains|scripts\/vb-demo\/subdomain)|r2\//.test(u))
+    expect(paths.some((u) => u.includes('workers/domains'))).toBe(false)
+    expect(paths.some((u) => u.includes('r2/'))).toBe(false)
+    expect(s.w.fetchUrls.some((u) => u.startsWith(`${WD_BASE}/`))).toBe(false)
+  })
+  it('D5: no answer on a workers.dev host is ok and prints no DNS line', async () => {
+    const s = recordedWorld(RECORD_WD, { sim: { hostDown: 'dns' } })
     expect(await run(s, [...WD, '--only', 'verify']), s.w.all()).toBe(0)
-    expect(sleptTotal(s)).toBe(290_000)
+    expect(row(s, 'verify').detail).toContain('not reachable yet')
+    expect(s.w.out.join('\n')).not.toContain('DNS')
   })
 })
 
