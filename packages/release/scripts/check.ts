@@ -239,7 +239,7 @@ export async function checkRelease(
     // [[OPS307]]: `owner-reset` is in the installed bundle and refuses at the same missing settings file (exit 2) before any network call.
     const noSettingsReset = spawnSync(serverBin, ['owner-reset', '--env', 'check'], {
       cwd: install,
-      env: { ...cleanEnv(), XDG_CONFIG_HOME: emptyConfig, CONFIRM_REMOTE: '1' },
+      env: { ...cleanEnv(), XDG_CONFIG_HOME: emptyConfig },
       encoding: 'utf8',
     })
     if (noSettingsReset.status !== 2 || !noSettingsReset.stderr.includes(expectedPath))

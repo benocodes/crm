@@ -376,27 +376,61 @@ describe('the docs and help agree with the program on workers.dev (OPS308 D13)',
     expect(read('../setup-remote.ts')).toContain(USAGE)
     expect(serverHelpProblems(INSTANCE_HELP)).toEqual([])
     expect(serverHelpProblems(INSTANCE_HELP.replace(USAGE, '--api-host <host>'))).toEqual([
-      `setup --env <name> ${USAGE}`,
+      `setup --env <name> ${USAGE} ... [--dry-run] [--yes]`,
     ])
   })
   it('OPS487 D8: release:check needs both `upgrade --env <name> [--dry-run]` and `redeploy --env <name> [--dry-run]`, and rejects an `upgrade ... [--rollback]` line', () => {
     expect(serverHelpProblems(INSTANCE_HELP)).toEqual([])
     expect(serverHelpProblems(INSTANCE_HELP.replace('vibase-server redeploy --env <name> [--dry-run]', 'x'))).toEqual([
-      'redeploy [--dry-run]',
+      'redeploy [--dry-run] [--yes]',
     ])
     expect(serverHelpProblems(INSTANCE_HELP.replace('vibase-server upgrade --env <name> [--dry-run]', 'x'))).toEqual([
-      'upgrade [--dry-run] (no --rollback)',
+      'upgrade [--dry-run] [--yes] (no --rollback)',
     ])
     expect(
       serverHelpProblems(
         INSTANCE_HELP.replace('upgrade --env <name> [--dry-run]', 'upgrade --env <name> [--dry-run] [--rollback]'),
       ),
-    ).toEqual(['upgrade [--dry-run] (no --rollback)'])
+    ).toEqual(['upgrade [--dry-run] [--yes] (no --rollback)'])
   })
   it('the setup usage line of the program (printed on a refusal) names the pair', async () => {
     const { runSetup } = await import('./setup.js')
     const err: string[] = []
     await runSetup(['--env', 'x', '--bogus'], { out: () => {}, err: (l: string) => void err.push(l) } as never)
     expect(err.join('\n')).toContain(USAGE)
+  })
+})
+
+describe('OPS493 D6, D7: vibase-server lines carry no CONFIRM_REMOTE; the :remote lines keep it', () => {
+  const server = /vibase-server|@vibase\/server-d1@|vibase-server-d1-/
+  const offenders = (md: string) =>
+    md
+      .split('\n')
+      .filter((l) => /CONFIRM_REMOTE/.test(l) && server.test(l) && !/:remote|bootstrap -- --remote|pnpm -C/.test(l))
+  it('self-hosting: no vibase-server or npx @vibase/server-d1 line names CONFIRM_REMOTE, the :remote lines still do, and the question is explained', () => {
+    const md = page('deployment/self-hosting')
+    expect(offenders(md)).toEqual([])
+    expect(md).toMatch(/CONFIRM_REMOTE=1 pnpm -C packages\/server-d1 setup:remote/)
+    expect(md).toMatch(/proceed\? \[Y\/n\]/)
+    expect(md).toMatch(/--yes/)
+  })
+  it('the server README template: no CONFIRM_REMOTE at all, and it names the question and --yes', () => {
+    const md = read('../../../release/templates/server-d1-README.md')
+    expect(md).not.toMatch(/CONFIRM_REMOTE/)
+    expect(md).toMatch(/proceed\? \[Y\/n\]/)
+    expect(md).toMatch(/--yes/)
+  })
+  it("ship-branch's Command reference: its vibase-server lines have no CONFIRM_REMOTE and tell agents to pass --yes", () => {
+    const md = read('../../../../.agents/skills/ship-branch/SKILL.md')
+    const lines = md
+      .split('\n')
+      .filter((l) => /^npx @vibase\/server-d1@<version> (upgrade|redeploy|setup|owner-reset)/.test(l))
+    expect(lines.length).toBeGreaterThan(1)
+    for (const l of lines) expect(l).not.toMatch(/CONFIRM_REMOTE/)
+    expect(md).toMatch(/agents pass `--yes`/i)
+  })
+  it('mutation: a vibase-server line with CONFIRM_REMOTE=1 is an offender', () => {
+    expect(offenders('CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> setup --env x')).toHaveLength(1)
+    expect(offenders('CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env x')).toEqual([])
   })
 })

@@ -137,6 +137,8 @@ export interface World {
   wrangler: WranglerCall[]
   /** Every `openD1` call. */
   openD1Calls: OpenD1Options[]
+  /** Every question asked, with how many lines and calls had happened before it. */
+  asked: { prompt: string; out: number; err: number; wrangler: number; fetch: number; openD1: number }[]
   out: string[]
   err: string[]
   all(): string
@@ -154,6 +156,10 @@ export interface WorldOptions {
   runner?: (args: string[], env: Record<string, string>, input?: string) => RunResult
   /** `setup`'s bootstrap D1 (default: any call is a test error). */
   openD1?: InstanceDeps['openD1']
+  /** [[OPS493]] P1: stdin is a terminal (default false: no question is asked). */
+  terminal?: boolean
+  /** The lines the person types, in order; once spent, end of input (`null`). */
+  answers?: string[]
 }
 export const SECRETS_TEXT = `CLOUDFLARE_ACCOUNT_ID=${ACCOUNT}\nCLOUDFLARE_API_TOKEN=${TOKEN}\n`
 
@@ -178,6 +184,8 @@ export function makeWorld(o: WorldOptions = {}): World {
   const clock = { t: 0 }
   const wrangler: WranglerCall[] = []
   const openD1Calls: OpenD1Options[] = []
+  const asked: { prompt: string; out: number; err: number; wrangler: number; fetch: number; openD1: number }[] = []
+  const answers = [...(o.answers ?? [])]
   const deps: InstanceDeps = {
     packageDir: pkg.dir,
     fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -213,6 +221,20 @@ export function makeWorld(o: WorldOptions = {}): World {
     env: { XDG_CONFIG_HOME: config, PATH: '/usr/bin', HOME: home, ...o.processEnv },
     homedir: home,
     tmpRoot,
+    question: {
+      interactive: o.terminal === true,
+      ask: async (prompt) => {
+        asked.push({
+          prompt,
+          out: out.length,
+          err: err.length,
+          wrangler: wrangler.length,
+          fetch: fetchUrls.length,
+          openD1: openD1Calls.length,
+        })
+        return answers.shift() ?? null
+      },
+    },
     out: (l) => void out.push(l),
     err: (l) => void err.push(l),
     now: () => clock.t,
@@ -230,6 +252,7 @@ export function makeWorld(o: WorldOptions = {}): World {
     clock,
     wrangler,
     openD1Calls,
+    asked,
     out,
     err,
     all: () => [...out, ...err].join('\n'),

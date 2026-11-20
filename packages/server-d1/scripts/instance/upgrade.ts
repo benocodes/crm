@@ -3,7 +3,8 @@
 // `redeploy` puts this build on the instance whatever is live (a new build of the same version, the same build again, an older package: the rollback) and applies only the migrations the instance lacks.
 // Every wrangler call is the package's own wrangler on the generated config (never `--env`, never `pnpm exec`); the instance is only ever told what is in the package.
 import { parseArgs } from 'node:util'
-import { requireConfirm, statusOf } from '../remote.js'
+import { ABORT_LINE, confirmProceed } from './prompt.js'
+import { statusOf } from '../remote.js'
 import { keylessChecks } from '../smoke-checks.js'
 import { withGeneratedConfig } from './config.js'
 import {
@@ -33,7 +34,7 @@ export const VERIFY_INTERVAL_MS = 10_000
 
 export type DeployMode = 'upgrade' | 'redeploy'
 const usageOf = (mode: DeployMode): string =>
-  `usage: vibase-server ${mode} --env <name> [--dry-run] [--settings <path>] [--secrets-file <path>]`
+  `usage: vibase-server ${mode} --env <name> [--dry-run] [--yes] [--settings <path>] [--secrets-file <path>]`
 
 /** The exact argument list of the deploy: the release's own version and commit stamped as vars, no bundling. `check.ts` hands the same list to the installed wrangler. */
 export const deployArgs = (version: string, commit: string, configPath: string): string[] => [
@@ -76,7 +77,7 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
   let step: string = mode
   let redact = (t: string): string => t
   try {
-    let values: { env?: string; settings?: string; 'secrets-file'?: string; 'dry-run'?: boolean }
+    let values: { env?: string; settings?: string; 'secrets-file'?: string; 'dry-run'?: boolean; yes?: boolean }
     // [[OPS487]] D6: `upgrade --rollback` was replaced by `redeploy`; the flag is named, not left to parseArgs' generic message.
     if (!redeploy && argv.includes('--rollback'))
       throw new InstanceRefusal(`--rollback was replaced by vibase-server redeploy; ${USAGE}`)
@@ -90,6 +91,7 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
           settings: { type: 'string' },
           'secrets-file': { type: 'string' },
           'dry-run': { type: 'boolean' },
+          yes: { type: 'boolean', short: 'y' },
         },
       }).values
     } catch (e) {
@@ -123,7 +125,7 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
       for (const l of pendingLines(g)) deps.out(l)
       if (hasUnknownMigrations(g)) deps.out(ROLLBACK_NOTE)
     } else {
-      // [[OPS487]] D4: before the nothing-to-do claim and before CONFIRM_REMOTE, whatever the migrations' state.
+      // [[OPS487]] D4: before the nothing-to-do claim and before the question, whatever the migrations' state.
       if (sameVersionDifferentBuild(g)) throw new InstanceRefusal(differentBuildLines(g).join('\n'))
       if (g.live.version === manifest.version && databasesCurrent(g, statusOf(g.applied, expected))) {
         deps.out(`plan: nothing to do, the instance is at ${manifest.version}`)
@@ -136,7 +138,11 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
       deps.out('dry run: nothing was changed')
       return EXIT_DONE
     }
-    requireConfirm(deps.env as NodeJS.ProcessEnv)
+    // [[OPS493]] D2, D4: the one question, after the plan and before the first write.
+    if (!(await confirmProceed(deps, values.yes === true))) {
+      deps.out(ABORT_LINE)
+      return EXIT_DONE
+    }
 
     // From here on the instance may change: a failure is exit 3 and names its step.
     began = true

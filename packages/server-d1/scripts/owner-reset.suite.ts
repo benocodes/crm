@@ -32,11 +32,17 @@ export interface RunOptions {
   record?: RecordVariant
   crm: D1Like
   control: D1Like
+  /** [[OPS493]]: a terminal and the lines typed at it. Absent: no terminal. Only a front-end with a question reads it. */
+  answers?: string[]
+  /** [[OPS493]]: extra process environment (a set CONFIRM_REMOTE must change nothing). */
+  env?: Record<string, string | undefined>
 }
 export interface Run {
   code: number
   out: string[]
   err: string[]
+  /** [[OPS493]]: each question asked, with the number of output lines already printed. */
+  asked?: { prompt: string; out: number }[]
 }
 export interface Driver {
   /** The exit code of a refusal before any write, and of a failure after one (P6). */
@@ -99,7 +105,7 @@ function failingAudit(real: D1Like): D1Like {
 export function ownerResetSuite(
   label: string,
   makeDriver: () => Driver | Promise<Driver>,
-  opts: { dryRun: boolean },
+  opts: { dryRun: boolean; question?: boolean },
 ): void {
   describe(`owner-reset through ${label}`, () => {
     let pair: WorkerPair
@@ -145,7 +151,9 @@ export function ownerResetSuite(
     }
 
     /** Runs the command over spies, and returns what it wrote. */
-    async function drive(o: Partial<Pick<RunOptions, 'email' | 'dryRun' | 'record'>> & { control?: D1Like } = {}) {
+    async function drive(
+      o: Partial<Pick<RunOptions, 'email' | 'dryRun' | 'record' | 'answers' | 'env'>> & { control?: D1Like } = {},
+    ) {
       const crm = spyD1(pair.d1)
       const control = spyD1(o.control ?? pair.control)
       const run = await driver.run({ ...o, crm: crm.d1, control: control.d1 })
@@ -243,6 +251,72 @@ export function ownerResetSuite(
           expect(await rows(pair.control, 'select id from invitations')).toEqual([])
         })
     })
+
+    if (opts.question)
+      describe('7. the question before the first write (OPS493 D4, P2)', () => {
+        const rowsOf = async () => ({
+          verifications: await rows(pair.control, 'select id from auth_verifications'),
+          invitations: await rows(pair.control, 'select id from invitations'),
+          audit: await rows(
+            pair.control,
+            "select id from control_audit where action in ('user.reset_link_issued', 'invitation.created', 'invitation.revoked')",
+          ),
+        })
+        it('reset: the plan line names the email and precedes the question; `n` exits 0, prints no link, writes nothing', async () => {
+          await seed([{ email: 'owner@x.test' }])
+          const r = await drive({ answers: ['n'] })
+          expect(r.code, allText(r)).toBe(0)
+          expect(r.asked).toHaveLength(1)
+          const before = r.out.slice(0, r.asked![0]!.out)
+          expect(before.some((l) => /^plan: .*reset.*owner@x\.test/.test(l))).toBe(true)
+          expect(r.out.slice(r.asked![0]!.out)).toEqual(['aborted: nothing was changed'])
+          expect(allText(r)).not.toMatch(/token=|https?:\/\//)
+          expect(r.writes).toEqual([])
+          expect(await rowsOf()).toEqual({ verifications: [], invitations: [], audit: [] })
+        })
+        it('CONFIRM_REMOTE=1 is no substitute for --yes: on a terminal it still asks, and `n` writes nothing', async () => {
+          await seed([{ email: 'owner@x.test' }])
+          const r = await drive({ answers: ['n'], env: { CONFIRM_REMOTE: '1' } })
+          expect(r.code, allText(r)).toBe(0)
+          expect(r.asked).toHaveLength(1)
+          expect(r.out).toContain('aborted: nothing was changed')
+          expect(r.writes).toEqual([])
+          expect(await rowsOf()).toEqual({ verifications: [], invitations: [], audit: [] })
+        })
+        it('invitation: the plan line names the email; `n` leaves no invitation and no audit row', async () => {
+          await seed([])
+          const r = await drive({ email: 'first@x.test', answers: ['n'] })
+          expect(r.code, allText(r)).toBe(0)
+          const before = r.out.slice(0, r.asked![0]!.out)
+          expect(before.some((l) => /^plan: .*invitation.*first@x\.test/.test(l))).toBe(true)
+          expect(r.writes).toEqual([])
+          expect(await rowsOf()).toEqual({ verifications: [], invitations: [], audit: [] })
+        })
+        it('`y` issues the link as today, and so does no terminal (never asked)', async () => {
+          await seed([{ email: 'owner@x.test' }])
+          const a = await drive({ answers: ['y'] })
+          expect(a.code, allText(a)).toBe(0)
+          expect(a.asked).toHaveLength(1)
+          expect(a.out.filter((l) => l.includes('/reset-password#token='))).toHaveLength(1)
+          await pair.reset()
+          await seed([{ email: 'owner@x.test' }])
+          const b = await drive()
+          expect(b.code, allText(b)).toBe(0)
+          expect(b.asked ?? []).toEqual([])
+          expect(b.out.filter((l) => l.includes('/reset-password#token='))).toHaveLength(1)
+        })
+        it('a refusal before the writes (a Clerk record, no owner and no --email) refuses without asking', async () => {
+          await seed([{ email: 'owner@x.test' }])
+          const a = await drive({ record: { provider: 'clerk' }, answers: ['y'] })
+          expect(a.code).toBe(driver.refused)
+          expect(a.asked ?? []).toEqual([])
+          await pair.reset()
+          await seed([])
+          const b = await drive({ answers: ['y'] })
+          expect(b.code).toBe(driver.refused)
+          expect(b.asked ?? []).toEqual([])
+        })
+      })
 
     describe('3. the reset link works and is accounted for', () => {
       it('the single better-auth owner needs no --email; the printed link sets a password on the real handler, sign-in with it succeeds, and the old one stops working', async () => {

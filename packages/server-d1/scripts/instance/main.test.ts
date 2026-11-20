@@ -32,7 +32,7 @@ describe('instance entry', () => {
     expect(redeploy).toMatch(/Advanced/)
     expect(redeploy).toMatch(/`upgrade` is the normal, guarded path/)
     expect(redeploy).toContain(
-      'vibase-server redeploy --env <name> [--dry-run] [--settings <path>] [--secrets-file <path>]',
+      'vibase-server redeploy --env <name> [--dry-run] [--yes] [--settings <path>] [--secrets-file <path>]',
     )
   })
   it('refuses an unknown command with exit 2', async () => {
@@ -89,7 +89,7 @@ describe('instance entry', () => {
         join(outer, 'node_modules', 'wrangler', 'package.json'),
         JSON.stringify({ name: 'wrangler', version: '0.0.0' }),
       )
-      const r = io({ XDG_CONFIG_HOME: w.config, PATH: process.env.PATH, HOME: w.deps.homedir, CONFIRM_REMOTE: '1' })
+      const r = io({ XDG_CONFIG_HOME: w.config, PATH: process.env.PATH, HOME: w.deps.homedir })
       const code = await runInstance([command, '--env', 'demo'], r.io, pkgDir, { fetch: w.deps.fetch })
       expect(code).toBe(2)
       expect(r.err.join('')).toContain(`vibase-server ${command}: `)

@@ -72,7 +72,6 @@ const json = (status: number, body: unknown) =>
 function worldFor(s: Sim, o: WorldOptions = {}): World {
   let polls = 0
   return makeWorld({
-    processEnv: { CONFIRM_REMOTE: '1' },
     ...o,
     fetch: (url) => {
       const path = new URL(url).pathname
@@ -211,12 +210,36 @@ describe('OPS487 D1/D2 redeploy sequence', () => {
     expect(URL_PATHS(w)).toEqual(['/health'])
     noTemp(w)
   })
-  it('without CONFIRM_REMOTE it refuses after the plan with zero writes; exit 2 naming redeploy', async () => {
-    const { w, code } = await run('redeploy', sim(), [], { processEnv: {} })
-    expect(code).toBe(2)
-    expect(w.err.join('\n')).toMatch(/vibase-server redeploy: .*CONFIRM_REMOTE=1/)
-    expect(w.out.join('\n')).toMatch(/plan: redeploy/)
+  it('on a terminal, `n` after the plan: exit 0, the abort line, zero writes, the plan before the question [OPS493 D4, D5]', async () => {
+    const { w, code } = await run('redeploy', sim(), [], { terminal: true, answers: ['n'] })
+    expect(code).toBe(0)
+    expect(w.asked.map((a) => a.prompt)).toEqual(['proceed? [Y/n] '])
+    expect(w.out.slice(0, w.asked[0]!.out).join('\n')).toMatch(/plan: redeploy/)
+    expect(w.out.slice(w.asked[0]!.out).join('\n')).toBe('aborted: nothing was changed')
+    expect(w.asked[0]!.wrangler).toBe(w.wrangler.length)
     expect(writes(w)).toEqual([])
+  })
+  it('on a terminal, `y`: the same write sequence as --yes; never asked with --yes, -y, --dry-run or no terminal', async () => {
+    const a = await run('redeploy', sim(), [], { terminal: true, answers: ['y'] })
+    const b = await run('redeploy', sim(), ['--yes'])
+    expect(a.w.asked).toHaveLength(1)
+    expect(writes(a.w)).toEqual(writes(b.w))
+    expect(writes(a.w).length).toBeGreaterThan(0)
+    for (const argv of [['-y'], ['--yes'], ['--dry-run'], ['--dry-run', '--yes'], []]) {
+      const r = await run('redeploy', sim(), argv, { terminal: argv.length > 0, answers: ['n'] })
+      expect(r.code, argv.join(' ')).toBe(0)
+      expect(r.w.asked, argv.join(' ')).toEqual([])
+      expect(r.w.out.join('\n')).toMatch(/plan: redeploy/)
+      expect(writes(r.w).length > 0, argv.join(' ')).toBe(!argv.includes('--dry-run'))
+    }
+  })
+  it('CONFIRM_REMOTE has no effect on redeploy: unset proceeds with no terminal, set still asks on a terminal', async () => {
+    const a = await run('redeploy', sim(), [], { processEnv: {} })
+    expect(a.code).toBe(0)
+    expect(writes(a.w).length).toBeGreaterThan(0)
+    const b = await run('redeploy', sim(), [], { processEnv: { CONFIRM_REMOTE: '1' }, terminal: true, answers: ['n'] })
+    expect(b.w.asked).toHaveLength(1)
+    expect(writes(b.w)).toEqual([])
   })
   it('a tampered package refuses before any call; exit 2', async () => {
     const w = worldFor(sim())
@@ -356,7 +379,7 @@ describe('OPS487 secrets and side effects, both modes', () => {
     })
     it(`${mode}: the wrangler child gets the allow-listed environment only, on every call`, async () => {
       const { w } = await run(mode, sim(), [], {
-        processEnv: { CONFIRM_REMOTE: '1', CLERK_SECRET_KEY: 'sk_live_nope' },
+        processEnv: { CLERK_SECRET_KEY: 'sk_live_nope' },
       })
       for (const c of w.wrangler)
         expect(Object.keys(c.env).sort()).toEqual([
@@ -469,12 +492,12 @@ describe('OPS487 D4/D6 upgrade tells builds apart', () => {
     stopped(w, code, '1111111')
     expect(w.err.join('\n')).toMatch(/^vibase-server upgrade: same version, different build/)
   })
-  it('the same stop with --dry-run, and without CONFIRM_REMOTE (it comes before the guard)', async () => {
+  it('the same stop with --dry-run, and on a terminal (it comes before the question: never asked)', async () => {
     const a = await run('upgrade', sim(same('1111111')), ['--dry-run'])
     stopped(a.w, a.code, '1111111')
-    const b = await run('upgrade', sim(same('1111111')), [], { processEnv: {} })
+    const b = await run('upgrade', sim(same('1111111')), [], { terminal: true, answers: ['y'] })
     stopped(b.w, b.code, '1111111')
-    expect(b.w.err.join('\n')).not.toMatch(/CONFIRM_REMOTE/)
+    expect(b.w.asked).toEqual([])
   })
   it('the same stop with migrations pending', async () => {
     const { w, code } = await run('upgrade', sim({ ...same('1111111'), crm: ['0001_a.sql'], control: ['0001_c.sql'] }))

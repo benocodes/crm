@@ -5,7 +5,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { verifyRelease, type ReleaseManifest } from '../../../release/src/manifest.js'
-import { requireConfirm, resolveTarget } from '../remote.js'
+import { resolveTarget } from '../remote.js'
 import { applyRecordedNames } from '../setup/names.js'
 import { loadBetterAuth, providerFromVars } from '../setup/better-auth.js'
 import { moveLines, registerPending, resolveHost } from '../setup/host.js'
@@ -13,6 +13,7 @@ import { loadClerkKeys } from '../setup/clerk-keys.js'
 import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, loadGmail } from '../setup/gmail.js'
 import { claimBlock } from '../setup/verify-better-auth.js'
 import { CLERK_ONLY_STEPS, STEP_NAMES, type EnvFileProbe, type StepResult } from '../setup/types.js'
+import { ABORT_LINE, confirmProceed } from './prompt.js'
 import { compareSemver, parseSemver } from './gate.js'
 import { defaultSecretsPath, loadSecrets } from './secrets.js'
 import { defaultSettingsPath, loadSettings } from './settings.js'
@@ -25,7 +26,7 @@ export const EXIT_REFUSED = 2
 export const EXIT_FAILED = 3
 
 const USAGE =
-  'usage: vibase-server setup --env <name> (--api-host <host> | --workers-dev) [--auth better-auth|clerk|none] [--owner-email <e>] [--settings <path>] [--secrets-file <path>] [--dry-run] [flags]'
+  'usage: vibase-server setup --env <name> (--api-host <host> | --workers-dev) [--auth better-auth|clerk|none] [--owner-email <e>] [--settings <path>] [--secrets-file <path>] [--dry-run] [--yes] [flags]'
 const row = (r: StepResult) => `${r.status.padEnd(7)} ${r.step.padEnd(17)} ${r.detail}`
 
 /** A step's failure that is a refusal (an unresolvable wrangler) before anything was written is a refusal, not a failed step. */
@@ -39,6 +40,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
   const out = (l: string) => deps.out(redact(l))
   const err = (l: string) => deps.err(redact(l))
   let ctx: SetupCtx
+  let yes = false
   let manifest: ReleaseManifest
   try {
     let parsed: ReturnType<typeof parseInstanceSetupArgs>
@@ -59,6 +61,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
       throw new InstanceRefusal(`${(e as Error).message}; ${USAGE}`)
     }
     const { opts: derived } = parsed
+    yes = parsed.yes
 
     // (a) the installed package is the release, before any network call or child process.
     const problems = verifyRelease(deps.packageDir)
@@ -100,9 +103,8 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
       named.env,
     )
 
-    // [[OPS308]] P1, P3: the one host of this run, resolved before any write and before anything reads the base URL. A registration is a write, so the confirmation comes first.
+    // [[OPS308]] P1, P3: the one host of this run, resolved before any write and before anything reads the base URL. The registration is a write: it comes after the question, in the step loop.
     const creds = { accountId: secrets.CLOUDFLARE_ACCOUNT_ID, apiToken: secrets.CLOUDFLARE_API_TOKEN }
-    if (!named.dryRun) requireConfirm(deps.env as NodeJS.ProcessEnv)
     const opts = await resolveHost(named, creds, deps.fetch)
 
     // The Clerk and Gmail values come from the secrets file, judged by the source path's own rules.
@@ -185,6 +187,12 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     (s) =>
       (opts.only === undefined || opts.only.includes(s)) && (opts.auth === 'clerk' || !CLERK_ONLY_STEPS.includes(s)),
   )
+  say(`steps: ${selected.join(', ')}`)
+  // [[OPS493]] D4: the one question, after the header and the step list and before the first write (the subdomain registration and every step).
+  if (!opts.dryRun && !(await confirmProceed(deps, yes))) {
+    say(ABORT_LINE)
+    return EXIT_DONE
+  }
   const results: StepResult[] = []
   let registered = false
   for (const name of selected) {

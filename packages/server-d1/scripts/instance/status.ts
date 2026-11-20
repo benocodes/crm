@@ -1,5 +1,5 @@
 // `vibase-server status --env <name>` ([[OPS210]] D15, [[OPS231]]): the gate's reads and the upgrade plan. Read-only: it writes nothing remote,
-// needs no CONFIRM_REMOTE and never runs a write command.
+// asks nothing and never runs a write command.
 import { parseArgs } from 'node:util'
 import { statusOf } from '../remote.js'
 import {

@@ -26,7 +26,7 @@ export function validateOrigin(flag: string, value: string): string {
 }
 
 type FlagValues = ReturnType<typeof parseArgs>['values']
-type Extra = Record<string, { type: 'string' | 'boolean' }>
+type Extra = Record<string, { type: 'string' | 'boolean'; short?: string }>
 
 /**
  * The flags both setup commands share. `extra` adds the ones that differ: `--clerk-env-file` for `setup:remote`, `--settings` and

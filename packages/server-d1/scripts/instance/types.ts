@@ -34,6 +34,11 @@ export interface OpenD1Options {
   env: Record<string, string>
 }
 
+export interface Question {
+  interactive: boolean
+  ask(prompt: string): Promise<string | null>
+}
+
 export interface InstanceDeps {
   /** The installed package directory (`<package>/cli/server.js` lives in `<package>/cli`). */
   packageDir: string
@@ -53,6 +58,8 @@ export interface InstanceDeps {
   tmpRoot: string
   out(line: string): void
   err(line: string): void
+  /** [[OPS493]] P1: the one question a real run asks before its first write. `interactive`: stdin is a terminal. `ask` writes the prompt to stderr and reads one line (`null`: end of input). */
+  question: Question
   /** The clock of the verify loop ([[OPS234]]): injected so a test never waits for real. */
   now(): number
   sleep(ms: number): Promise<void>

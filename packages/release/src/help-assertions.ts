@@ -3,18 +3,32 @@
 export const SERVER_HELP_NEEDLES: ReadonlyArray<{ name: string; pattern: RegExp }> = [
   { name: 'status --env', pattern: /vibase-server status --env/ },
   {
-    name: 'upgrade [--dry-run] (no --rollback)',
-    pattern: /vibase-server upgrade --env <name> \[--dry-run\](?! \[--rollback\])/,
+    name: 'upgrade [--dry-run] [--yes] (no --rollback)',
+    pattern: /vibase-server upgrade --env <name> \[--dry-run\] \[--yes\](?! \[--rollback\])/,
   },
-  { name: 'redeploy [--dry-run]', pattern: /vibase-server redeploy --env <name> \[--dry-run\]/ },
+  { name: 'redeploy [--dry-run] [--yes]', pattern: /vibase-server redeploy --env <name> \[--dry-run\] \[--yes\]/ },
   {
-    name: 'setup --env <name> (--api-host <host> | --workers-dev)',
-    pattern: /vibase-server setup --env <name> \(--api-host <host> \| --workers-dev\)/,
+    name: 'setup --env <name> (--api-host <host> | --workers-dev) ... [--dry-run] [--yes]',
+    pattern:
+      /vibase-server setup --env <name> \(--api-host <host> \| --workers-dev\)[^\n]*\n[^\n]*\[--dry-run\] \[--yes\]/,
   },
-  { name: 'owner-reset --env <name>', pattern: /vibase-server owner-reset --env <name>/ },
+  {
+    name: 'owner-reset --env <name> ... [--dry-run] [--yes]',
+    pattern: /vibase-server owner-reset --env <name> \[--email <owner>\] \[--dry-run\] \[--yes\]/,
+  },
+  { name: 'the shared proceed? [Y/n] line', pattern: /proceed\? \[Y\/n\]/ },
+]
+
+/** [[OPS493]] D7: what the help must not say any more. */
+export const SERVER_HELP_FORBIDDEN: ReadonlyArray<{ name: string; pattern: RegExp }> = [
+  { name: 'no CONFIRM_REMOTE', pattern: /CONFIRM_REMOTE/ },
+  { name: 'no "No prompts"', pattern: /No prompts/ },
 ]
 
 /** The usage lines the help text lacks, by name. */
 export function serverHelpProblems(help: string): string[] {
-  return SERVER_HELP_NEEDLES.filter((n) => !n.pattern.test(help)).map((n) => n.name)
+  return [
+    ...SERVER_HELP_NEEDLES.filter((n) => !n.pattern.test(help)).map((n) => n.name),
+    ...SERVER_HELP_FORBIDDEN.filter((n) => n.pattern.test(help)).map((n) => n.name),
+  ]
 }

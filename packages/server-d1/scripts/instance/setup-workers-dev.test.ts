@@ -182,6 +182,16 @@ describe('2. the subdomain read, registration and preflight (D12, P3)', () => {
       expect(s.writes()).toEqual([])
     },
   )
+  it('OPS493 D4: on a terminal `n` before the registration: no PUT, no write, exit 0; `y` registers once', async () => {
+    const n = world({ terminal: true, answers: ['n'], sim: { subdomain: { subdomain: null, puts: [] } } })
+    expect(await run(n, [...WD, '--register-workers-subdomain', 'newsub']), n.w.all()).toBe(0)
+    expect(n.w.asked).toHaveLength(1)
+    expect(n.sim.subdomain.puts).toEqual([])
+    expect(n.writes()).toEqual([])
+    const y = world({ terminal: true, answers: ['y'], sim: { subdomain: { subdomain: null, puts: [] } } })
+    expect(await run(y, [...WD, '--register-workers-subdomain', 'newsub']), y.w.all()).toBe(0)
+    expect(y.sim.subdomain.puts).toEqual(['newsub'])
+  })
   it('a preflight that fails registers nothing', async () => {
     const s = world({ sim: { subdomain: { subdomain: null, puts: [] }, denyAll: true } })
     expect(await run(s, [...WD, '--register-workers-subdomain', 'newsub'])).not.toBe(0)
@@ -287,7 +297,6 @@ describe('3. the record, the generated config, status and upgrade (D12)', () => 
   it('upgrade on a workers.dev settings file: its generated config has no route, and it reads the derived host', async () => {
     const HEALTH = await captureHealthBody()
     const w = makeWorld({
-      processEnv: { CONFIRM_REMOTE: '1' },
       settings: validSettings({ worker: 'vb-demo', api_host: WD_HOST, workers_dev: true }),
       health: () => new Response(JSON.stringify({ ...HEALTH, version: '0.0.1' }), { status: 200 }),
     })

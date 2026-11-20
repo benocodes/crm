@@ -40,11 +40,14 @@ export interface OwnerResetParams {
   dryRun: boolean
   /** Opens the instance's remote databases for `fn` and closes them after. Called only once every check on the record has passed. */
   withDatabases<T>(fn: (dbs: OwnerResetDatabases) => Promise<T>): Promise<T>
+  /** [[OPS493]] P2: called once with the plan, after every read and refusal and before the first write; `false` stops the run with nothing written. Absent: proceed. */
+  confirm?: (plan: { action: 'reset' | 'invitation'; email: string }) => Promise<boolean>
   now?: () => Date
   newId?: () => string
   randomBytes?: (n: number) => Uint8Array
 }
 export type OwnerResetResult =
+  | { kind: 'declined' }
   | { kind: 'dry-run'; action: 'reset' | 'invitation'; email: string }
   | { kind: 'reset'; email: string; url: string; expiresAt: string }
   | { kind: 'invitation'; email: string; url: string; expiresAt: string; revoked: number }
@@ -105,6 +108,7 @@ export async function ownerReset(p: OwnerResetParams): Promise<OwnerResetResult>
         const org = (await one('select id from organizations limit 1'))?.id as string | undefined
         if (!org) throw new OwnerResetRefusal('the CRM database has no organisation: initialise it first (bootstrap)')
         if (p.dryRun) return { kind: 'dry-run', action: 'invitation', email: wanted! }
+        if (p.confirm && !(await p.confirm({ action: 'invitation', email: wanted! }))) return { kind: 'declined' }
         const { token, hash } = await newInvitationToken(
           p.randomBytes ?? ((n) => crypto.getRandomValues(new Uint8Array(n))),
         )
@@ -170,6 +174,7 @@ export async function ownerReset(p: OwnerResetParams): Promise<OwnerResetResult>
       // `users` holds `auth_provider` and `auth_subject` both or neither (a CHECK), so a better-auth owner always has a subject.
       const subject = target.auth_subject as string
       if (p.dryRun) return { kind: 'dry-run', action: 'reset', email: target.email }
+      if (p.confirm && !(await p.confirm({ action: 'reset', email: target.email }))) return { kind: 'declined' }
 
       wrote = true
       let link: Awaited<ReturnType<typeof issueResetLink>>
@@ -209,6 +214,7 @@ export async function ownerReset(p: OwnerResetParams): Promise<OwnerResetResult>
 
 /** The lines a front-end prints for a result. The link or invitation URL appears in exactly one line, once. */
 export function ownerResetLines(r: OwnerResetResult): string[] {
+  if (r.kind === 'declined') return []
   if (r.kind === 'dry-run') {
     return [
       r.action === 'reset'

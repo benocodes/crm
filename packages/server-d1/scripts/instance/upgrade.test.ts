@@ -69,7 +69,6 @@ const json = (status: number, body: unknown) =>
 function worldFor(s: Sim, o: WorldOptions & { runner?: WorldOptions['runner'] } = {}): World {
   let polls = 0
   return makeWorld({
-    processEnv: { CONFIRM_REMOTE: '1' },
     ...o,
     fetch: (url) => {
       const path = new URL(url).pathname
@@ -181,21 +180,60 @@ describe('D15 upgrade sequence and guards', () => {
     expect(w.out.join('\n')).not.toMatch(/package: vibase /)
   })
 
-  it('without CONFIRM_REMOTE it refuses after the plan with zero write calls; exit 2', async () => {
-    const { w, code } = await run(sim(), ['--env', 'demo'], { processEnv: {} })
-    expect(code).toBe(2)
-    expect(w.err.join('\n')).toMatch(/vibase-server upgrade: .*CONFIRM_REMOTE=1/)
+  it('on a terminal, `n` after the plan: exit 0, the abort line, zero writes, the plan lines before the question [OPS493 D2, D4]', async () => {
+    const { w, code } = await run(sim(), ['--env', 'demo'], { terminal: true, answers: ['n'] })
+    expect(code).toBe(0)
+    expect(w.asked.map((a) => a.prompt)).toEqual(['proceed? [Y/n] '])
     expect(w.out.join('\n')).toMatch(/0001_a\.sql/)
+    expect(w.out.slice(w.asked[0]!.out).join('\n')).toBe('aborted: nothing was changed')
+    expect(w.out.slice(0, w.asked[0]!.out).join('\n')).toMatch(/0001_a\.sql/)
+    expect(w.asked[0]!.wrangler).toBe(w.wrangler.length)
     expect(writes(w)).toEqual([])
     noTemp(w)
   })
-
-  it('CONFIRM_REMOTE must be exactly 1', async () => {
-    const { w, code } = await run(sim(), ['--env', 'demo'], { processEnv: { CONFIRM_REMOTE: 'yes' } })
-    expect(code).toBe(2)
-    expect(writes(w)).toEqual([])
+  it('on a terminal, `y` (or Enter): the same write sequence as a run with --yes', async () => {
+    const a = await run(sim(), ['--env', 'demo'], { terminal: true, answers: ['y'] })
+    const b = await run(sim(), ['--env', 'demo', '--yes'], {})
+    expect(a.code).toBe(0)
+    expect(a.w.asked).toHaveLength(1)
+    expect(writes(a.w)).toEqual(writes(b.w))
+    expect(writes(a.w).length).toBeGreaterThan(0)
   })
-
+  it('never asked: --dry-run, --yes, -y, no terminal (each still prints the plan; the real runs write)', async () => {
+    for (const argv of [['--dry-run'], ['--dry-run', '--yes'], ['--yes'], ['-y'], []]) {
+      const { w, code } = await run(sim(), ['--env', 'demo', ...argv], {
+        terminal: argv.length !== 0,
+        answers: ['n'],
+      })
+      expect(code, argv.join(' ')).toBe(0)
+      expect(w.asked, argv.join(' ')).toEqual([])
+      expect(w.out.join('\n')).toMatch(/0001_a\.sql/)
+      expect(writes(w).length > 0, argv.join(' ')).toBe(!argv.includes('--dry-run'))
+    }
+  })
+  it('CONFIRM_REMOTE has no effect: unset proceeds with no terminal, `yes`/1 on a terminal still asks', async () => {
+    const a = await run(sim(), ['--env', 'demo'], { processEnv: {} })
+    expect(a.code).toBe(0)
+    expect(writes(a.w).length).toBeGreaterThan(0)
+    const b = await run(sim(), ['--env', 'demo'], {
+      processEnv: { CONFIRM_REMOTE: '1' },
+      terminal: true,
+      answers: ['n'],
+    })
+    expect(b.w.asked).toHaveLength(1)
+    expect(writes(b.w)).toEqual([])
+  })
+  it('never asked on the early stops: nothing to do, a gate refusal (an older live schema is not one; a newer live version is)', async () => {
+    const a = await run(sim({ applied: [...ALL], version: PKG_VERSION }), ['--env', 'demo'], {
+      terminal: true,
+      answers: ['n'],
+    })
+    expect(a.code).toBe(0)
+    expect(a.w.asked).toEqual([])
+    const b = await run(sim({ version: '9.9.9' }), ['--env', 'demo'], { terminal: true, answers: ['n'] })
+    expect(b.code).toBe(2)
+    expect(b.w.asked).toEqual([])
+  })
   it('nothing to do (same version, migrations current): exit 0, no write, no CONFIRM_REMOTE, even with --dry-run', async () => {
     for (const argv of [
       ['--env', 'demo'],
@@ -362,7 +400,7 @@ describe('secrets and side effects', () => {
   })
   it('the wrangler child gets the allow-listed environment only, on every call', async () => {
     const { w } = await run(sim(), ['--env', 'demo'], {
-      processEnv: { CONFIRM_REMOTE: '1', CLERK_SECRET_KEY: 'sk_live_nope' },
+      processEnv: { CLERK_SECRET_KEY: 'sk_live_nope' },
     })
     for (const c of w.wrangler)
       expect(Object.keys(c.env).sort()).toEqual([
