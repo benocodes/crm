@@ -452,7 +452,4 @@ describe('OPS496: the verify description', () => {
     expect(md).toMatch(/not reachable yet/)
     expect(md).toMatch(/DNS propagation/)
   })
-  it('mutation: a restored five-minute claim is an offender', () => {
-    expect('verify retries inside a five minute bound').toMatch(/five minute/i)
-  })
 })
