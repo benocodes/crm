@@ -96,16 +96,7 @@ describe('D1 CONFIRM_REMOTE is inert on the four commands', () => {
       expect(w.all()).not.toMatch(/CONFIRM_REMOTE/)
     },
   )
-  it.each(four)(
-    '%s: with CONFIRM_REMOTE=1 on a terminal it still asks (or refuses earlier, never skips)',
-    async (n, fn, argv) => {
-      const w = makeWorld({ processEnv: { CONFIRM_REMOTE: '1' }, terminal: true, answers: ['n'] })
-      await fn([...argv], w.deps).catch(() => undefined)
-      // a missing settings file refuses first for setup/owner-reset here; the per-command suites prove the ask itself
-      if (w.asked.length > 0) expect(w.out.join('\n')).toContain(ABORT_LINE)
-      expect(w.all(), n).not.toMatch(/CONFIRM_REMOTE/)
-    },
-  )
+  // CONFIRM_REMOTE=1 on a terminal still asking is asserted where each command reaches its question: upgrade.test.ts, redeploy.test.ts, setup.test.ts and owner-reset group 7.
   it('status takes no --yes: exit 2', async () => {
     const w = makeWorld()
     expect(await runStatus(['--env', 'demo', '--yes'], w.deps)).toBe(2)

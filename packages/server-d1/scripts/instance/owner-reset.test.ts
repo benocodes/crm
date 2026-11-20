@@ -21,6 +21,7 @@ function world(o: RunOptions) {
   return makeWorld({
     terminal: o.answers !== undefined,
     answers: o.answers,
+    processEnv: o.env,
     settings,
     secretsText: secrets,
     openD1: async () => ({ d1: o.crm, control: o.control, dispose: async () => {} }),

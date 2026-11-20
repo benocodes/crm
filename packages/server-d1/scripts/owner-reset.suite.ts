@@ -34,6 +34,8 @@ export interface RunOptions {
   control: D1Like
   /** [[OPS493]]: a terminal and the lines typed at it. Absent: no terminal. Only a front-end with a question reads it. */
   answers?: string[]
+  /** [[OPS493]]: extra process environment (a set CONFIRM_REMOTE must change nothing). */
+  env?: Record<string, string | undefined>
 }
 export interface Run {
   code: number
@@ -150,7 +152,7 @@ export function ownerResetSuite(
 
     /** Runs the command over spies, and returns what it wrote. */
     async function drive(
-      o: Partial<Pick<RunOptions, 'email' | 'dryRun' | 'record' | 'answers'>> & { control?: D1Like } = {},
+      o: Partial<Pick<RunOptions, 'email' | 'dryRun' | 'record' | 'answers' | 'env'>> & { control?: D1Like } = {},
     ) {
       const crm = spyD1(pair.d1)
       const control = spyD1(o.control ?? pair.control)
@@ -269,6 +271,15 @@ export function ownerResetSuite(
           expect(before.some((l) => /^plan: .*reset.*owner@x\.test/.test(l))).toBe(true)
           expect(r.out.slice(r.asked![0]!.out)).toEqual(['aborted: nothing was changed'])
           expect(allText(r)).not.toMatch(/token=|https?:\/\//)
+          expect(r.writes).toEqual([])
+          expect(await rowsOf()).toEqual({ verifications: [], invitations: [], audit: [] })
+        })
+        it('CONFIRM_REMOTE=1 is no substitute for --yes: on a terminal it still asks, and `n` writes nothing', async () => {
+          await seed([{ email: 'owner@x.test' }])
+          const r = await drive({ answers: ['n'], env: { CONFIRM_REMOTE: '1' } })
+          expect(r.code, allText(r)).toBe(0)
+          expect(r.asked).toHaveLength(1)
+          expect(r.out).toContain('aborted: nothing was changed')
           expect(r.writes).toEqual([])
           expect(await rowsOf()).toEqual({ verifications: [], invitations: [], audit: [] })
         })

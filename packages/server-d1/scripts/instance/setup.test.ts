@@ -382,6 +382,14 @@ describe('refusals and failures (the matrix)', () => {
     expect(n.w.asked).toEqual([])
     expect(n.writes().length).toBeGreaterThan(0)
   })
+  it('OPS493 D1: CONFIRM_REMOTE=1 is no substitute for --yes: on a terminal it still asks, and `n` writes nothing', async () => {
+    const s = world({ answers: ['n'], processEnv: { CONFIRM_REMOTE: '1' } })
+    expect(await run(s)).toBe(0)
+    expect(s.w.asked).toHaveLength(1)
+    expect(s.w.out).toContain('aborted: nothing was changed')
+    expect(s.w.wrangler).toHaveLength(0)
+    expect(s.writes()).toEqual([])
+  })
   it('OPS493 D1: CONFIRM_REMOTE unset is not a refusal', async () => {
     const s = world({ terminal: false, processEnv: {} })
     expect(await run(s), s.w.all()).toBe(0)
