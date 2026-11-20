@@ -8,13 +8,19 @@ export interface InstanceSetupArgs {
   opts: SetupOptions
   settingsPath?: string
   secretsPath?: string
+  /** [[OPS493]] D3: `--yes` / `-y`. */
+  yes: boolean
 }
 
 /** Finds an instance's recorded provider from its settings file ([[OPS249]] D1): the env and the `--settings` path as given; `null` when there is no settings file. */
 export type InstanceRecordLookup = (env: string, settingsPath: string | undefined) => RecordedAuth | null
 
 export function parseInstanceSetupArgs(argv: string[], record?: InstanceRecordLookup): InstanceSetupArgs {
-  const values = parseSetupFlags(argv, { settings: { type: 'string' }, 'secrets-file': { type: 'string' } })
+  const values = parseSetupFlags(argv, {
+    settings: { type: 'string' },
+    'secrets-file': { type: 'string' },
+    yes: { type: 'boolean', short: 'y' },
+  })
   const opts = buildSetupOptions(
     values,
     record ? (env) => record(env, values.settings as string | undefined) : undefined,
@@ -25,5 +31,6 @@ export function parseInstanceSetupArgs(argv: string[], record?: InstanceRecordLo
     opts,
     settingsPath: values.settings as string | undefined,
     secretsPath: values['secrets-file'] as string | undefined,
+    yes: values.yes === true,
   }
 }

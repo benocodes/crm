@@ -63,7 +63,7 @@ To keep the files elsewhere, name them on every command:
 npx @vibase/server-d1@<version> status --env mycompany --settings ./mycompany.json --secrets-file ./mycompany.env
 ```
 
-Remote commands need `CONFIRM_REMOTE=1` in the environment; a `--dry-run` reads only and does not.
+`setup`, `upgrade`, `redeploy` and `owner-reset` print their plan and ask `proceed? [Y/n]` once, before the first change; Enter or `y` goes on and `n` stops with nothing changed. `--yes` (`-y`) skips the question, and so does a run with no terminal on stdin (a script, CI). `--dry-run` reads only and never asks.
 
 ## Set up with Better Auth
 
@@ -82,13 +82,13 @@ npx --package ./vibase-server-d1-<version>.tgz vibase-server setup --env mycompa
 Then run the same command without `--dry-run`:
 
 ```bash
-CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> setup --env mycompany --api-host api.example.com --owner-email owner@example.com
+npx @vibase/server-d1@<version> setup --env mycompany --api-host api.example.com --owner-email owner@example.com
 ```
 
 Or from the tarball, until the packages are on npm:
 
 ```bash
-CONFIRM_REMOTE=1 npx --package ./vibase-server-d1-<version>.tgz vibase-server setup --env mycompany --api-host api.example.com --owner-email owner@example.com
+npx --package ./vibase-server-d1-<version>.tgz vibase-server setup --env mycompany --api-host api.example.com --owner-email owner@example.com
 ```
 
 Setup creates or adopts the Cloudflare resources, writes the settings file, generates `AUTH_SECRET`, migrates both databases, bootstraps the deployment (the organisation, the `vibase-cli` client and the owner invitation), deploys the Worker, puts its secrets and verifies it. It stops at the first failed step and names it; rerun the same command after correcting the problem. Existing matching configuration is retained.
@@ -126,8 +126,8 @@ An owner who forgets their password has no self-service reset while email is off
 
 ```bash
 npx @vibase/server-d1@<version> owner-reset --env mycompany --dry-run
-CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> owner-reset --env mycompany
-CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> owner-reset --env mycompany --email owner@example.com
+npx @vibase/server-d1@<version> owner-reset --env mycompany
+npx @vibase/server-d1@<version> owner-reset --env mycompany --email owner@example.com
 ```
 
 With one Better Auth owner, it prints a one-time reset link for them. With several, pass `--email` to name one; without it the command refuses and lists them. The link is a Better Auth reset link on your own host (`https://<your host>/reset-password#token=...`), valid for one hour; opening it sets a new password and signs that owner out everywhere. It is printed once and stored nowhere, and the audit log records that a link was issued (when, by the system, never the link). A second run prints a new link. `--dry-run` reads only: it names the owner (or the invitation) it would use and prints no link.
@@ -145,13 +145,13 @@ npx @vibase/server-d1@<version> setup --env mycompany --workers-dev --owner-emai
 ```
 
 ```bash
-CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> setup --env mycompany --workers-dev --owner-email owner@example.com
+npx @vibase/server-d1@<version> setup --env mycompany --workers-dev --owner-email owner@example.com
 ```
 
 The account needs a workers.dev subdomain. If it has none, setup refuses and tells you where to register one (Cloudflare dashboard, Workers & Pages). Registering is an account-wide, one-time step that only you take: either in the dashboard, or by passing `--register-workers-subdomain <name>` once. Setup never registers one without that flag, never on a `--dry-run`, and never renames an existing subdomain.
 
 ```bash
-CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> setup --env mycompany --workers-dev --register-workers-subdomain mycompany --owner-email owner@example.com
+npx @vibase/server-d1@<version> setup --env mycompany --workers-dev --register-workers-subdomain mycompany --owner-email owner@example.com
 ```
 
 Everything else is as in the section above: the same steps, the same owner invitation printed once, the same verify, now on the workers.dev host. The API token needs `Workers Scripts Read` to read the subdomain, and `Workers Scripts Edit` to register it; no zone permission is needed.
@@ -161,7 +161,7 @@ Everything else is as in the section above: the same steps, the same owner invit
 A workers.dev instance moves to a domain of your own with a re-run that names the new host and acknowledges what the move breaks:
 
 ```bash
-CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> setup --env mycompany --api-host api.example.com --change-host
+npx @vibase/server-d1@<version> setup --env mycompany --api-host api.example.com --change-host
 ```
 
 Without `--change-host`, a host that differs from the instance's record is refused. With it, setup checks that the new host is on a zone in your account, keeps `workers_dev` on, adds the custom-domain route, rewrites the recorded host and `PUBLIC_BASE_URL`, deploys and verifies on the new host. The same flag moves an instance between two custom domains (the old route is replaced; setup makes no DNS or custom-domain delete call, so detach the old custom domain in the dashboard if it stays attached).
@@ -250,13 +250,13 @@ The CLI client ID is written to `AUTH_CLI_CLIENT_ID` in the instance configurati
 After addressing the checklist, run the same command without `--dry-run`:
 
 ```bash
-CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> setup --env mycompany --auth clerk --api-host api.example.com --owner-email owner@example.com
+npx @vibase/server-d1@<version> setup --env mycompany --auth clerk --api-host api.example.com --owner-email owner@example.com
 ```
 
 Or from the tarball, until the packages are on npm:
 
 ```bash
-CONFIRM_REMOTE=1 npx --package ./vibase-server-d1-<version>.tgz vibase-server setup --env mycompany --auth clerk --api-host api.example.com --owner-email owner@example.com
+npx --package ./vibase-server-d1-<version>.tgz vibase-server setup --env mycompany --auth clerk --api-host api.example.com --owner-email owner@example.com
 ```
 
 Setup creates or adopts the Cloudflare resources, configures Clerk, writes the settings file, migrates the database, bootstraps the owner, deploys the Worker, sets its secrets and verifies it. It stops at the first failed step and names it; rerun the same command after correcting the problem. Existing matching configuration is retained.
@@ -288,7 +288,7 @@ Upgrading is running a newer, explicitly pinned version. Read the plan first, th
 
 ```bash
 npx @vibase/server-d1@<version> upgrade --env mycompany --dry-run
-CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> upgrade --env mycompany
+npx @vibase/server-d1@<version> upgrade --env mycompany
 ```
 
 Upgrade migrates the database, deploys the package's own Worker, verifies `/health` (version and commit) and runs a read-only smoke. An instance behind the migrations required by its code refuses API work with `503 migrations_pending`. If an upgrade fails after it began, run `status`, then upgrade again.
@@ -297,11 +297,11 @@ Upgrade moves an instance forward by version. When the instance already runs thi
 
 ## Redeploy
 
-Redeploy puts the installed package's build on the instance, whatever is live: a new build of the same version, the same build again, or an older package over a newer instance (the rollback). It asks nothing and refuses no version or schema.
+Redeploy puts the installed package's build on the instance, whatever is live: a new build of the same version, the same build again, or an older package over a newer instance (the rollback). It refuses no version or schema.
 
 ```bash
 npx @vibase/server-d1@<version> redeploy --env mycompany --dry-run
-CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> redeploy --env mycompany
+npx @vibase/server-d1@<version> redeploy --env mycompany
 ```
 
 It runs the same steps as upgrade (the migrations the instance lacks, control database first, then deploy, verify the version and commit on `/health`, smoke) and skips only the version and schema refusals. A database with nothing pending gets no migration command. If a failure happens after it began, run `status`, then redeploy again.

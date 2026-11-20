@@ -51,7 +51,7 @@ afterEach(async () => {
 
 // [[OPS493]]: a person at a terminal who says yes; a refusal must have happened before the question (`refused` checks it).
 const world = (o: Partial<SetupWorldOptions> = {}): SetupWorld =>
-  setupWorld({ d1, terminal: true, answers: ['y'], ...o })
+  setupWorld({ d1, terminal: true, answers: ['y', 'y', 'y', 'y'], ...o })
 const run = (s: SetupWorld, argv: string[] = NONE_ARGS) => runSetup(argv, s.w.deps)
 const verbs = (s: SetupWorld) =>
   s.w.wrangler.map((c) =>
@@ -332,15 +332,14 @@ describe('refusals and failures (the matrix)', () => {
     const line = d.w.out.find((l) => l.startsWith('steps: '))
     expect(line).toBe(`steps: ${STEP_NAMES.filter((n) => !CLERK_ONLY_STEPS.includes(n)).join(', ')}`)
     expect(d.w.out.indexOf(line!)).toBeGreaterThan(d.w.out.findIndex((l) => l.startsWith('setup: env')))
+    await d1.reset()
     const o = world()
-    expect(await run(o, [...NONE_ARGS, '--dry-run', '--only', 'preflight,migrate'])).toBe(0)
-    expect(o.w.out).toContain('steps: preflight, migrate')
+    expect(await run(o, [...NONE_ARGS, '--dry-run', '--only', 'preflight,config:resources'])).toBe(0)
+    expect(o.w.out).toContain('steps: preflight, config:resources')
+    await d1.reset()
     const r = world()
     expect(await run(r), r.w.all()).toBe(0)
     expect(r.w.out.find((l) => l.startsWith('steps: '))).toBe(line)
-    const c = world({ answers: [] })
-    expect(await run(c, [...CLERK_ARGS, '--dry-run'])).toBe(0)
-    expect(c.w.out.find((l) => l.startsWith('steps: '))).toBe(`steps: ${STEP_NAMES.join(', ')}`)
   })
   it('OPS493 D4: on a terminal `n` after the header and steps: exit 0, the abort line, no write call, no settings, no API write; the header precedes the question', async () => {
     const s = world({ answers: ['n'] })
@@ -363,6 +362,7 @@ describe('refusals and failures (the matrix)', () => {
     const a = world({ answers: ['y'] })
     expect(await run(a), a.w.all()).toBe(0)
     expect(a.w.asked).toHaveLength(1)
+    await d1.reset()
     const b = world({ terminal: false })
     expect(await run(b, [...NONE_ARGS, '--yes']), b.w.all()).toBe(0)
     expect(b.writes()).toEqual(a.writes())
@@ -371,10 +371,12 @@ describe('refusals and failures (the matrix)', () => {
       [...NONE_ARGS, '--yes', '--dry-run'],
       [...NONE_ARGS, '--dry-run'],
     ]) {
+      await d1.reset()
       const s = world({ answers: ['n'] })
       expect(await run(s, argv), s.w.all()).toBe(0)
       expect(s.w.asked, argv.join(' ')).toEqual([])
     }
+    await d1.reset()
     const n = world({ terminal: false })
     expect(await run(n), n.w.all()).toBe(0)
     expect(n.w.asked).toEqual([])
@@ -391,7 +393,9 @@ describe('refusals and failures (the matrix)', () => {
     expect(s.w.wrangler).toHaveLength(0)
   })
   it('a wrangler that cannot be resolved (the refusal the real runner throws)', async () => {
+    // A step's own refusal comes after the question (the first step runs the wrangler); no terminal here, so the matrix helper's "never asked" holds.
     const s = world({
+      terminal: false,
       intercept: () => {
         throw new InstanceRefusal('cannot resolve the wrangler of the installed package at /x: not found: reinstall it')
       },

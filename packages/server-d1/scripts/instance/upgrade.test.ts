@@ -202,7 +202,7 @@ describe('D15 upgrade sequence and guards', () => {
   it('never asked: --dry-run, --yes, -y, no terminal (each still prints the plan; the real runs write)', async () => {
     for (const argv of [['--dry-run'], ['--dry-run', '--yes'], ['--yes'], ['-y'], []]) {
       const { w, code } = await run(sim(), ['--env', 'demo', ...argv], {
-        terminal: argv.length === 0 ? false : true,
+        terminal: argv.length !== 0,
         answers: ['n'],
       })
       expect(code, argv.join(' ')).toBe(0)
