@@ -1,5 +1,0 @@
----
-"@vibase/server-d1": minor
----
-
-`vibase-server setup` (and the source `setup:remote`) takes `--workers-dev` as an alternative to `--api-host`: an operator with no domain gets an instance on `<worker>.<subdomain>.workers.dev`, derived from the account's workers.dev subdomain (Better Auth or `--auth none`; refused with Clerk). With no subdomain registered setup refuses and names the dashboard path; `--register-workers-subdomain <name>` registers one, once, only when passed and never on a dry run. The settings file gains `workers_dev`; the generated config has no custom-domain route in workers.dev mode. `--api-host <new> --change-host` moves a recorded instance to a custom domain (or between two), prints what the move breaks (sign in again, `vibase login` again, reconnect MCP clients, the new Google redirect URI) and replaces the old route. A host that differs from the record is refused without `--change-host`. The verify step shares one 300 s deadline for the health wait and both discovery reads, and every URL of a run uses one base URL.
