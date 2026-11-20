@@ -55,7 +55,7 @@ export async function runOwnerReset(argv: string[], deps: InstanceDeps): Promise
     const settingsPath = values.settings ?? defaultSettingsPath(deps.env, deps.homedir, values.env)
     const settings = loadSettings(settingsPath, values.env)
     const secretsPath = values['secrets-file'] ?? defaultSecretsPath(deps.env, deps.homedir, values.env)
-    const secrets = loadSecrets(secretsPath, deps.env)
+    const secrets = loadSecrets(secretsPath, deps.env, values.env)
     redact = secrets.redact
     // The instance's own AUTH_SECRET comes from the secrets file alone (OPS249 D3), never from the process environment.
     const authSecret = parseDotenv(secrets.text).AUTH_SECRET?.trim() || undefined

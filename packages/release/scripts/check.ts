@@ -12,6 +12,7 @@ import {
   readdirSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs'
 import { Miniflare } from 'miniflare'
@@ -190,6 +191,37 @@ export async function checkRelease(
         `the installed \`vibase-server status\` did not refuse at the missing settings file (exit ${noSettings.status}): ${noSettings.stderr.trim()}`,
       )
     log(`vibase-server: --help ok; status refuses at ${expectedPath} (exit 2)`)
+    // [[OPS494]]: the installed `init` writes a secrets file (mode 600) into the empty config home, and a second run refuses to overwrite it.
+    const initConfig = join(root, 'init-config')
+    const initArgs = [
+      'init',
+      '--env',
+      'check',
+      '--api-host',
+      'api.check.example.com',
+      '--auth',
+      'none',
+      '--email',
+      'none',
+      '--yes',
+    ]
+    const initRun = () =>
+      spawnSync(serverBin, initArgs, {
+        cwd: install,
+        env: { ...cleanEnv(), XDG_CONFIG_HOME: initConfig },
+        encoding: 'utf8',
+      })
+    const secretsFile = join(initConfig, 'vibase', 'instances', 'check.env')
+    const first = initRun()
+    if (first.status !== 0 || !existsSync(secretsFile) || (statSync(secretsFile).mode & 0o777) !== 0o600)
+      throw new ReleaseRefusal(
+        `the installed \`vibase-server init\` did not write ${secretsFile} at mode 600 (exit ${first.status}): ${first.stderr.trim()}`,
+      )
+    if (initRun().status !== 2)
+      throw new ReleaseRefusal(
+        'the installed `vibase-server init` overwrote or did not refuse an existing secrets file',
+      )
+    log('vibase-server init: writes the secrets file (mode 600) and refuses to overwrite it')
     // [[OPS234]]: `upgrade` is in the installed bundle, refuses at the same missing settings file, and the installed wrangler accepts the exact deploy argument list
     // `upgrade` builds (plus `--dry-run`, which makes no network call) against a config generated from a sample settings file; the settings' vars must survive `--var`.
     // [[OPS487]]: `redeploy` is listed beside `upgrade` (no `--rollback`: `serverHelpProblems` above judged both lines), and refuses at the same missing settings file.

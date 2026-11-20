@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util'
 import { RemoteRefusal } from '../remote.js'
+import { workflowName } from './names.js'
 import { PROVIDERS, chooseProvider, type RecordLookup } from './better-auth.js'
 import { SUBDOMAIN_SHAPE, hostChangeRefusal, isWorkersDevHost, recordedMode } from './host.js'
 import { CLERK_ONLY_STEPS, STEP_NAMES, type SetupOptions, type StepName } from './types.js'
@@ -9,6 +10,22 @@ const KEY_ENV_SHAPE = /^[A-Z][A-Z0-9_]*$/
 const HOST_SHAPE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i
 /** Flags that only mean something with `--auth clerk` ([[OPS65]] Inputs). `--clerk-env-file` and `--rotate-secrets` also serve the Gmail group on `--auth none` ([[OPS65]] D41). */
 const CLERK_FLAGS = ['clerk-publishable-key', 'clerk-production', 'no-dcr']
+
+/** [[OPS494]] P3: the rules of `--env` and `--api-host` as messages (`null`: fine), shared by `setup` and `vibase-server init` so there is one rule per input. */
+export const envNameProblem = (env: string): string | null =>
+  ENV_SHAPE.test(env) ? null : `--env ${env}: lower-case letters, digits and dashes only`
+export function apiHostProblem(host: string): string | null {
+  if (host.includes('*') || !HOST_SHAPE.test(host))
+    return `--api-host ${host}: expected a bare host name such as api.example.com (no scheme, path or wildcard)`
+  if (isWorkersDevHost(host))
+    return `--api-host ${host}: a workers.dev host is derived from the account subdomain and the worker name, so it cannot be typed: use --workers-dev`
+  return null
+}
+
+export const authProblem = (auth: string): string | null =>
+  (PROVIDERS as readonly string[]).includes(auth)
+    ? null
+    : `--auth ${auth}: expected better-auth (the default for a new instance), clerk or none (API keys only)`
 
 /** One `https://` origin, no path, no wildcard ([[OPS65]] D20). */
 export function validateOrigin(flag: string, value: string): string {
@@ -86,7 +103,8 @@ export function buildSetupOptions(values: FlagValues, record?: RecordLookup): Se
 
   const env = str('env')
   if (!env) throw new RemoteRefusal('--env <name> is required')
-  if (!ENV_SHAPE.test(env)) throw new RemoteRefusal(`--env ${env}: lower-case letters, digits and dashes only`)
+  const envProblem = envNameProblem(env)
+  if (envProblem) throw new RemoteRefusal(envProblem)
   const apiHostFlag = str('api-host')
   const workersDev = values['workers-dev'] === true
   const registerSubdomain = str('register-workers-subdomain')
@@ -99,14 +117,8 @@ export function buildSetupOptions(values: FlagValues, record?: RecordLookup): Se
   if (apiHostFlag !== undefined && workersDev)
     throw new RemoteRefusal('--api-host and --workers-dev are exclusive: give exactly one')
   if (apiHostFlag !== undefined) {
-    if (apiHostFlag.includes('*') || !HOST_SHAPE.test(apiHostFlag))
-      throw new RemoteRefusal(
-        `--api-host ${apiHostFlag}: expected a bare host name such as api.example.com (no scheme, path or wildcard)`,
-      )
-    if (isWorkersDevHost(apiHostFlag))
-      throw new RemoteRefusal(
-        `--api-host ${apiHostFlag}: a workers.dev host is derived from the account subdomain and the worker name, so it cannot be typed: use --workers-dev`,
-      )
+    const hostProblem = apiHostProblem(apiHostFlag)
+    if (hostProblem) throw new RemoteRefusal(hostProblem)
   }
   if (registerSubdomain !== undefined) {
     if (!workersDev) throw new RemoteRefusal('--register-workers-subdomain only applies with --workers-dev')
@@ -117,10 +129,8 @@ export function buildSetupOptions(values: FlagValues, record?: RecordLookup): Se
   }
 
   const flagAuth = str('auth')
-  if (flagAuth !== undefined && !(PROVIDERS as readonly string[]).includes(flagAuth))
-    throw new RemoteRefusal(
-      `--auth ${flagAuth}: expected better-auth (the default for a new instance), clerk or none (API keys only)`,
-    )
+  const authIssue = flagAuth === undefined ? null : authProblem(flagAuth)
+  if (authIssue) throw new RemoteRefusal(authIssue)
   // [[OPS250]] D12: `--replace-instance <env>` sets the record aside (names, provider, host), so the run is judged as a new instance's; the flag's own refusals come first.
   const replaceValue = str('replace-instance')
   if (replaceValue !== undefined) {
@@ -245,10 +255,10 @@ export function buildSetupOptions(values: FlagValues, record?: RecordLookup): Se
     operatorAgent,
     keyEnv,
     ownerEmail,
-    workerName: nameFlags.workerName ?? `vb-${env}`,
-    d1Name: nameFlags.d1Name ?? `vb-crm-${env}`,
-    controlD1Name: nameFlags.controlD1Name ?? `vb-control-${env}`,
-    r2Name: nameFlags.r2Name ?? `vb-bodies-${env}`,
+    workerName: nameFlags.workerName ?? derivedNames(env).workerName,
+    d1Name: nameFlags.d1Name ?? derivedNames(env).d1Name,
+    controlD1Name: nameFlags.controlD1Name ?? derivedNames(env).controlD1Name,
+    r2Name: nameFlags.r2Name ?? derivedNames(env).r2Name,
     nameFlags,
     only,
     dryRun: values['dry-run'] === true,
@@ -263,6 +273,15 @@ export function buildSetupOptions(values: FlagValues, record?: RecordLookup): Se
   checkDistinctDatabases(opts.d1Name, opts.controlD1Name)
   return opts
 }
+
+/** [[OPS262]] D5, [[OPS494]] P3: a new instance's derived names, the one source for `buildSetupOptions` and for `vibase-server init`'s length check. */
+export const derivedNames = (env: string) => ({
+  workerName: `vb-${env}`,
+  d1Name: `vb-crm-${env}`,
+  controlD1Name: `vb-control-${env}`,
+  r2Name: `vb-bodies-${env}`,
+  workflowName: workflowName(env),
+})
 
 /** [[OPS262]] D5: Cloudflare names are at most 63 characters; a refusal before any step. */
 export function checkNameLengths(names: string[]): void {

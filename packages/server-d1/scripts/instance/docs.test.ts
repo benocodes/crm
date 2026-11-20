@@ -1,7 +1,7 @@
 // [[OPS237]] D20, P4: the two pages of the docs site tell the truth about the programs. Every `vibase-server` line names a subcommand and only flags the shipped
 // parsers accept (asked of the parsers themselves, one flag at a time, not a hand list); every `vibase` line names a real client command (the commands derived
 // from the API's own OpenAPI documents, plus the hand commands of the client's help); the tarball names are D2's; the repo-script path is under "From source".
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { createApp, openApiPath, SURFACES } from '@vibase/api'
@@ -54,7 +54,7 @@ const stripEnv = (l: string) => l.replace(/^(?:[A-Z_][A-Z0-9_]*=\S+\s+)+/, '')
 const flagsOf = (words: string[]) =>
   words.filter((w) => w.startsWith('--') && w.length > 2).map((w) => w.split('=')[0]!)
 
-const SERVER_COMMANDS = ['status', 'upgrade', 'redeploy', 'setup', 'owner-reset']
+const SERVER_COMMANDS = ['init', 'status', 'upgrade', 'redeploy', 'setup', 'owner-reset']
 const probes = new Map<string, Promise<boolean>>()
 /** Does the shipped program accept this flag for this command? Asked of its own parser: the flag alone, and only "Unknown option" counts as no. */
 function accepts(command: string, flag: string): Promise<boolean> {
@@ -433,4 +433,33 @@ describe('OPS493 D6, D7: vibase-server lines carry no CONFIRM_REMOTE; the :remot
     expect(offenders('CONFIRM_REMOTE=1 npx @vibase/server-d1@<version> setup --env x')).toHaveLength(1)
     expect(offenders('CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env x')).toEqual([])
   })
+})
+
+describe('OPS494 D8: init in the help and the docs', () => {
+  it('the help lists init first, in at most five lines, and the Secrets footer mentions it', () => {
+    const lines = INSTANCE_HELP.split('\n')
+    const at = lines.findIndex((l) => l.startsWith('  vibase-server init'))
+    expect(at).toBeGreaterThan(-1)
+    expect(lines.findIndex((l) => l.startsWith('  vibase-server status'))).toBeGreaterThan(at)
+    let end = at
+    while (lines[end] !== '') end++
+    expect(end - at).toBeLessThanOrEqual(5)
+    expect(lines.find((l) => l.startsWith('Secrets:'))).toMatch(/init/)
+    expect(serverHelpProblems(INSTANCE_HELP)).toEqual([])
+  })
+  it.each([
+    ['the server README template', () => read('../../../release/templates/server-d1-README.md')],
+    ['self-hosting', () => page('deployment/self-hosting')],
+  ])('%s gives the vibase-server init command', (_n, md) => {
+    expect(md()).toMatch(/vibase-server init --env/)
+  })
+  const RECIPE = '../../../../knowledge/recipes/deploy-a-new-instance.md'
+  it.skipIf(!existsSync(fileURLToPath(new URL(RECIPE, import.meta.url))))(
+    "the recipe's step 4 uses vibase-server init",
+    () => {
+      const md = read(RECIPE)
+      const step4 = md.slice(md.indexOf('## 4.'), md.indexOf('## 5.'))
+      expect(step4).toMatch(/vibase-server init/)
+    },
+  )
 })
