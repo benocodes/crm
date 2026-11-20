@@ -6,7 +6,7 @@ import { dirname } from 'node:path'
 import { parseArgs } from 'node:util'
 import { isValidPushVar } from '@vibase/api'
 import { RemoteRefusal } from '../remote.js'
-import { apiHostProblem, authProblem, checkNameLengths, envNameProblem } from '../setup/args.js'
+import { apiHostProblem, authProblem, checkNameLengths, derivedNames, envNameProblem } from '../setup/args.js'
 import { newAuthSecret, type AuthProvider } from '../setup/better-auth.js'
 import { ABORT_LINE, confirmProceed } from './prompt.js'
 import { defaultSecretsPath } from './secrets.js'
@@ -41,7 +41,7 @@ function emailProvidersProblem(v: string): { gmail: boolean } | string {
 /** The derived names are setup's: the Workflow's is the longest of the four, so the env is judged against all five ([[OPS262]] D5). */
 function envLengthProblem(env: string): string | null {
   try {
-    checkNameLengths([`vb-${env}`, `vb-crm-${env}`, `vb-control-${env}`, `vb-bodies-${env}`, `vb-mail-sync-${env}`])
+    checkNameLengths(Object.values(derivedNames(env)))
     return null
   } catch (e) {
     return `--env ${env}: ${(e as Error).message}`
@@ -322,7 +322,7 @@ async function init(argv: string[], deps: InstanceDeps): Promise<number> {
   )
   deps.out('next:')
   deps.out(
-    `  vibase-server setup --env ${env} --api-host ${apiHost}${ownerEmail ? ` --owner-email ${ownerEmail}` : ''}${flag('secrets-file') ? ` --secrets-file ${shellWord(flag('secrets-file')!)}` : ''} --dry-run`,
+    `  vibase-server setup --env ${env} --api-host ${apiHost} --auth ${auth}${ownerEmail ? ` --owner-email ${shellWord(ownerEmail)}` : ''}${flag('secrets-file') ? ` --secrets-file ${shellWord(flag('secrets-file')!)}` : ''} --dry-run`,
   )
   return EXIT_DONE
 }

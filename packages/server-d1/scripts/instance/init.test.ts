@@ -327,11 +327,20 @@ describe('output and the question (D2, D5)', () => {
     const a = mk()
     expect(await run(a, ALL)).toBe(0)
     expect(a.out).toContain('next:')
-    expect(nextLine(a)).toBe(`vibase-server setup --env demo --api-host ${HOST} --owner-email ${OWNER} --dry-run`)
+    expect(nextLine(a)).toBe(
+      `vibase-server setup --env demo --api-host ${HOST} --auth clerk --owner-email ${OWNER} --dry-run`,
+    )
     const path = join(mkTmp(), 'x.env')
     const b = mk()
     expect(await run(b, [...GOOD.env, ...GOOD.host, '--auth', 'none', '--secrets-file', path])).toBe(0)
-    expect(nextLine(b)).toBe(`vibase-server setup --env demo --api-host ${HOST} --secrets-file ${path} --dry-run`)
+    expect(nextLine(b)).toBe(
+      `vibase-server setup --env demo --api-host ${HOST} --auth none --secrets-file ${path} --dry-run`,
+    )
+  })
+  it('the owner email goes into the printed command shell-quoted', async () => {
+    const w = mk()
+    expect(await run(w, [...without('email'), '--owner-email', "a;b$c'd@x.com"])).toBe(0)
+    expect(nextLine(w)).toContain(`--owner-email 'a;b$c'\\''d@x.com'`)
   })
   it('the CREDENTIALS_KEY backup reminder appears only when it was generated', async () => {
     const a = mk()

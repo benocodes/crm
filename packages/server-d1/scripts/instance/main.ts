@@ -20,7 +20,7 @@ export const INSTANCE_HELP = `vibase-server: manage the Vibase instance this ser
   vibase-server init [--env <name>] [--api-host <host>] [--owner-email <email>] [--auth better-auth|clerk|none] [--email gmail|none]
                      [--gcp-project <id>] [--secrets-file <path>] [--yes]
       Writes a new instance's secrets file (mode 600, never overwritten): generated secrets in, an empty line for each value you supply. Local only.
-      Asks for what the flags leave out, then \`proceed? [Y/n]\`; with no terminal or --yes it asks nothing and needs --env, --api-host and --owner-email. Exit 0: written, or declined; 2: refused.
+      Asks on a terminal for what the flags leave out, then \`proceed? [Y/n]\` (--yes skips the question); with no terminal it needs --env, --api-host and --owner-email (not with --auth none). Exit 0: written, or declined; 2: refused.
 
   vibase-server status --env <name> [--settings <path>] [--secrets-file <path>]
       Reads the settings and secrets files, verifies this package, asks the live instance

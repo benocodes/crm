@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util'
 import { RemoteRefusal } from '../remote.js'
+import { workflowName } from './names.js'
 import { PROVIDERS, chooseProvider, type RecordLookup } from './better-auth.js'
 import { SUBDOMAIN_SHAPE, hostChangeRefusal, isWorkersDevHost, recordedMode } from './host.js'
 import { CLERK_ONLY_STEPS, STEP_NAMES, type SetupOptions, type StepName } from './types.js'
@@ -254,10 +255,10 @@ export function buildSetupOptions(values: FlagValues, record?: RecordLookup): Se
     operatorAgent,
     keyEnv,
     ownerEmail,
-    workerName: nameFlags.workerName ?? `vb-${env}`,
-    d1Name: nameFlags.d1Name ?? `vb-crm-${env}`,
-    controlD1Name: nameFlags.controlD1Name ?? `vb-control-${env}`,
-    r2Name: nameFlags.r2Name ?? `vb-bodies-${env}`,
+    workerName: nameFlags.workerName ?? derivedNames(env).workerName,
+    d1Name: nameFlags.d1Name ?? derivedNames(env).d1Name,
+    controlD1Name: nameFlags.controlD1Name ?? derivedNames(env).controlD1Name,
+    r2Name: nameFlags.r2Name ?? derivedNames(env).r2Name,
     nameFlags,
     only,
     dryRun: values['dry-run'] === true,
@@ -272,6 +273,15 @@ export function buildSetupOptions(values: FlagValues, record?: RecordLookup): Se
   checkDistinctDatabases(opts.d1Name, opts.controlD1Name)
   return opts
 }
+
+/** [[OPS262]] D5, [[OPS494]] P3: a new instance's derived names, the one source for `buildSetupOptions` and for `vibase-server init`'s length check. */
+export const derivedNames = (env: string) => ({
+  workerName: `vb-${env}`,
+  d1Name: `vb-crm-${env}`,
+  controlD1Name: `vb-control-${env}`,
+  r2Name: `vb-bodies-${env}`,
+  workflowName: workflowName(env),
+})
 
 /** [[OPS262]] D5: Cloudflare names are at most 63 characters; a refusal before any step. */
 export function checkNameLengths(names: string[]): void {

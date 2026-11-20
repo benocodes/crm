@@ -9,7 +9,6 @@ import { runSetup } from './setup.js'
 import { ACCOUNT, SECRETS_TEXT, TOKEN, cleanup, makeWorld } from './test-kit.js'
 
 const OWNER = 'owner@example.com'
-const BA_ARGS = ['--env', 'demo', '--api-host', API_HOST, '--owner-email', OWNER]
 
 let pair: WorkerPair
 beforeAll(async () => {
@@ -28,7 +27,12 @@ const initFile = async (flags: string[]) => {
   const w = makeWorld({ settings: null, secretsMode: null })
   expect(await runInit(['--env', 'demo', '--api-host', API_HOST, ...flags, '--yes'], w.deps), w.all()).toBe(0)
   const { readFileSync } = await import('node:fs')
-  return { text: readFileSync(w.secretsPath, 'utf8'), path: w.secretsPath }
+  const next = w.out
+    .find((l) => l.trim().startsWith('vibase-server setup'))!
+    .trim()
+    .split(' ')
+    .slice(2)
+  return { text: readFileSync(w.secretsPath, 'utf8'), path: w.secretsPath, next }
 }
 const fillCloudflare = (t: string) =>
   t
@@ -38,16 +42,18 @@ const GOOGLE_OFF =
   /gmail: off \(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set in .*demo\.env\): add them and re-run setup/
 
 describe('round trip: the file init wrote, read by setup', () => {
+  // setup runs with the words of the command init printed, so a flag the command lacks shows here.
   it.each([
-    ['better-auth + gmail', ['--owner-email', OWNER, '--auth', 'better-auth'], BA_ARGS],
-    ['clerk + gmail', ['--owner-email', OWNER, '--auth', 'clerk'], [...BA_ARGS, '--auth', 'clerk']],
-    ['none + none', ['--auth', 'none', '--email', 'none'], NONE_ARGS],
-  ])('%s', async (name, initFlags, setupArgs) => {
-    const { text, path } = await initFile(initFlags)
+    ['better-auth + gmail', ['--owner-email', OWNER, '--auth', 'better-auth']],
+    ['clerk + gmail', ['--owner-email', OWNER, '--auth', 'clerk']],
+    ['none + none', ['--auth', 'none', '--email', 'none']],
+  ])('%s', async (name, initFlags) => {
+    const { text, path, next } = await initFile(initFlags)
+    const setupArgs = next
     // empty Cloudflare values count as unset
     expect(() => loadSecrets(path, {}), name).toThrow(/CLOUDFLARE_ACCOUNT_ID/)
     const s = world(fillCloudflare(text))
-    const code = await runSetup([...setupArgs, '--dry-run'], s.w.deps)
+    const code = await runSetup(setupArgs, s.w.deps)
     const said = s.w.all()
     if (name.startsWith('clerk')) {
       expect(code, said).toBe(2)
