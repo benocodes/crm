@@ -117,7 +117,7 @@ describe('group absent: skipped', () => {
     const { w } = setup(null)
     const first = await runSetup([...NONE, '--only', 'config:write'], CONFIRM, w.deps)
     expect(first.exitCode).toBe(0)
-    expect(w.logs.join('\n')).toMatch(/gmail.*skipped/i)
+    expect(w.logs.join('\n')).toMatch(/gmail: off/i)
     expect(Object.keys(configVars(w)).filter((k) => [...VARS, ...SECRETS].includes(k as never))).toEqual([])
     await runSetup([...NONE, '--only', 'secrets'], CONFIRM, w.deps)
     expect(w.secretInputs).toEqual([])
@@ -127,7 +127,7 @@ describe('group absent: skipped', () => {
     const { w } = setup(null, { configText: clerkConfig() }, true)
     const o = await runSetup([...CLERK, ...STEPS_ONLY], CONFIRM, w.deps)
     expect(o.exitCode).toBe(0)
-    expect(w.logs.join('\n')).toMatch(/gmail.*skipped/i)
+    expect(w.logs.join('\n')).toMatch(/gmail: off/i)
     expect(bulkPayloads(w).map((p) => Object.keys(p).sort())).toEqual([['CLERK_JWT_KEY', 'CLERK_SECRET_KEY']])
     expect(Object.keys(configVars(w))).not.toContain('PUBLIC_BASE_URL')
   })
@@ -135,8 +135,22 @@ describe('group absent: skipped', () => {
   it('a none file with unrelated names only is skipped too, and its unknown names pass nowhere', async () => {
     const { w } = setup({ SOME_OTHER_SETTING: 'sentinel-unknown-value', AWS_SECRET: 'sentinel-aws' })
     await runSetup([...NONE, '--only', 'config:write'], CONFIRM, w.deps)
-    expect(w.logs.join('\n')).toMatch(/gmail.*skipped/i)
+    expect(w.logs.join('\n')).toMatch(/gmail: off/i)
     expect(w.state.configText).not.toContain('sentinel-unknown')
+  })
+})
+
+describe('D6 ([[OPS494]]): the Google client turns Gmail on', () => {
+  it('the generated keys without a client: off, no refusal, no Gmail var and no secret written', async () => {
+    const { w } = setup({ OAUTH_STATE_SECRET: FULL.OAUTH_STATE_SECRET!, CREDENTIALS_KEY: KEY32 })
+    const first = await runSetup([...NONE, '--only', 'config:write'], CONFIRM, w.deps)
+    expect(first.exitCode, w.logs.join('\n')).toBe(0)
+    expect(w.logs.join('\n')).toMatch(
+      /gmail: off \(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set in .*\): add them and re-run setup/,
+    )
+    expect(Object.keys(configVars(w)).filter((k) => [...VARS, ...SECRETS].includes(k as never))).toEqual([])
+    await runSetup([...NONE, '--only', 'secrets'], CONFIRM, w.deps)
+    expect(w.secretInputs).toEqual([])
   })
 })
 
@@ -522,7 +536,7 @@ describe('the env file guards hold with --auth none too', () => {
     try {
       const { w } = setup(null)
       await runSetup([...NONE, '--dry-run'], { GOOGLE_CLIENT_SECRET: 'sentinel-from-process-env' }, w.deps)
-      expect(w.logs.join('\n')).toMatch(/gmail.*skipped/i)
+      expect(w.logs.join('\n')).toMatch(/gmail: off/i)
     } finally {
       if (saved === undefined) delete process.env.GOOGLE_CLIENT_SECRET
       else process.env.GOOGLE_CLIENT_SECRET = saved
