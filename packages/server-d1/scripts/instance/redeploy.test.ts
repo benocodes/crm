@@ -259,7 +259,7 @@ describe('OPS487 D1/D2 redeploy sequence', () => {
   it('an unreachable /health refuses; exit 2, no write', async () => {
     const w = worldFor(sim({ unreachable: true }))
     expect(await runRedeploy(['--env', 'demo'], w.deps)).toBe(2)
-    expect(w.err.join('\n')).toMatch(/cannot reach/)
+    expect(w.err.join('\n')).toContain('cannot resolve api.demo.invalid from this machine (DNS)')
     expect(writes(w)).toEqual([])
   })
   it('arguments: --env required, unknown flags refuse (including --rollback), exit 2 before any call', async () => {

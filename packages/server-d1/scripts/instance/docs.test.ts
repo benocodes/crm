@@ -434,3 +434,25 @@ describe('OPS493 D6, D7: vibase-server lines carry no CONFIRM_REMOTE; the :remot
     expect(offenders('CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env x')).toEqual([])
   })
 })
+
+// [[OPS496]] D7: setup's verify goes through the Cloudflare API and reads `/health` once; no page claims a wait or a retried read for `vibase-server setup`.
+describe('OPS496: the verify description', () => {
+  const pages = (): [string, string][] => [
+    ['self-hosting.md', page('deployment/self-hosting')],
+    ['the server README template', read('../../../release/templates/server-d1-README.md')],
+  ]
+  it.each([0, 1])('page %i: no 300 s, five minute or retries claim about verify', (i) => {
+    const [name, md] = pages()[i]!
+    expect(md, name).not.toMatch(/300\s?s\b|five minute|verify retries|retries inside/i)
+  })
+  it('self-hosting.md describes the API checks, the single read and the DNS note', () => {
+    const md = page('deployment/self-hosting')
+    expect(md).toMatch(/Verify asks the Cloudflare API, not your host/)
+    expect(md).toMatch(/one request to `https:\/\/<your host>\/health`/)
+    expect(md).toMatch(/not reachable yet/)
+    expect(md).toMatch(/DNS propagation/)
+  })
+  it('mutation: a restored five-minute claim is an offender', () => {
+    expect('verify retries inside a five minute bound').toMatch(/five minute/i)
+  })
+})

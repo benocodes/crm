@@ -97,9 +97,9 @@ A new instance's resources are named `vb-<env>` (Worker), `vb-crm-<env>` (D1), `
 
 ### Claim the instance
 
-The bootstrap step prints the **owner invitation link** once. It is shown once and stored nowhere: copy it when it appears. Open it in a browser to create the owner account. Setup never prints it again: a rerun reads the instance first, and if an owner or a pending invitation exists it issues nothing and prints no link.
+Setup prints the **owner invitation link** once, as the last lines of its output (after verify). It is shown once and stored nowhere: copy it when it appears. Open it in a browser to create the owner account. Setup never prints it again: a rerun reads the instance first, and if an owner or a pending invitation exists it issues nothing and prints no link.
 
-Verify then checks that the Worker serves the configured issuer: `/.well-known/vibase` must report `better-auth` with the issuer `https://<your host>/auth`, and `/.well-known/oauth-authorization-server/auth` must name the same issuer. A fresh Worker can answer `500` for a few seconds after its deploy until its secrets arrive; verify retries inside a five minute bound, and fails at once on a wrong answer. Setup ends with the next steps: sign in from the CLI with `vibase login --server https://<your host>`, point MCP clients at `https://<your host>/mcp`, and see below for Google and email.
+Verify asks the Cloudflare API, not your host, whether the resources are in place: the Worker at this release's build with the recorded variables, its secrets (by name), the custom domain or workers.dev subdomain, both databases migrated and the bucket. The first failed check fails verify and names what it found. Verify then makes one request to `https://<your host>/health` (10 seconds, no retry, no waiting). If the host does not answer yet (a new custom domain can take a few minutes to resolve), verify still succeeds, says `not reachable yet` and skips the discovery checks; setup then ends with a note about DNS propagation. If the host answers, `/.well-known/vibase` must report `better-auth` with the issuer `https://<your host>/auth`, and `/.well-known/oauth-authorization-server/auth` must name the same issuer; each is read once, and a wrong or failing answer fails verify. Setup ends with the next steps: sign in from the CLI with `vibase login --server https://<your host>`, point MCP clients at `https://<your host>/mcp`, and see below for Google and email. When no invitation was issued in this run (an owner exists, or an invitation is pending) the last lines say so and name `vibase-server owner-reset`.
 
 You can check the deployment yourself:
 
@@ -314,6 +314,7 @@ It runs the same steps as upgrade (the migrations the instance lacks, control da
 | --- | --- |
 | Setup stops at a named step | Fix the reported problem and rerun the same command. |
 | Verify fails with `500` on `/.well-known/vibase` | The Worker has no `AUTH_SECRET` yet or it is not at every edge: rerun the same command. A wrong issuer or provider names what differs. |
+| Verify says `not reachable yet`, or `status` says `cannot resolve <host> from this machine (DNS)` | The new host has no DNS answer on this machine yet. Wait a few minutes (or flush this machine's DNS cache) and run `vibase-server status --env <name>`. |
 | The owner invitation link is lost | Setup shows it once and never again; recovery for a lost link is not part of this release. |
 | Clerk (only with `--auth clerk`): Clerk refuses a custom scope | Add every scope named by the setup report to Clerk's OAuth scope catalog. |
 | Clerk: device authorization is unavailable | Enable device authorization for `Vibase CLI` and ensure the Account Portal verification page is reachable. |

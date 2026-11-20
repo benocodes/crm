@@ -1,5 +1,6 @@
 // The compatibility gate ([[OPS210]] D14, [[OPS231]]): read-only. It verifies the installed package, reads the settings and secrets, asks the live
 // instance's `/health` and reads wrangler's migration tracker, and refuses or reports. It never runs a write command.
+import { dnsRefusal, isDnsFailure } from './reach.js'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { verifyRelease, type ReleaseManifest } from '../../../release/src/manifest.js'
@@ -69,6 +70,8 @@ async function readHealth(url: string, deps: InstanceDeps): Promise<{ version: s
       signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
     })
   } catch (e) {
+    // [[OPS496]] D6: a name that does not resolve is said so; any other failure keeps `cannot reach`.
+    if (isDnsFailure(e)) throw new InstanceRefusal(dnsRefusal(new URL(url).host))
     throw new InstanceRefusal(`cannot reach ${url}: ${e instanceof Error ? e.message : 'request failed'}`)
   }
   if (res.status !== 200)

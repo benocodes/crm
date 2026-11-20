@@ -313,6 +313,7 @@ describe('D15 failure stops (exit 3, the step named, no later write)', () => {
     failed(w, code, /verify/)
     const err = w.err.join('\n')
     expect(err).toContain('stale local DNS cache')
+    expect(err).toContain('(DNS: api.demo.invalid does not resolve)')
     expect(err).toContain('/health in a browser')
     expect(err).toMatch(/vibase-server status --env /)
   })
