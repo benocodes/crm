@@ -41,14 +41,22 @@ An instance's two files live outside the package, so upgrading never touches the
 - Settings: `$XDG_CONFIG_HOME/vibase/instances/<env>.json` (`~/.config` when unset). `setup` writes it.
 - Secrets: `<env>.env` beside it, mode 600, dotenv format. The program refuses a file that other users can read.
 
-Create the secrets file with your Cloudflare access:
+Let `vibase-server init --env <name>` write the secrets file. It asks for the instance name, its API host, the owner email and the auth and email providers (each has a flag, and with no terminal the flags are all it has), then creates the file with mode 600 and never overwrites one:
+
+```bash
+npx @vibase/server-d1@<version> init --env mycompany --api-host api.example.com --owner-email you@example.com
+```
+
+The file holds the generated secrets (`AUTH_SECRET`, and `CREDENTIALS_KEY` and `OAUTH_STATE_SECRET` for Gmail) and an empty line for each value only you can supply, each under a comment saying where it comes from. Init never prints a generated value. Fill in the Cloudflare pair, at least:
 
 ```dotenv
 CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
 CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
 ```
 
-Setup generates the instance's `AUTH_SECRET` (the key that signs sessions), appends it to this file before it puts it on the Worker, and never prints it. Keep the file: a re-run reads the secret from it.
+Gmail and Google sign-in stay off until you paste their Google client values into the file and re-run setup; setup says so, and which values turn them on, instead of refusing. Back up `CREDENTIALS_KEY`: losing it makes connected mailboxes unreadable. Init ends by printing the `setup --dry-run` command to run next.
+
+A file you wrote by hand works too: setup generates a missing `AUTH_SECRET` (the key that signs sessions), appends it to the file before it puts it on the Worker, and never prints it. Keep the file: a re-run reads the secret from it.
 
 The Cloudflare token needs these permissions:
 

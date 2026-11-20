@@ -273,7 +273,7 @@ describe('the contents (D4)', () => {
     expect(env.GMAIL_TOPIC_NAME).toBe('projects/p1/topics/gmail.watch.demo')
     expect(env.GMAIL_PUSH_SUBSCRIPTION).toBe('projects/p1/subscriptions/gmail.push.demo')
     expect(env.GMAIL_PUSH_SERVICE_ACCOUNT).toBe('gmail-push@p1.iam.gserviceaccount.com')
-    for (const n of ['GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT'])
+    for (const n of ['GMAIL_TOPIC_NAME', 'GMAIL_PUSH_SUBSCRIPTION', 'GMAIL_PUSH_SERVICE_ACCOUNT'] as const)
       expect(isValidPushVar(n, env[n]!), n).toBe(true)
   })
   it('each Google redirect URI is named, with the host filled in', async () => {
