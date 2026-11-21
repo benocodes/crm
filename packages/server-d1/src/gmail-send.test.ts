@@ -112,7 +112,12 @@ beforeEach(async () => {
   spoilFirstConfirmation = false
   confirmedOnce.clear()
   bucket = fakeR2Bucket()
-  mail = new FakeGmail([gmailFixture('plain')], { profile: { emailAddress: 'owner@vibase.test', historyId: '1000' } })
+  mail = new FakeGmail(
+    // The fixture's own internalDate is a fixed 2026-10-22; the 30-day backfill window is measured from the real clock
+    // (token minting needs it), so date the message relative to `now` instead.
+    [gmailFixture('plain', (s) => ({ ...s, internalDate: now.getTime() - 86_400_000 }))],
+    { profile: { emailAddress: 'owner@vibase.test', historyId: '1000' } },
+  )
   const boot = await bootstrapD1(w.d1, {
     organizationName: 'Send test',
     agentName: 'seed-agent',
