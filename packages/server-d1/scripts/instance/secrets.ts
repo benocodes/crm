@@ -36,7 +36,8 @@ const NAMES = ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN'] as const
 /** Values shorter than this are not masked: they are not secrets, and masking them would mangle any output. */
 const MIN_MASKED = 4
 
-export function loadSecrets(path: string, env: Record<string, string | undefined>): Secrets {
+/** `envName` is the instance the file belongs to: a missing file's refusal names `vibase-server init --env <it>` ([[OPS494]] D7). */
+export function loadSecrets(path: string, env: Record<string, string | undefined>, envName?: string): Secrets {
   const fromEnv = (n: (typeof NAMES)[number]) => (env[n] ? env[n] : undefined)
   let file: Record<string, string> = {}
   let text = ''
@@ -50,7 +51,7 @@ export function loadSecrets(path: string, env: Record<string, string | undefined
     // The process environment alone may supply both Cloudflare names ([[OPS210]] D10).
     if (!NAMES.every((n) => fromEnv(n)))
       throw new InstanceRefusal(
-        `no secrets file at ${path}: create it (mode 600) with ${NAMES.join(' and ')}, or pass --secrets-file <path>`,
+        `no secrets file at ${path}: create it with vibase-server init --env ${envName ?? '<env>'}, or pass --secrets-file <path> (a hand-written file is mode 600 with ${NAMES.join(' and ')})`,
       )
   } else {
     if ((stat.mode & 0o077) !== 0)

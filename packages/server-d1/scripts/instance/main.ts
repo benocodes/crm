@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import type { D1Like } from '@vibase/storage-d1'
 import { runStatus, EXIT_REFUSED } from './status.js'
+import { runInit } from './init.js'
 import { runSetup } from './setup.js'
 import { runRedeploy, runUpgrade } from './upgrade.js'
 import { runOwnerReset } from './owner-reset.js'
@@ -15,6 +16,11 @@ import { lazyQuestion, makeQuestion } from './prompt.js'
 import { InstanceRefusal, type InstanceDeps, type RunResult } from './types.js'
 
 export const INSTANCE_HELP = `vibase-server: manage the Vibase instance this server package deploys
+
+  vibase-server init [--env <name>] [--api-host <host>] [--owner-email <email>] [--auth better-auth|clerk|none] [--email gmail|none]
+                     [--gcp-project <id>] [--secrets-file <path>] [--yes]
+      Writes a new instance's secrets file (mode 600, never overwritten): generated secrets in, an empty line for each value you supply. Local only.
+      Asks on a terminal for what the flags leave out, then \`proceed? [Y/n]\` (--yes skips the question); with no terminal it needs --env, --api-host and --owner-email (not with --auth none). Exit 0: written, or declined; 2: refused.
 
   vibase-server status --env <name> [--settings <path>] [--secrets-file <path>]
       Reads the settings and secrets files, verifies this package, asks the live instance
@@ -56,7 +62,7 @@ export const INSTANCE_HELP = `vibase-server: manage the Vibase instance this ser
 Run a pinned version without installing it: npx @vibase/server-d1@<version> <command> ...
 
 Settings: $XDG_CONFIG_HOME/vibase/instances/<env>.json (~/.config when unset)
-Secrets:  <env>.env beside it, mode 600, with CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN
+Secrets:  <env>.env beside it, mode 600, with CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN (vibase-server init writes it)
 `
 
 /** The wrangler this package depends on: resolved from the installed package's own dependency tree, never a global and never `pnpm exec`. */
@@ -183,6 +189,7 @@ export async function runInstance(
     return 0
   }
   if (command === '--version') return printVersion(io, packageDir)
+  if (command === 'init') return runInit(rest, { ...realDeps(io, packageDir), ...overrides })
   if (command === 'status') return runStatus(rest, { ...realDeps(io, packageDir), ...overrides })
   if (command === 'upgrade') return runUpgrade(rest, { ...realDeps(io, packageDir), ...overrides })
   if (command === 'redeploy') return runRedeploy(rest, { ...realDeps(io, packageDir), ...overrides })

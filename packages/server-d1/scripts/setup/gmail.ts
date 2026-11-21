@@ -28,6 +28,9 @@ export const GMAIL_CORE_NAMES = [
   'OAUTH_STATE_SECRET',
   'CREDENTIALS_KEY',
 ] as const
+/** [[OPS494]] D6: the header line when Gmail is off, in both setup front-ends. */
+export const gmailOffLine = (file: string): string =>
+  `gmail: off (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set in ${file}): add them and re-run setup`
 /** Never replaced, even with `--rotate-secrets`: stored credentials are encrypted under it. */
 export const NEVER_REPLACED = 'CREDENTIALS_KEY'
 
@@ -72,7 +75,7 @@ const RULES: Record<string, [(v: string) => boolean, string]> = {
 }
 
 /**
- * The group from the probed env file, or `null` when it is skipped (no file on `--auth none`, or none of the four core names).
+ * The group from the probed env file, or `null` when it is skipped (no file on `--auth none`, or neither Google client value, [[OPS494]] D6).
  * Throws `RemoteRefusal` before any request: the root `.env` and a file git does not ignore are refused as on `--auth clerk`.
  */
 export function loadGmail(opts: SetupOptions, probe: EnvFileProbe): Gmail | null {
@@ -87,7 +90,8 @@ export function loadGmail(opts: SetupOptions, probe: EnvFileProbe): Gmail | null
   const parsed = parseEnv(probe.text ?? '')
   const value = (name: string): string | undefined => parsed[name]?.trim() || undefined
   const present = GMAIL_CORE_NAMES.filter((n) => value(n) !== undefined)
-  if (present.length === 0) return null
+  // [[OPS494]] D6: the Google client turns Gmail on; without either half the group is off whatever else of it the file holds (`vibase-server init` writes the generated keys first).
+  if (value('GOOGLE_CLIENT_ID') === undefined && value('GOOGLE_CLIENT_SECRET') === undefined) return null
   if (present.length < GMAIL_CORE_NAMES.length) {
     const missing = GMAIL_CORE_NAMES.filter((n) => !present.includes(n))
     throw new RemoteRefusal(
