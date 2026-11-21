@@ -10,7 +10,7 @@ import { applyRecordedNames } from '../setup/names.js'
 import { loadBetterAuth, providerFromVars } from '../setup/better-auth.js'
 import { moveLines, registerPending, resolveHost } from '../setup/host.js'
 import { loadClerkKeys } from '../setup/clerk-keys.js'
-import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, loadGmail } from '../setup/gmail.js'
+import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, gmailOffLine, loadGmail } from '../setup/gmail.js'
 import { claimBlock } from '../setup/verify-better-auth.js'
 import { CLERK_ONLY_STEPS, STEP_NAMES, type Credentials, type EnvFileProbe, type StepResult } from '../setup/types.js'
 import { ABORT_LINE, confirmProceed } from './prompt.js'
@@ -74,7 +74,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
 
     // (b) the secrets file (D10: mode refusal) and the settings file, if there is one.
     const secretsPath = parsed.secretsPath ?? defaultSecretsPath(deps.env, deps.homedir, derived.env)
-    const secrets = loadSecrets(secretsPath, deps.env)
+    const secrets = loadSecrets(secretsPath, deps.env, derived.env)
     redactSecrets = secrets.redact
     const settingsPath = parsed.settingsPath ?? defaultSettingsPath(deps.env, deps.homedir, derived.env)
     const existing = existsSync(settingsPath) ? loadSettings(settingsPath, derived.env, { allowNoControl: true }) : null
@@ -178,7 +178,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
         )
           .sort((a, b) => GMAIL_VAR_NAMES.indexOf(a as never) - GMAIL_VAR_NAMES.indexOf(b as never))
           .join(', ')}`
-      : 'gmail: skipped (none of GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OAUTH_STATE_SECRET, CREDENTIALS_KEY in the secrets file)',
+      : gmailOffLine(ctx.secretsPath),
   )
   if (ctx.betterAuth) {
     const b = ctx.betterAuth

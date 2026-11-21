@@ -300,6 +300,11 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   subjects, a subject whose fixture never reaches the guarded state passes silently. Assert the precondition
   (`expect(asked).toHaveLength(1)`), or prove each subject in its own suite with a fixture that reaches it ([[OPS493]]
   review: two of four commands refused before the question and passed).
+- **A hand-off round trip runs the next command with the words the first one printed**, never a hand-written argv. A
+  command that ends by printing the next command (`init` → `setup ... --dry-run`) is proven by splitting that printed line
+  and running it: a hand-written argv supplies what the printed one omits and hides it ([[OPS494]] review: the printed
+  `setup` command lacked `--auth`, so a `clerk` file would have been set up as Better Auth, while the test passed
+  `--auth clerk` itself).
 - **A test that passes in the red run is vacuous until proven otherwise.** List every one in RESULT.md, then tighten it
   so it fails under the stub (assert the success status, `201`/`200`, before the absence it claims) or name the mutation
   that reddens it. [[CORE245]]'s "no CRM event" test passed in red on a `404`: it proved nothing until it asserted the

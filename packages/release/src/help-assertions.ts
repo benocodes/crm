@@ -1,6 +1,10 @@
 // What `release:check` requires of the installed `vibase-server --help` ([[OPS249]] D13, [[OPS307]]): each command's usage line, as a pure function a test can run against the real help text.
 // The check itself runs the installed bin; the needles live here so a unit test sees them without a tarball.
 export const SERVER_HELP_NEEDLES: ReadonlyArray<{ name: string; pattern: RegExp }> = [
+  {
+    name: 'init [--env <name>] [--api-host <host>] ...',
+    pattern: /vibase-server init \[--env <name>\] \[--api-host <host>\]/,
+  },
   { name: 'status --env', pattern: /vibase-server status --env/ },
   {
     name: 'upgrade [--dry-run] [--yes] (no --rollback)',

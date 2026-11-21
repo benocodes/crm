@@ -7,7 +7,7 @@ import { applyRecordedNames, replaceNames, type RecordedNames } from './names.js
 import { loadBetterAuth, providerFromVars } from './better-auth.js'
 import { moveLines, registerPending, resolveHost } from './host.js'
 import { loadClerkKeys } from './clerk-keys.js'
-import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, loadGmail } from './gmail.js'
+import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, gmailOffLine, loadGmail } from './gmail.js'
 import { STEPS, type Ctx } from './steps.js'
 import { claimBlock } from './verify-better-auth.js'
 import { CLERK_ONLY_STEPS, STEP_NAMES, type SetupDeps, type SetupOptions, type StepResult } from './types.js'
@@ -23,6 +23,7 @@ const row = (r: StepResult) => `${r.status.padEnd(7)} ${r.step.padEnd(17)} ${r.d
 
 export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps: SetupDeps): Promise<SetupOutcome> {
   let ctx: Ctx
+  let gmailFile = ''
   try {
     // [[OPS249]] D1: the provider the env block already records wins; a differing --auth is refused here, before any step.
     const parsed = parseSetupArgs(argv, (env) => recordedAuth(readOrEmpty(deps), env))
@@ -48,6 +49,7 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
     // The same file also holds the Gmail group ([[OPS150]]), on `--auth none` too: one probe, the same refusals.
     const probe = deps.probeEnvFile(opts.clerkEnvFile, opts.env)
     const keys = opts.auth === 'clerk' ? loadClerkKeys(opts, deps, probe) : undefined
+    gmailFile = probe.display
     const gmail = loadGmail(opts, probe)
     // `--auth better-auth`: `AUTH_SECRET` and the optional Google pair from the same file ([[OPS249]] D3, D4), judged before any request.
     const betterAuth = loadBetterAuth(opts, probe.text, probe.display)
@@ -89,7 +91,7 @@ export async function runSetup(argv: string[], procEnv: NodeJS.ProcessEnv, deps:
       ? `gmail: on, from ${ctx.gmail.file}: secrets ${GMAIL_SECRET_NAMES.join(', ')}; vars ${Object.keys(ctx.gmail.vars)
           .sort((a, b) => GMAIL_VAR_NAMES.indexOf(a as never) - GMAIL_VAR_NAMES.indexOf(b as never))
           .join(', ')}`
-      : 'gmail: skipped (none of GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OAUTH_STATE_SECRET, CREDENTIALS_KEY in the env file)',
+      : gmailOffLine(gmailFile),
   )
   if (ctx.betterAuth) {
     const b = ctx.betterAuth

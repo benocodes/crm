@@ -158,7 +158,11 @@ export async function runGate(o: GateOptions, deps: InstanceDeps): Promise<GateO
   // (b) settings and secrets.
   const settingsPath = o.settingsPath ?? defaultSettingsPath(deps.env, deps.homedir, o.envName)
   const settings = loadSettings(settingsPath, o.envName)
-  const secrets = loadSecrets(o.secretsPath ?? defaultSecretsPath(deps.env, deps.homedir, o.envName), deps.env)
+  const secrets = loadSecrets(
+    o.secretsPath ?? defaultSecretsPath(deps.env, deps.homedir, o.envName),
+    deps.env,
+    o.envName,
+  )
 
   // (c) the live instance answers.
   const live = await readHealth(`https://${settings.api_host}/health`, deps)
