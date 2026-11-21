@@ -82,6 +82,19 @@ export interface Sim {
   /** The account's `workers.dev` subdomain (OPS308); `null`: none registered. */
   subdomain: SubdomainState
   denyAll?: boolean
+  /** [[OPS496]] The Cloudflare API reads of verify and the deploy skip (decision 496.8's shapes). Default: everything present, at what `deployed` shows, with the recorded vars and the standard secret names. */
+  /** The Worker's plain-text vars as deployed; default: the settings file's vars (what a deploy of the record would carry). */
+  deployedVars?: Record<string, string>
+  /** The Worker's `secret_text` names; default: `secrets` plus every name a configuration may manage. */
+  apiSecrets?: string[]
+  /** The custom domains attached to the Worker; default: the settings file's `api_host`, once deployed. */
+  domains?: string[]
+  /** The Worker's workers.dev subdomain `enabled`; default true. */
+  workersDevEnabled?: boolean
+  /** Cloudflare API paths (a substring of the path after `accounts/<id>/`) that answer this status. */
+  apiStatus?: { match: string; status: number }[]
+  /** Requests to the instance's own host throw this way (a DNS failure, a refusal, a timeout) instead of answering. */
+  hostDown?: 'dns' | 'refused' | 'timeout' | 'dns-cause'
   /** Every bootstrap `openD1` call, with the generated config as it was on disk at that moment. */
   opened: { opts: OpenD1Options; configText: string | null }[]
 }
@@ -178,6 +191,91 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
       migrations: { status },
     })
   }
+  let settingsText = (): string => '{}'
+  type Rec = { api_host?: string; worker?: string; vars?: Record<string, string> }
+  const settingsJson = (): Rec => {
+    try {
+      const rec = JSON.parse(settingsText()) as Rec
+      if (rec.vars) return rec
+    } catch {
+      // fall through
+    }
+    // A run with `--settings <elsewhere>`: the generated config of the latest wrangler call carries the same record.
+    for (const c of [...world.wrangler].reverse()) {
+      if (!c.configText) continue
+      const cfg = JSON.parse(c.configText) as {
+        name?: string
+        vars?: Record<string, string>
+        routes?: { pattern?: string }[]
+      }
+      return { worker: cfg.name, vars: cfg.vars ?? {}, api_host: cfg.routes?.[0]?.pattern }
+    }
+    return {}
+  }
+  const settingsHost = (): string => settingsJson().api_host ?? API_HOST
+  const hostError = (kind: NonNullable<Sim['hostDown']>): Error => {
+    if (kind === 'dns') return new Error('getaddrinfo ENOTFOUND host')
+    if (kind === 'dns-cause') return Object.assign(new TypeError('fetch failed'), { cause: { code: 'EAI_AGAIN' } })
+    if (kind === 'timeout')
+      return Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' })
+    return Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } })
+  }
+  const STANDARD_SECRETS = [
+    'CLERK_SECRET_KEY',
+    'CLERK_JWT_KEY',
+    'AUTH_SECRET',
+    'AUTH_GOOGLE_CLIENT_ID',
+    'AUTH_GOOGLE_CLIENT_SECRET',
+    'GOOGLE_CLIENT_ID',
+    'GOOGLE_CLIENT_SECRET',
+    'OAUTH_STATE_SECRET',
+    'CREDENTIALS_KEY',
+  ]
+  /** The Cloudflare API reads of OPS496, answered from the simulation. `undefined` for any other path. */
+  const workerApi = (path: string): Response | undefined => {
+    const m = /^accounts\/[^/]+\/(.*)$/.exec(path)
+    const rest = m?.[1]
+    if (rest === undefined) return undefined
+    const forced = sim.apiStatus?.find((x) => rest.includes(x.match))
+    const isWorker = /^(workers\/scripts\/[^/]+\/(settings|subdomain)|workers\/domains|r2\/buckets\/)/.test(rest)
+    if (!isWorker) return undefined
+    if (forced) return json(forced.status, { success: false, errors: [{ code: 10000, message: 'refused' }] })
+    const rec = settingsJson()
+    if (rest.endsWith('/settings')) {
+      if (sim.deployed === null)
+        return json(404, {
+          success: false,
+          errors: [{ code: 10007, message: 'This Worker does not exist on your account.' }],
+          result: null,
+        })
+      const vars = sim.deployedVars ?? rec.vars ?? {}
+      const bindings = [
+        { type: 'plain_text', name: 'VERSION', text: sim.deployed.version },
+        ...(sim.deployed.commit ? [{ type: 'plain_text', name: 'COMMIT', text: sim.deployed.commit }] : []),
+        ...Object.entries(vars).map(([name, text]) => ({ type: 'plain_text', name, text })),
+        { type: 'd1', name: 'DB', id: 'x' },
+        ...(sim.apiSecrets ?? [...new Set([...sim.secrets, ...STANDARD_SECRETS])]).map((name) => ({
+          type: 'secret_text',
+          name,
+        })),
+      ]
+      return json(200, { success: true, errors: [], result: { bindings } })
+    }
+    if (rest.startsWith('workers/domains'))
+      return json(200, {
+        success: true,
+        result: (sim.domains ?? (sim.deployed === null ? [] : [rec.api_host ?? API_HOST])).map((hostname) => ({
+          hostname,
+          service: rec.worker ?? 'w',
+        })),
+      })
+    if (rest.endsWith('/subdomain'))
+      return json(200, { success: true, result: { enabled: sim.workersDevEnabled ?? true, previews_enabled: false } })
+    const bucket = decodeURIComponent(rest.slice('r2/buckets/'.length))
+    return sim.r2s.includes(bucket)
+      ? json(200, { success: true, result: { name: bucket } })
+      : json(404, { success: false, errors: [{ code: 10006, message: 'The specified bucket does not exist.' }] })
+  }
   const world = makeWorld({
     settings: null,
     ...o,
@@ -191,10 +289,13 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
         const path = url.slice('https://api.cloudflare.com/client/v4/'.length)
         const sub = subdomainResponse(path, init, sim.subdomain)
         if (sub) return sub
+        const api = workerApi(path)
+        if (api) return api
         if (path.startsWith('zones'))
           return json(200, { success: true, result: sim.zones.map((name, i) => ({ id: `z${i}`, name })) })
         return json(200, { success: true, result: [] })
       }
+      if (sim.hostDown && url.startsWith(`https://${settingsHost()}/`)) throw hostError(sim.hostDown)
       if (url.endsWith('/health')) return health()
       const scripted = scriptedAnswer(url, sim.ba ?? {}, baCounters)
       if (
@@ -289,6 +390,7 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
         if (sim.failDeploy) return { status: 1, stdout: '', stderr: `deploy blew up ${JSON.stringify(env)}` }
         const v = a.find((x) => x.startsWith('VERSION:'))
         const c = a.find((x) => x.startsWith('COMMIT:'))
+        if (!sim.deployNoop) sim.deployedVars = undefined
         if (!sim.deployNoop) sim.deployed = { version: v!.slice('VERSION:'.length), commit: c!.slice('COMMIT:'.length) }
         return ok('deployed\n')
       }
@@ -318,6 +420,7 @@ export function setupWorld(o: SetupWorldOptions): SetupWorld {
       }
     },
   })
+  settingsText = () => (existsSync(world.settingsPath) ? readFileSync(world.settingsPath, 'utf8') : '{}')
   const sync = async (): Promise<void> => {
     if (!o.control) return
     const owners = (await o.d1.d1

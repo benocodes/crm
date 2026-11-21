@@ -39,15 +39,22 @@ import { preflight } from '../setup/steps.js'
 import type { Credentials, SetupOptions, StepName, StepResult } from '../setup/types.js'
 import type { ReleaseManifest } from '../../../release/src/manifest.js'
 import { withGeneratedConfig, withGeneratedConfigAsync } from './config.js'
-import { childEnv } from './gate.js'
+import { childEnv, sameCommit } from './gate.js'
 import type { Secrets } from './secrets.js'
-import { verify, deployArgs, migrateArgs } from './upgrade.js'
+import { deployArgs, migrateArgs } from './upgrade.js'
+import {
+  CfApiError,
+  readBucket,
+  readDomains,
+  readSubdomainEnabled,
+  readWorkerSettings,
+  type WorkerSettings,
+} from './cf-api.js'
+import { readOnce } from './reach.js'
 import {
   betterAuthNextSteps,
   checkBetterAuthIssuer,
-  dnsHint,
   secretsKeptSentence,
-  waitLine,
   type OwnerInvitation,
 } from '../setup/verify-better-auth.js'
 import type { InstanceDeps, InstanceSettings, RunResult } from './types.js'
@@ -79,6 +86,10 @@ export interface SetupCtx extends ClerkCtx {
   ownerLinkIssued?: boolean
   /** The invitation this run issued, held for the closing Claim block ([[GH442]] item 5): never in a step's lines. */
   ownerInvitation?: OwnerInvitation
+  /** [[OPS496]] D5: the owner state the bootstrap step found (an owner, or a pending owner invitation); unset when that step did not report it. */
+  ownerState?: { kind: 'owner' } | { kind: 'pending'; email: string; expiresAt: string }
+  /** [[OPS496]] D2, D5: verify's one `/health` read got no answer. */
+  hostUnanswered?: boolean
   /** Values that must never be printed beyond the secrets file's own: the operator key once it exists. */
   extraMasks: string[]
 }
@@ -481,6 +492,8 @@ async function betterAuthBootstrap(
   const state = parseOwnerState(read('DB', OWNERS_SQL), read('CONTROL_DB', OWNER_INVITATIONS_SQL))
   const operator = opts.operatorAgent !== undefined
   const mark = `marker ${want.authProvider}:${want.authOrgId} present`
+  if (state.kind === 'owner') ctx.ownerState = { kind: 'owner' }
+  else if (state.kind !== 'none') ctx.ownerState = { kind: 'pending', email: state.email, expiresAt: state.expiresAt }
   if (complete && state.kind !== 'none') {
     const note = operator
       ? ': bootstrap already ran, so --operator-agent and --key-env were not applied; create another agent key through api_keys.create on /meta/v1'
@@ -772,42 +785,38 @@ const bootstrap: Step = async (ctx) => {
   )
 }
 
-interface Health {
-  version?: string
-  commit?: string
-  migrations?: string
-}
-async function readHealth(ctx: SetupCtx): Promise<Health | null> {
-  try {
-    const res = await ctx.deps.fetch(`https://${ctx.opts.apiHost}/health`, {
-      headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(15_000),
-    })
-    if (res.status !== 200) return null
-    const j = (await res.json()) as { version?: unknown; commit?: unknown; migrations?: { status?: unknown } }
-    return {
-      version: typeof j.version === 'string' ? j.version : undefined,
-      commit: typeof j.commit === 'string' ? j.commit : undefined,
-      migrations: typeof j.migrations?.status === 'string' ? j.migrations.status : undefined,
-    }
-  } catch {
-    return null
-  }
-}
-
-/** [[OPS232]] P5: `ok` without deploying when `/health` already shows the package's version and commit; otherwise D15's deploy (`--no-bundle`, `VERSION`, `COMMIT`). */
+/**
+ * [[OPS496]] D4 (revising [[OPS232]] P5): `ok` without deploying when the Worker's settings already show the package's version and commit and every recorded variable at its value; otherwise
+ * D15's deploy (`--no-bundle`, `VERSION`, `COMMIT`). The live build comes from the Cloudflare API, never from the host: a lookup of a hostname before its record exists poisons the machine's DNS cache.
+ */
 const deploy: Step = async (ctx) => {
   const b = blocked(ctx, 'deploy')
   if (b) return b
   const { version, commit } = ctx.manifest
-  const health = await readHealth(ctx)
+  let live: WorkerSettings | null = null
+  let unreadable: string | undefined
+  try {
+    live = await readWorkerSettings(ctx.creds, ctx.opts.workerName, ctx.deps.fetch)
+  } catch (e) {
+    unreadable = e instanceof CfApiError ? `settings unreadable: HTTP ${e.status}` : 'settings unreadable'
+  }
+  const sameBuild = live !== null && live.plain.VERSION === version && sameCommit(live.plain.COMMIT ?? null, commit)
+  const differing = live
+    ? Object.entries(effective(ctx).vars)
+        .filter(([k, v]) => live.plain[k] !== v)
+        .map(([k]) => k)
+    : []
   // [[OPS308]] D14: a host move changes the generated config (the route, the issuer) at an unchanged version, so it always deploys.
-  if (!ctx.opts.move && health?.version === version && health.commit === commit)
-    return result('deploy', 'ok', `/health already reports ${version} @ ${commit}`)
-  const seen = health?.version ? health.version.slice(0, 12) : 'no answer'
+  if (!ctx.opts.move && sameBuild && differing.length === 0)
+    return result('deploy', 'ok', `the Worker already shows ${version} @ ${commit} with the recorded variables`)
+  const seen =
+    unreadable ??
+    (live === null
+      ? 'no Worker'
+      : `${live.plain.VERSION ? live.plain.VERSION.slice(0, 12) : 'no version'}${sameBuild && differing.length ? `, variables differ: ${differing.join(', ')}` : ''}`)
   if (ctx.opts.dryRun) {
     ctx.pending = true
-    return result('deploy', 'update', `would deploy ${version} @ ${commit} (/health: ${seen})`)
+    return result('deploy', 'update', `would deploy ${version} @ ${commit} (Worker: ${seen})`)
   }
   const r = wr(ctx, (cfg) => deployArgs(version, commit, cfg))
   if (r.status !== 0)
@@ -817,6 +826,15 @@ const deploy: Step = async (ctx) => {
 
 const CLERK_SECRET_NAMES = ['CLERK_SECRET_KEY', 'CLERK_JWT_KEY'] as const
 
+/** The secrets this configuration's `secrets` step manages: the Clerk pair, `AUTH_SECRET` and the Google pair when set, the Gmail group. */
+export function managedSecretNames(ctx: SetupCtx): string[] {
+  return [
+    ...(ctx.opts.auth === 'clerk' ? CLERK_SECRET_NAMES : []),
+    ...(ctx.betterAuth ? ['AUTH_SECRET', ...(ctx.betterAuth.google ? GOOGLE_SECRET_NAMES : [])] : []),
+    ...(ctx.gmail ? GMAIL_SECRET_NAMES : []),
+  ]
+}
+
 /**
  * [[OPS87]], [[OPS150]] over `wrangler secret bulk` on stdin: present secrets stay without `--rotate-secrets`; `CREDENTIALS_KEY` is put only when absent. [[OPS249]] D3: `AUTH_SECRET` is
  * judged by its four states and never rotated; a generated value is written to the secrets file BEFORE the put, so a failed put cannot lose it.
@@ -824,13 +842,8 @@ const CLERK_SECRET_NAMES = ['CLERK_SECRET_KEY', 'CLERK_JWT_KEY'] as const
 const secrets: Step = async (ctx) => {
   const b = blocked(ctx, 'secrets')
   if (b) return b
-  const clerk = ctx.opts.auth === 'clerk'
   const ba = ctx.betterAuth
-  const names: string[] = [
-    ...(clerk ? CLERK_SECRET_NAMES : []),
-    ...(ba ? ['AUTH_SECRET', ...(ba.google ? GOOGLE_SECRET_NAMES : [])] : []),
-    ...(ctx.gmail ? GMAIL_SECRET_NAMES : []),
-  ]
+  const names = managedSecretNames(ctx)
   if (names.length === 0)
     return result('secrets', 'ok', 'no secrets for this configuration (--auth none, no Gmail group)')
   const list = wr(ctx, ['secret', 'list', '--format', 'json'])
@@ -935,61 +948,132 @@ async function checkDiscovery(ctx: SetupCtx): Promise<string | null> {
   return bad.length ? `/.well-known/vibase disagrees: ${bad.join('; ')}` : null
 }
 
-/** [[OPS232]] P5: verify expects the package's version with migrations `current`, on the injected clock and the 300 s bound of `upgrade`. */
+/**
+ * [[OPS496]] D1: the facts the old poll inferred from `/health` and the ones it could not see, each through the Cloudflare API and none through the host. The first failure is returned,
+ * naming the check and what was found; no later check runs.
+ */
+async function apiChecks(ctx: SetupCtx): Promise<string | null> {
+  const { opts, creds } = ctx
+  const f = ctx.deps.fetch
+  const { version, commit } = ctx.manifest
+  let worker: WorkerSettings | null = null
+  const checks: [string, () => Promise<string | null>][] = [
+    [
+      'Worker',
+      async () => {
+        worker = await readWorkerSettings(creds, opts.workerName, f)
+        if (worker === null) return `Worker ${opts.workerName} not found (Cloudflare API code 10007)`
+        const p = worker.plain
+        if (p.VERSION !== version) return `VERSION is ${p.VERSION ?? 'not set'}, the package is ${version}`
+        if (!sameCommit(p.COMMIT ?? null, commit)) return `COMMIT is ${p.COMMIT ?? 'not set'}, the package is ${commit}`
+        for (const [k, v] of Object.entries(effective(ctx).vars))
+          if (p[k] !== v)
+            return `variable ${k} is ${p[k] === undefined ? 'not set' : JSON.stringify(p[k])} on the Worker, recorded ${JSON.stringify(v)}`
+        return null
+      },
+    ],
+    [
+      'secrets',
+      async () => {
+        const missing = managedSecretNames(ctx).filter((n) => !worker!.secrets.includes(n))
+        return missing.length ? `${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} not on the Worker` : null
+      },
+    ],
+    [
+      'host',
+      async () => {
+        if (opts.workersDev)
+          return (await readSubdomainEnabled(creds, opts.workerName, f))
+            ? null
+            : `the workers.dev subdomain of ${opts.workerName} is not enabled`
+        return (await readDomains(creds, opts.workerName, f)).includes(opts.apiHost)
+          ? null
+          : `custom domain ${opts.apiHost} is not attached to ${opts.workerName}`
+      },
+    ],
+    [
+      'migrations',
+      async () => {
+        const dbs = [
+          ...(ctx.current?.control_d1
+            ? [{ label: 'control', binding: 'CONTROL_DB' as const, expected: expectedControlMigrations(ctx) }]
+            : []),
+          { label: 'crm', binding: 'DB' as const, expected: expectedMigrations(ctx) },
+        ]
+        for (const db of dbs) {
+          const status = statusOf(readTracker(ctx, db.binding), db.expected)
+          if (status !== 'current') return `the ${db.label} database is ${status}, not current`
+        }
+        return null
+      },
+    ],
+    ['bucket', async () => ((await readBucket(creds, opts.r2Name, f)) ? null : `R2 bucket ${opts.r2Name} not found`)],
+  ]
+  for (const [name, check] of checks) {
+    try {
+      const d = await check()
+      if (d) return `${name} check failed: ${d}`
+    } catch (e) {
+      return `${name} check failed: ${ctx.secrets.redact(e instanceof Error ? e.message : 'failed')}`
+    }
+  }
+  return null
+}
+
+/** [[OPS496]] D2: one `/health` read after the API checks. No answer is `ok` ("not reachable yet"); an answer that is wrong fails. Returns a failure detail, `'unanswered'`, or `null`. */
+async function readHostOnce(ctx: SetupCtx, url: string): Promise<string | 'unanswered' | null> {
+  const { version, commit } = ctx.manifest
+  const r = await readOnce(ctx.deps.fetch, `${url}/health`)
+  if (!r.answered) return 'unanswered'
+  if (r.status !== 200) return `${url}/health answered ${r.status}, not 200`
+  const j = r.body as { version?: unknown; commit?: unknown; migrations?: { status?: unknown } } | null
+  if (typeof j?.version !== 'string')
+    return `${url}/health answered 200 but not with a Vibase health body (no version string)`
+  if (j.version !== version) return `${url}/health is at version ${j.version}, the package is ${version}`
+  if (typeof j.commit === 'string' && !sameCommit(j.commit, commit))
+    return `${url}/health is at commit ${j.commit}, the package is ${commit}`
+  const m = j.migrations?.status
+  if (m !== 'current') return `${url}/health reports migrations ${typeof m === 'string' ? m : 'unknown'}, not current`
+  return null
+}
+
+/**
+ * [[OPS496]] D1-D3 (revising [[OPS232]] P5, [[OPS306]] D8, [[OPS308]] P2): the Cloudflare API checks, then one bounded `/health` read and, only after a `200`, one read of each discovery
+ * document. Never polls and never sleeps.
+ */
 const verifyStep: Step = async (ctx) => {
   const b = blocked(ctx, 'verify')
   if (b) return b
   const { version } = ctx.manifest
   const url = `https://${ctx.opts.apiHost}`
-  // [[OPS308]] P2: one deadline, started here, covers the health wait and both discovery reads.
-  const start = ctx.deps.now()
-  let seen: string | null
-  if (ctx.opts.dryRun) {
-    const h = await readHealth(ctx)
-    seen =
-      h?.version === version && h.migrations === 'current'
-        ? null
-        : h === null
-          ? 'no answer'
-          : `version ${h.version ?? '?'}, migrations ${h.migrations ?? '?'}`
-    if (seen !== null)
-      return ctx.pending
-        ? result('verify', 'blocked', 'waits on the changes planned above')
-        : result('verify', 'fail', `${url}/health is not at ${version} with migrations current (${seen})`)
-  } else {
-    seen = await verify(url, version, ['current'], ctx.deps, start, ctx.deps.out)
-    if (seen !== null)
-      return result(
-        'verify',
-        'fail',
-        `${url}/health did not become ${version} with migrations current within 300s (${seen})${seen === 'no answer' ? `; ${dnsHint(url, `vibase-server status --env ${ctx.opts.env}`)}` : ''}`,
-      )
-  }
-  if (ctx.opts.auth === 'clerk') {
+  const failed = await apiChecks(ctx)
+  // A dry run with changes planned above evaluates nothing yet, whatever the reads showed.
+  if (ctx.opts.dryRun && ctx.pending) return result('verify', 'blocked', 'waits on the changes planned above')
+  if (failed) return result('verify', 'fail', failed)
+  const host = await readHostOnce(ctx, url)
+  const reached = host !== 'unanswered'
+  if (host !== null && host !== 'unanswered') return result('verify', 'fail', host)
+  if (!reached) ctx.hostUnanswered = true
+  if (reached && ctx.opts.auth === 'clerk') {
     const mismatch = await checkDiscovery(ctx)
     if (mismatch) return result('verify', 'fail', mismatch)
   }
   let signInMethods: string[] = []
-  if (ctx.opts.auth === 'better-auth') {
-    // OPS306 D8, P1: the issuer is the recorded PUBLIC_BASE_URL (`https://<api host>`, the value setup records), never a request host.
+  if (reached && ctx.opts.auth === 'better-auth') {
+    // OPS306 D8, P1: the issuer is the recorded PUBLIC_BASE_URL (`https://<api host>`, the value setup records), never a request host. One read of each document ([[OPS496]] D3).
     const issuer = await checkBetterAuthIssuer(url, {
       fetch: ctx.deps.fetch,
       now: ctx.deps.now,
       sleep: ctx.deps.sleep,
-      dryRun: ctx.opts.dryRun,
-      start,
-      progress: ctx.deps.out,
+      dryRun: false,
+      once: true,
     })
-    if (!issuer.ok)
-      return result(
-        'verify',
-        'fail',
-        issuer.unreachable
-          ? `${issuer.detail}; ${dnsHint(url, `vibase-server status --env ${ctx.opts.env}`)}`
-          : issuer.detail,
-      )
+    if (!issuer.ok) return result('verify', 'fail', issuer.detail)
     signInMethods = issuer.signInMethods
   }
+  const detail = reached
+    ? `${url}/health is ${version}, migrations current`
+    : `${url} not reachable yet from this machine (API checks passed; discovery not checked)`
   const hint = ctx.keyWritten
     ? `agents use the operator key in ${ctx.secretsPath} (${ctx.opts.keyEnv}) as a Bearer token`
     : 'no operator key was created in this run; create agents and keys through agents.create and api_keys.create on /meta/v1 (re-run with --operator-agent and --key-env only while the organisation does not exist yet)'
@@ -998,11 +1082,11 @@ const verifyStep: Step = async (ctx) => {
     return result(
       'verify',
       'ok',
-      `${url}/health is ${version}, migrations current`,
+      detail,
       betterAuthNextSteps({
         url,
         claimLink: ctx.ownerLinkIssued === true,
-        google: signInMethods.includes('google'),
+        google: signInMethods.includes('google') || (!reached && ctx.betterAuth?.google !== undefined),
         emailConfigured: false,
         hint: [hint],
       }).concat(ctx.opts.move ? moveLines(ctx.opts.move.from, ctx.opts.apiHost, false) : []),
@@ -1026,7 +1110,7 @@ const verifyStep: Step = async (ctx) => {
         ]
       : []),
   ]
-  return result('verify', 'ok', `${url}/health is ${version}, migrations current`, next)
+  return result('verify', 'ok', detail, next)
 }
 
 const clerkStepAdapter: Step = (ctx) => clerkStep(ctx)

@@ -466,14 +466,14 @@ describe('refusals and failures (the matrix)', () => {
     expect(s.rows().map((r) => r.step)).not.toContain('secrets')
     expect(s.sim.bulk).toEqual([])
   })
-  it('verify never sees the package version: exit 3 after the 300 s bound on the injected clock', async () => {
+  it('OPS496 D1: a deploy that never reaches the Worker fails verify at once at the Worker check, with no wait', async () => {
     const s = world({
       controlMarker: 'org-1',
       sim: { ...ADOPTED(), deployed: { version: '0.0.9', commit: null }, deployNoop: true },
     })
     failedAt(s, await run(s), 'verify')
-    expect(s.w.clock.t).toBeGreaterThanOrEqual(300_000)
-    expect(s.w.clock.t).toBeLessThan(400_000)
+    expect(s.rows().find((r) => r.step === 'verify')!.detail).toMatch(/Worker check failed: VERSION is 0\.0\.9/)
+    expect(s.w.clock.t).toBe(0)
   })
   it('OPS240 P1: prints the package line as vibase-server/<version> (<commit>), <n> files verified, before the first step', async () => {
     const s = world({ processEnv: {} })
@@ -551,6 +551,9 @@ describe('bootstrap from the release (P3, P4)', () => {
     expect(await count('organizations')).toBe(1)
     expect(await count('users')).toBe(0)
     expect(s.rows().find((r) => r.step === 'clerk')).toBeTruthy()
+    // OPS496 D3, D5: Clerk's discovery is read once, and Clerk prints no owner block.
+    expect(s.w.fetchUrls.filter((u) => u === `https://${API_HOST}/.well-known/vibase`)).toHaveLength(1)
+    expect(s.w.out.join('\n')).not.toMatch(/Claim your instance|No owner invitation/)
   })
 
   it('a --key-env already in the secrets file refuses before any D1 write and leaves the file alone', async () => {

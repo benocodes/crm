@@ -9,7 +9,7 @@ import { NO_EMAIL_STATEMENT } from '../setup/verify-better-auth.js'
 import type { BetterAuthScript } from '../setup/test/better-auth-answers.js'
 import { ALL_MIGRATIONS, API_HOST, setupWorld, type SetupWorld, type SetupWorldOptions } from './setup-kit.js'
 import { runSetup } from './setup.js'
-import { CONTROL_ALL, CONTROL_UUID, SECRETS_TEXT, UUID, cleanup, controlSettings } from './test-kit.js'
+import { CONTROL_ALL, CONTROL_UUID, PKG_COMMIT, SECRETS_TEXT, UUID, cleanup, controlSettings } from './test-kit.js'
 
 const BASE = `https://${API_HOST}`
 const OWNER = 'owner@example.com'
@@ -53,7 +53,7 @@ function deployed(o: { ba?: BetterAuthScript; vars?: Record<string, string> } = 
       ...(o.ba ? { ba: o.ba } : {}),
     },
   })
-  s.sim.deployed = { version: pkgVersion(s), commit: 'c' }
+  s.sim.deployed = { version: pkgVersion(s), commit: PKG_COMMIT }
   return s
 }
 const verifyOnly = (s: SetupWorld, extra: string[] = []) => run(s, [...ARGS, '--only', 'verify', ...extra])
@@ -85,7 +85,7 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
     expect(row(s, 'verify').status).toBe('ok')
   })
 
-  it('discovery 500 then 200 within the bound: ok, after one wait', async () => {
+  it("OPS496 D3: discovery 500 fails with no second read and no wait (the retried reads are setup:remote's)", async () => {
     const s = deployed({
       ba: {
         vibase: [
@@ -98,36 +98,26 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
       },
     })
     const clock0 = s.w.clock.t
-    expect(await verifyOnly(s), s.w.all()).toBe(0)
-    expect(calls(s, VIBASE_URL)).toBe(2)
-    expect(s.w.clock.t - clock0).toBeGreaterThanOrEqual(10_000)
-  })
-
-  it('metadata 500 then 200 within the bound: ok', async () => {
-    const s = deployed({ ba: { metadata: [{ status: 502 }, { status: 200, body: { issuer: `${BASE}/auth` } }] } })
-    expect(await verifyOnly(s), s.w.all()).toBe(0)
-  })
-
-  it('a connection failure then 200 within the bound: ok', async () => {
-    const s = deployed({
-      ba: {
-        vibase: [
-          'throw',
-          { status: 200, body: { auth: { provider: 'better-auth', issuer: `${BASE}/auth`, sign_in_methods: [] } } },
-        ],
-      },
-    })
-    expect(await verifyOnly(s), s.w.all()).toBe(0)
-  })
-
-  it('discovery 5xx past the bound: exit 3, naming the URL and the status, after the bound on the injected clock', async () => {
-    const s = deployed({ ba: { vibase: [{ status: 500 }] } })
-    const clock0 = s.w.clock.t
     expect(await verifyOnly(s)).toBe(3)
-    expect(row(s, 'verify').status).toBe('fail')
     expect(row(s, 'verify').detail).toContain(VIBASE_URL)
     expect(row(s, 'verify').detail).toContain('500')
-    expect(s.w.clock.t - clock0).toBeGreaterThanOrEqual(300_000)
+    expect(calls(s, VIBASE_URL)).toBe(1)
+    expect(s.w.clock.t).toBe(clock0)
+  })
+
+  it('OPS496 D3: metadata 502 fails with no second read', async () => {
+    const s = deployed({ ba: { metadata: [{ status: 502 }, { status: 200, body: { issuer: `${BASE}/auth` } }] } })
+    expect(await verifyOnly(s)).toBe(3)
+    expect(calls(s, META_URL)).toBe(1)
+  })
+
+  it('OPS496 D3: a discovery request that throws fails with no retry', async () => {
+    const s = deployed({ ba: { vibase: ['throw'] } })
+    const clock0 = s.w.clock.t
+    expect(await verifyOnly(s)).toBe(3)
+    expect(calls(s, VIBASE_URL)).toBe(1)
+    expect(s.w.clock.t).toBe(clock0)
+    expect(row(s, 'verify').detail).toContain('did not answer')
   })
 
   const FAIL: [string, BetterAuthScript, RegExp][] = [
@@ -160,19 +150,6 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
     expect(s.w.clock.t).toBe(clock0)
   })
 
-  it('discovery 200 with the wrong content after an earlier 500: fail without waiting out the bound', async () => {
-    const s = deployed({
-      ba: {
-        vibase: [{ status: 500 }, ok200({ auth: { provider: 'better-auth', issuer: 'https://other.example/auth' } })],
-      },
-    })
-    const clock0 = s.w.clock.t
-    expect(await verifyOnly(s)).toBe(3)
-    expect(row(s, 'verify').detail).toMatch(/auth\.issuer/)
-    expect(calls(s, VIBASE_URL)).toBe(2)
-    expect(s.w.clock.t - clock0).toBe(10_000)
-  })
-
   it('a dry run with a 500: fail, read once, no retry and no wait', async () => {
     const s = deployed({ ba: { vibase: [{ status: 500 }] } })
     const clock0 = s.w.clock.t
@@ -197,24 +174,20 @@ describe('1. verify on better-auth (D8, P1): the matrix', () => {
   })
 })
 
-describe('GH442 item 1: progress and the DNS hint on vibase-server setup', () => {
-  it('a never-answering discovery prints one line per wait and ends with the DNS hint and the status command', async () => {
-    const s = deployed({ ba: { vibase: ['throw'] } })
-    await run(s, [...ARGS, '--only', 'verify'])
-    const waits = s.w.out.filter((l) => l.includes('waiting for the instance to come up'))
-    expect(waits.length).toBeGreaterThan(5)
-    const detail = s.w.out.find((l) => /^fail\s+verify\b/.test(l))!
-    expect(detail).toContain('stale local DNS cache')
-    expect(detail).toContain(`${BASE}/health`)
-    expect(detail).toContain('vibase-server status --env demo')
-  })
-
-  it('a health that never answers prints progress and the hint', async () => {
+describe('OPS496 D2: a host that does not answer is not a failure, and nothing waits', () => {
+  it('no answer: verify ok with "not reachable yet", discovery not checked, one /health request, no sleep', async () => {
     const s = deployed()
-    s.sim.deployed = null
-    await run(s, [...ARGS, '--only', 'verify'])
-    expect(s.w.out.filter((l) => l.includes('waiting for the instance to come up')).length).toBeGreaterThan(5)
-    expect(s.w.out.find((l) => /^fail\s+verify\b/.test(l))).toContain('stale local DNS cache')
+    s.sim.hostDown = 'dns'
+    const clock0 = s.w.clock.t
+    expect(await verifyOnly(s), s.w.all()).toBe(0)
+    expect(row(s, 'verify').status).toBe('ok')
+    expect(row(s, 'verify').detail).toContain('not reachable yet')
+    expect(row(s, 'verify').detail).toContain('discovery not checked')
+    expect(calls(s, `${BASE}/health`)).toBe(1)
+    expect(calls(s, VIBASE_URL)).toBe(0)
+    expect(calls(s, META_URL)).toBe(0)
+    expect(s.w.clock.t).toBe(clock0)
+    expect(s.w.out.filter((l) => l.includes('waiting for the instance'))).toEqual([])
   })
 })
 

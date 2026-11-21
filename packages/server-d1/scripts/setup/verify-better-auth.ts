@@ -51,6 +51,8 @@ export interface DiscoveryReads {
   sleep(ms: number): Promise<void>
   /** A dry run reads once: a transient answer fails at once, nothing is retried. */
   dryRun: boolean
+  /** [[OPS496]] D3: one read of each document, nothing retried (`vibase-server setup`; the source front-end keeps its retries). */
+  once?: boolean
   /** The instant verify started, so the health wait and these reads share one bound ([[OPS308]] P2); default: now. */
   start?: number
   /** Called with one line before each wait ([[GH442]] item 1). */
@@ -91,7 +93,7 @@ export async function checkBetterAuthIssuer(base: string, r: DiscoveryReads): Pr
       const a = await read(r.fetch, url)
       if (a.kind === 'final') return a
       unreachable = a.detail === 'did not answer'
-      if (r.dryRun) return `${url} ${a.detail}`
+      if (r.dryRun || r.once) return `${url} ${a.detail}`
       if (r.now() - start >= DISCOVERY_BOUND_MS)
         return `${url} still ${a.detail} after ${Math.round((r.now() - start) / 1000)}s in total`
       r.progress?.(waitLine(r.now() - start))

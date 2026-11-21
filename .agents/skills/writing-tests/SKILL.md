@@ -47,6 +47,12 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   backup). Never bare-checkout a file that holds uncommitted changes you mean to keep. The rule is not
   mutation-only: [[CORE199]]'s coder lost uncommitted work the same way mid-run, outside a mutation (see
   `execute-cycle` §3, "Setting work aside").
+- **A mutation is an edit of the code or the page under test, never a test case.** A test that matches a pattern
+  against a string literal (`expect('verify retries inside a five minute bound').toMatch(/five minute/)`) passes
+  whatever the product says and proves nothing; [[OPS496]] lost a review round to one standing in for its docs group.
+  Edit the real file (there `self-hosting.md`), run the suite, paste the red lines, restore. A test that reads the
+  knowledge repo (a recipe) must `skipIf` the path is missing: worktrees have no `knowledge/` clone ([[OPS494]]'s
+  `docs.test.ts` recipe check).
 - **A mutation that stays green is suspect before the test is.** Check `git diff` shows an executable line
   changed: [[CORE38]]'s mutation 7 (`remoteBindings: true`) first replaced the word in a code comment and
   stayed green; applied to the `return` line it turned red. Record which attempt counted.

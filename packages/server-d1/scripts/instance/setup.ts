@@ -12,8 +12,9 @@ import { moveLines, registerPending, resolveHost } from '../setup/host.js'
 import { loadClerkKeys } from '../setup/clerk-keys.js'
 import { GMAIL_SECRET_NAMES, GMAIL_VAR_NAMES, gmailOffLine, loadGmail } from '../setup/gmail.js'
 import { claimBlock } from '../setup/verify-better-auth.js'
-import { CLERK_ONLY_STEPS, STEP_NAMES, type EnvFileProbe, type StepResult } from '../setup/types.js'
+import { CLERK_ONLY_STEPS, STEP_NAMES, type Credentials, type EnvFileProbe, type StepResult } from '../setup/types.js'
 import { ABORT_LINE, confirmProceed } from './prompt.js'
+import { readWorkerSettings } from './cf-api.js'
 import { compareSemver, parseSemver } from './gate.js'
 import { defaultSecretsPath, loadSecrets } from './secrets.js'
 import { defaultSettingsPath, loadSettings } from './settings.js'
@@ -115,7 +116,9 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     const betterAuth = loadBetterAuth(opts, secrets.text, secretsPath)
 
     // (c) P2: a live instance that is a newer release refuses before any write; no answer or a non-semver version (a source deploy) proceeds.
-    const live = await readLiveVersion(opts.apiHost, deps)
+    // [[OPS496]] D4: the live build is read from the Worker's settings through the API, never from the host (a lookup before its record exists poisons the machine's DNS cache).
+    // A missing Worker is no live instance; an unreadable one proceeds (verify names the refused read later).
+    const live = await readLiveVersion(creds, opts.workerName, deps)
     if (
       live !== null &&
       parseSemver(live) !== null &&
@@ -231,15 +234,33 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     for (const m of manual) say(`  ${m}`)
   }
   const failed = results.find((r) => r.status === 'fail')
-  // [[GH442]] item 5: the owner invitation closes the output, whatever the run's outcome (the invitation is valid), and goes to the console only.
+  // [[GH442]] item 5, [[OPS496]] D5, P3: the closing block is the last output of a real run, whatever its outcome: the Claim block, or why there is no invitation, then the DNS line. Console only.
   const claim = () => {
-    if (ctx.ownerInvitation && !opts.dryRun)
+    if (opts.dryRun) return
+    const reset = `vibase-server owner-reset --env ${opts.env}`
+    if (ctx.ownerInvitation)
       for (const l of claimBlock(
         ctx.ownerInvitation,
         `https://${opts.apiHost}`,
-        `vibase-server owner-reset --env ${opts.env} --email ${ctx.ownerInvitation.email}`,
+        `${reset} --email ${ctx.ownerInvitation.email}`,
       ))
         say(l)
+    else if (opts.auth === 'better-auth' && ctx.ownerState) {
+      say('')
+      if (ctx.ownerState.kind === 'owner') {
+        say('No owner invitation was issued in this run: an owner exists.')
+        say(`To recover access: ${reset}`)
+      } else {
+        say(
+          `No owner invitation was issued in this run: an owner invitation for ${ctx.ownerState.email} is pending (expires ${ctx.ownerState.expiresAt}).`,
+        )
+        say(`A new link: ${reset} --email ${ctx.ownerState.email}`)
+      }
+    }
+    if (!opts.workersDev && ctx.hostUnanswered) {
+      say('')
+      say(`It can take a few minutes for DNS to propagate before https://${opts.apiHost} is reachable.`)
+    }
   }
   if (failed) {
     say2(`vibase-server setup: ${failed.step} failed: ${failed.detail}`)
@@ -251,17 +272,10 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
   return EXIT_DONE
 }
 
-/** The live `/health` version, or `null` when it does not answer 200 with one. */
-async function readLiveVersion(apiHost: string, deps: InstanceDeps): Promise<string | null> {
+/** The live version from the Worker's `VERSION` binding, or `null` when there is no Worker or it cannot be read. */
+async function readLiveVersion(creds: Credentials, worker: string, deps: InstanceDeps): Promise<string | null> {
   try {
-    const res = await deps.fetch(`https://${apiHost}/health`, {
-      redirect: 'manual',
-      headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(15_000),
-    })
-    if (res.status !== 200) return null
-    const v = ((await res.json()) as { version?: unknown }).version
-    return typeof v === 'string' ? v : null
+    return (await readWorkerSettings(creds, worker, deps.fetch))?.plain.VERSION ?? null
   } catch {
     return null
   }

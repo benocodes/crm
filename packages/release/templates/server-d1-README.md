@@ -16,6 +16,8 @@ Or install it, then run `vibase-server <command>`. The package that runs is the 
 
 The settings and secrets of an instance are files outside the package: `$XDG_CONFIG_HOME/vibase/instances/<env>.json` and `<env>.env` (mode 600, with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`). A new instance starts with `vibase-server init --env <name>`, which writes the secrets file with generated secrets and an empty line for each value you supply, and prints the `setup --dry-run` command to run next. `setup`, `upgrade`, `redeploy` and `owner-reset` print their plan and ask `proceed? [Y/n]` once before the first change; `--yes` (or no terminal) skips it, and `--dry-run` reads only. `vibase-server --help` lists every flag.
 
+Setup verifies through the Cloudflare API (the Worker's build and variables, its secrets, the host, both databases, the bucket) and makes one short request to `/health`; a host that does not resolve yet is reported as `not reachable yet` and does not fail the run. It ends with the owner invitation, or why there is none.
+
 The stable paths other tooling may rely on are the package's `exports`: `./worker`, `./wrangler.base.jsonc`, `./release.json`, `./migrations/*`, `./control-migrations/*` (the control-plane database's migrations), `./assets/*` and `./package.json`.
 
 ## Turning on email
