@@ -20,9 +20,9 @@ the session cookie is sent credentialed across the two origins, which browsers a
 on `workers.dev`** (a public suffix: every `*.workers.dev` is a different site), and no code enforces this. To configure it:
 
 - on the Worker, add the app's origin to **both** `AUTH_TRUSTED_ORIGINS` (credentialed CORS on `/auth/*`, and the return target of
-  `/sign-in`) and `CORS_ALLOWED_ORIGINS` (the REST calls);
+  `/app/sign-in`) and `CORS_ALLOWED_ORIGINS` (the REST calls);
 - build the app with `APPROVALS_API_ORIGIN=<the Worker's origin>` (the Clerk variables are not needed);
-- Sign in sends the person to the vault's `/sign-in` with `return_to` set to the app's URL, and back.
+- Sign in sends the person to the vault's `/app/sign-in` with `return_to` set to the app's URL, and back.
 
 `pnpm -C packages/server-d1 e2e:approvals-app` runs the whole flow locally in a browser (prerequisites in `e2e/approvals-app.e2e.ts`).
 

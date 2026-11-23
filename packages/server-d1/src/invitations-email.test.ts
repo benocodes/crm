@@ -162,7 +162,7 @@ describe('email on: emailed invitations (D3, D6)', () => {
     expect(m.to).toBe('ann@x.test')
     expect(m.from).toEqual({ email: 'invites@vibase.test', name: 'Vibase' })
     expect(m.subject).toBe("You're invited to Vibase at vibase.test")
-    expect(linkIn(m.text)).toMatch(/^https:\/\/vibase\.test\/invite#token=[A-Za-z0-9_-]{43}/)
+    expect(linkIn(m.text)).toMatch(/^https:\/\/vibase\.test\/app\/invite#token=[A-Za-z0-9_-]{43}/)
     expect(m.html).toContain(linkIn(m.text))
     expect((await auditOf(res.json.id))[0]!.detail).toMatchObject({ delivery: 'email' })
     expect((await rows(w.control, 'select delivery from invitations where id = ?', res.json.id))[0]).toEqual({

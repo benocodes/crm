@@ -11,7 +11,7 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
 })
-beforeEach(() => history.replaceState(null, '', '/sign-in'))
+beforeEach(() => history.replaceState(null, '', '/app/sign-in'))
 
 const NO_SESSION = { status: 200, json: null }
 const DISCOVERY = (flag: unknown) => ({

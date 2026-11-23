@@ -169,7 +169,7 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   phase runs in (uninitialised, behind, current) and name the test or the compose case that pins the same answer.
   The same holds for `release:check`: its installed instance is uninitialised, so an unknown path there is the router
   gate's `503`, not the ready Worker's `404`. [[UI507]]'s charter asked it for the old app paths' `404`; it asserts
-  "not served" (`404` or `503`, no `Location`) and `src/app-serving.test.ts` pins the `404` on a ready Worker (507.12).
+  "not served" (`404` or `503`, no `Location`) and `src/app-serving.test.ts` (now `src/static-serving.test.ts`, [[UI510]]) pins the `404` on a ready Worker (507.12).
   A charter that names an answer from `release:check` or a smoke states the phase it runs in.
 - **An absence mutation is per engine: drop every guard that engine has for the property.** The same property can be
   held by different guards on each engine. Removing one guard proves nothing on an engine where another still holds.
@@ -366,7 +366,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   ([[UI507]]) by a quoted-literal pattern over the tests was wrong in two kinds of place: a regex literal (`/\/home$/`)
   that the pattern missed, and an API URL that merely ends in the segment (`/meta/v1/agents` checked with
   `url.includes('/agents')`), which it would have rewritten. Match the whole quoted path, then read each hit; the
-  suites caught both, but only because every touched file was run.
+  suites caught both, but only because every touched file was run. Moving the auth pages ([[UI510]]) added a third
+  kind: the path URL-encoded inside a query (`return_to=%2Fdevice`) or with an escaped slash (`\/device`); five tests
+  went red on the first full run. Grep for `%2F<segment>` and `\/<segment>` too.
 - **A build that stops producing an asset directory deletes it.** `dist/assets/` is gitignored and survives
   between builds, so `wrangler dev` and a deploy would keep serving the removed page from a stale copy; UI476's
   `pnpm build` starts with `rm -rf dist/assets/connect`, pinned in `packages/server-d1/scripts/build.test.ts`.

@@ -60,7 +60,7 @@ async function askedFor(defaults: string[] | undefined, email: string): Promise<
   const raw = res.status === 302 ? res.headers.get('location') : ((await res.json()) as { url?: string }).url
   expect(raw, `authorize answered ${res.status}`).toBeTruthy()
   const loc = new URL(raw!, AUTH_BASE)
-  expect(loc.pathname).toBe('/consent')
+  expect(loc.pathname).toBe('/app/consent')
   return (loc.searchParams.get('scope') ?? '').split(' ').filter(Boolean).sort()
 }
 

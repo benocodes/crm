@@ -33,6 +33,10 @@ export const GOOGLE_SCOPES = ['openid', 'email', 'profile'] as const
 /** The OAuth state's server-context key that carries the invitation token across Google's redirect ([[CORE294]] D8, P3). */
 const SERVER_CONTEXT_TOKEN = 'invitationToken'
 
+/** [[UI510]] D7: the vault's own pages Better Auth redirects to, under `/app` (the auth bundle's table entries in `@vibase/server-d1`, pinned by its `auth-page-urls.test.ts`). */
+export const LOGIN_PAGE_PATH = '/app/sign-in'
+export const CONSENT_PAGE_PATH = '/app/consent'
+export const DEVICE_PAGE_PATH = '/app/device'
 /** The resources the provider issues access tokens for ([[CORE283]] P1): the API origin and the MCP endpoint's canonical URI (RFC 8707). Both name this one Worker. */
 export const MCP_RESOURCE_PATH = '/mcp'
 export const resourcesFor = (baseURL: string): [string, string] => [baseURL, `${baseURL}${MCP_RESOURCE_PATH}`]
@@ -222,9 +226,9 @@ function composePlugins(
     }),
     oauthProvider({
       // [[UI246]] D1: the vault's own sign-in page, outside Better Auth's base path.
-      loginPage: '/sign-in',
+      loginPage: LOGIN_PAGE_PATH,
       // [[UI247]] D1: the vault's own consent page, outside Better Auth's base path (the signed query rides on it).
-      consentPage: '/consent',
+      consentPage: CONSENT_PAGE_PATH,
       scopes,
       accessTokenExpiresIn: ACCESS_TOKEN_SECONDS,
       // No `allowedScopes` on a resource row: the library seeds rows once and never updates them, so a list there would go stale when a scope is added. The client's own scopes
@@ -255,7 +259,7 @@ function composePlugins(
     }),
     oauthDeviceAuthorization({
       // [[UI247]] D1, D2: `verification_uri(_complete)` name the vault's page; the library's JSON endpoint `GET /auth/device` stays the page's claim call. The code format is pinned here, not left to a library default.
-      verificationUri: `${baseURL}/device`,
+      verificationUri: `${baseURL}${DEVICE_PAGE_PATH}`,
       userCodeLength: DEVICE_USER_CODE_LENGTH,
       generateUserCode: generateDeviceUserCode,
       expiresIn: DEVICE_CODE_EXPIRES_IN,

@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { createMigrationTracker } from '@vibase/storage-d1/test'
 import { openControlDb } from '@vibase/storage-d1'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
-import { UI_CSP, UI_PAGE_PATHS } from './ui-serving.js'
+import { PAGE_TABLE } from './app/paths.js'
+import { UI_CSP } from './static-serving.js'
 import { AUTH_BASE, AUTH_SECRET } from './test/auth-kit.js'
 import { bootstrapD1, clerkKit, openWorkerPair, type ClerkKit, type WorkerPair } from './test/kit.js'
 
@@ -12,7 +13,7 @@ const NOT_FOUND = { error: { code: 'not_found', message: 'no such route' } }
 const EXACT_CSP =
   "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 const HTML = '<!doctype html><title>auth</title>'
-const PAGES = ['/sign-in', '/invite', '/reset-password', '/consent', '/device']
+const PAGES = ['/app/sign-in', '/app/invite', '/app/reset-password', '/app/consent', '/app/device']
 const ASSET_PATHS = ['/assets/ui/app.js', '/assets/ui/ui.css']
 // The fake serves the built files under /assets/ui/ AND, deliberately, the same files (and the pages) at the root: a Worker that routed a path to the assets binding by mistake would answer 200.
 const FILES: Record<string, { type: string; body: string }> = {
@@ -21,11 +22,11 @@ const FILES: Record<string, { type: string; body: string }> = {
   '/assets/ui/ui.css': { type: 'text/css', body: 'body{}' },
   '/app.js': { type: 'text/javascript', body: 'console.log(1)' },
   '/index.html': { type: 'text/html; charset=utf-8', body: HTML },
-  '/sign-in': { type: 'text/html; charset=utf-8', body: HTML },
-  '/invite': { type: 'text/html; charset=utf-8', body: HTML },
-  '/reset-password': { type: 'text/html; charset=utf-8', body: HTML },
-  '/consent': { type: 'text/html; charset=utf-8', body: HTML },
-  '/device': { type: 'text/html; charset=utf-8', body: HTML },
+  '/app/sign-in': { type: 'text/html; charset=utf-8', body: HTML },
+  '/app/invite': { type: 'text/html; charset=utf-8', body: HTML },
+  '/app/reset-password': { type: 'text/html; charset=utf-8', body: HTML },
+  '/app/consent': { type: 'text/html; charset=utf-8', body: HTML },
+  '/app/device': { type: 'text/html; charset=utf-8', body: HTML },
 }
 const assetCalls: { method: string; path: string }[] = []
 const ASSETS = {
@@ -110,8 +111,9 @@ describe('the constants the Worker serves (D1, D2)', () => {
   it('the policy is the exact string of D2', () => {
     expect(UI_CSP).toBe(EXACT_CSP)
   })
-  it('the page paths are the five exact paths (UI247 D1 adds /consent and /device)', () => {
-    expect([...UI_PAGE_PATHS]).toEqual(PAGES)
+  it('the page table lists the five auth pages under /app, with the ui bundle (UI510 P1)', () => {
+    expect(PAGE_TABLE.filter((p) => p.bundle === 'ui').map((p) => p.path)).toEqual(PAGES)
+    expect(PAGE_TABLE.length).toBe(8)
   })
 })
 
@@ -149,7 +151,6 @@ describe('serving matrix: path x provider (D1, D2)', () => {
         for (const method of ['GET', 'HEAD', 'POST']) {
           const res = await send(wk, path, method)
           expect(res.status, `${method} ${path}`).toBe(404)
-          expect(res.headers.get('content-security-policy'), `${method} ${path}`).toBeNull()
           if (method === 'GET') expect(await res.json(), path).toEqual(NOT_FOUND)
         }
       }
@@ -168,7 +169,7 @@ describe('serving matrix: path x provider (D1, D2)', () => {
 
   it('a bad better-auth configuration still serves the static pages (they answer before the configuration gate)', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    const res = await send(betterAuthWorker({ AUTH_SECRET: 'too short' }), '/sign-in')
+    const res = await send(betterAuthWorker({ AUTH_SECRET: 'too short' }), '/app/sign-in')
     expect(res.status).toBe(200)
   })
 
@@ -180,18 +181,18 @@ describe('serving matrix: path x provider (D1, D2)', () => {
 
 describe('exact paths and methods (D1: a trailing slash is not a page, pinned here)', () => {
   it.each([
-    '/sign-in/',
-    '/invite/',
-    '/reset-password/',
-    '/consent/',
-    '/device/',
-    '/devices',
-    '/device/x',
-    '/consent.html',
-    '/sign-in/x',
+    '/app/sign-in/',
+    '/app/invite/',
+    '/app/reset-password/',
+    '/app/consent/',
+    '/app/device/',
+    '/app/devices',
+    '/app/device/x',
+    '/app/consent.html',
+    '/app/sign-in/x',
     '/sign-inx',
-    '/invite.html',
-    '/reset-password/abc',
+    '/app/invite.html',
+    '/app/reset-password/abc',
   ])('%s is not a page: the assets binding is not asked and nothing is served', async (path) => {
     headerRules = false
     const res = await send(betterAuthWorker(), path)
@@ -211,7 +212,7 @@ describe('exact paths and methods (D1: a trailing slash is not a page, pinned he
     expect(assetCalls).toEqual([{ method: 'GET', path: '/assets/ui/nope.js' }])
   })
 
-  it.each(['/sign-in', '/assets/ui/app.js'])(
+  it.each(['/app/sign-in', '/assets/ui/app.js'])(
     'POST %s is 405 with Allow: GET, HEAD, without asking the assets binding',
     async (path) => {
       const res = await send(betterAuthWorker(), path, 'POST')
@@ -252,12 +253,28 @@ describe('with a paired, bootstrapped better-auth instance', () => {
     )
   })
 
-  it.each(['/sign-in/', '/invite/', '/reset-password/', '/consent/', '/device/'])(
+  it.each(['/app/sign-in/', '/app/invite/', '/app/reset-password/', '/app/consent/', '/app/device/'])(
     "%s (trailing slash) is the Worker's 404 not_found, not a page",
     async (path) => {
       const res = await send(betterAuthWorker(), path)
       expect(res.status).toBe(404)
       expect(res.headers.get('content-type')).toMatch(/json/)
+      expect(assetCalls).toEqual([])
+    },
+  )
+
+  // UI510 P4: the old auth paths are ordinary unknown router paths on a ready Worker: 404, never a page or a redirect, and the binding is never asked.
+  it.each(['/sign-in', '/invite', '/reset-password', '/consent', '/device'])(
+    '%s (old path) with a query, a trailing slash and a sub-path is 404 for GET, HEAD and POST, never 200 or 302',
+    async (old) => {
+      headerRules = false
+      const wk = betterAuthWorker()
+      for (const path of [old, `${old}?x=1`, `${old}/`, `${old}/x`, `${old}#a`])
+        for (const method of ['GET', 'HEAD', 'POST']) {
+          const res = await send(wk, path, method)
+          expect(res.status, `${method} ${path}`).toBe(404)
+          expect(res.headers.get('location'), `${method} ${path}`).toBeNull()
+        }
       expect(assetCalls).toEqual([])
     },
   )
@@ -268,7 +285,7 @@ describe('with a paired, bootstrapped better-auth instance', () => {
     expect(await res.json()).toEqual({ ok: true })
   })
 
-  it("an unauthenticated OAuth authorize request redirects to /sign-in (the provider's loginPage)", async () => {
+  it("an unauthenticated OAuth authorize request redirects to /app/sign-in (the provider's loginPage)", async () => {
     const wk = betterAuthWorker()
     const reg = await wk.fetch(
       new Request(`${AUTH_BASE}/auth/oauth2/register`, {
@@ -299,6 +316,6 @@ describe('with a paired, bootstrapped better-auth instance', () => {
     const res = await send(wk, `/auth/oauth2/authorize?${q}`)
     expect(res.status).toBe(302)
     const location = new URL(res.headers.get('location')!, AUTH_BASE)
-    expect(location.origin + location.pathname).toBe(`${AUTH_BASE}/sign-in`)
+    expect(location.origin + location.pathname).toBe(`${AUTH_BASE}/app/sign-in`)
   })
 })

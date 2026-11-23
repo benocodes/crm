@@ -12,7 +12,7 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
 })
-beforeEach(() => history.replaceState(null, '', '/device'))
+beforeEach(() => history.replaceState(null, '', '/app/device'))
 
 const NO_SESSION = { status: 200, json: null }
 const SESSION = { status: 200, json: { user: { id: 'u1', email: 'ann@x.test', name: 'Ann' }, session: { id: 's1' } } }
@@ -39,12 +39,14 @@ const submitCode = async (typed?: string) => {
 
 describe('no session', () => {
   it('goes to /sign-in?return_to= with this path and query, encoded, and shows no form', async () => {
-    history.replaceState(null, '', '/device?user_code=abcd-efgh')
+    history.replaceState(null, '', '/app/device?user_code=abcd-efgh')
     fakeFetch({ 'GET /auth/get-session': NO_SESSION })
     const go = vi.fn()
     render(<DevicePage navigate={go} />)
     await waitFor(() =>
-      expect(go).toHaveBeenCalledWith(`/sign-in?return_to=${encodeURIComponent('/device?user_code=abcd-efgh')}`),
+      expect(go).toHaveBeenCalledWith(
+        `/app/sign-in?return_to=${encodeURIComponent('/app/device?user_code=abcd-efgh')}`,
+      ),
     )
     expect(screen.queryByLabelText(MESSAGES.deviceCodeLabel)).toBeNull()
   })
@@ -53,13 +55,13 @@ describe('no session', () => {
     fakeFetch({ 'GET /auth/get-session': { status: 500, text: 'boom' } })
     const go = vi.fn()
     render(<DevicePage navigate={go} />)
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/sign-in?return_to=%2Fdevice'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/app/sign-in?return_to=%2Fapp%2Fdevice'))
   })
 })
 
 describe('signed in: the code form', () => {
   it('shows "Signed in as <email>" and the code input prefilled from ?user_code= as XXXX-XXXX', async () => {
-    history.replaceState(null, '', '/device?user_code=abcdefg')
+    history.replaceState(null, '', '/app/device?user_code=abcdefg')
     fakeFetch(happyRoutes())
     render(<DevicePage />)
     expect(await screen.findByText('Signed in as ann@x.test')).toBeTruthy()
@@ -93,13 +95,13 @@ describe('signed in: the code form', () => {
   })
 
   it('"Use another account" signs out and goes to /sign-in?return_to= of this page', async () => {
-    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     const f = fakeFetch({ ...happyRoutes(), 'POST /auth/sign-out': OK })
     const go = vi.fn()
     render(<DevicePage navigate={go} />)
     await userEvent.setup().click(await screen.findByRole('button', { name: MESSAGES.useAnotherAccount }))
     await waitFor(() =>
-      expect(go).toHaveBeenCalledWith(`/sign-in?return_to=${encodeURIComponent('/device?user_code=ABCDEFGH')}`),
+      expect(go).toHaveBeenCalledWith(`/app/sign-in?return_to=${encodeURIComponent('/app/device?user_code=ABCDEFGH')}`),
     )
     expect(f.requests()).toContain('POST /auth/sign-out')
   })
@@ -116,7 +118,7 @@ describe('signed in: the code form', () => {
 
 describe('claim, then review', () => {
   it('shows the app name, the code as XXXX-XXXX with the check line, the warning and the scopes with their sentences', async () => {
-    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     const f = fakeFetch(happyRoutes())
     render(<DevicePage />)
     expect(await screen.findByText('Vibase CLI')).toBeTruthy()
@@ -132,7 +134,7 @@ describe('claim, then review', () => {
   })
 
   it('the client name, the email and a scope are text: markup creates no element', async () => {
-    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     fakeFetch({
       ...happyRoutes(),
       'GET /auth/get-session': { status: 200, json: { user: { id: 'u', email: '<i id="e">a</i>@x.test' } } },
@@ -151,7 +153,7 @@ describe('claim, then review', () => {
   })
 
   it('an unknown scope is shown by name with "No description"', async () => {
-    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     fakeFetch({
       ...happyRoutes(),
       'GET /auth/device': {
@@ -165,7 +167,7 @@ describe('claim, then review', () => {
   })
 
   it('Approve posts { userCode } to /auth/device/approve and shows the return-to-terminal message', async () => {
-    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     const f = fakeFetch(happyRoutes())
     render(<DevicePage />)
     const user = userEvent.setup()
@@ -178,7 +180,7 @@ describe('claim, then review', () => {
   })
 
   it('Deny posts { userCode } to /auth/device/deny and shows the denied message', async () => {
-    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     const f = fakeFetch(happyRoutes())
     render(<DevicePage />)
     const user = userEvent.setup()
@@ -220,7 +222,7 @@ describe('one message per outcome', () => {
     ['a generic failure', { status: 503, text: 'down' }, genericFailure(503)],
   ]
   it.each(claimCases)('the claim: %s', async (_n, reply, message) => {
-    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     const f = fakeFetch({ ...happyRoutes(), 'GET /auth/device': reply })
     render(<DevicePage />)
     expect((await screen.findByRole('alert')).textContent).toBe(message)
@@ -249,7 +251,7 @@ describe('one message per outcome', () => {
     ['a generic failure', { status: 500, text: 'boom' }, genericFailure(500)],
   ]
   it.each(decideCases)('approve: %s', async (_n, reply, message) => {
-    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     fakeFetch({ ...happyRoutes(), 'POST /auth/device/approve': reply })
     render(<DevicePage />)
     const user = userEvent.setup()
@@ -258,7 +260,7 @@ describe('one message per outcome', () => {
   })
 
   it('deny maps its failure the same way', async () => {
-    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     fakeFetch({ ...happyRoutes(), 'POST /auth/device/deny': { status: 400, json: { error: 'expired_token' } } })
     render(<DevicePage />)
     const user = userEvent.setup()
@@ -267,7 +269,7 @@ describe('one message per outcome', () => {
   })
 
   it('a server error_description or message is never shown', async () => {
-    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     fakeFetch({
       ...happyRoutes(),
       'GET /auth/device': {
@@ -281,7 +283,7 @@ describe('one message per outcome', () => {
   })
 
   it('a failed app-name lookup falls back to the client id as text, and the review still shows', async () => {
-    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     fakeFetch({ ...happyRoutes(), 'GET /auth/oauth2/public-client': { status: 404, json: { error: 'not_found' } } })
     render(<DevicePage />)
     expect(await screen.findByText('vibase-cli')).toBeTruthy()
@@ -297,7 +299,7 @@ describe('one step: a complete code in the link is claimed on load', () => {
     ['separated', 'abcd-efgh'],
     ['unseparated', 'ABCDEFGH'],
   ])('%s: exactly one claim with that code, then the review, with no click', async (_n, link) => {
-    history.replaceState(null, '', `/device?user_code=${link}`)
+    history.replaceState(null, '', `/app/device?user_code=${link}`)
     const f = fakeFetch(happyRoutes())
     render(<DevicePage />)
     expect(await screen.findByText('Vibase CLI')).toBeTruthy()
@@ -311,7 +313,7 @@ describe('one step: a complete code in the link is claimed on load', () => {
   })
 
   it('shows no Approve / Deny while the claim is pending', async () => {
-    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     let release!: () => void
     const gate = new Promise<void>((r) => (release = r))
     fakeFetch({
@@ -329,7 +331,7 @@ describe('one step: a complete code in the link is claimed on load', () => {
   })
 
   it('approval still needs a click: nothing is posted until the button is pressed', async () => {
-    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     const f = fakeFetch(happyRoutes())
     render(<DevicePage />)
     await screen.findByRole('button', { name: /approve/i })
@@ -346,10 +348,10 @@ describe('where the page does not claim by itself', () => {
   const claimsOf = (f: ReturnType<typeof fakeFetch>) => f.requests().filter((r) => r === 'GET /auth/device')
 
   it.each([
-    ['no user_code', '/device'],
-    ['an incomplete code', '/device?user_code=ABCD'],
-    ['a code too long', '/device?user_code=ABCDEFGHJ'],
-    ['a code outside the alphabet (I, O, 0, 1)', '/device?user_code=ABCDEFG0'],
+    ['no user_code', '/app/device'],
+    ['an incomplete code', '/app/device?user_code=ABCD'],
+    ['a code too long', '/app/device?user_code=ABCDEFGHJ'],
+    ['a code outside the alphabet (I, O, 0, 1)', '/app/device?user_code=ABCDEFG0'],
   ])('%s: the form, prefilled as typed, and no claim before a click', async (_n, url) => {
     history.replaceState(null, '', url)
     const f = fakeFetch(happyRoutes())
@@ -360,7 +362,7 @@ describe('where the page does not claim by itself', () => {
   })
 
   it('an incomplete code is prefilled, and Check code on a typed completion still claims', async () => {
-    history.replaceState(null, '', '/device?user_code=ABCD')
+    history.replaceState(null, '', '/app/device?user_code=ABCD')
     const f = fakeFetch(happyRoutes())
     render(<DevicePage />)
     const user = userEvent.setup()
@@ -372,7 +374,7 @@ describe('where the page does not claim by itself', () => {
   })
 
   it('no session: the sign-in redirect and zero claim calls', async () => {
-    history.replaceState(null, '', '/device?user_code=ABCDEFGH')
+    history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     const f = fakeFetch({ ...happyRoutes(), 'GET /auth/get-session': NO_SESSION })
     const go = vi.fn()
     render(<DevicePage navigate={go} />)

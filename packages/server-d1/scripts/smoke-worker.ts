@@ -45,7 +45,6 @@ import { bootstrapD1 } from '../src/bootstrap-d1.js'
 import { buildApp } from './build-app.js'
 import { buildUi } from './build-ui.js'
 import { APP_RUN_WORKER_FIRST } from '../src/app/paths.js'
-import { UI_RUN_WORKER_FIRST } from '../src/ui-serving.js'
 import { ALLOWED_NODE_MODULES, BUNDLE_SIZE_CEILING, nodeImportProblems, nodeImportsOf } from './node-imports.js'
 
 let failures = 0
@@ -164,7 +163,7 @@ try {
       binding: 'ASSETS',
       routerConfig: {
         has_user_worker: true,
-        static_routing: { user_worker: [...APP_RUN_WORKER_FIRST, ...UI_RUN_WORKER_FIRST] },
+        static_routing: { user_worker: [...APP_RUN_WORKER_FIRST] },
       },
     },
     handleRuntimeStdio: (stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream) => {
@@ -1051,7 +1050,14 @@ try {
     { status: res.status },
   )
   // [[UI246]] D1: on clerk the auth pages and their bundle are no route at all, with the real assets binding in front of the Worker (the built files exist: only the provider decides).
-  for (const path of ['/sign-in', '/invite', '/reset-password', '/consent', '/device', '/assets/ui/app.js']) {
+  for (const path of [
+    '/app/sign-in',
+    '/app/invite',
+    '/app/reset-password',
+    '/app/consent',
+    '/app/device',
+    '/assets/ui/app.js',
+  ]) {
     res = await call('GET', path)
     check(
       `24b GET ${path} on clerk -> 404 not_found (the auth pages exist only on better-auth)`,

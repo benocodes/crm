@@ -70,7 +70,7 @@ async function flow(o: { profile: Profile; body?: Record<string, unknown> }) {
   outbound = []
   profile = o.profile
   const start = await w.call('/auth/sign-in/social', {
-    body: { provider: 'google', callbackURL: '/sign-in', errorCallbackURL: '/sign-in', ...o.body },
+    body: { provider: 'google', callbackURL: '/app/sign-in', errorCallbackURL: '/app/sign-in', ...o.body },
     headers: ip(),
   })
   expect(start.status, await start.clone().text()).toBe(200)
@@ -111,7 +111,7 @@ describe('Google sign-in in workerd (fake Google, network blocked)', () => {
     })
     expect(cb.status).toBe(302)
     expect(errorOf(location)).toBeNull()
-    expect(new URL(location, BASE).pathname).toBe('/sign-in')
+    expect(new URL(location, BASE).pathname).toBe('/app/sign-in')
     expect(url + location).not.toContain(TOKEN)
     expect(cb.headers.getSetCookie().join(';')).toContain('session')
     const after = await counts()
@@ -148,10 +148,10 @@ describe('refusals (the Google branch of the backstop, P3, P4)', () => {
         body: { additionalData: { invitation_token: TOKEN, invitationToken: TOKEN } },
       },
     ],
-  ])('%s: a redirect to /sign-in?error=invitation_required, no auth row, no session', async (_n, o) => {
+  ])('%s: a redirect to /app/sign-in?error=invitation_required, no auth row, no session', async (_n, o) => {
     const { cb, location } = await flow(o)
     expect(cb.status).toBe(302)
-    expect(new URL(location, BASE).pathname).toBe('/sign-in')
+    expect(new URL(location, BASE).pathname).toBe('/app/sign-in')
     expect(errorOf(location)).toBe('invitation_required')
     expect(cb.headers.getSetCookie().join(';')).not.toContain('session_token')
     expect(await counts()).toEqual({ users: 0, accounts: 0, sessions: 0 })

@@ -196,7 +196,7 @@ describe('the seeded vibase-cli client (P5)', () => {
     for (const resource of [BASE, `${BASE}/mcp`]) {
       const res = await code('vibase-cli', resource)
       expect(res.status, await res.clone().text()).toBe(200)
-      expect(((await res.json()) as { verification_uri: string }).verification_uri).toBe(`${BASE}/device`) // UI247 D1: the vault's page, not the library's JSON endpoint
+      expect(((await res.json()) as { verification_uri: string }).verification_uri).toBe(`${BASE}/app/device`) // UI247 D1: the vault's page, not the library's JSON endpoint
     }
     expect((await code('not-a-client', BASE)).status).toBeGreaterThanOrEqual(400)
   })

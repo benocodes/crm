@@ -36,7 +36,6 @@ import { readMigrationState, type D1Like } from '@vibase/storage-d1'
 import { verifySums } from '../src/pack.js'
 import { readReleaseVersion } from '../src/version.js'
 import { APP_RUN_WORKER_FIRST } from '../../server-d1/src/app/paths.js'
-import { UI_RUN_WORKER_FIRST } from '../../server-d1/src/ui-serving.js'
 import { withGeneratedConfig } from '../../server-d1/scripts/instance/config.js'
 import { deployArgs } from '../../server-d1/scripts/instance/upgrade.js'
 import { wranglerEnv } from './build.js'
@@ -409,7 +408,7 @@ export async function checkRelease(
         binding: 'ASSETS',
         routerConfig: {
           has_user_worker: true,
-          static_routing: { user_worker: [...APP_RUN_WORKER_FIRST, ...UI_RUN_WORKER_FIRST] },
+          static_routing: { user_worker: [...APP_RUN_WORKER_FIRST] },
         },
       },
       bindings: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '', VERSION: manifest.version, COMMIT: manifest.commit },
@@ -445,9 +444,20 @@ export async function checkRelease(
           )
         log(`${binding} tracker: current (${state.applied.length} applied = ${shipped.length} shipped)`)
       }
-      // [[UI507]] D6, P5: the old app paths and `/connect` are ordinary unknown paths: never a page or a redirect. This instance is uninitialised, so the router's gate answers 503 before its 404; the Worker suites pin the 404 on a ready one.
+      // [[UI507]] D6, P5, [[UI510]] P4: the old app paths, the old auth paths and `/connect` are ordinary unknown paths: never a page or a redirect. This instance is uninitialised, so the router's gate answers 503 before its 404; the Worker suites pin the 404 on a ready one.
       const old = await Promise.all(
-        ['/connect?x=1', '/connect/connect.js', '/home', '/accounts', '/agents'].map(async (p) => {
+        [
+          '/connect?x=1',
+          '/connect/connect.js',
+          '/home',
+          '/accounts',
+          '/agents',
+          '/sign-in',
+          '/invite',
+          '/reset-password',
+          '/consent',
+          '/device',
+        ].map(async (p) => {
           const r = await fetch(new URL(p, url), { redirect: 'manual' })
           return { p, status: r.status, location: r.headers.get('location') }
         }),
@@ -455,7 +465,7 @@ export async function checkRelease(
       const oldLine = old.map((o) => `${o.p} ${o.status}${o.location ? ` -> ${o.location}` : ''}`).join(', ')
       if (old.some((o) => (o.status !== 404 && o.status !== 503) || o.location !== null))
         throw new ReleaseRefusal(
-          `an old app path is still served (expected 404, or 503 before initialisation, for each): ${oldLine}`,
+          `an old page path is still served (expected 404, or 503 before initialisation, for each): ${oldLine}`,
         )
       log(oldLine)
       // [[UI507]] D1, D2: the workspace app's pages are at /app/<page>; `/` and `/app` redirect to Home. [[UI504]] D3: its bundle is at /assets/app/ and nowhere else.

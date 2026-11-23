@@ -5,16 +5,25 @@ export const APP_PREFIX = '/app'
 export const APP_BUNDLE = 'app'
 export const UI_BUNDLE = 'ui'
 /**
- * [[UI507]] D1, P2: the page table. Each page is an exact path under `/app` (no trailing slash, nothing below it) with the bundle that serves it. Home is first: `/`, `/app` and `/app/` redirect to it.
- * The auth bundle's five pages join the table in #510 (UI504 cycle 3); until then `UI_PAGE_PATHS` (`src/ui-serving.ts`) lists them.
+ * [[UI504]] D1, [[UI510]] P1: the page table, the one list of the vault's eight pages. Each page is an exact path under `/app` (no trailing slash, nothing below it) with the bundle that serves it. Home is first: `/`, `/app` and `/app/` redirect to it.
+ * The auth bundle's five pages exist on `better-auth` only (`static-serving.ts`).
  */
 export const PAGE_TABLE: readonly { readonly path: string; readonly bundle: typeof APP_BUNDLE | typeof UI_BUNDLE }[] = [
   { path: '/app/home', bundle: APP_BUNDLE },
   { path: '/app/accounts', bundle: APP_BUNDLE },
   { path: '/app/agents', bundle: APP_BUNDLE },
+  { path: '/app/sign-in', bundle: UI_BUNDLE },
+  { path: '/app/invite', bundle: UI_BUNDLE },
+  { path: '/app/reset-password', bundle: UI_BUNDLE },
+  { path: '/app/consent', bundle: UI_BUNDLE },
+  { path: '/app/device', bundle: UI_BUNDLE },
 ]
 /** The app bundle's page paths, read from the table (one list: the Worker, the dev server and the sign-in allow-list read this). */
 export const APP_PAGE_PATHS: readonly string[] = PAGE_TABLE.filter((p) => p.bundle === APP_BUNDLE).map((p) => p.path)
+/** The auth bundle's page paths, read from the table. */
+export const AUTH_PAGE_PATHS: readonly string[] = PAGE_TABLE.filter((p) => p.bundle === UI_BUNDLE).map((p) => p.path)
+/** The one auth page the sign-in return allow-list honours (read from the table, [[UI510]] P6). */
+export const DEVICE_PATH: string = AUTH_PAGE_PATHS.find((p) => p.endsWith('device')) ?? ''
 /** [[UI504]] D3, P4: the static files of both bundles are at `/assets/<bundle>/<file>` and nowhere else. The one prefix every serving module, the build and the config list read. */
 export const ASSET_PREFIX = '/assets'
 /** What `wrangler.jsonc`'s `assets.run_worker_first` lists for the app: the root and `/app` (they redirect), everything under `/app/` (the pages and the Worker's 404 for the rest, so the binding never answers there) and the static files (`/assets/*`), derived from the constants the Worker serves. */

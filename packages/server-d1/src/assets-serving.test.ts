@@ -3,7 +3,7 @@ import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/tes
 import { MIGRATIONS, openControlDb } from '@vibase/storage-d1'
 import { PAGE_CSP } from '@vibase/ui/csp'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
-import { appCsp } from './app-serving.js'
+import { appCsp } from './static-serving.js'
 import { AUTH_BASE, AUTH_SECRET } from './test/auth-kit.js'
 import { bootstrapD1, clerkKit, openWorkerPair, type ClerkKit, type WorkerPair } from './test/kit.js'
 

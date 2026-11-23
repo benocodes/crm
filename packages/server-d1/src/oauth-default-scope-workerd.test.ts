@@ -98,7 +98,7 @@ async function toToken(
     consent = await authorizeRedirect(authorizeUrl(clientId, scope), cookie)
   } else {
     const loc = await authorizeRedirect(authorizeUrl(clientId, scope))
-    expect(loc.pathname).toBe('/sign-in')
+    expect(loc.pathname).toBe('/app/sign-in')
     const signedIn = await call('/auth/sign-in/email', {
       body: { email, password: PASSWORD, oauth_query: loc.search.slice(1) },
     })
@@ -106,7 +106,7 @@ async function toToken(
     sessionCookie = signedIn.headers.get('set-cookie')!.split(';')[0]!
     consent = new URL(((await signedIn.json()) as { url: string }).url, BASE)
   }
-  expect(consent.pathname).toBe('/consent')
+  expect(consent.pathname).toBe('/app/consent')
   const asked = set(consent.searchParams.get('scope'))
   const accepted = await call('/auth/oauth2/consent', {
     cookie: sessionCookie,
@@ -175,7 +175,7 @@ describe('group 1b: a scope-less POST authorize (form body) gets the default set
       const raw = res.status === 302 ? res.headers.get('location') : ((await res.json()) as { url?: string }).url
       expect(raw, `authorize answered ${res.status}`).toBeTruthy()
       const consent = new URL(raw!, BASE)
-      expect(consent.pathname).toBe('/consent')
+      expect(consent.pathname).toBe('/app/consent')
       expect(set(consent.searchParams.get('scope'))).toEqual([...DEFAULTS].sort())
       const accepted = await call('/auth/oauth2/consent', {
         cookie,
@@ -241,7 +241,7 @@ describe('group 3 (UI449): the consent scope field narrows, refuses and re-promp
 
   async function consentTo(clientId: string, cookie: string, scope: string | undefined) {
     const consent = await authorizeRedirect(authorizeUrl(clientId), cookie)
-    expect(consent.pathname).toBe('/consent')
+    expect(consent.pathname).toBe('/app/consent')
     return call('/auth/oauth2/consent', {
       cookie,
       body: { accept: true, oauth_query: consent.search.slice(1), ...(scope === undefined ? {} : { scope }) },
@@ -267,7 +267,7 @@ describe('group 3 (UI449): the consent scope field narrows, refuses and re-promp
   /** Where a second authorize lands: the consent page, or the callback with a code (consent skipped). */
   async function secondAuthorize(clientId: string, cookie: string): Promise<'consent' | 'callback'> {
     const loc = await authorizeRedirect(authorizeUrl(clientId), cookie)
-    if (loc.pathname === '/consent') return 'consent'
+    if (loc.pathname === '/app/consent') return 'consent'
     expect(loc.origin + loc.pathname).toBe(REDIRECT)
     expect(loc.searchParams.get('code')).toBeTruthy()
     return 'callback'

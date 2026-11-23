@@ -52,8 +52,8 @@ const withRecord = (vars: Record<string, string>) =>
       { formattingOptions: { insertSpaces: true, tabSize: 2 } },
     ),
   )
-const tokenOf = (logs: string[]) => /\/invite#token=([A-Za-z0-9_-]+)/.exec(logs.join('\n'))?.[1]
-const urlLines = (logs: string[]) => logs.filter((l) => l.includes('/invite#token='))
+const tokenOf = (logs: string[]) => /\/app\/invite#token=([A-Za-z0-9_-]+)/.exec(logs.join('\n'))?.[1]
+const urlLines = (logs: string[]) => logs.filter((l) => l.includes('/app/invite#token='))
 
 /** The first run of a new instance writes the env block and stops ([[OPS65]] D10); the second one does the rest. */
 async function firstRun(w: World, argv: string[] = ACME): Promise<void> {
@@ -460,8 +460,8 @@ describe('6. re-runs and the one-time link (D7)', () => {
     const w = world()
     const o = await fullRun(w)
     expect(urlLines(w.logs)).toHaveLength(1)
-    expect(step(o, 'bootstrap').lines!.some((l) => l.includes('/invite#token='))).toBe(false)
-    expect(w.logs.indexOf('setup: done')).toBeLessThan(w.logs.findIndex((l) => l.includes(`${BASE}/invite#token=`)))
+    expect(step(o, 'bootstrap').lines!.some((l) => l.includes('/app/invite#token='))).toBe(false)
+    expect(w.logs.indexOf('setup: done')).toBeLessThan(w.logs.findIndex((l) => l.includes(`${BASE}/app/invite#token=`)))
     expect(await invitationRows()).toHaveLength(1)
   })
 

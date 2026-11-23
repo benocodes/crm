@@ -11,7 +11,7 @@ afterEach(() => {
 describe('the mount', () => {
   it('renders the page and has taken the reset token out of the address before the module returns', async () => {
     document.body.innerHTML = '<main id="root"></main>'
-    history.replaceState(null, '', '/reset-password#token=bogus')
+    history.replaceState(null, '', '/app/reset-password#token=bogus')
     await import('./main.js')
     expect(location.hash).toBe('')
     expect(document.querySelector('#root')?.textContent).toContain('Set a new password')

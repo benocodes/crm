@@ -5,7 +5,7 @@ import { MIGRATIONS, openControlDb } from '@vibase/storage-d1'
 import { APP_CSP } from '@vibase/ui/csp'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { APP_PAGE_PATHS } from './app/paths.js'
-import { appCsp } from './app-serving.js'
+import { appCsp } from './static-serving.js'
 import { AUTH_BASE, AUTH_SECRET } from './test/auth-kit.js'
 import { bootstrapD1, clerkKit, openWorkerPair, type ClerkKit, type WorkerPair } from './test/kit.js'
 
@@ -84,7 +84,9 @@ beforeEach(async () => {
   await w.d1.prepare('drop table if exists d1_migrations').run()
   await createMigrationTracker(w.d1) // the database is behind: every gate would answer 503 if the app route came after it
 })
-const isApp = (at: string) => /^(GET|HEAD|POST) \/app(?=[/?\s])/.test(at) || /^(GET|HEAD) \/ \(302\)/.test(at)
+const isAuthPage = (at: string) => /^\w+ \/app\/(sign-in|invite|reset-password|consent|device)(?=[/?\s])/.test(at)
+const isApp = (at: string) =>
+  (!isAuthPage(at) && /^(GET|HEAD|POST) \/app(?=[/?\s])/.test(at)) || /^(GET|HEAD) \/ \(302\)/.test(at)
 // D5: every app answer (page, asset, 404, 405, 302) carries the policy, nosniff and the referrer policy; HTML is no-store.
 afterEach(() => {
   for (const { at, res, issuer } of seen) {
@@ -162,7 +164,6 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2, P4)', (_name, make) => {
     '/app/agents/',
     '/app/agents/x',
     '/app/unknown',
-    '/app/sign-in',
     '/app/app.js',
     '/app/app.css',
     '/app/index.html',
@@ -274,6 +275,29 @@ describe('the old paths are gone (D6 app half, P5)', () => {
   })
 })
 
+// UI510 P3: off better-auth the auth pages are the JSON 404 for any method (with the app's headers), the binding is never asked; the app pages stay served.
+describe.each([
+  ['clerk', clerkWorker],
+  ['no provider', unsetWorker],
+])('auth pages are no pages on %s (UI510 P3)', (_name, make) => {
+  it.each(['/app/sign-in', '/app/invite', '/app/reset-password', '/app/consent', '/app/device'])(
+    '%s is the JSON 404 for GET, HEAD and POST with the app policy',
+    async (path) => {
+      const wk = make()
+      for (const method of ['GET', 'HEAD', 'POST']) {
+        const res = await send(wk, path, method)
+        expect(res.status, `${method} ${path}`).toBe(404)
+        expect(res.headers.get('content-security-policy'), `${method} ${path}`).toBe(appCsp(clerkIssuer))
+        if (method === 'GET') expect(await res.json()).toEqual(NOT_FOUND)
+      }
+      expect(assetCalls).toEqual([])
+    },
+  )
+  it('the app pages are still served', async () => {
+    expect((await send(make(), '/app/home')).status).toBe(200)
+  })
+})
+
 describe('the redirect and the pages answer before the gates (D2)', () => {
   it('with the database behind and a misconfigured provider, / and /app are still 302 /app/home', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -361,7 +385,7 @@ describe('appCsp and the headers (D5, group 2)', () => {
   })
 
   it('the auth pages keep PAGE_CSP, without unsafe-inline styles', async () => {
-    const res = await send(betterAuthWorker(), '/sign-in')
+    const res = await send(betterAuthWorker(), '/app/sign-in')
     expect(res.headers.get('content-security-policy')).not.toContain("'unsafe-inline'")
   })
 })

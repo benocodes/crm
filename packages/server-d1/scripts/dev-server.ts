@@ -1,22 +1,20 @@
 // The dev server of the page bundles ([[UI489]] D5, D6): Vite on http://localhost:5173 with HMR and React Fast Refresh, in front of the local Worker (`wrangler dev`, :8787).
-// It owns the page paths (the constants the Worker serves, P1), the page sources (`/assets/app/`, `/assets/ui/`, Vite's base is `/assets/`, UI504 D9) and Vite's own paths; every other request goes to the Worker unchanged (method, path, query, body, headers, Origin and Cookie
+// It owns the page paths (the page table the Worker serves, [[UI510]] P1), the page sources (`/assets/app/`, `/assets/ui/`, Vite's base is `/assets/`, UI504 D9) and Vite's own paths; every other request goes to the Worker unchanged (method, path, query, body, headers, Origin and Cookie
 // included) and its answer comes back as sent, redirects unfollowed. Dev pages carry no CSP (Fast Refresh's preamble is an inline script); the built pages under `APP_CSP`/`PAGE_CSP` stay what the E2E scripts load.
 import { readFileSync } from 'node:fs'
 import { type IncomingMessage, request, type ServerResponse } from 'node:http'
 import { join } from 'node:path'
 import { createServer, type Plugin, type ViteDevServer } from 'vite'
-import { APP_PAGE_PATHS } from '../src/app/paths.js'
-import { UI_PAGE_PATHS } from '../src/ui-serving.js'
+import { PAGE_TABLE } from '../src/app/paths.js'
 import { APP_PAGE, devConfig, SRC, UI_PAGE } from './vite-pages.js'
 
 export const DEV_PORT = 5173
 export const WORKER_PORT = 8787
 
-const PAGE_BY_PATH = new Map<string, typeof APP_PAGE>([
-  ...APP_PAGE_PATHS.map((p) => [p, APP_PAGE] as const),
-  ...UI_PAGE_PATHS.map((p) => [p, UI_PAGE] as const),
-])
-/** The page paths the dev server answers itself, derived from the two constants the Worker serves (never a third list). */
+const PAGE_BY_PATH = new Map<string, typeof APP_PAGE>(
+  PAGE_TABLE.map((p) => [p.path, p.bundle === 'app' ? APP_PAGE : UI_PAGE] as const),
+)
+/** The page paths the dev server answers itself, derived from the page table the Worker serves (never a second list). */
 export const devOwnedPaths = (): string[] => [...PAGE_BY_PATH.keys()]
 
 /** Path prefixes Vite answers: the page sources, and its own client, module and optimizer paths. */

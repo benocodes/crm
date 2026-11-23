@@ -3,8 +3,10 @@ import { createServer, type IncomingHttpHeaders, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { parseTrustedOrigins } from '../src/auth-config.js'
-import { APP_PAGE_PATHS } from '../src/app/paths.js'
-import { UI_PAGE_PATHS } from '../src/ui-serving.js'
+import { PAGE_TABLE } from '../src/app/paths.js'
+
+const APP_PATHS = PAGE_TABLE.filter((p) => p.bundle === 'app').map((p) => p.path)
+const AUTH_PATHS = PAGE_TABLE.filter((p) => p.bundle === 'ui').map((p) => p.path)
 import { DEV_PORT, devOwnedPaths, startDevServer, WORKER_PORT, type DevServer } from './dev-server.js'
 
 // [[UI489]] D5, D6 (group 4): the dev server owns the page paths (iterated from the constants), the page sources and Vite's own paths, and proxies every other request to the local Worker unchanged.
@@ -50,17 +52,29 @@ describe('the constants and the owned set', () => {
   })
 
   it('the owned page paths are exactly the two constants, never a third list (P1), and own neither the root nor the old page paths', () => {
-    expect(devOwnedPaths().sort()).toEqual([...APP_PAGE_PATHS, ...UI_PAGE_PATHS].sort())
+    expect(devOwnedPaths().sort()).toEqual([...APP_PATHS, ...AUTH_PATHS].sort())
     expect(devOwnedPaths()).not.toContain('/')
-    for (const old of ['/home', '/accounts', '/agents', '/connect']) expect(devOwnedPaths()).not.toContain(old)
+    for (const old of [
+      '/home',
+      '/accounts',
+      '/agents',
+      '/connect',
+      '/sign-in',
+      '/invite',
+      '/reset-password',
+      '/consent',
+      '/device',
+    ])
+      expect(devOwnedPaths()).not.toContain(old)
+    expect(devOwnedPaths()).toContain('/app/sign-in')
     expect(devOwnedPaths()).toContain('/app/home')
   })
 })
 
 describe('pages and sources are the dev server’s own', () => {
   it.each([
-    ...APP_PAGE_PATHS.map((p) => [p, '/assets/app/main.tsx'] as const),
-    ...UI_PAGE_PATHS.map((p) => [p, '/assets/ui/main.tsx'] as const),
+    ...APP_PATHS.map((p) => [p, '/assets/app/main.tsx'] as const),
+    ...AUTH_PATHS.map((p) => [p, '/assets/ui/main.tsx'] as const),
   ])('%s answers its page’s HTML with the Vite client, its own entry module, and no CSP', async (path, entry) => {
     const before = seen.length
     const res = await get(path)
@@ -87,7 +101,7 @@ describe('pages and sources are the dev server’s own', () => {
   })
 
   it('a page path with a query is still the page', async () => {
-    const res = await get(`${UI_PAGE_PATHS[0]}?return_to=%2Fapp%2Fhome`)
+    const res = await get(`${AUTH_PATHS[0]}?return_to=%2Fapp%2Fhome`)
     expect(await res.text()).toContain('/@vite/client')
   })
 

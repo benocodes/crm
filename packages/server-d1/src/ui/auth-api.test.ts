@@ -125,11 +125,11 @@ describe('the OAuth and device answers (UI247 D6)', () => {
 
   it('signIn with an oauthQuery sends it as `oauth_query` and returns the redirect URL of { redirect: true, url }', async () => {
     const f = fakeFetch({
-      'POST /auth/sign-in/email': { status: 200, json: { redirect: true, url: '/consent?client_id=c&sig=s' } },
+      'POST /auth/sign-in/email': { status: 200, json: { redirect: true, url: '/app/consent?client_id=c&sig=s' } },
     })
     expect(await signIn({ email: 'a@x.test', password: 'pw', oauthQuery: 'client_id=c&sig=s' })).toEqual({
       ok: true,
-      data: { redirect: '/consent?client_id=c&sig=s' },
+      data: { redirect: '/app/consent?client_id=c&sig=s' },
     })
     expect(f.calls[0]!.body).toEqual({ email: 'a@x.test', password: 'pw', oauth_query: 'client_id=c&sig=s' })
   })
@@ -159,7 +159,7 @@ describe('the OAuth and device answers (UI247 D6)', () => {
   it.each([
     ['https://client.test/cb?code=1', true],
     ['http://127.0.0.1:33418/cb?code=1', true],
-    ['/consent?a=b', true],
+    ['/app/consent?a=b', true],
     ['javascript:alert(1)', false],
     ['JaVaScRiPt:alert(1)', false],
     ['data:text/html,x', false],

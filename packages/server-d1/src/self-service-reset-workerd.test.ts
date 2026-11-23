@@ -57,7 +57,7 @@ describe('self-service reset in workerd (email on)', () => {
     expect(m.from).toEqual({ email: 'noreply@vibase.test', name: 'Vibase' })
     expect(m.subject).toBe(`Reset your Vibase password at ${new URL(BASE).host}`)
     const link = /https?:\/\/\S+#token=\S+/.exec(m.text)![0]!
-    expect(link).toMatch(new RegExp(`^${BASE}/reset-password#token=`))
+    expect(link).toMatch(new RegExp(`^${BASE}/app/reset-password#token=`))
     expect(m.html).toContain(link)
     const token = new URL(link).hash.replace('#token=', '')
 

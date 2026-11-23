@@ -62,8 +62,8 @@ describe("device: the /device page's calls", () => {
     expect(issued.status, await issued.clone().text()).toBe(200)
     const codes = (await issued.json()) as Record<string, any>
     expect(codes.user_code).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/)
-    expect(codes.verification_uri).toBe(`${BASE}/device`)
-    expect(codes.verification_uri_complete).toBe(`${BASE}/device?user_code=${codes.user_code}`)
+    expect(codes.verification_uri).toBe(`${BASE}/app/device`)
+    expect(codes.verification_uri_complete).toBe(`${BASE}/app/device?user_code=${codes.user_code}`)
 
     // the page's calls: public-client for the name, the claim (unseparated), approve with { userCode }
     const name = await call('/auth/oauth2/public-client?client_id=vibase-cli', { cookie })
@@ -139,7 +139,7 @@ describe('authorization code: /sign-in then /consent', () => {
     const id = await register()
     const { cookie } = await signUp('consent@x.test')
     const loc = await authorizeRedirect(authorize(id), cookie)
-    expect(loc.pathname).toBe('/consent')
+    expect(loc.pathname).toBe('/app/consent')
     const oauthQuery = loc.search.slice(1)
 
     const accepted = await call('/auth/oauth2/consent', { cookie, body: { accept: true, oauth_query: oauthQuery } })
@@ -194,7 +194,7 @@ describe('authorization code: /sign-in then /consent', () => {
     const id = await register()
     await signUp('resume@x.test')
     const loc = await authorizeRedirect(authorize(id))
-    expect(loc.pathname).toBe('/sign-in')
+    expect(loc.pathname).toBe('/app/sign-in')
     expect(loc.searchParams.get('sig')).toBeTruthy()
     const oauthQuery = loc.search.slice(1)
 
@@ -204,6 +204,6 @@ describe('authorization code: /sign-in then /consent', () => {
     expect(signedIn.status, await signedIn.clone().text()).toBe(200)
     const answer = (await signedIn.json()) as { redirect?: boolean; url?: string }
     expect(answer.redirect).toBe(true)
-    expect(new URL(answer.url!, BASE).pathname).toBe('/consent')
+    expect(new URL(answer.url!, BASE).pathname).toBe('/app/consent')
   })
 })

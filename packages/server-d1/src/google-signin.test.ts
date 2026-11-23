@@ -165,8 +165,8 @@ async function google(o: { profile: Profile; token?: string; body?: Record<strin
   const start = await send('/auth/sign-in/social', {
     body: {
       provider: 'google',
-      callbackURL: '/sign-in',
-      errorCallbackURL: '/sign-in',
+      callbackURL: '/app/sign-in',
+      errorCallbackURL: '/app/sign-in',
       ...(o.token === undefined ? {} : { invitation_token: o.token }),
       ...o.body,
     },
@@ -323,7 +323,7 @@ describe('discovery and the authorization URL (D7, P2)', () => {
 
   it('the authorization URL is Google, scope `openid email profile`, redirect URI built from PUBLIC_BASE_URL (not the request host)', async () => {
     const res = await send('/auth/sign-in/social', {
-      body: { provider: 'google', callbackURL: '/sign-in', errorCallbackURL: '/sign-in' },
+      body: { provider: 'google', callbackURL: '/app/sign-in', errorCallbackURL: '/app/sign-in' },
       host: 'https://other.example',
     })
     expect(res.status, await res.clone().text()).toBe(200)
@@ -338,7 +338,7 @@ describe('discovery and the authorization URL (D7, P2)', () => {
     const off = worker({ AUTH_GOOGLE_CLIENT_ID: undefined, AUTH_GOOGLE_CLIENT_SECRET: undefined })
     const res = await send(
       '/auth/sign-in/social',
-      { body: { provider: 'google', callbackURL: '/sign-in', errorCallbackURL: '/sign-in' } },
+      { body: { provider: 'google', callbackURL: '/app/sign-in', errorCallbackURL: '/app/sign-in' } },
       off,
     )
     expect(res.status).toBe(404)
@@ -356,7 +356,7 @@ describe('Google sign-up through an invitation (D8, P3-P5)', () => {
     })
     expect(cb.status).toBe(302)
     expect(errorOf(location)).toBeNull()
-    expect(new URL(location, AUTH_BASE).pathname).toBe('/sign-in')
+    expect(new URL(location, AUTH_BASE).pathname).toBe('/app/sign-in')
     expect(url + location + cb.url).not.toContain(ownerToken)
     expect(await authCounts()).toEqual({ auth_users: 1, auth_accounts: 1, auth_sessions: 1 })
     const account = (await ctl('select provider_id, account_id, user_id from auth_accounts'))[0]!
@@ -445,7 +445,7 @@ describe('admission refusals (matrix: cause x outcome, P3, P4)', () => {
       const vault = await vaultCounts()
       const { cb, location } = await google(args)
       expect(cb.status).toBe(302)
-      expect(new URL(location, AUTH_BASE).pathname).toBe('/sign-in')
+      expect(new URL(location, AUTH_BASE).pathname).toBe('/app/sign-in')
       expect(errorOf(location)).toBe(CODE)
       expect(cb.headers.getSetCookie().join(';')).not.toMatch(/session_token=[^;]/)
       expect(await authCounts()).toEqual(auth)

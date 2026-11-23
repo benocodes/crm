@@ -54,7 +54,7 @@ const run = (values: Record<string, string | undefined>) => {
     io,
   ).then((code) => ({ code, logs, errors }))
 }
-const urlsIn = (lines: string[]) => lines.filter((l) => l.includes('/invite#token='))
+const urlsIn = (lines: string[]) => lines.filter((l) => l.includes('/app/invite#token='))
 
 describe('the first run (P7)', () => {
   it('creates an owner invitation, audited by the system principal, and prints its URL exactly once', async () => {

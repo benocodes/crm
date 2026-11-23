@@ -24,7 +24,7 @@ export interface DiscoveryConfig {
         signInMethods?: readonly (
           | 'password'
           | 'google'
-        )[] /** [[CORE304]] D2: true exactly when outbound email is configured (a person can ask for a reset link); the `/sign-in` page reads it. Default false. */
+        )[] /** [[CORE304]] D2: true exactly when outbound email is configured (a person can ask for a reset link); the `/app/sign-in` page reads it. Default false. */
         selfServiceReset?: boolean
       }
   /** `AUTH_CLI_CLIENT_ID`; `undefined` is `null` in the document. */

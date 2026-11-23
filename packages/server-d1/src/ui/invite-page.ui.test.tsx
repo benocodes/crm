@@ -15,7 +15,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 beforeEach(() => {
-  history.replaceState(null, '', `/invite#token=${TOKEN}`)
+  history.replaceState(null, '', `/app/invite#token=${TOKEN}`)
 })
 
 const fill = async (o: { name?: string; email?: string; password?: string } = {}) => {
@@ -35,20 +35,23 @@ describe('the fragment token', () => {
     expect(screen.getByLabelText('Email')).toBeTruthy()
     expect(location.hash).toBe('')
     expect(location.href).not.toContain(TOKEN)
-    expect(location.pathname).toBe('/invite')
+    expect(location.pathname).toBe('/app/invite')
     expect(replace).toHaveBeenCalled()
     expect(String(replace.mock.calls[0]![2])).not.toContain('token')
     replace.mockRestore()
   })
 
-  it.each(['/invite', '/invite#', '/invite#token=', '/invite#other=1'])('%s: an explanation and no form', (url) => {
-    history.replaceState(null, '', url)
-    fakeFetch({})
-    render(<InvitePage />)
-    expect(screen.getByText(MESSAGES.inviteNoToken)).toBeTruthy()
-    expect(screen.queryByLabelText('Email')).toBeNull()
-    expect(screen.queryByRole('button')).toBeNull()
-  })
+  it.each(['/app/invite', '/app/invite#', '/app/invite#token=', '/app/invite#other=1'])(
+    '%s: an explanation and no form',
+    (url) => {
+      history.replaceState(null, '', url)
+      fakeFetch({})
+      render(<InvitePage />)
+      expect(screen.getByText(MESSAGES.inviteNoToken)).toBeTruthy()
+      expect(screen.queryByLabelText('Email')).toBeNull()
+      expect(screen.queryByRole('button')).toBeNull()
+    },
+  )
 
   it('the form has the three fields with their autocomplete values', () => {
     render(<InvitePage />)
@@ -100,7 +103,7 @@ describe('client validation sends nothing', () => {
   it('a 128-character and an 8-character password are accepted', async () => {
     for (const password of ['x'.repeat(128), 'x'.repeat(8)]) {
       cleanup()
-      history.replaceState(null, '', `/invite#token=${TOKEN}`)
+      history.replaceState(null, '', `/app/invite#token=${TOKEN}`)
       const f = fakeFetch({ 'POST /auth/sign-up/email': { status: 200, json: { user: { email: 'ann@x.test' } } } })
       const go = vi.fn()
       render(<InvitePage navigate={go} />)

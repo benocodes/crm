@@ -4,7 +4,7 @@ import { createVibaseRegistry } from '@vibase/api'
 import { AUTH_BASE, authKit, type AuthKit } from './test/auth-kit.js'
 import { openWorkerPair, type WorkerPair } from './test/kit.js'
 
-// [[UI247]] D1, D2: the composed Better Auth names the vault's own pages (`/consent`, `<base>/device`) and pins the device code's format, on the real handler and a real control-plane database.
+// [[UI247]] D1, D2: the composed Better Auth names the vault's own pages (`/app/consent`, `<base>/device`) and pins the device code's format, on the real handler and a real control-plane database.
 let w: WorkerPair
 let kit: AuthKit
 const declared = createVibaseRegistry().declaredScopes()
@@ -65,8 +65,8 @@ describe('the device grant (D1, D2)', () => {
     })
     expect(res.status, await res.clone().text()).toBe(200)
     const body = (await res.json()) as Record<string, any>
-    expect(body.verification_uri).toBe(`${AUTH_BASE}/device`)
-    expect(body.verification_uri_complete).toBe(`${AUTH_BASE}/device?user_code=${body.user_code}`)
+    expect(body.verification_uri).toBe(`${AUTH_BASE}/app/device`)
+    expect(body.verification_uri_complete).toBe(`${AUTH_BASE}/app/device?user_code=${body.user_code}`)
   })
 
   it('D2 pins the code: 8 characters from the 32-character alphabet, unseparated, 30 minutes, 5 seconds', async () => {
@@ -104,7 +104,7 @@ describe('the consent page (D1)', () => {
     const res = await kit.call(authorizeUrl(id), { cookie })
     expect(res.status).toBe(302)
     const loc = new URL(res.headers.get('location')!, AUTH_BASE)
-    expect(loc.pathname).toBe('/consent')
+    expect(loc.pathname).toBe('/app/consent')
     expect(loc.searchParams.get('client_id')).toBe(id)
     expect(loc.searchParams.get('sig')).toBeTruthy()
   })
@@ -114,7 +114,7 @@ describe('the consent page (D1)', () => {
     const res = await kit.call(authorizeUrl(id))
     expect(res.status).toBe(302)
     const loc = new URL(res.headers.get('location')!, AUTH_BASE)
-    expect(loc.pathname).toBe('/sign-in')
+    expect(loc.pathname).toBe('/app/sign-in')
     expect(loc.searchParams.get('sig')).toBeTruthy()
   })
 })

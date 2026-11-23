@@ -8,7 +8,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { getPlatformProxy, unstable_readConfig } from 'wrangler'
 import { APP_PAGE_PATHS, APP_PREFIX, APP_RUN_WORKER_FIRST } from './app/paths.js'
-import { UI_PAGE_PATHS, UI_RUN_WORKER_FIRST } from './ui-serving.js'
 
 const CONFIG = fileURLToPath(new URL('../wrangler.jsonc', import.meta.url))
 const PLACEHOLDER = '00000000-0000-0000-0000-000000000000'
@@ -113,12 +112,13 @@ describe('assets (UI30 D2)', () => {
       const c = unstable_readConfig({ config: CONFIG, env })
       expect(c.assets?.binding).toBe('ASSETS')
       // Derived from the constants the Worker serves, never a copied list: a page or prefix the Worker serves but `run_worker_first` omits would be answered by the assets binding without the headers.
-      expect(c.assets?.run_worker_first).toEqual([...APP_RUN_WORKER_FIRST, ...UI_RUN_WORKER_FIRST])
+      expect(c.assets?.run_worker_first).toEqual(['/', '/app', '/app/*', '/assets/*'])
       // [[UI507]] D4 interim, P3: the old app pages and /connect are not listed (an old path reaches the Worker's router and 404s); the new pages are covered by /app/*.
       for (const old of ['/home', '/accounts', '/agents', '/connect', '/connect/*'])
         expect(c.assets?.run_worker_first, old).not.toContain(old)
-      expect(c.assets?.run_worker_first).toEqual(['/', '/app', '/app/*', '/assets/*', ...UI_PAGE_PATHS])
-      for (const p of UI_PAGE_PATHS) expect(c.assets?.run_worker_first, p).toContain(p)
+      // [[UI510]] P2: the final list: no auth page path is listed (they are under /app/*).
+      for (const old of ['/sign-in', '/invite', '/reset-password', '/consent', '/device'])
+        expect(c.assets?.run_worker_first, old).not.toContain(old)
       // [[UI504]] D3, D4: the static files are under /assets/ and nowhere else, so /ui/* is not listed (an old path reaches the Worker's router).
       expect(c.assets?.run_worker_first).toContain('/assets/*')
       expect(c.assets?.run_worker_first).not.toContain('/ui/*')
@@ -133,17 +133,14 @@ describe('assets (UI30 D2)', () => {
 
 // [[UI247]] D1: every list that must equal the constant, read from the real files (the release fixture and the setup fixture are strings and files that stay in step with `wrangler.jsonc` by hand).
 describe('every run_worker_first list equals the constants the Worker serves (UI247 D1)', () => {
-  const EXPECTED = [...APP_RUN_WORKER_FIRST, ...UI_RUN_WORKER_FIRST]
+  const EXPECTED = ['/', '/app', '/app/*', '/assets/*']
   const listIn = (text: string): unknown =>
     (parse(text) as { assets?: { run_worker_first?: unknown } }).assets?.run_worker_first
-  it('derived list: /assets/* in, /ui/* out (UI504 D4)', () => {
-    expect(EXPECTED).toContain('/assets/*')
-    expect(EXPECTED).not.toContain('/ui/*')
+  it('the derived list is exactly the four entries (UI510 P2)', () => {
+    expect([...APP_RUN_WORKER_FIRST]).toEqual(EXPECTED)
   })
-  it('wrangler.jsonc lists the five pages and /assets/*', () => {
+  it('wrangler.jsonc lists exactly the four entries', () => {
     expect(listIn(readFileSync(CONFIG, 'utf8'))).toEqual(EXPECTED)
-    expect(UI_PAGE_PATHS).toContain('/consent')
-    expect(UI_PAGE_PATHS).toContain('/device')
   })
   it("the setup fixture's list", () => {
     expect(

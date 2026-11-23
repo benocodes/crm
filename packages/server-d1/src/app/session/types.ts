@@ -70,7 +70,7 @@ export interface SessionSeam {
   getToken(): Promise<string | null>
   /** Re-reads the session from Clerk; true while it is still active. */
   recheckSession(): Promise<boolean>
-  /** Sends the person to sign in and back to `redirectUrl` (Clerk; Better Auth's `/sign-in` takes the seam's `returnPath` instead). */
+  /** Sends the person to sign in and back to `redirectUrl` (Clerk; Better Auth's `/app/sign-in` takes the seam's `returnPath` instead). */
   redirectToSignIn(redirectUrl: string): Promise<void>
   signOut(): Promise<void>
   /** Clerk's user-profile page, when the SDK knows it. */

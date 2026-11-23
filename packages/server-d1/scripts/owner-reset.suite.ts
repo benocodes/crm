@@ -297,13 +297,13 @@ export function ownerResetSuite(
           const a = await drive({ answers: ['y'] })
           expect(a.code, allText(a)).toBe(0)
           expect(a.asked).toHaveLength(1)
-          expect(a.out.filter((l) => l.includes('/reset-password#token='))).toHaveLength(1)
+          expect(a.out.filter((l) => l.includes('/app/reset-password#token='))).toHaveLength(1)
           await pair.reset()
           await seed([{ email: 'owner@x.test' }])
           const b = await drive()
           expect(b.code, allText(b)).toBe(0)
           expect(b.asked ?? []).toEqual([])
-          expect(b.out.filter((l) => l.includes('/reset-password#token='))).toHaveLength(1)
+          expect(b.out.filter((l) => l.includes('/app/reset-password#token='))).toHaveLength(1)
         })
         it('a refusal before the writes (a Clerk record, no owner and no --email) refuses without asking', async () => {
           await seed([{ email: 'owner@x.test' }])
@@ -323,10 +323,10 @@ export function ownerResetSuite(
         const { system, owners } = await seed([{ email: 'owner@x.test' }])
         const r = await drive()
         expect(r.code, allText(r)).toBe(0)
-        const links = r.out.filter((l) => l.includes('/reset-password#token='))
+        const links = r.out.filter((l) => l.includes('/app/reset-password#token='))
         expect(links).toHaveLength(1)
         const url = links[0]!.match(/https:\/\/\S+/)![0]
-        expect(url.startsWith(`${BASE}/reset-password#token=`)).toBe(true)
+        expect(url.startsWith(`${BASE}/app/reset-password#token=`)).toBe(true)
         const token = new URL(url).hash.replace(/^#token=/, '')
         expect(token.length).toBeGreaterThan(8)
         expect(links[0]).toMatch(/expires \d{4}-\d{2}-\d{2}T/)
@@ -361,7 +361,7 @@ export function ownerResetSuite(
         const { owners } = await seed([{ email: 'a@x.test' }, { email: 'b@x.test' }])
         const r = await drive({ email: 'B@X.test' })
         expect(r.code, allText(r)).toBe(0)
-        const links = r.out.filter((l) => l.includes('/reset-password#token='))
+        const links = r.out.filter((l) => l.includes('/app/reset-password#token='))
         expect(links).toHaveLength(1)
         expect(links[0]).toContain('b@x.test')
         expect(allText(r)).not.toContain('a@x.test')
@@ -388,7 +388,7 @@ export function ownerResetSuite(
         // the next run issues a new link
         const again = await drive()
         expect(again.code, allText(again)).toBe(0)
-        expect(again.out.filter((l) => l.includes('/reset-password#token='))).toHaveLength(1)
+        expect(again.out.filter((l) => l.includes('/app/reset-password#token='))).toHaveLength(1)
       })
     })
 
@@ -412,10 +412,10 @@ export function ownerResetSuite(
         for (const o of old) expect(await createInvitation(c, o)).toBe('created')
         const r = await drive({ email: 'New@X.test' })
         expect(r.code, allText(r)).toBe(0)
-        const links = r.out.filter((l) => l.includes('/invite#token='))
+        const links = r.out.filter((l) => l.includes('/app/invite#token='))
         expect(links).toHaveLength(1)
         const token = new URL(links[0]!.match(/https:\/\/\S+/)![0]).hash.replace(/^#token=/, '')
-        expect(links[0]!.match(/https:\/\/\S+/)![0].startsWith(`${BASE}/invite#token=`)).toBe(true)
+        expect(links[0]!.match(/https:\/\/\S+/)![0].startsWith(`${BASE}/app/invite#token=`)).toBe(true)
         expect(
           await hasLiveInvitationForToken(c, {
             tokenHash: sha256(token),

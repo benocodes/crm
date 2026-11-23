@@ -42,8 +42,8 @@ const ALLOWED: Record<string, number> = {
   'packages/server-d1/e2e/oauth-pages.e2e.ts': 6,
   'packages/server-d1/scripts/dev-server.test.ts': 2,
   'packages/server-d1/scripts/smoke-worker.ts': 7,
-  'packages/server-d1/src/app-serving.test.ts': 12,
-  'packages/server-d1/src/app-serving.ts': 2,
+  'packages/server-d1/src/static-serving.test.ts': 12,
+  'packages/server-d1/src/static-serving.ts': 1,
   'packages/server-d1/src/ui/continuation.test.ts': 2,
   'packages/server-d1/src/ui/sign-in-page.ui.test.tsx': 2,
   'packages/server-d1/src/wrangler-config.test.ts': 4,
@@ -100,7 +100,7 @@ describe('the /connect matcher (UI479 group 1)', () => {
 describe("no source names '/connect' as a path outside the allow-list (UI476, UI479)", () => {
   it('the scan sees the packages it is about', () => {
     expect(sources.length).toBeGreaterThan(100)
-    expect(sources).toContain('packages/server-d1/src/app-serving.ts')
+    expect(sources).toContain('packages/server-d1/src/static-serving.ts')
     for (const f of [
       'packages/server-d1/e2e/mcp-oauth.e2e.ts',
       'packages/server-d1/README.md',

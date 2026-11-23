@@ -10,7 +10,7 @@ interface Errors {
   confirm?: string
 }
 
-/** [[UI246]] D6: sets a new password from a one-time link (`/reset-password#token=<token>`) an owner, or later email, hands over. */
+/** [[UI246]] D6: sets a new password from a one-time link (`/app/reset-password#token=<token>`) an owner, or later email, hands over. */
 export function ResetPage({ navigate = goTo }: PageProps) {
   const [token] = useState(takeFragmentToken)
   const [password, setPassword] = useState('')
@@ -37,7 +37,7 @@ export function ResetPage({ navigate = goTo }: PageProps) {
     const result = await resetPassword({ newPassword: password, token })
     setBusy(false)
     if (result.ok) {
-      navigate('/sign-in?notice=password-reset')
+      navigate('/app/sign-in?notice=password-reset')
       return undefined
     }
     if (result.code === 'INVALID_TOKEN') return MESSAGES.resetInvalidLink

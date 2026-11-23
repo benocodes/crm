@@ -138,7 +138,7 @@ npx @vibase/server-d1@<version> owner-reset --env mycompany
 npx @vibase/server-d1@<version> owner-reset --env mycompany --email owner@example.com
 ```
 
-With one Better Auth owner, it prints a one-time reset link for them. With several, pass `--email` to name one; without it the command refuses and lists them. The link is a Better Auth reset link on your own host (`https://<your host>/reset-password#token=...`), valid for one hour; opening it sets a new password and signs that owner out everywhere. It is printed once and stored nowhere, and the audit log records that a link was issued (when, by the system, never the link). A second run prints a new link. `--dry-run` reads only: it names the owner (or the invitation) it would use and prints no link.
+With one Better Auth owner, it prints a one-time reset link for them. With several, pass `--email` to name one; without it the command refuses and lists them. The link is a Better Auth reset link on your own host (`https://<your host>/app/reset-password#token=...`), valid for one hour; opening it sets a new password and signs that owner out everywhere. It is printed once and stored nowhere, and the audit log records that a link was issued (when, by the system, never the link). A second run prints a new link. `--dry-run` reads only: it names the owner (or the invitation) it would use and prints no link.
 
 If the instance has no owner at all, `owner-reset --email <address>` issues an owner invitation for that address instead and replaces any live owner invitation, printed once the same way. An instance whose owners sign in through another provider is refused: recover those through that provider.
 
