@@ -30,7 +30,8 @@ const md = (name: FixtureName, adjust?: (s: MessageSpec) => MessageSpec): string
 
 describe('ids and facts', () => {
   it('maps a plain message', () => {
-    const { out } = map('plain')
+    // Pinned: the fixture's default internalDate is relative to now, and this test asserts the mapped timestamp exactly.
+    const { out } = map('plain', (s) => ({ ...s, internalDate: Date.parse('2026-10-22T09:00:00.000Z') }))
     expect(out.facts).toMatchObject({
       channel: 'email',
       kind: 'message',

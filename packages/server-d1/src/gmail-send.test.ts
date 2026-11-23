@@ -113,8 +113,7 @@ beforeEach(async () => {
   confirmedOnce.clear()
   bucket = fakeR2Bucket()
   mail = new FakeGmail(
-    // The fixture's own internalDate is a fixed 2026-10-22; the 30-day backfill window is measured from the real clock
-    // (token minting needs it), so date the message relative to `now` instead.
+    // Dated relative to this test's own `now` (token minting needs a message inside the backfill window measured from it).
     [gmailFixture('plain', (s) => ({ ...s, internalDate: now.getTime() - 86_400_000 }))],
     { profile: { emailAddress: 'owner@vibase.test', historyId: '1000' } },
   )
