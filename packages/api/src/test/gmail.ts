@@ -49,7 +49,10 @@ export interface MessageSpec {
   id: string
   threadId?: string
   labels?: string[]
-  /** Epoch ms. */
+  /**
+   * Epoch ms. Default: one day before the call (`defaultInternalDate`), so a default message sits inside the sync's 30-day
+   * backfill window, which is measured from the real clock (#520). Pin it only where a test needs a fixed value.
+   */
   internalDate?: number
   /** The message headers in order (values as they appear on the wire, RFC 2047 words included). */
   headers: Array<[string, string]>
@@ -64,6 +67,9 @@ export interface BuiltGmailMessage {
   /** Attachment bytes by attachment id. */
   attachments: Map<string, Uint8Array>
 }
+
+/** One day before now: inside the 30-day backfill window whenever the fixture is built. */
+export const defaultInternalDate = (): number => Date.now() - 86_400_000
 
 export function buildGmailMessage(spec: MessageSpec): BuiltGmailMessage {
   const attachments = new Map<string, Uint8Array>()
@@ -123,7 +129,7 @@ export function buildGmailMessage(spec: MessageSpec): BuiltGmailMessage {
     labelIds: spec.labels ?? ['INBOX'],
     snippet: 'a snippet',
     historyId: '1000',
-    internalDate: String(spec.internalDate ?? Date.parse('2026-10-22T09:00:00.000Z')),
+    internalDate: String(spec.internalDate ?? defaultInternalDate()),
     sizeEstimate: rfc822.byteLength,
     payload,
   }
