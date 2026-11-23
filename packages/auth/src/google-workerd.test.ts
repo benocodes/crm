@@ -148,7 +148,7 @@ describe('refusals (the Google branch of the backstop, P3, P4)', () => {
         body: { additionalData: { invitation_token: TOKEN, invitationToken: TOKEN } },
       },
     ],
-  ])('%s: a redirect to /sign-in?error=invitation_required, no auth row, no session', async (_n, o) => {
+  ])('%s: a redirect to /app/sign-in?error=invitation_required, no auth row, no session', async (_n, o) => {
     const { cb, location } = await flow(o)
     expect(cb.status).toBe(302)
     expect(new URL(location, BASE).pathname).toBe('/app/sign-in')

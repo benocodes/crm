@@ -22,8 +22,8 @@ export const PAGE_TABLE: readonly { readonly path: string; readonly bundle: type
 export const APP_PAGE_PATHS: readonly string[] = PAGE_TABLE.filter((p) => p.bundle === APP_BUNDLE).map((p) => p.path)
 /** The auth bundle's page paths, read from the table. */
 export const AUTH_PAGE_PATHS: readonly string[] = PAGE_TABLE.filter((p) => p.bundle === UI_BUNDLE).map((p) => p.path)
-/** The one auth page the sign-in return allow-list honours (a table entry, [[UI510]] P6). */
-export const DEVICE_PATH = '/app/device'
+/** The one auth page the sign-in return allow-list honours (read from the table, [[UI510]] P6). */
+export const DEVICE_PATH: string = AUTH_PAGE_PATHS.find((p) => p.endsWith('device')) ?? ''
 /** [[UI504]] D3, P4: the static files of both bundles are at `/assets/<bundle>/<file>` and nowhere else. The one prefix every serving module, the build and the config list read. */
 export const ASSET_PREFIX = '/assets'
 /** What `wrangler.jsonc`'s `assets.run_worker_first` lists for the app: the root and `/app` (they redirect), everything under `/app/` (the pages and the Worker's 404 for the rest, so the binding never answers there) and the static files (`/assets/*`), derived from the constants the Worker serves. */

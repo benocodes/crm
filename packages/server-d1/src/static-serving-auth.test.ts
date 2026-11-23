@@ -285,7 +285,7 @@ describe('with a paired, bootstrapped better-auth instance', () => {
     expect(await res.json()).toEqual({ ok: true })
   })
 
-  it("an unauthenticated OAuth authorize request redirects to /sign-in (the provider's loginPage)", async () => {
+  it("an unauthenticated OAuth authorize request redirects to /app/sign-in (the provider's loginPage)", async () => {
     const wk = betterAuthWorker()
     const reg = await wk.fetch(
       new Request(`${AUTH_BASE}/auth/oauth2/register`, {

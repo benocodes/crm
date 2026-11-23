@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { invitationUrl, passwordResetUrl } from '@vibase/api'
 import { CONSENT_PAGE_PATH, DEVICE_PAGE_PATH, LOGIN_PAGE_PATH } from '@vibase/auth'
 import { startGoogleSignIn } from '../ui/auth-api.js'
-import { PAGE_TABLE } from './paths.js'
+import { DEVICE_PATH, PAGE_TABLE } from './paths.js'
 
 // [[UI510]] D7, P5 (group 4): every URL the vault builds for an auth page names an entry of the page table. `@vibase/api` and `@vibase/auth` cannot import the table, so this test pins their literals to it.
 const AUTH_PAGES = PAGE_TABLE.filter((p) => p.bundle === 'ui').map((p) => p.path)
@@ -15,6 +15,13 @@ const pathOf = (url: string): string => new URL(url).pathname
 describe('the auth pages are in the table', () => {
   it('has the five /app auth pages', () => {
     expect(AUTH_PAGES).toEqual(['/app/sign-in', '/app/invite', '/app/reset-password', '/app/consent', '/app/device'])
+  })
+})
+
+describe('the return allow-list page is a table entry (P6)', () => {
+  it('DEVICE_PATH is derived from the table', () => {
+    expect(AUTH_PAGES).toContain(DEVICE_PATH)
+    expect(DEVICE_PATH).toBe('/app/device')
   })
 })
 
