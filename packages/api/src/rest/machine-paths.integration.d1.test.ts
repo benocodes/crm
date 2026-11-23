@@ -6,7 +6,7 @@ import { PUSH_PATH } from '../channels/gmail/push.js'
 import { parseGmailConfig, parsePushConfig } from '../connections/config.js'
 import { createApp } from './app.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
-import { PUSH, jwksFetch, newPushKey, signPushToken, type PushKey } from '../test/push.js'
+import { PUSH, jwksFetch, pushBody, newPushKey, signPushToken, type PushKey } from '../test/push.js'
 import { clerkWebhook, signClerkWebhook, testClerkAdapter } from '../test/clerk.js'
 
 // [[API503]] D1, D4: the three machine endpoints answer only at their new paths; the old ones reach no route.
@@ -53,7 +53,7 @@ const pushAt = async (path: string, aud: string) =>
   app.request(`${BASE}${path}`, {
     method: 'POST',
     headers: { authorization: `Bearer ${await signPushToken(key, new Date(), { aud })}` },
-    body: '{}',
+    body: pushBody(),
   })
 
 describe('the constants', () => {
@@ -67,11 +67,13 @@ describe('the constants', () => {
 describe('the new paths reach their handlers', () => {
   it("GET /oauth/callback/google reaches the callback (a bad state is the callback's own answer, not not_found)", async () => {
     const res = await app.request(`${BASE}/oauth/callback/google?code=x&state=y`)
-    expect(res.status).not.toBe(404)
+    expect(res.status).toBe(400)
+    expect(res.headers.get('location')).toBeNull()
+    expect(await res.text()).toContain('<code>state_invalid</code>')
   })
   it('POST /inbound/gmail verifies the token (aud = base + /inbound/gmail passes the audience check)', async () => {
     const res = await pushAt('/inbound/gmail', `${BASE}/inbound/gmail`)
-    expect(res.status).not.toBe(404)
+    expect(res.status).toBe(204)
   })
   it('POST /inbound/clerk verifies the Svix signature and answers as the handler does', async () => {
     const res = await clerkAt('/inbound/clerk')
