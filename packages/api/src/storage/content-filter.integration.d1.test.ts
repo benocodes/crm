@@ -127,6 +127,6 @@ describe('schema discovery marks the content fields (D9, D10)', () => {
       fields: ['preview', 'attachments'],
       requires: 'messages:read',
     })
-    expect(table('threads').resource.content).toBeNull()
+    expect('content' in table('threads').resource).toBe(false)
   })
 })

@@ -2,8 +2,7 @@ import { sql } from 'kysely'
 import { defineOperation, execute, readAll, unit, type PreparedOperation, type StorageBinding } from '@vibase/storage'
 import { decodeBase64 } from '../connections/config.js'
 import { openToken } from '../connections/credentials.js'
-import { record as eventRecord } from '../events/operations.js'
-import { feedVisibility } from '../events/operations.js'
+import { eventFor, feedVisibility, record as eventRecord } from '../events/operations.js'
 import { visible, type FeedEvent } from '../events/feed.js'
 import type { Registry } from '../registry.js'
 import { ScopeSet } from '../scopes.js'
@@ -358,7 +357,9 @@ async function sendWave(
           const opened = await Promise.all(rotation.map((s) => openSecret(key, s.sealed)))
           if (rotation.length === 0 || opened.some((s) => s === null))
             return void recorded.set(row.id, fail(row, SPENT, null))
-          const body = JSON.stringify(eventRecord(organizationId, row.event))
+          // [[API514]] D11: the payload is the event as the agent's stored scopes may see it, projected like `events.get` (the stored event stays whole).
+          const caller = { scopes: ScopeSet.parse(row.scopes), actor: { id: row.agentId, kind: 'agent' as const } }
+          const body = JSON.stringify(eventRecord(organizationId, eventFor(d.registry, caller, row.event)))
           const timestamp = Math.floor(d.clock().getTime() / 1000)
           const signature = await signatureHeader({ secrets: opened as string[], id: row.eventId, timestamp, body })
           const headers = {

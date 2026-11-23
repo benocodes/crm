@@ -11,7 +11,7 @@ const caller = (...scopes: string[]): Caller => ({
 })
 const EVERYTHING = caller('messages:read')
 const SUBJECT = caller('threads:read') // holds no revealing scope
-const message = {
+const fresh = () => ({
   id: '0190b2c4-0000-7000-8000-000000000001',
   thread_id: '0190b2c4-0000-7000-8000-000000000002',
   channel: 'email',
@@ -26,7 +26,8 @@ const message = {
   attachments: [{ id: '0190b2c4-0000-7000-8000-000000000003', name: 'a.pdf' }],
   created_by: '0190b2c4-0000-7000-8000-0000000000a1',
   created_at: '2026-10-22T09:00:00.000Z',
-}
+})
+const message = fresh()
 const thread = {
   id: '0190b2c4-0000-7000-8000-000000000002',
   channel: 'email',
@@ -47,10 +48,11 @@ describe('the content declaration (D5)', () => {
 
 describe('the projection function (D6)', () => {
   it('below everything: preview and attachments are absent as keys, every other field is untouched', () => {
-    const out = projectRecord(messages, SUBJECT, message)
+    const input = fresh()
+    const out = projectRecord(messages, SUBJECT, input)
     expect('preview' in out).toBe(false)
     expect('attachments' in out).toBe(false)
-    const { preview: _p, attachments: _a, ...rest } = message
+    const { preview: _p, attachments: _a, ...rest } = fresh()
     expect(out).toEqual(rest)
   })
 
@@ -64,9 +66,9 @@ describe('the projection function (D6)', () => {
   })
 
   it('does not mutate its input', () => {
-    const copy = structuredClone(message)
-    projectRecord(messages, SUBJECT, copy)
-    expect(copy).toEqual(message)
+    const input = fresh()
+    projectRecord(messages, SUBJECT, input)
+    expect(input).toEqual(fresh())
   })
 
   it('decides the level from the caller and the record: everything with the revealing scope, subject without; a definition with no content is always everything', () => {

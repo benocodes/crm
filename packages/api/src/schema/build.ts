@@ -128,6 +128,9 @@ function resourceOf(def: AnyResource, stated: ReadonlySet<string>, statedFilters
         : null,
     sorts: sortsOf(def, stated),
     filters: filtersOf(def, statedFilters),
+    ...(def.content
+      ? { content: { fields: [...def.content.fields], requires: formatScope(def.content.requires) } }
+      : {}),
     aggregate: def.aggregate
       ? {
           sum: [...def.aggregate.fields.sum],

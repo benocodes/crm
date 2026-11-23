@@ -34,6 +34,7 @@ import {
   type ReferenceTarget,
 } from './definition.js'
 import { compileCondition, type Condition } from './column-filters.js'
+import { projectRecord } from './projection.js'
 import { canonicalId, prepareCreate, prepareListQuery, prepareUpdate } from './prepare.js'
 import { encodeCursor, type SortRequest } from '../resources/sort-cursor.js'
 import {
@@ -216,9 +217,24 @@ function afterPosition(
     : sql<SqlBool>`(${v} < ${value} or ${v} is null or (${v} = ${value} and ${idRef} < ${id}))`
 }
 
+/**
+ * [[API514]] D9: a filter or sort on a content field is an oracle for the content it hides, so it needs the scope that reveals the field.
+ * Keyed on the field, never on an operator list: every operator of the column grammar (the bare form, `not.` forms, `like`, `in`) is refused.
+ */
+function checkContentScope(def: PreparedResource, env: PreparedEnv, field: string, use: 'filter' | 'sort'): void {
+  const content = def.content
+  if (content !== undefined && content.fields.includes(field) && !env.scopes.has(content.requires))
+    throw new ApiError(
+      403,
+      'insufficient_scope',
+      `requires ${formatScope(content.requires)} to ${use} ${def.name} by ${field}`,
+    )
+}
+
 /** [[CORE129]] D12: a custom filter may need scopes beyond the list's own; refused before any query is built (a list and an aggregate share this). */
 function checkFilterScopes(def: PreparedResource, env: PreparedEnv, filters: Record<string, unknown>): void {
   for (const column of Object.keys(filters)) {
+    checkContentScope(def, env, column, 'filter')
     for (const scope of def.customFilters?.[column]?.requires ?? []) {
       if (!env.scopes.has(scope))
         throw new ApiError(
@@ -265,6 +281,7 @@ export function listOperation<R extends { id: string }>(
   checkFilterScopes(def, env, filters)
   // [[CORE133]] D5: sorting by a derived field needs the scopes that show it; a caller without them never gets a cursor carrying its value.
   if (sort) {
+    checkContentScope(def, env, sort.field, 'sort')
     for (const scope of def.derived?.[sort.field]?.requires ?? []) {
       if (!env.scopes.has(scope))
         throw new ApiError(
@@ -312,9 +329,9 @@ export function listOperation<R extends { id: string }>(
           }
           return {
             data: page.map((r) => {
-              if (!sort || !def.sortKinds) return toRecord(def, r)
+              if (!sort || !def.sortKinds) return projectRecord(def, env, toRecord(def, r))
               const { __vibase_sort_value: _value, ...record } = r
-              return toRecord(def, record)
+              return projectRecord(def, env, toRecord(def, record))
             }),
             next_cursor: rows.length > limit ? cursor() : null,
           }
@@ -376,7 +393,7 @@ export function getOperation<R extends { id: string }>(
         decode: () => {
           const row = found.maybe('row')
           if (!row) throw notFound(def)
-          return toRecord(def, row)
+          return projectRecord(def, env, toRecord(def, row))
         },
       }),
   })

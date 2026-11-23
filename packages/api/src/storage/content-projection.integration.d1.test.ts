@@ -45,7 +45,7 @@ const stored = () => s.k.crm("select * from events where type like 'message.%' o
 
 /** A stored message.updated event, written the way the feed reads it: the whole record in before and after. */
 async function updatedEvent(id: string): Promise<string> {
-  const record = (await user(['messages:read'], `/api/v1/messages/${id}`)).body
+  const record = (await user(AT, `/api/v1/messages/${id}`)).body
   return s.k.rawEvent('message.updated', {
     resourceType: 'message',
     resourceId: id,
@@ -58,6 +58,10 @@ type Path = (scopes: string[], id: string) => Promise<Array<Record<string, unkno
 const eventSides = (e: any) => [e.before, e.after].filter((x): x is Record<string, unknown> => x !== null)
 const PATHS: Array<[string, Path]> = [
   ['messages.list', async (scopes) => (await user(scopes, '/api/v1/messages')).body.data],
+  [
+    'messages.list sorted (the keyset path)',
+    async (scopes) => (await user(scopes, '/api/v1/messages?sort=occurred_at&order=desc')).body.data,
+  ],
   ['messages.get', async (scopes, id) => [(await user(scopes, `/api/v1/messages/${id}`)).body]],
   [
     'an association read that renders a message (getWithAssociations)',
