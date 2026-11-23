@@ -1,4 +1,4 @@
-// `vibase-server init` ([[OPS494]]): asks for (or takes as flags) the instance's name, host, owner email, auth and email providers, then writes its secrets file: generated
+// `vibase-server init` ([[OPS494]]): asks for (or takes as flags) the instance's name, host, owner email, auth and email providers, then writes its settings file and its secrets file: generated
 // secrets in, an empty line for every value only the person can supply, never overwritten. Local only: nothing here touches Cloudflare, Google or Clerk.
 import { randomBytes } from 'node:crypto'
 import * as fs from 'node:fs'
@@ -6,11 +6,18 @@ import { dirname } from 'node:path'
 import { parseArgs } from 'node:util'
 import { isValidPushVar } from '@vibase/api'
 import { RemoteRefusal } from '../remote.js'
-import { apiHostProblem, authProblem, checkNameLengths, derivedNames, envNameProblem } from '../setup/args.js'
+import {
+  apiHostProblem,
+  authProblem,
+  checkNameLengths,
+  derivedNames,
+  emailProblem,
+  envNameProblem,
+} from '../setup/args.js'
 import { newAuthSecret, type AuthProvider } from '../setup/better-auth.js'
 import { ABORT_LINE, confirmProceed } from './prompt.js'
 import { defaultSecretsPath } from './secrets.js'
-import { defaultSettingsPath } from './settings.js'
+import { defaultSettingsPath, initSettingsText, loadAnySettings, writeFileAtomic } from './settings.js'
 import { InstanceRefusal, isRefusal, type InstanceDeps } from './types.js'
 
 export const USAGE =
@@ -27,10 +34,6 @@ export interface InitInputs {
   gcpProject?: string
 }
 
-const emailProblem = (v: string): string | null =>
-  /^[^\s@]+@[^\s@]+$/.test(v)
-    ? null
-    : `--owner-email ${v}: expected an email address (one @, text on both sides, no spaces)`
 /** `--email`: a comma-separated list of `gmail`, or `none`. */
 function emailProvidersProblem(v: string): { gmail: boolean } | string {
   const parts = v.split(',').map((p) => p.trim())
@@ -285,12 +288,26 @@ async function init(argv: string[], deps: InstanceDeps): Promise<number> {
   const path = flag('secrets-file') ?? defaultSecretsPath(deps.env, deps.homedir, env)
   if (exists(path)) throw new InstanceRefusal(`${path} already exists: edit it instead (init never overwrites a file)`)
   const settingsPath = defaultSettingsPath(deps.env, deps.homedir, env)
-  if (exists(settingsPath))
-    throw new InstanceRefusal(
-      `${env} is already set up (${settingsPath} exists): restore the secrets file you kept; do not regenerate it (a new AUTH_SECRET or CREDENTIALS_KEY would not match the Worker's)`,
-    )
+  // [[OPS501]] D2: a full record is a set-up instance (its secrets must not be regenerated); a file init wrote is replaced; anything else cannot be read as either.
+  let replacing = false
+  if (exists(settingsPath)) {
+    let parsed: ReturnType<typeof loadAnySettings>
+    try {
+      parsed = loadAnySettings(settingsPath, env, { allowNoControl: true })
+    } catch (e) {
+      throw new InstanceRefusal(
+        `${settingsPath} exists but is neither an init-written file nor a set-up instance's record (${(e as Error).message}): fix or remove it`,
+      )
+    }
+    if (parsed.kind === 'full')
+      throw new InstanceRefusal(
+        `${env} is already set up (${settingsPath} exists): restore the secrets file you kept; do not regenerate it (a new AUTH_SECRET or CREDENTIALS_KEY would not match the Worker's)`,
+      )
+    replacing = true
+  }
 
   deps.out(`init: will write ${path}`)
+  deps.out(`init: will ${replacing ? 'replace' : 'write'} ${settingsPath}${replacing ? ' (written by init)' : ''}`)
   deps.out(
     `  env ${env}, api host ${apiHost}, owner email ${ownerEmail ?? '(none)'}, auth ${auth}, email ${mail.gmail ? 'gmail' : 'none'}`,
   )
@@ -299,6 +316,8 @@ async function init(argv: string[], deps: InstanceDeps): Promise<number> {
     return EXIT_DONE
   }
 
+  // The settings file first: a leftover init-written file is harmless and replaced by a rerun, a leftover secrets file would block it.
+  writeFileAtomic(settingsPath, initSettingsText({ env, api_host: apiHost, auth, owner_email: ownerEmail }))
   const g = generate()
   createSecretsFile(path, buildSecretsText(inputs, g))
 
@@ -307,6 +326,7 @@ async function init(argv: string[], deps: InstanceDeps): Promise<number> {
     ...(mail.gmail ? ['CREDENTIALS_KEY', 'OAUTH_STATE_SECRET'] : []),
   ]
   deps.out(`wrote ${path} (mode 600)`)
+  deps.out(`wrote ${settingsPath}`)
   if (generated.length > 0)
     deps.out(
       `generated: ${generated.join(', ')}${mail.gmail ? ' (back it up: losing CREDENTIALS_KEY makes connected mailboxes unreadable)' : ''}`,
@@ -320,9 +340,10 @@ async function init(argv: string[], deps: InstanceDeps): Promise<number> {
   deps.out(
     `fill in: ${fill.join(', ')}${off.length > 0 ? `; ${off.join(' and ')} stay off until their Google values are added` : ''}`,
   )
+  // [[OPS501]] D7: setup reads the host, provider and owner email from the settings file; only a secrets file at a non-default path is repeated.
   deps.out('next:')
   deps.out(
-    `  vibase-server setup --env ${env} --api-host ${apiHost} --auth ${auth}${ownerEmail ? ` --owner-email ${shellWord(ownerEmail)}` : ''}${flag('secrets-file') ? ` --secrets-file ${shellWord(flag('secrets-file')!)}` : ''} --dry-run`,
+    `  vibase-server setup --env ${env}${flag('secrets-file') ? ` --secrets-file ${shellWord(flag('secrets-file')!)}` : ''}`,
   )
   return EXIT_DONE
 }

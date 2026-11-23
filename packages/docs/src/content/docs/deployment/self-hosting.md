@@ -41,20 +41,20 @@ An instance's two files live outside the package, so upgrading never touches the
 - Settings: `$XDG_CONFIG_HOME/vibase/instances/<env>.json` (`~/.config` when unset). `setup` writes it.
 - Secrets: `<env>.env` beside it, mode 600, dotenv format. The program refuses a file that other users can read.
 
-Let `vibase-server init --env <name>` write the secrets file. It asks for the instance name, its API host, the owner email and the auth and email providers (each has a flag, and with no terminal the flags are all it has), then creates the file with mode 600 and never overwrites one:
+Let `vibase-server init --env <name>` write the instance's two files, the settings file and the secrets file. It asks for the instance name, its API host, the owner email and the auth and email providers (each has a flag, and with no terminal the flags are all it has), then creates the secrets file with mode 600 (it never overwrites one) and the settings file:
 
 ```bash
 npx @vibase/server-d1@<version> init --env mycompany --api-host api.example.com --owner-email you@example.com
 ```
 
-The file holds the generated secrets (`AUTH_SECRET`, and `CREDENTIALS_KEY` and `OAUTH_STATE_SECRET` for Gmail) and an empty line for each value only you can supply, each under a comment saying where it comes from. Init never prints a generated value. Fill in the Cloudflare pair, at least:
+The file holds the generated secrets (`AUTH_SECRET`, and `CREDENTIALS_KEY` and `OAUTH_STATE_SECRET` for Gmail) and an empty line for each value only you can supply, each under a comment saying where it comes from. Init never prints a generated value. The settings file records what you told it (the API host, the auth provider and the owner email), marked as init's: setup reads those choices, so you do not repeat them as flags. Fill in the Cloudflare pair, at least:
 
 ```dotenv
 CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
 CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
 ```
 
-Gmail and Google sign-in stay off until you paste their Google client values into the file and re-run setup; setup says so, and which values turn them on, instead of refusing. Back up `CREDENTIALS_KEY`: losing it makes connected mailboxes unreadable. Init ends by printing the `setup --dry-run` command to run next.
+Gmail and Google sign-in stay off until you paste their Google client values into the file and re-run setup; setup says so, and which values turn them on, instead of refusing. Back up `CREDENTIALS_KEY`: losing it makes connected mailboxes unreadable. Init ends by printing the command to run next: `setup --env <name>` (plus the secrets file's path, only if you gave init one), which prints its plan and asks `proceed? [Y/n]` before changing anything. Running init again replaces its own settings file, until setup has run once; after that init refuses, because the instance's secrets must not be regenerated.
 
 A file you wrote by hand works too: setup generates a missing `AUTH_SECRET` (the key that signs sessions), appends it to the file before it puts it on the Worker, and never prints it. Keep the file: a re-run reads the secret from it.
 
@@ -75,7 +75,7 @@ npx @vibase/server-d1@<version> status --env mycompany --settings ./mycompany.js
 
 ## Set up with Better Auth
 
-Run the read-only setup plan first. A dry run reads configuration and the Cloudflare account, and changes nothing:
+Run the read-only setup plan first. A dry run reads configuration and the Cloudflare account, and changes nothing. After init, `setup --env mycompany` is the whole command: the host, the provider and the owner email come from the settings file, and a flag that differs from them is refused. Without init (a settings file you wrote by hand, or none), give `--api-host` (or `--workers-dev`) and `--owner-email` on the first run, as below:
 
 ```bash
 npx @vibase/server-d1@<version> setup --env mycompany --api-host api.example.com --owner-email owner@example.com --dry-run

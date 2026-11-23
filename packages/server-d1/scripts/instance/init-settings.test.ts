@@ -204,7 +204,7 @@ describe('5. the host flags are optional for a recorded instance (D6)', () => {
       control_d1: { name: 'vb-control-demo', id: CONTROL_UUID },
       r2_bucket: 'vb-bodies-demo',
       workflow: { name: 'vb-mail-sync-demo' },
-      vars: { AUTH_PROVIDER: 'none', CORS_ALLOWED_ORIGINS: '' },
+      vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' },
       ...over,
     })
   const state = { d1s: created.d1s, r2s: created.r2s, applied: [...ALL_MIGRATIONS], controlApplied: [...CONTROL_ALL] }

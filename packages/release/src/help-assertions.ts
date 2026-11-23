@@ -12,9 +12,13 @@ export const SERVER_HELP_NEEDLES: ReadonlyArray<{ name: string; pattern: RegExp 
   },
   { name: 'redeploy [--dry-run] [--yes]', pattern: /vibase-server redeploy --env <name> \[--dry-run\] \[--yes\]/ },
   {
-    name: 'setup --env <name> (--api-host <host> | --workers-dev) ... [--dry-run] [--yes]',
+    name: 'setup --env <name> [--api-host <host> | --workers-dev] ... [--dry-run] [--yes]',
     pattern:
-      /vibase-server setup --env <name> \(--api-host <host> \| --workers-dev\)[^\n]*\n[^\n]*\[--dry-run\] \[--yes\]/,
+      /vibase-server setup --env <name> \[--api-host <host> \| --workers-dev\][^\n]*\n[^\n]*\[--dry-run\] \[--yes\]/,
+  },
+  {
+    name: 'init writes the settings file and the secrets file',
+    pattern: /Writes a new instance's settings file and secrets file/,
   },
   {
     name: 'owner-reset --env <name> ... [--dry-run] [--yes]',

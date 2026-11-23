@@ -1,9 +1,11 @@
 // The instance settings file ([[OPS210]] D9, [[OPS231]]): public values only, validated with errors that name the key or the path.
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { CONTROL_PLACEHOLDER_DATABASE_ID, PLACEHOLDER_DATABASE_ID } from '../remote.js'
+import { apiHostProblem, authProblem, emailProblem } from '../setup/args.js'
+import type { AuthProvider } from '../setup/better-auth.js'
 import { isWorkersDevHost } from '../setup/host.js'
-import { InstanceRefusal, type InstanceSettings } from './types.js'
+import { InstanceRefusal, type InitSettings, type InstanceSettings } from './types.js'
 
 /** The config root of the vibase CLI: `$XDG_CONFIG_HOME`, else `~/.config`. */
 export const configRoot = (env: Record<string, string | undefined>, homedir: string): string =>
@@ -27,17 +29,90 @@ const KEYS = [
   'workflow',
   'vars',
   'crons',
+  'stage',
+  'auth',
+  'owner_email',
 ]
+/** [[OPS501]] D1: the keys of the init-written shape; every other key belongs to the full record. */
+const INIT_KEYS = ['version', 'env', 'stage', 'api_host', 'auth', 'owner_email']
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const BARE_HOST = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+
+export type ParsedSettings = { kind: 'full'; settings: InstanceSettings } | { kind: 'init'; init: InitSettings }
+
+/** [[OPS501]] D5: what every command but `setup` and `init` says about a file that only records init's choices. */
+export const notSetUpYet = (envName: string, path: string): string =>
+  `${envName} is not set up yet (${path} was written by init): run vibase-server setup --env ${envName}`
+
+/** The settings file in either shape: the full record (below), or the init-written one ([[OPS501]] D1). A mixture of the two is refused naming the key. */
+export function parseAnySettings(
+  text: string,
+  envName: string,
+  path: string,
+  opts: { allowNoControl?: boolean } = {},
+): ParsedSettings {
+  let json: unknown
+  try {
+    json = JSON.parse(text)
+  } catch {
+    throw new InstanceRefusal(`${path}: not valid JSON`)
+  }
+  if (isObject(json) && json.stage !== undefined) return { kind: 'init', init: parseInit(json, envName, path) }
+  return { kind: 'full', settings: parseFull(text, envName, path, opts) }
+}
+
+function parseInit(json: Record<string, unknown>, envName: string, path: string): InitSettings {
+  const fail = (message: string): never => {
+    throw new InstanceRefusal(`${path}: ${message}`)
+  }
+  for (const k of Object.keys(json)) if (!KEYS.includes(k)) fail(`unknown key "${k}"`)
+  if (json.stage !== 'init') fail(`stage ${JSON.stringify(json.stage)} is not known (only "init")`)
+  for (const k of Object.keys(json))
+    if (!INIT_KEYS.includes(k))
+      fail(`"${k}" is not allowed with stage "init" (an init-written file has only ${INIT_KEYS.join(', ')})`)
+  if (json.version !== 1) fail('version must be 1')
+  if (json.env !== envName) fail(`env ${JSON.stringify(json.env)} does not match --env ${envName}`)
+  const api_host = typeof json.api_host === 'string' ? json.api_host : ''
+  const hostProblem = apiHostProblem(api_host)
+  if (hostProblem) fail(`api_host: ${hostProblem.replace(/^--api-host /, '')}`)
+  const auth = typeof json.auth === 'string' ? json.auth : ''
+  const authIssue = authProblem(auth)
+  if (authIssue) fail(`auth: ${authIssue.replace(/^--auth /, '')}`)
+  let owner_email: string | undefined
+  if (json.owner_email !== undefined) {
+    const e = typeof json.owner_email === 'string' ? json.owner_email : ''
+    const problem = emailProblem(e, 'owner_email')
+    if (problem) fail(problem)
+    owner_email = e
+  }
+  return {
+    version: 1,
+    env: envName,
+    stage: 'init',
+    api_host,
+    auth: auth as AuthProvider,
+    ...(owner_email ? { owner_email } : {}),
+  }
+}
 
 /**
  * [[CORE326]] P5: `control_d1` is required (every instance has a control-plane database). `vibase-server setup` is the one command that still loads settings without it (`allowNoControl`),
  * because it is what records the control database.
  */
 export function parseSettings(
+  text: string,
+  envName: string,
+  path: string,
+  opts: { allowNoControl?: boolean } = {},
+): InstanceSettings {
+  const parsed = parseAnySettings(text, envName, path, opts)
+  if (parsed.kind === 'init') throw new InstanceRefusal(notSetUpYet(envName, path))
+  return parsed.settings
+}
+
+function parseFull(
   text: string,
   envName: string,
   path: string,
@@ -113,10 +188,29 @@ export function parseSettings(
       fail('crons must be a list of cron expressions')
     out.crons = json.crons as string[]
   }
+  if (json.owner_email !== undefined) {
+    const problem =
+      typeof json.owner_email === 'string'
+        ? emailProblem(json.owner_email, 'owner_email')
+        : 'owner_email must be a string'
+    if (problem) fail(problem)
+    out.owner_email = json.owner_email as string
+  }
   return out
 }
 
 export function loadSettings(path: string, envName: string, opts: { allowNoControl?: boolean } = {}): InstanceSettings {
+  const parsed = loadAnySettings(path, envName, opts)
+  if (parsed.kind === 'init') throw new InstanceRefusal(notSetUpYet(envName, path))
+  return parsed.settings
+}
+
+/** `loadSettings` for the two commands that know the init-written shape: `setup` and `init`. */
+export function loadAnySettings(
+  path: string,
+  envName: string,
+  opts: { allowNoControl?: boolean } = {},
+): ParsedSettings {
   let text: string
   try {
     text = readFileSync(path, 'utf8')
@@ -125,5 +219,33 @@ export function loadSettings(path: string, envName: string, opts: { allowNoContr
       `no settings file at ${path}: create it (vibase-server setup, or by hand) or pass --settings <path>`,
     )
   }
-  return parseSettings(text, envName, path, opts)
+  return parseAnySettings(text, envName, path, opts)
+}
+
+/** [[OPS501]] D2: the init file's text, pretty JSON; `owner_email` absent when init had none. */
+export const initSettingsText = (i: Omit<InitSettings, 'version' | 'stage'>): string =>
+  `${JSON.stringify(
+    {
+      version: 1,
+      env: i.env,
+      stage: 'init',
+      api_host: i.api_host,
+      auth: i.auth,
+      ...(i.owner_email ? { owner_email: i.owner_email } : {}),
+    },
+    null,
+    2,
+  )}\n`
+
+/** Replaces the file atomically: a temp file in the same directory, then a rename, so a failed write never leaves half a file. */
+export function writeFileAtomic(path: string, text: string): void {
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
+  const tmp = `${path}.${process.pid}.tmp`
+  try {
+    writeFileSync(tmp, text)
+    renameSync(tmp, path)
+  } catch (e) {
+    rmSync(tmp, { force: true })
+    throw e
+  }
 }
