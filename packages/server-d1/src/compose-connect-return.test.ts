@@ -31,7 +31,7 @@ beforeEach(async () => {
 
 const callback = (extra: Partial<D1WorkerEnv>) =>
   composeD1Worker({ DB: w.d1, AUTH_PROVIDER: '', PUBLIC_BASE_URL: BASE, ...GMAIL_ENV, ...extra }).fetch(
-    new Request(`${BASE}/oauth/google/callback`),
+    new Request(`${BASE}/oauth/callback/google`),
   )
 
 describe('the callback default return path follows ASSETS (D5)', () => {

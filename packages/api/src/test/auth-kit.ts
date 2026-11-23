@@ -3,6 +3,7 @@
 // (name, identity, stats) and can arm D1's between-plan-and-commit hook for ONE named unit.
 import { uuidv7, type ExecutionStats, type StorageBinding, type StorageIdentity } from '@vibase/storage'
 import { createApp } from '../rest/app.js'
+import { CLERK_WEBHOOK_PATH } from '../directory/webhook.js'
 import { internalEnv, type InternalEnv } from '../storage/internal.js'
 import { clerkUser, mintClerkToken, orgClaim, signClerkWebhook, testClerkAdapter, type ClerkUserJson } from './clerk.js'
 import type { Engine } from './engines.js'
@@ -102,7 +103,7 @@ export async function openAuthKit(e: Engine, opts: { now?: Date; binding?: Stora
         if (value === undefined) delete headers[name]
         else headers[name] = value
       }
-      return app.request('/webhooks/clerk', { method: 'POST', headers, body: signed.body })
+      return app.request(CLERK_WEBHOOK_PATH, { method: 'POST', headers, body: signed.body })
     },
     profile(sub, o = {}) {
       const email = o.email === undefined ? `${sub}@x.test` : o.email

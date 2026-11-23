@@ -340,7 +340,7 @@ describe('5. --change-host (D14, P5)', () => {
     expect(b.vars.PUBLIC_BASE_URL).toBe(BASE)
     for (const n of CONSEQUENCES) expect(said(w), n).toContain(n)
     expect(said(w)).toContain(`${BASE}/auth/callback/google`)
-    expect(said(w)).not.toContain('/oauth/google/callback')
+    expect(said(w)).not.toContain('/oauth/callback/google')
     // the re-run with --api-host alone is a plain re-run: no flag needed, no consequence lines, verify on the new host
     w.logs.length = 0
     w.fetched.length = 0
@@ -356,7 +356,7 @@ describe('5. --change-host (D14, P5)', () => {
     expect((await fullRun(w, WD)).exitCode, said(w)).toBe(0)
     w.logs.length = 0
     await run(w, CHANGE)
-    expect(said(w)).toContain(`${BASE}/oauth/google/callback`)
+    expect(said(w)).toContain(`${BASE}/oauth/callback/google`)
     expect(said(w)).not.toContain('/auth/callback/google')
   })
   it('a missing zone for the new host is refused before any write', async () => {

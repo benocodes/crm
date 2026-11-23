@@ -2,6 +2,7 @@
 // `CREDENTIALS_KEY` decodes (base64) to exactly 32 bytes; anything else is a problem NAMED here, never a value (the notice is logged).
 
 import { ATTACHMENT_MAX_BYTES } from '../messaging/store-content.js'
+import { PUSH_PATH } from '../channels/gmail/push.js'
 
 export interface GmailConfig {
   clientId: string
@@ -99,7 +100,7 @@ export interface PushConfig {
   serviceAccount: string
   /** `PUBLIC_BASE_URL` without a trailing slash. */
   publicBaseUrl: string
-  /** The OIDC `aud` Pub/Sub puts in its token: `<publicBaseUrl>/gmail/push`. */
+  /** The OIDC `aud` Pub/Sub puts in its token: `<publicBaseUrl>${PUSH_PATH}`. */
   audience: string
 }
 export const PUSH_VARS = [
@@ -113,7 +114,7 @@ const PUSH_RULES: Record<(typeof PUSH_VARS)[number], (v: string) => boolean> = {
   GMAIL_TOPIC_NAME: (v) => /^projects\/[^/\s]+\/topics\/[^/\s]+$/.test(v),
   GMAIL_PUSH_SUBSCRIPTION: (v) => /^projects\/[^/\s]+\/subscriptions\/[^/\s]+$/.test(v),
   GMAIL_PUSH_SERVICE_ACCOUNT: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
-  // `https`, or `http://localhost` for local development; a trailing slash is dropped; no path, query or fragment: the audience is `<base>/gmail/push` exactly.
+  // `https`, or `http://localhost` for local development; a trailing slash is dropped; no path, query or fragment: the audience is `<base>${PUSH_PATH}` exactly.
   PUBLIC_BASE_URL: (v) => {
     try {
       const u = new URL(v)
@@ -154,7 +155,7 @@ export function parsePushConfig(env: Record<string, string | undefined>): {
       subscription: env.GMAIL_PUSH_SUBSCRIPTION!.trim(),
       serviceAccount: env.GMAIL_PUSH_SERVICE_ACCOUNT!.trim().toLowerCase(),
       publicBaseUrl: base,
-      audience: `${base}/gmail/push`,
+      audience: `${base}${PUSH_PATH}`,
     },
     configured: true,
     problems: [],

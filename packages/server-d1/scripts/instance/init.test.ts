@@ -279,10 +279,10 @@ describe('the contents (D4)', () => {
   it('each Google redirect URI is named, with the host filled in', async () => {
     const t = (await make(COMBOS[0]![1])).t
     expect(t).toContain(`https://${HOST}/auth/callback/google`)
-    expect(t).toContain(`https://${HOST}/oauth/google/callback`)
+    expect(t).toContain(`https://${HOST}/oauth/callback/google`)
     const clerk = (await make(COMBOS[1]![1])).t
     expect(clerk).not.toContain('/auth/callback/google')
-    expect(clerk).toContain(`https://${HOST}/oauth/google/callback`)
+    expect(clerk).toContain(`https://${HOST}/oauth/callback/google`)
   })
 })
 

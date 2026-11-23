@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto'
 import * as fs from 'node:fs'
 import { dirname } from 'node:path'
 import { parseArgs } from 'node:util'
-import { isValidPushVar } from '@vibase/api'
+import { CALLBACK_PATH, isValidPushVar } from '@vibase/api'
 import { RemoteRefusal } from '../remote.js'
 import {
   apiHostProblem,
@@ -134,7 +134,7 @@ export function buildSecretsText(i: InitInputs, g: Generated): string {
     L.push(
       '',
       '# Gmail stays off until both Google client values are set. The sign-in client is fine: add the Gmail redirect URI to it.',
-      ...google('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', `https://${i.apiHost}/oauth/google/callback`),
+      ...google('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', `https://${i.apiHost}${CALLBACK_PATH}`),
       '# Encrypts stored mailbox credentials. Generated; back it up (losing it makes connected mailboxes unreadable) and never replace it.',
       `CREDENTIALS_KEY=${g.credentialsKey}`,
       '# Signs the connect flow. Generated.',

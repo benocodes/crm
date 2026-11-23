@@ -195,9 +195,9 @@ describe('the cron with push on (D89)', () => {
   })
 })
 
-describe('POST /gmail/push through the composition', () => {
+describe('POST /inbound/gmail through the composition', () => {
   const push = (worker: ReturnType<typeof composeD1Worker>, headers: Record<string, string> = {}) =>
-    worker.fetch(new Request(`${BASE}/gmail/push`, { method: 'POST', headers, body: '{}' }))
+    worker.fetch(new Request(`${BASE}/inbound/gmail`, { method: 'POST', headers, body: '{}' }))
   it('is 404 when push is off, whatever the credentials', async () => {
     await boot()
     expect((await push(composeD1Worker(env()))).status).toBe(404)

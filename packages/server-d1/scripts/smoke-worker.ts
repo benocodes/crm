@@ -19,6 +19,7 @@ import {
   openToken,
   type R2BucketLike,
 } from '@vibase/api'
+import { CALLBACK_PATH, CLERK_WEBHOOK_PATH, PUSH_PATH } from '@vibase/api'
 import { FAKE_GOOGLE_ORIGIN, FakeGoogle } from '@vibase/api/test/google'
 import { FakeGmail } from '@vibase/api/test/gmail'
 import { gmailFixture } from '@vibase/api/test/gmail-fixtures'
@@ -453,9 +454,9 @@ try {
   )
 
   // 11: there is no webhook on the D1 Worker (D24), and no membership state
-  res = await call('POST', '/webhooks/clerk', { raw: '{}' })
+  res = await call('POST', CLERK_WEBHOOK_PATH, { raw: '{}' })
   check(
-    '11 POST /webhooks/clerk -> 404 and memberships is empty',
+    `11 POST ${CLERK_WEBHOOK_PATH} -> 404 and memberships is empty`,
     res.status === 404 && (await count('memberships')) === 0,
     { status: res.status, memberships: await count('memberships') },
   )
@@ -525,7 +526,7 @@ try {
     '43 POST /meta/v1/connections/authorize as an owner -> 200, a Google URL with PUBLIC_BASE_URL as the redirect_uri base and an S256 challenge',
     res.status === 200 &&
       authorizeUrl.startsWith('https://accounts.google.com/o/oauth2/v2/auth?') &&
-      new URL(authorizeUrl).searchParams.get('redirect_uri') === `${PUSH_BASE_URL}/oauth/google/callback` &&
+      new URL(authorizeUrl).searchParams.get('redirect_uri') === `${PUSH_BASE_URL}${CALLBACK_PATH}` &&
       new URL(authorizeUrl).searchParams.get('code_challenge_method') === 'S256',
     { status: res.status, body },
   )
@@ -811,7 +812,7 @@ try {
     const iat = Math.floor(Date.now() / 1000)
     return google.signToken({
       iss: 'https://accounts.google.com',
-      aud: over.aud ?? `${PUSH_BASE_URL}/gmail/push`,
+      aud: over.aud ?? `${PUSH_BASE_URL}${PUSH_PATH}`,
       sub: '100000000000000000001',
       email: over.email ?? PUSH_SERVICE_ACCOUNT,
       email_verified: true,
@@ -830,7 +831,7 @@ try {
       subscription: PUSH_SUBSCRIPTION,
     })
   const pushNow = (token: string | null, emailAddress = 'Mailbox@Smoke.test') =>
-    call('POST', '/gmail/push', {
+    call('POST', PUSH_PATH, {
       ...(token ? { headers: { authorization: `Bearer ${token}` } } : {}),
       raw: pushBody(emailAddress),
     })
@@ -849,7 +850,7 @@ try {
   const req0 = await requestedAt()
   res = await pushNow(null)
   check(
-    'PU1 POST /gmail/push with no Authorization header in workerd -> 401, no JWKS fetch, no instance, no write',
+    `PU1 POST ${PUSH_PATH} with no Authorization header in workerd -> 401, no JWKS fetch, no instance, no write`,
     res.status === 401 && jwksFetches === jwks0 && instancesCreated() === inst0 && (await requestedAt()) === req0,
     { status: res.status, jwksFetches: jwksFetches - jwks0 },
   )

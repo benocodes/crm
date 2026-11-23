@@ -40,7 +40,7 @@ export interface ConnectionsRuntime {
 
 /** [[CHN5]] D9: the state outlives the person's visit to Google's consent screen by ten minutes. */
 export const STATE_TTL_MS = 10 * 60_000
-export const CALLBACK_PATH = '/oauth/google/callback'
+export const CALLBACK_PATH = '/oauth/callback/google'
 
 /** The redirect URI of authorize and callback alike ([[CHN5]] D57): `PUBLIC_BASE_URL`, or the request's own origin when it is unset. */
 export const redirectUriOf = (config: GmailConfig, origin: string | undefined): string | null => {

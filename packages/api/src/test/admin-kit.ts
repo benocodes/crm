@@ -7,6 +7,7 @@ import type { Database } from '@vibase/db'
 import { randomBytes } from 'node:crypto'
 import { createOwnerTestDb, createTestDb, seedAgent, seedOrganization, seedUser, truncateAll } from '@vibase/db/test'
 import { createApp } from '../rest/app.js'
+import { CLERK_WEBHOOK_PATH } from '../directory/webhook.js'
 import {
   clerkMembership,
   clerkOrganization,
@@ -54,7 +55,7 @@ export interface AdminKit {
   >
   /** A Clerk profile for `sub`; returns the email. */
   profile(sub: string, opts?: { verified?: boolean; email?: string }): string
-  /** A signed delivery to `/webhooks/clerk`. `raw` replaces the body; `headers` are merged over the signed ones. */
+  /** A signed delivery to `/inbound/clerk`. `raw` replaces the body; `headers` are merged over the signed ones. */
   webhook(
     payload: unknown,
     opts?: { secret?: string; id?: string; timestamp?: number; headers?: Record<string, string | undefined> },
@@ -133,7 +134,7 @@ export function useAdminKit(opts: { max?: number } = {}): AdminKit {
         if (value === undefined) delete headers[name]
         else headers[name] = value
       }
-      return k.app.request('/webhooks/clerk', { method: 'POST', headers, body: signed.body })
+      return k.app.request(CLERK_WEBHOOK_PATH, { method: 'POST', headers, body: signed.body })
     }
     k.systemId = async () =>
       (await k.owner.selectFrom('principals').select('id').where('kind', '=', 'system').executeTakeFirstOrThrow()).id

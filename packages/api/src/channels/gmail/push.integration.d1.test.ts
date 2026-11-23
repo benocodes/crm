@@ -10,7 +10,7 @@ import { seedGmailConnection } from '../../test/gmail-sync.js'
 import { PUSH, jwksFetch, newPushKey, pushBody, signPushToken, type PushKey } from '../../test/push.js'
 import { fakeUserAuthenticator } from '../../test/user-auth.js'
 
-// [[CHN155]] / [[CHN5]] D87, D88: `POST /gmail/push` on local D1 with locally minted RS256 keys served through the injected `fetch`. Nothing reaches the network.
+// [[CHN155]] / [[CHN5]] D87, D88: `POST /inbound/gmail` on local D1 with locally minted RS256 keys served through the injected `fetch`. Nothing reaches the network.
 const KEY = new Uint8Array(32).fill(3)
 const ENV = {
   GOOGLE_CLIENT_ID: 'fake-client-id.apps.test',
@@ -87,7 +87,7 @@ const post = async (a: ReturnType<typeof app>, o: { token?: string | null; heade
   const headers: Record<string, string> = {}
   if (o.header !== undefined) headers.authorization = o.header
   else if (o.token !== null) headers.authorization = `Bearer ${o.token ?? (await signPushToken(key, now))}`
-  const res = await a.request(`${PUSH.publicBaseUrl}/gmail/push`, {
+  const res = await a.request(`${PUSH.publicBaseUrl}/inbound/gmail`, {
     method: 'POST',
     headers,
     body: o.body ?? pushBody(),
@@ -118,8 +118,8 @@ describe('the verifier (D87): every refusal is 401 with no write and no instance
       .setExpirationTime('1h')
       .sign(new TextEncoder().encode('0123456789abcdef0123456789abcdef'))
   const cases: Array<[string, () => Promise<string>]> = [
-    ['a wrong aud', () => signPushToken(key, now, { aud: 'https://vibase.test/gmail/push/' })],
-    ['an aud of another origin', () => signPushToken(key, now, { aud: 'https://other.test/gmail/push' })],
+    ['a wrong aud', () => signPushToken(key, now, { aud: 'https://vibase.test/inbound/gmail/' })],
+    ['an aud of another origin', () => signPushToken(key, now, { aud: 'https://other.test/inbound/gmail' })],
     ['a wrong email', () => signPushToken(key, now, { email: 'someone-else@vb-p.iam.gserviceaccount.com' })],
     ['an absent email', () => signPushToken(key, now, { email: null })],
     ['email_verified false', () => signPushToken(key, now, { email_verified: false })],

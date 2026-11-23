@@ -129,7 +129,7 @@ describe('parsePushConfig (D87)', () => {
       subscription: 'projects/p/subscriptions/s',
       serviceAccount: 'push@p.iam.gserviceaccount.com',
       publicBaseUrl: 'https://api.example.test',
-      audience: 'https://api.example.test/gmail/push',
+      audience: 'https://api.example.test/inbound/gmail',
     })
   })
   it('nothing set is off without a problem (push simply is not configured)', () => {
@@ -169,7 +169,7 @@ describe('parsePushConfig (D87)', () => {
   })
   it('http://localhost is accepted for local development, with or without a port', () => {
     expect(parsePushConfig({ ...PUSH, PUBLIC_BASE_URL: 'http://localhost:8787' }).config?.audience).toBe(
-      'http://localhost:8787/gmail/push',
+      'http://localhost:8787/inbound/gmail',
     )
     expect(parsePushConfig({ ...PUSH, PUBLIC_BASE_URL: 'http://localhost' }).problems).toEqual([])
   })

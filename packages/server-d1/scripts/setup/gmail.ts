@@ -2,7 +2,7 @@
 // instance's own env file (the Clerk keys' file, D34), with `--auth none` as well. Secrets go to the Worker by `wrangler secret bulk`, vars into the
 // env's `vars` block. Shapes are checked before any command. Nothing here ever puts a value in a message: refusals name the variable.
 import { parseEnv } from 'node:util'
-import { isValidPushVar, parseGmailConfig } from '@vibase/api'
+import { PUSH_PATH, isValidPushVar, parseGmailConfig } from '@vibase/api'
 import { RemoteRefusal } from '../remote.js'
 import { googleClientIdProblem, looksLikeGoogleClientId } from './better-auth.js'
 import type { EnvFileProbe, SetupOptions } from './types.js'
@@ -59,10 +59,10 @@ const WORKER_RULES: Record<string, string> = {
   ATTACHMENT_MAX_BYTES: 'must be a positive integer of at most 9 digits (what the Worker accepts)',
 }
 const RULES: Record<string, [(v: string) => boolean, string]> = {
-  // https for a remote deployment (the Worker also accepts http://localhost, which means nothing on Cloudflare), and the origin only: the push audience is `<base>/gmail/push`.
+  // https for a remote deployment (the Worker also accepts http://localhost, which means nothing on Cloudflare), and the origin only: the push audience is `<base>${PUSH_PATH}`.
   PUBLIC_BASE_URL: [
     (v) => httpsUrl(v) && isValidPushVar('PUBLIC_BASE_URL', v),
-    'must be an absolute https URL with no path (the endpoint is <it>/gmail/push)',
+    `must be an absolute https URL with no path (the endpoint is <it>${PUSH_PATH})`,
   ],
   CONNECT_RETURN_URL: [httpsUrl, 'must be an absolute https URL'],
   // The four push values are judged by the Worker's own rule (`isValidPushVar`, [[CHN5]] D87), so setup can never accept what the Worker rejects.
