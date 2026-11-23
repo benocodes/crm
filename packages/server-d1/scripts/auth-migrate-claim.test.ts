@@ -260,7 +260,7 @@ describe('targets and links (P2, P3)', () => {
     const r = await runClaim(c)
     const first = urlsIn(r.out)[0]!
     expect(new URL(first.url).origin).toBe(BASE)
-    expect(new URL(first.url).pathname).toBe('/reset-password')
+    expect(new URL(first.url).pathname).toBe('/app/reset-password')
     expect((await setPassword(first.token)).status).toBe(200)
     expect((await setPassword(first.token)).status).toBe(400)
   })

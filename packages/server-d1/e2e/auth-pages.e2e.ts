@@ -69,7 +69,7 @@ const visit = async (url: string) => {
 }
 
 test('1. /invite with no fragment: an explanation and no form', async () => {
-  await visit('/invite')
+  await visit('/app/invite')
   await expect(page.getByText(/needs the invitation link/)).toBeVisible()
   await expect(page.getByLabel('Email')).toHaveCount(0)
   await axeBoth(page, 'invite-no-token')
@@ -80,7 +80,7 @@ test('2. the owner URL: the fragment leaves the address; another email is refuse
   await visit(INVITE_URL!)
   await expect(page.getByLabel('Email')).toBeVisible()
   const url = new URL(page.url())
-  expect(url.pathname).toBe('/invite')
+  expect(url.pathname).toBe('/app/invite')
   expect(url.hash).toBe('')
   await page.getByLabel('Name').fill('Other Person')
   await page.getByLabel('Email').fill('other@e2e.test')
@@ -137,13 +137,13 @@ test('3. the invited address signs up (case-insensitive) and lands on the signed
   await page.getByRole('button', { name: 'Create account' }).click()
   // A finished sign-up lands on /app/home (UI461 D3), where the person is signed in; /sign-in then shows the signed-in view.
   await page.waitForURL((u) => u.pathname === '/app/home')
-  await visit('/sign-in')
+  await visit('/app/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
   await axeBoth(page, 'sign-in-signed-in')
 })
 
 test('4. the browser session mints a token the API accepts: the owner, role owner', async () => {
-  await visit('/sign-in')
+  await visit('/app/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
   const me = await page.evaluate(async () => {
     const t = (await (await fetch('/auth/token')).json()) as { token: string }
@@ -157,7 +157,7 @@ test('4. the browser session mints a token the API accepts: the owner, role owne
 })
 
 test('5. sign out returns to the form and the session is gone', async () => {
-  await visit('/sign-in')
+  await visit('/app/sign-in')
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page.getByLabel('Email')).toBeVisible()
   expect(await page.evaluate(async () => (await fetch('/auth/get-session')).json())).toBeNull()
@@ -165,7 +165,7 @@ test('5. sign out returns to the form and the session is gone', async () => {
 })
 
 test('5b. [CORE294] /sign-in shows the Google button; clicking it goes to Google with the D7 redirect URI and scope', async () => {
-  await visit('/sign-in')
+  await visit('/app/sign-in')
   const button = page.getByRole('button', { name: 'Continue with Google' })
   await expect(button).toBeVisible()
   await axeBoth(page, 'sign-in-google')
@@ -177,11 +177,11 @@ test('5b. [CORE294] /sign-in shows the Google button; clicking it goes to Google
 })
 
 test('5c. [CORE294] a failed callback: invitation_required shows the refusal message; any other error one generic message, with nothing of the code or description on the page', async () => {
-  await visit('/sign-in?error=invitation_required')
+  await visit('/app/sign-in?error=invitation_required')
   await expect(page.getByRole('alert')).toContainText('This invitation cannot be used')
   await expect(page.getByRole('alert')).toBeFocused()
   await axeBoth(page, 'sign-in-google-refused')
-  await visit('/sign-in?error=x&error_description=' + encodeURIComponent('<b>pwned</b>'))
+  await visit('/app/sign-in?error=x&error_description=' + encodeURIComponent('<b>pwned</b>'))
   await expect(page.getByRole('alert')).toContainText('Google sign-in did not complete')
   await expect(page.getByRole('alert')).toBeFocused()
   const body = await page.locator('body').innerText()
@@ -192,7 +192,7 @@ test('5c. [CORE294] a failed callback: invitation_required shows the refusal mes
 })
 
 test('6. a wrong password is the one message; the right one signs in', async () => {
-  await visit('/sign-in')
+  await visit('/app/sign-in')
   const attempt = async (password: string) => {
     await page.getByLabel('Email').fill('owner@e2e.test')
     await page.getByLabel('Password').fill(password)
@@ -224,15 +224,15 @@ test('6. a wrong password is the one message; the right one signs in', async () 
   }
   // With no return_to a finished sign-in continues to /app/home (UI461 D3); /sign-in then shows the signed-in view.
   await page.waitForURL((u) => u.pathname === '/app/home')
-  await visit('/sign-in')
+  await visit('/app/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
 })
 
 test('7. /reset-password: no fragment explains; a bogus token with matching passwords is the invalid-link message', async () => {
-  await visit('/reset-password')
+  await visit('/app/reset-password')
   await expect(page.getByText(/needs the reset link/)).toBeVisible()
   await expect(page.getByLabel('New password', { exact: true })).toHaveCount(0)
-  await visit('/reset-password#token=bogus')
+  await visit('/app/reset-password#token=bogus')
   expect(new URL(page.url()).hash).toBe('')
   await page.getByLabel('New password', { exact: true }).fill(PASSWORD)
   await page.getByLabel('Confirm new password').fill(PASSWORD)
@@ -242,7 +242,7 @@ test('7. /reset-password: no fragment explains; a bogus token with matching pass
 })
 
 test('8. every page and the bundle carry the exact headers', async ({ request }) => {
-  for (const path of ['/sign-in', '/invite', '/reset-password', '/assets/ui/app.js', '/assets/ui/ui.css']) {
+  for (const path of ['/app/sign-in', '/app/invite', '/app/reset-password', '/assets/ui/app.js', '/assets/ui/ui.css']) {
     const res = await request.get(path)
     expect(res.status(), path).toBe(200)
     const h = res.headers()
@@ -252,7 +252,7 @@ test('8. every page and the bundle carry the exact headers', async ({ request })
     if (path === '/assets/ui/app.js' || path === '/assets/ui/ui.css') continue
     expect(h['cache-control'], path).toBe('no-store')
   }
-  expect((await request.get('/sign-in/', { maxRedirects: 0 })).status()).toBe(404)
+  expect((await request.get('/app/sign-in/', { maxRedirects: 0 })).status()).toBe(404)
   // [[UI504]] D6: the old file paths are gone (the router's 404 for /ui/*, the static 404 for /app/*).
   for (const path of ['/ui/app.js', '/ui/ui.css', '/app/app.js', '/app/app.css', '/app/index.html'])
     expect((await request.get(path, { maxRedirects: 0 })).status(), path).toBe(404)
@@ -294,7 +294,7 @@ test('9. [UI255] a trusted app origin: credentialed CORS on /auth, sign-in retur
     await expect(page.locator('#who')).toHaveText('signed out')
 
     const signInAs = async (target: string) => {
-      await visit(`/sign-in?return_to=${encodeURIComponent(target)}`)
+      await visit(`/app/sign-in?return_to=${encodeURIComponent(target)}`)
       await page.getByLabel('Email').fill('owner@e2e.test')
       await page.getByLabel('Password').fill(PASSWORD)
       await page.getByRole('button', { name: 'Sign in' }).click()
@@ -321,7 +321,7 @@ test('9. [UI255] a trusted app origin: credentialed CORS on /auth, sign-in retur
     await page.waitForTimeout(11_000) // Better Auth's 10 s sign-in window
     await signInAs('http://localhost:9999/')
     await expect(page.getByRole('alert')).toBeVisible()
-    expect(new URL(page.url()).pathname).toBe('/sign-in')
+    expect(new URL(page.url()).pathname).toBe('/app/sign-in')
     const session = await page.evaluate(async () => (await fetch('/auth/get-session')).json())
     expect(session).toBeNull()
   } finally {

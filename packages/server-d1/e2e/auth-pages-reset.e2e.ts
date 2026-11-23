@@ -70,7 +70,7 @@ const recorded = async (request: APIRequestContext) =>
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 /** Signs in through the form; a 429 (the 10 s sign-in window) is waited out once and said so. */
 const signInForm = async (page: Page, email: string, password: string) => {
-  await visit(page, '/sign-in')
+  await visit(page, '/app/sign-in')
   const attempt = async () => {
     await page.getByLabel('Email').fill(email)
     await page.getByLabel('Password').fill(password)
@@ -94,7 +94,7 @@ test('1. discovery says self_service_reset: true, and /sign-in offers "Forgot pa
 }) => {
   const doc = (await (await request.get('/.well-known/vibase')).json()) as any
   expect(doc.auth.self_service_reset).toBe(true)
-  await visit(anon.page, '/sign-in')
+  await visit(anon.page, '/app/sign-in')
   await expect(anon.page.getByRole('button', { name: 'Forgot password?' })).toBeVisible()
   await expect(anon.page.getByText(/ask an owner/i)).toHaveCount(0)
 })
@@ -138,7 +138,7 @@ test('2. setup: the owner signs up from the bootstrap URL and invites the member
 test('3. a known address: Forgot password? reveals the form (axe clean), the confirmation replaces it, and exactly one message is captured', async ({
   request,
 }) => {
-  await visit(anon.page, '/sign-in')
+  await visit(anon.page, '/app/sign-in')
   await anon.page.getByRole('button', { name: 'Forgot password?' }).click()
   const email = anon.page.getByLabel('Email')
   await expect(email).toBeVisible()
@@ -156,7 +156,7 @@ test('3. a known address: Forgot password? reveals the form (axe clean), the con
 })
 
 test('4. an unknown address gets the same confirmation and no new message', async ({ request }) => {
-  await visit(anon.page, '/sign-in')
+  await visit(anon.page, '/app/sign-in')
   await anon.page.getByRole('button', { name: 'Forgot password?' }).click()
   await anon.page.getByLabel('Email').fill('nobody@e2e.test')
   await anon.page.getByRole('button', { name: 'Send reset link' }).click()
@@ -170,7 +170,7 @@ test('5. the captured link opens /reset-password; the new password signs in and 
 }) => {
   const [m] = await recorded(request)
   const link = /https?:\/\/\S+#token=\S+/.exec(m!.text)![0]!
-  expect(link.startsWith(`${BASE}/reset-password#token=`)).toBe(true)
+  expect(link.startsWith(`${BASE}/app/reset-password#token=`)).toBe(true)
   await visit(anon.page, link)
   expect(new URL(anon.page.url()).hash).toBe('')
   await anon.page.getByLabel('New password', { exact: true }).fill(NEW)

@@ -33,7 +33,7 @@ describe('Better Auth views', () => {
     button('Sign in')!.click()
     await settle()
     expect(t.calls.assign).toHaveLength(1)
-    expect(t.calls.assign[0]).toMatch(`${API}/sign-in?return_to=`)
+    expect(t.calls.assign[0]).toMatch(`${API}/app/sign-in?return_to=`)
   })
 
   it('signed in shows the email and calls the API with the session JWT as a Bearer', async () => {

@@ -13,8 +13,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 const APP = 'https://app.example.com/orders?tab=open'
-const at = (returnTo: string) => history.replaceState(null, '', `/sign-in?return_to=${encodeURIComponent(returnTo)}`)
-beforeEach(() => history.replaceState(null, '', '/sign-in'))
+const at = (returnTo: string) => history.replaceState(null, '', `/app/sign-in?return_to=${encodeURIComponent(returnTo)}`)
+beforeEach(() => history.replaceState(null, '', '/app/sign-in'))
 
 const NO_SESSION = { status: 200, json: null }
 const signInWith = async () => {
@@ -73,7 +73,7 @@ describe("a cross-origin return_to is a callbackURL, never a navigation of the p
     expect(post(f, '/auth/sign-in/social')[0]!.body).toMatchObject({
       provider: 'google',
       callbackURL: APP,
-      errorCallbackURL: '/sign-in',
+      errorCallbackURL: '/app/sign-in',
     })
     expect(go).toHaveBeenCalledWith('https://accounts.google.com/x')
   })

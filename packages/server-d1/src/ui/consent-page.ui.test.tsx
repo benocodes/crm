@@ -15,7 +15,7 @@ afterEach(() => {
 // Encoded characters, a repeated key and an order the page must not touch.
 const QUERY =
   'state=a%20b%2Bc&sig=Ab%2Fc%3D%3D&scope=openid+contacts%3Aread&client_id=app-1&redirect_uri=https%3A%2F%2Fclient.test%2Fcb%3Fx%3D1&exp=1999999999&scope=dup'
-const at = (q: string) => history.replaceState(null, '', q === '' ? '/consent' : `/consent?${q}`)
+const at = (q: string) => history.replaceState(null, '', q === '' ? '/app/consent' : `/app/consent?${q}`)
 beforeEach(() => at(QUERY))
 
 const NO_SESSION = { status: 200, json: null }
@@ -53,7 +53,7 @@ describe('no session', () => {
     fakeFetch(routes({ 'GET /auth/get-session': NO_SESSION }))
     const go = vi.fn()
     render(<ConsentPage navigate={go} />)
-    await waitFor(() => expect(go).toHaveBeenCalledWith(`/sign-in?${QUERY}`))
+    await waitFor(() => expect(go).toHaveBeenCalledWith(`/app/sign-in?${QUERY}`))
     expect(screen.queryByRole('button', { name: /allow/i })).toBeNull()
   })
 })
@@ -116,7 +116,7 @@ describe('signed in', () => {
     const go = vi.fn()
     render(<ConsentPage navigate={go} />)
     await userEvent.setup().click(await screen.findByRole('button', { name: MESSAGES.useAnotherAccount }))
-    await waitFor(() => expect(go).toHaveBeenCalledWith(`/sign-in?${QUERY}`))
+    await waitFor(() => expect(go).toHaveBeenCalledWith(`/app/sign-in?${QUERY}`))
     expect(f.requests()).toContain('POST /auth/sign-out')
   })
 })
@@ -148,7 +148,7 @@ describe('Allow and Deny', () => {
     expect(f.calls.find((c) => c.path === '/auth/oauth2/consent')!.body).toEqual({ accept: false, oauth_query: QUERY })
   })
 
-  it.each(['https://client.test/cb?code=c', 'http://127.0.0.1:33418/cb?code=c', '/consent?x=1'])(
+  it.each(['https://client.test/cb?code=c', 'http://127.0.0.1:33418/cb?code=c', '/app/consent?x=1'])(
     'the redirect %s is followed',
     async (url) => {
       fakeFetch(routes({ 'POST /auth/oauth2/consent': { status: 200, json: { redirect: true, url } } }))
@@ -204,7 +204,7 @@ describe('Allow and Deny', () => {
     const go = vi.fn()
     render(<ConsentPage navigate={go} />)
     await allow()
-    await waitFor(() => expect(go).toHaveBeenCalledWith(`/sign-in?${QUERY}`))
+    await waitFor(() => expect(go).toHaveBeenCalledWith(`/app/sign-in?${QUERY}`))
   })
 })
 

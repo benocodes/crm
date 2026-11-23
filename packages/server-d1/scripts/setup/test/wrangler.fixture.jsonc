@@ -30,12 +30,7 @@
       "/",
       "/app",
       "/app/*",
-      "/assets/*",
-      "/sign-in",
-      "/invite",
-      "/reset-password",
-      "/consent",
-      "/device"
+      "/assets/*"
     ]
   },
   // Local R2 (no account needed): message bodies and file bytes, served by messages.content and files.content.

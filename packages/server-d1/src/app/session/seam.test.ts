@@ -82,7 +82,7 @@ describe('selectSeam passes the caller’s return paths through (UI460 P2, P3)',
       { returnPath: '/app/home', signOutReturn: 'https://w.test/app/home', navigate: (u) => void urls.push(u) },
     )
     await seam!.redirectToSignIn('x')
-    expect(urls).toEqual(['/sign-in?return_to=/app/home'])
+    expect(urls).toEqual(['/app/sign-in?return_to=/app/home'])
   })
   it('clerk: Sign out returns to the signOutReturn it is given', async () => {
     const calls: unknown[] = []

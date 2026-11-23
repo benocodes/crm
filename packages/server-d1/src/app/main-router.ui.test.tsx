@@ -152,6 +152,6 @@ describe('client-side navigation', () => {
       return b!
     })
     signIn.click()
-    await vi.waitFor(() => expect(assign).toHaveBeenCalledExactlyOnceWith('/sign-in?return_to=/app/agents'))
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledExactlyOnceWith('/app/sign-in?return_to=/app/agents'))
   })
 })

@@ -20,7 +20,7 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
 })
-beforeEach(() => history.replaceState(null, '', '/sign-in'))
+beforeEach(() => history.replaceState(null, '', '/app/sign-in'))
 const button = () => screen.queryByRole('button', { name: MESSAGES.googleButton })
 
 describe('the button follows discovery (D7, P2)', () => {
@@ -29,7 +29,7 @@ describe('the button follows discovery (D7, P2)', () => {
     ['no sign_in_methods field', { status: 200, json: { auth: { provider: 'better-auth' } } }],
     ['an unreadable discovery (a 500)', { status: 500, text: 'boom' }],
     ['a discovery that is not JSON', { status: 200, text: '<html>' }],
-  ])('/sign-in with %s: no Google button', async (_n, discovery) => {
+  ])('/app/sign-in with %s: no Google button', async (_n, discovery) => {
     fakeFetch({ 'GET /auth/get-session': NO_SESSION, 'GET /.well-known/vibase': discovery })
     render(<SignInPage />)
     await screen.findByLabelText('Email')
@@ -37,20 +37,20 @@ describe('the button follows discovery (D7, P2)', () => {
     expect(button()).toBeNull()
   })
 
-  it('/sign-in with google listed: the button, and the password form is still there', async () => {
+  it('/app/sign-in with google listed: the button, and the password form is still there', async () => {
     fakeFetch({ 'GET /auth/get-session': NO_SESSION, 'GET /.well-known/vibase': DISCOVERY(['password', 'google']) })
     render(<SignInPage />)
     expect(await screen.findByRole('button', { name: MESSAGES.googleButton })).toBeTruthy()
     expect(screen.getByLabelText('Password')).toBeTruthy()
   })
 
-  it('/invite with google listed shows the button; password only does not', async () => {
-    history.replaceState(null, '', `/invite#token=${TOKEN}`)
+  it('/app/invite with google listed shows the button; password only does not', async () => {
+    history.replaceState(null, '', `/app/invite#token=${TOKEN}`)
     fakeFetch({ 'GET /.well-known/vibase': DISCOVERY(['password', 'google']) })
     render(<InvitePage />)
     expect(await screen.findByRole('button', { name: MESSAGES.googleButton })).toBeTruthy()
     cleanup()
-    history.replaceState(null, '', `/invite#token=${TOKEN}`)
+    history.replaceState(null, '', `/app/invite#token=${TOKEN}`)
     fakeFetch({ 'GET /.well-known/vibase': DISCOVERY(['password']) })
     render(<InvitePage />)
     await screen.findByLabelText('Email')
@@ -60,7 +60,7 @@ describe('the button follows discovery (D7, P2)', () => {
 })
 
 describe('starting Google sign-in (D8)', () => {
-  it('/sign-in posts exactly { provider, callbackURL, errorCallbackURL } (no token) and follows the returned Google URL', async () => {
+  it('/app/sign-in posts exactly { provider, callbackURL, errorCallbackURL } (no token) and follows the returned Google URL', async () => {
     const f = fakeFetch({
       'GET /auth/get-session': NO_SESSION,
       'GET /.well-known/vibase': DISCOVERY(['password', 'google']),
@@ -73,12 +73,12 @@ describe('starting Google sign-in (D8)', () => {
     expect(f.calls.find((c) => c.method === 'POST')!.body).toEqual({
       provider: 'google',
       callbackURL: '/app/home',
-      errorCallbackURL: '/sign-in',
+      errorCallbackURL: '/app/sign-in',
     })
   })
 
-  it('/invite also sends invitation_token, and the fragment is already gone from the address', async () => {
-    history.replaceState(null, '', `/invite#token=${TOKEN}`)
+  it('/app/invite also sends invitation_token, and the fragment is already gone from the address', async () => {
+    history.replaceState(null, '', `/app/invite#token=${TOKEN}`)
     const f = fakeFetch({
       'GET /.well-known/vibase': DISCOVERY(['password', 'google']),
       'POST /auth/sign-in/social': { status: 200, json: { url: GOOGLE_URL, redirect: true } },
@@ -93,7 +93,7 @@ describe('starting Google sign-in (D8)', () => {
     expect(f.calls.find((c) => c.method === 'POST')!.body).toEqual({
       provider: 'google',
       callbackURL: '/app/home',
-      errorCallbackURL: '/sign-in',
+      errorCallbackURL: '/app/sign-in',
       invitation_token: TOKEN,
     })
   })
@@ -120,7 +120,7 @@ describe('starting Google sign-in (D8)', () => {
 
 describe('the callback error on /sign-in (P1)', () => {
   const open = async (search: string) => {
-    history.replaceState(null, '', `/sign-in${search}`)
+    history.replaceState(null, '', `/app/sign-in${search}`)
     fakeFetch({ 'GET /auth/get-session': NO_SESSION })
     render(<SignInPage />)
     await screen.findByLabelText('Email')
@@ -158,8 +158,8 @@ describe('the callback error on /sign-in (P1)', () => {
 
 describe('a Google error does not mask a later error (review round 1)', () => {
   const DISC = { 'GET /.well-known/vibase': DISCOVERY(['password', 'google']) }
-  it('/sign-in?error=invitation_required then a wrong password: the alert is the wrong-credentials message, and the error left the address', async () => {
-    history.replaceState(null, '', '/sign-in?error=invitation_required&error_description=x&return_to=%2Fdevice')
+  it('/app/sign-in?error=invitation_required then a wrong password: the alert is the wrong-credentials message, and the error left the address', async () => {
+    history.replaceState(null, '', '/app/sign-in?error=invitation_required&error_description=x&return_to=%2Fdevice')
     fakeFetch({
       'GET /auth/get-session': NO_SESSION,
       ...DISC,
@@ -189,8 +189,8 @@ describe('a Google error does not mask a later error (review round 1)', () => {
     await user.click(screen.getByRole('button', { name: /^sign in$/i }))
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe(MESSAGES.wrongCredentials))
   })
-  it('/invite: after a failed Google start, a sign-up refusal shows the sign-up message', async () => {
-    history.replaceState(null, '', `/invite#token=${TOKEN}`)
+  it('/app/invite: after a failed Google start, a sign-up refusal shows the sign-up message', async () => {
+    history.replaceState(null, '', `/app/invite#token=${TOKEN}`)
     fakeFetch({
       ...DISC,
       'POST /auth/sign-in/social': { status: 500, text: 'boom' },

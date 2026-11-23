@@ -90,8 +90,8 @@ describe('a Better Auth-issued reset token (test composition)', () => {
   it('the reset-link builder makes <base>/reset-password#token=<token> from the captured token, base with and without a trailing slash', async () => {
     const w = await start({ OPEN_ADMISSION: '1' })
     const { token } = await account(w, 'link@auth.test')
-    expect(passwordResetUrl(BASE, token)).toBe(`${BASE}/reset-password#token=${token}`)
-    expect(passwordResetUrl(`${BASE}/`, token)).toBe(`${BASE}/reset-password#token=${token}`)
+    expect(passwordResetUrl(BASE, token)).toBe(`${BASE}/app/reset-password#token=${token}`)
+    expect(passwordResetUrl(`${BASE}/`, token)).toBe(`${BASE}/app/reset-password#token=${token}`)
     expect(new URL(passwordResetUrl(BASE, token)).hash).toBe(`#token=${token}`)
   })
 })

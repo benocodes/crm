@@ -192,7 +192,7 @@ describe('create (P2, P3, P4)', () => {
     expect(Object.keys(res.json).sort()).toEqual(['delivery', 'email', 'expires_at', 'id', 'role', 'url'])
     expect(res.json).toMatchObject({ email: 'ann@x.test', role: 'member' })
     const url = new URL(res.json.url)
-    expect(url.origin + url.pathname).toBe(`${AUTH_BASE}/invite`)
+    expect(url.origin + url.pathname).toBe(`${AUTH_BASE}/app/invite`)
     const token = tokenOf(res.json.url)
     expect(Buffer.from(token, 'base64url')).toHaveLength(32)
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/)
@@ -214,7 +214,7 @@ describe('create (P2, P3, P4)', () => {
     const listed = await call(wk, 'GET', PATH, await owner.session())
     expect(JSON.stringify(listed.json)).not.toContain(token)
     expect(JSON.stringify(listed.json)).not.toContain(sha256(token))
-    expect(JSON.stringify(listed.json)).not.toContain('/invite')
+    expect(JSON.stringify(listed.json)).not.toContain('/app/invite')
   })
 
   it('writes one invitation.created audit row naming the creator, with detail free of the token and its hash', async () => {

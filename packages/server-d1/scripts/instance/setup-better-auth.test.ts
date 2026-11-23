@@ -57,7 +57,7 @@ const bulks = (s: SetupWorld) =>
   s.w.wrangler
     .filter((c) => c.args.includes('secret') && c.args.includes('bulk'))
     .map((c) => JSON.parse(c.input!) as Record<string, string>)
-const urlLines = (s: SetupWorld) => s.w.out.filter((l) => l.includes('/invite#token='))
+const urlLines = (s: SetupWorld) => s.w.out.filter((l) => l.includes('/app/invite#token='))
 const tokenOf = (s: SetupWorld) => /\/invite#token=([A-Za-z0-9_-]+)/.exec(s.w.out.join('\n'))?.[1]
 const before = (s: SetupWorld) => {
   s.w.out.length = 0
@@ -449,7 +449,7 @@ describe('6. re-runs and the one-time link (D7)', () => {
     const s = world()
     expect(await run(s)).toBe(0)
     expect(urlLines(s)).toHaveLength(1)
-    expect(urlLines(s)[0]).toContain(`${BASE}/invite#token=`)
+    expect(urlLines(s)[0]).toContain(`${BASE}/app/invite#token=`)
     expect(await invitationRows()).toHaveLength(1)
   })
 

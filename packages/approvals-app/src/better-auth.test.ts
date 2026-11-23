@@ -83,7 +83,7 @@ describe('sign in and sign out', () => {
     const t = open({ 'GET /auth/get-session': null }, 'http://localhost:8788/?tab=failed&x=a b#frag')
     await (await t.session).signIn()
     expect(t.calls.assign).toEqual([
-      `${API}/sign-in?return_to=${encodeURIComponent('http://localhost:8788/?tab=failed&x=a%20b')}`,
+      `${API}/app/sign-in?return_to=${encodeURIComponent('http://localhost:8788/?tab=failed&x=a%20b')}`,
     ])
   })
 

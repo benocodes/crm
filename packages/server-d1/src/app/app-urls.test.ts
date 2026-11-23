@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { startGoogleSignIn } from '../ui/auth-api.js'
 import { NAV } from './nav.js'
-import { APP_PAGE_PATHS } from './paths.js'
+import { APP_PAGE_PATHS, PAGE_TABLE } from './paths.js'
 
 // [[UI507]] D7, P1 (group 4): every URL that names an app page names an entry of the page table.
 const SRC = fileURLToPath(new URL('..', import.meta.url))
@@ -59,13 +59,13 @@ describe('server-d1 source names no old app path (D7, P1)', () => {
     const hits = sources.filter((f) => OLD.test(codeOf(readFileSync(f, 'utf8')))).map((f) => relative(SRC, f))
     expect(hits).toEqual([])
   })
-  it('every quoted /app/<page> literal in a non-test source is a table entry', () => {
+  it('every quoted /app/<page> literal in a non-test source is a table entry (all eight pages, UI510)', () => {
     const bad: string[] = []
     for (const f of sources) {
       if (relative(SRC, f) === 'app/paths.ts') continue
       for (const m of codeOf(readFileSync(f, 'utf8')).matchAll(/(?:['"`]|\})\/app\/([a-z-]+)(?![\w.-])/g)) {
         const p = `/app/${m[1]}`
-        if (!(APP_PAGE_PATHS as readonly string[]).includes(p)) bad.push(`${relative(SRC, f)} ${p}`)
+        if (!PAGE_TABLE.some((e) => e.path === p)) bad.push(`${relative(SRC, f)} ${p}`)
       }
     }
     expect(bad).toEqual([])

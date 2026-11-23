@@ -272,9 +272,9 @@ describe('4. one base URL and one verify bound (P1, P2)', () => {
     for (const p of ['/health', '/.well-known/vibase', '/.well-known/oauth-authorization-server/auth'])
       expect(worker, p).toContain(`${WD_BASE}${p}`)
     expect(
-      w.logs.filter((l) => l.includes('/invite#token=')).every((l) => l.includes(`${WD_BASE}/invite#token=`)),
+      w.logs.filter((l) => l.includes('/app/invite#token=')).every((l) => l.includes(`${WD_BASE}/app/invite#token=`)),
     ).toBe(true)
-    expect(w.logs.some((l) => l.includes('/invite#token='))).toBe(true)
+    expect(w.logs.some((l) => l.includes('/app/invite#token='))).toBe(true)
     expect(said(w)).toContain(`vibase login --server ${WD_BASE}`)
     expect(said(w)).toContain(`${WD_BASE}/auth/callback/google`)
   })

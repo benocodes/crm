@@ -68,7 +68,7 @@ describe('the mount', () => {
     })
     expect(assign).not.toHaveBeenCalled() // nothing navigates on load
     button.click()
-    await vi.waitFor(() => expect(assign).toHaveBeenCalledExactlyOnceWith('/sign-in?return_to=/app/home'))
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledExactlyOnceWith('/app/sign-in?return_to=/app/home'))
   })
 
   it('unreadable discovery: unavailable, and no session or API call', async () => {
@@ -139,6 +139,6 @@ describe('the mount on /accounts', () => {
       return b!
     })
     button.click()
-    await vi.waitFor(() => expect(assign).toHaveBeenCalledExactlyOnceWith('/sign-in?return_to=/app/accounts'))
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledExactlyOnceWith('/app/sign-in?return_to=/app/accounts'))
   })
 })

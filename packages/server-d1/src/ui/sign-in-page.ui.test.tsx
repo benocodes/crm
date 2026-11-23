@@ -11,7 +11,7 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
 })
-beforeEach(() => history.replaceState(null, '', '/sign-in'))
+beforeEach(() => history.replaceState(null, '', '/app/sign-in'))
 
 const NO_SESSION = { status: 200, json: null }
 const session = (user: { email: string; name?: string }) => ({
@@ -71,12 +71,12 @@ describe('the session on load', () => {
   })
 
   it('?notice=password-reset shows the reset notice above the form; without it there is none', async () => {
-    history.replaceState(null, '', '/sign-in?notice=password-reset')
+    history.replaceState(null, '', '/app/sign-in?notice=password-reset')
     fakeFetch({ 'GET /auth/get-session': NO_SESSION })
     render(<SignInPage />)
     expect((await screen.findByRole('status')).textContent).toBe(MESSAGES.passwordResetDone)
     cleanup()
-    history.replaceState(null, '', '/sign-in')
+    history.replaceState(null, '', '/app/sign-in')
     render(<SignInPage />)
     await screen.findByLabelText('Email')
     expect(screen.queryByText(MESSAGES.passwordResetDone)).toBeNull()
@@ -197,16 +197,16 @@ const SIGNED =
 
 // [[UI247]] D6 closes UI246 D5's deferral: a signed OAuth query resumes the flow; a return_to of /device or an app page goes back there; nothing else is followed.
 describe('the OAuth continuation (D6 a)', () => {
-  beforeEach(() => history.replaceState(null, '', `/sign-in?${SIGNED}`))
+  beforeEach(() => history.replaceState(null, '', `/app/sign-in?${SIGNED}`))
 
   it('with sig the sign-in body carries oauth_query (the query verbatim) and the answered redirect is followed', async () => {
     const f = fakeFetch({
-      'POST /auth/sign-in/email': { status: 200, json: { redirect: true, url: '/consent?client_id=app-1&sig=Z' } },
+      'POST /auth/sign-in/email': { status: 200, json: { redirect: true, url: '/app/consent?client_id=app-1&sig=Z' } },
     })
     const go = vi.fn()
     render(<SignInPage navigate={go} />)
     await signInWith()
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/consent?client_id=app-1&sig=Z'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/app/consent?client_id=app-1&sig=Z'))
     expect(f.calls.find((c) => c.method === 'POST')!.body).toEqual({
       email: 'ann@x.test',
       password: 'a long enough password',
@@ -243,7 +243,7 @@ describe('the OAuth continuation (D6 a)', () => {
   )
 
   it('without sig an oauth_query-looking parameter is not forwarded', async () => {
-    history.replaceState(null, '', '/sign-in?client_id=app-1')
+    history.replaceState(null, '', '/app/sign-in?client_id=app-1')
     const f = fakeFetch({
       'GET /auth/get-session': NO_SESSION,
       'POST /auth/sign-in/email': { status: 200, json: { user: { email: 'ann@x.test' } } },
@@ -259,10 +259,10 @@ describe('the OAuth continuation (D6 a)', () => {
 })
 
 describe('return_to (D6 b)', () => {
-  it.each(['/device?user_code=ABCDEFGH', '/app/accounts', '/app/agents'])(
+  it.each(['/app/device?user_code=ABCDEFGH', '/app/accounts', '/app/agents'])(
     'a signed-out person who signs in goes to %s',
     async (target) => {
-      history.replaceState(null, '', `/sign-in?return_to=${encodeURIComponent(target)}`)
+      history.replaceState(null, '', `/app/sign-in?return_to=${encodeURIComponent(target)}`)
       fakeFetch({
         'GET /auth/get-session': NO_SESSION,
         'POST /auth/sign-in/email': { status: 200, json: { user: { email: 'ann@x.test' } } },
@@ -278,7 +278,7 @@ describe('return_to (D6 b)', () => {
   it.each(['/connect', '/home', '/accounts', '/agents'])(
     'a return_to of the old path %s falls back to /app/home',
     async (target) => {
-      history.replaceState(null, '', `/sign-in?return_to=${encodeURIComponent(target)}`)
+      history.replaceState(null, '', `/app/sign-in?return_to=${encodeURIComponent(target)}`)
       fakeFetch({
         'GET /auth/get-session': NO_SESSION,
         'POST /auth/sign-in/email': { status: 200, json: { user: { email: 'ann@x.test' } } },
@@ -291,11 +291,11 @@ describe('return_to (D6 b)', () => {
   )
 
   it('a signed-in visitor is offered a Continue link to an allowed target', async () => {
-    history.replaceState(null, '', '/sign-in?return_to=%2Fdevice%3Fuser_code%3DABCDEFGH')
+    history.replaceState(null, '', '/app/sign-in?return_to=%2Fdevice%3Fuser_code%3DABCDEFGH')
     fakeFetch({ 'GET /auth/get-session': session({ email: 'ann@x.test' }) })
     render(<SignInPage />)
     const link = await screen.findByRole('link', { name: /continue/i })
-    expect(link.getAttribute('href')).toBe('/device?user_code=ABCDEFGH')
+    expect(link.getAttribute('href')).toBe('/app/device?user_code=ABCDEFGH')
   })
 
   it('a signed-in visitor with no return_to is offered a Continue link to /home (#375)', async () => {
@@ -306,7 +306,7 @@ describe('return_to (D6 b)', () => {
   })
 
   it('Google sign-in from /sign-in?return_to=/device lands on that target, not /sign-in (#375)', async () => {
-    history.replaceState(null, '', '/sign-in?return_to=%2Fdevice%3Fuser_code%3DABCDEFGH')
+    history.replaceState(null, '', '/app/sign-in?return_to=%2Fdevice%3Fuser_code%3DABCDEFGH')
     const f = fakeFetch({
       'GET /auth/get-session': NO_SESSION,
       'GET /.well-known/vibase': { status: 200, json: { auth: { sign_in_methods: ['password', 'google'] } } },
@@ -316,15 +316,15 @@ describe('return_to (D6 b)', () => {
     await userEvent.setup().click(await screen.findByRole('button', { name: MESSAGES.googleButton }))
     await waitFor(() => expect(f.calls.some((c) => c.method === 'POST')).toBe(true))
     expect(f.calls.find((c) => c.method === 'POST')!.body).toMatchObject({
-      callbackURL: '/device?user_code=ABCDEFGH',
-      errorCallbackURL: '/sign-in',
+      callbackURL: '/app/device?user_code=ABCDEFGH',
+      errorCallbackURL: '/app/sign-in',
     })
   })
 
-  it.each(['https://evil.example/device', '//evil.example/device', '/device/../x', '/devices', 'javascript:alert(1)'])(
+  it.each(['https://evil.example/device', '//evil.example/device', '/app/device/../x', '/devices', 'javascript:alert(1)'])(
     'return_to=%s is ignored: sign-in continues to /home, not the target',
     async (target) => {
-      history.replaceState(null, '', `/sign-in?return_to=${encodeURIComponent(target)}`)
+      history.replaceState(null, '', `/app/sign-in?return_to=${encodeURIComponent(target)}`)
       fakeFetch({
         'GET /auth/get-session': NO_SESSION,
         'POST /auth/sign-in/email': { status: 200, json: { user: { email: 'ann@x.test' } } },

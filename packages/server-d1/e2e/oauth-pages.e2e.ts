@@ -87,7 +87,7 @@ const signOutHere = async () => {
   )
 }
 
-/** The real `vibase login` (tsx on the CLI source), its config in a private directory. Resolves the `/device` URL it prints; `done` resolves with its exit code and output. */
+/** The real `vibase login` (tsx on the CLI source), its config in a private directory. Resolves the `/app/device` URL it prints; `done` resolves with its exit code and output. */
 function startLogin(): Promise<{
   url: string
   home: string
@@ -126,7 +126,7 @@ test('0. the invited person signs up (the shared session), then signs out', asyn
   await page.getByRole('button', { name: 'Create account' }).click()
   // A finished sign-up lands on /app/home (UI461 D3); /sign-in then shows the signed-in view.
   await page.waitForURL((u) => u.pathname === '/app/home')
-  await visit('/sign-in')
+  await visit('/app/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
   await signOutHere()
 })
@@ -135,7 +135,7 @@ test('1. device: the printed URL leads through sign-in to the code, the review a
   const login = await startLogin()
   const code = new URL(login.url).searchParams.get('user_code')!
   expect(code).toMatch(/^[A-HJ-NP-Z2-9]{8}$/)
-  expect(new URL(login.url).pathname).toBe('/device')
+  expect(new URL(login.url).pathname).toBe('/app/device')
   await visit(login.url)
   await page.waitForURL(/\/sign-in\?return_to=/)
   await signInHere()
@@ -189,7 +189,7 @@ test('2. device: Deny ends the CLI with its denial message', async () => {
 test('2b. device: a typed code still goes through Check code (the code form keeps its axe pass)', async () => {
   const login = await startLogin()
   const code = new URL(login.url).searchParams.get('user_code')!
-  await visit(`${BASE}/device`)
+  await visit(`${BASE}/app/device`)
   await expect(page.getByLabel('Code from your terminal')).toBeVisible()
   await axeBoth('device-code')
   await page.getByLabel('Code from your terminal').fill(code)
@@ -234,7 +234,7 @@ async function callbackOf(action: () => Promise<void>): Promise<URL> {
 
 test('3. MCP-style client: sign-in resumes the flow, /consent shows the app, Allow returns a code that works at /mcp', async () => {
   // signed out first: the device legs left a session behind, and a signed-in authorize would go straight to /consent
-  await visit('/sign-in')
+  await visit('/app/sign-in')
   await signOutHere()
   const id = await register('E2E MCP Client')
   const { verifier, challenge } = pkce()
@@ -385,13 +385,13 @@ test('4. MCP-style client: Deny reaches the callback with error=access_denied', 
 })
 
 test('5. every new page carries the exact headers; /consent without a request explains', async ({ request }) => {
-  for (const path of ['/consent', '/device']) {
+  for (const path of ['/app/consent', '/app/device']) {
     const res = await request.get(path, { ignoreHTTPSErrors: true } as never)
     expect(res.status(), path).toBe(200)
     expect(res.headers()['content-security-policy'], path).toContain("default-src 'self'")
     expect(res.headers()['cache-control'], path).toBe('no-store')
   }
-  await visit('/consent')
+  await visit('/app/consent')
   await expect(page.getByText(/must be opened by an app/)).toBeVisible()
   await axeBoth('consent-no-request')
 })
@@ -460,7 +460,7 @@ test('7. /app/agents: Sign out shows the signed-out card; get-session answers nu
 
 test('8. /app/agents: Sign in goes to /sign-in?return_to=/app/agents and comes back signed in as the same person', async () => {
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.waitForURL((u) => u.pathname === '/sign-in' && u.searchParams.get('return_to') === '/app/agents')
+  await page.waitForURL((u) => u.pathname === '/app/sign-in' && u.searchParams.get('return_to') === '/app/agents')
   await signInHere()
   await page.waitForURL((u) => u.pathname === '/app/agents')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agents')

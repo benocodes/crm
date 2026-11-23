@@ -210,14 +210,14 @@ describe('2. the next steps on better-auth (D8)', () => {
     const s = world()
     await run(s)
     const out = s.w.out
-    expect(out.filter((l) => l.includes('/invite#token='))).toHaveLength(1)
+    expect(out.filter((l) => l.includes('/app/invite#token='))).toHaveLength(1)
     const done = out.indexOf('setup: done')
     const claim = out.indexOf('=== Claim your instance ===')
     expect(done).toBeGreaterThan(-1)
     expect(claim).toBeGreaterThan(done)
-    expect(out.findIndex((l) => l.includes('/invite#token='))).toBeGreaterThan(claim)
+    expect(out.findIndex((l) => l.includes('/app/invite#token='))).toBeGreaterThan(claim)
     expect(out.at(-1)).toMatch(/owner-reset --env demo/)
-    expect(lines(s).join('\n')).not.toContain('/invite')
+    expect(lines(s).join('\n')).not.toContain('/app/invite')
   })
 
   it('GH442 item 5: a failed verify still prints the Claim block, below the failure', async () => {
@@ -225,7 +225,7 @@ describe('2. the next steps on better-auth (D8)', () => {
     await run(s)
     expect(row(s, 'verify').status).toBe('fail')
     expect(s.w.err.length).toBeGreaterThan(0)
-    expect(s.w.out.filter((l) => l.includes('/invite#token='))).toHaveLength(1)
+    expect(s.w.out.filter((l) => l.includes('/app/invite#token='))).toHaveLength(1)
     expect(s.w.out.at(-1)).toMatch(/owner-reset/)
   })
 

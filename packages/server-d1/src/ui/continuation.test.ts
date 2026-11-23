@@ -7,14 +7,14 @@ import { crossOriginTarget, returnTarget } from './continuation.js'
 const q = (v: string) => `?return_to=${encodeURIComponent(v)}`
 describe('returnTarget', () => {
   it.each([
-    ['/device', '/device'],
-    ['/device?user_code=ABCDEFGH', '/device?user_code=ABCDEFGH'],
+    ['/app/device', '/app/device'],
+    ['/app/device?user_code=ABCDEFGH', '/app/device?user_code=ABCDEFGH'],
     ['/app/home', '/app/home'],
     ['/app/home?x=1', '/app/home?x=1'],
     ['/app/accounts', '/app/accounts'],
     ['/app/agents', '/app/agents'],
     [`${location.origin}/app/home`, '/app/home'],
-    [`${location.origin}/device?user_code=ABCDEFGH`, '/device?user_code=ABCDEFGH'],
+    [`${location.origin}/app/device?user_code=ABCDEFGH`, '/app/device?user_code=ABCDEFGH'],
   ])('%s is honoured as %s', (value, expected) => {
     expect(returnTarget(q(value))).toBe(expected)
   })
@@ -22,9 +22,12 @@ describe('returnTarget', () => {
   it.each([
     'https://evil.example/device',
     '//evil.example/device',
-    '/device/../x',
-    '/device/',
-    '/devices',
+    '/device',
+    '/device?user_code=ABCDEFGH',
+    '/app/device/../x',
+    '/app/device/',
+    '/app/devices',
+    '/app/sign-in',
     '/consent',
     '/sign-in',
     '/auth/device',
@@ -67,6 +70,23 @@ describe('returnTarget', () => {
 })
 
 // [[UI461]] D3: the app pages come from APP_PAGE_PATHS, not a list of continuation.ts's own.
+// [[UI510]] P6: the table's app pages plus /app/device; every old or auth path falls back (null here, /app/home in the page).
+describe('the return allow-list is the app pages plus /app/device (UI510 P6)', () => {
+  it('/app/device is honoured, with its query', () => {
+    expect(returnTarget(q('/app/device'))).toBe('/app/device')
+    expect(returnTarget(q('/app/device?user_code=ABCD-EFGH'))).toBe('/app/device?user_code=ABCD-EFGH')
+  })
+  it.each(['/app/home', '/app/accounts', '/app/agents'])('%s is honoured', (p) => {
+    expect(returnTarget(q(p))).toBe(p)
+  })
+  it.each(['/device', '/home', '/app/sign-in', '/app/invite', '/app/reset-password', '/app/consent', '/sign-in'])(
+    '%s is ignored',
+    (p) => {
+      expect(returnTarget(q(p))).toBeNull()
+    },
+  )
+})
+
 describe('the allow-list follows APP_PAGE_PATHS', () => {
   afterEach(() => {
     ;(APP_PAGE_PATHS as unknown as string[]).pop()

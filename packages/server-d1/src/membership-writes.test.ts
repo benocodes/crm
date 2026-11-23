@@ -496,7 +496,7 @@ describe('owner-issued reset links (P6, P7)', () => {
     expect(res.status, JSON.stringify(res.json)).toBe(200)
     expect(Object.keys(res.json).sort()).toEqual(['expires_at', 'url'])
     const url = new URL(res.json.url)
-    expect(url.origin + url.pathname).toBe(`${AUTH_BASE}/reset-password`)
+    expect(url.origin + url.pathname).toBe(`${AUTH_BASE}/app/reset-password`)
     expect(url.search).toBe('')
     const token = tokenOf(res.json.url)
     expect(token.length).toBeGreaterThan(10)
@@ -738,7 +738,7 @@ describe('scope and provider gating', () => {
       })
     ).json.result
     expect(link.isError ?? false).toBe(false)
-    expect((link.structuredContent ?? JSON.parse(link.content[0].text)).url).toContain('/reset-password#token=')
+    expect((link.structuredContent ?? JSON.parse(link.content[0].text)).url).toContain('/app/reset-password#token=')
   })
 })
 

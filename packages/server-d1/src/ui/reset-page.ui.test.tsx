@@ -13,7 +13,7 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
 })
-beforeEach(() => history.replaceState(null, '', `/reset-password#token=${TOKEN}`))
+beforeEach(() => history.replaceState(null, '', `/app/reset-password#token=${TOKEN}`))
 
 const fill = async (a = GOOD, b = a) => {
   const user = userEvent.setup()
@@ -30,10 +30,10 @@ describe('the fragment token', () => {
     expect(screen.getByLabelText('New password')).toBeTruthy()
     expect(location.hash).toBe('')
     expect(location.href).not.toContain(TOKEN)
-    expect(location.pathname).toBe('/reset-password')
+    expect(location.pathname).toBe('/app/reset-password')
   })
 
-  it.each(['/reset-password', '/reset-password#token=', '/reset-password#x=1'])(
+  it.each(['/app/reset-password', '/app/reset-password#token=', '/app/reset-password#x=1'])(
     '%s: an explanation and no form',
     (url) => {
       history.replaceState(null, '', url)
@@ -80,7 +80,7 @@ describe('the request and its outcomes', () => {
     const go = vi.fn()
     render(<ResetPage navigate={go} />)
     await submit(await fill())
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/sign-in?notice=password-reset'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/app/sign-in?notice=password-reset'))
     expect(f.calls).toHaveLength(1)
     expect(f.calls[0]!.body).toEqual({ newPassword: GOOD, token: TOKEN })
   })

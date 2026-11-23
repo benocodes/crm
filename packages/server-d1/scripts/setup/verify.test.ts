@@ -260,13 +260,13 @@ describe('2. the next steps on better-auth (D8)', () => {
     const o = await fullRun(w)
     const token = /\/invite#token=([A-Za-z0-9_-]+)/.exec(w.logs.join('\n'))?.[1]
     expect(token).toBeTruthy()
-    for (const r of o.results) expect((r.lines ?? []).join('\n'), r.step).not.toContain('/invite')
-    expect(w.logs.filter((l) => l.includes('/invite#token='))).toHaveLength(1)
+    for (const r of o.results) expect((r.lines ?? []).join('\n'), r.step).not.toContain('/app/invite')
+    expect(w.logs.filter((l) => l.includes('/app/invite#token='))).toHaveLength(1)
     const done = w.logs.indexOf('setup: done')
     const claim = w.logs.indexOf('=== Claim your instance ===')
     expect(done).toBeGreaterThan(-1)
     expect(claim).toBeGreaterThan(done)
-    expect(w.logs.findIndex((l) => l.includes('/invite#token='))).toBeGreaterThan(claim)
+    expect(w.logs.findIndex((l) => l.includes('/app/invite#token='))).toBeGreaterThan(claim)
     expect(w.logs.at(-1)).toMatch(/owner-reset|vibase login/)
     expect(w.logs.join('\n')).toMatch(/expires/)
   })
@@ -277,7 +277,7 @@ describe('2. the next steps on better-auth (D8)', () => {
     expect(step(o, 'verify').status).toBe('fail')
     const fail = w.logs.indexOf('setup: failed')
     expect(fail).toBeGreaterThan(-1)
-    expect(w.logs.findIndex((l) => l.includes('/invite#token='))).toBeGreaterThan(fail)
+    expect(w.logs.findIndex((l) => l.includes('/app/invite#token='))).toBeGreaterThan(fail)
   })
 
   it('GH442 item 5: a re-run and --dry-run print no Claim block', async () => {
