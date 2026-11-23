@@ -598,9 +598,10 @@ test('11e. [UI459] Agents: the sidebar row opens /app/agents; the list above Con
   ).toHaveAttribute('aria-current', 'page')
   await expect(page).toHaveTitle('Agents · Vibase')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agents')
-  const headings = await page.getByRole('heading', { level: 2 }).allTextContents()
-  expect(headings).toEqual(['Connected agents', 'Connect an agent'])
   const list = page.getByRole('list', { name: 'Connected agents' })
+  // The page loads its list after the first paint: wait for it before reading the section order.
+  await expect(list).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('heading', { level: 2 })).toHaveText(['Connected agents', 'Connect an agent'])
   const scoped = list.getByRole('listitem').filter({ hasText: 'e2e-scoped' })
   await expect(scoped).toContainText('Enabled')
   await expect(scoped).toContainText('API-key agent')
