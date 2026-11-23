@@ -3,10 +3,10 @@
 import { WorkflowEntrypoint } from 'cloudflare:workers'
 import type { MailSyncParams, MailSyncSummary, WorkflowEventLike, WorkflowStepLike } from '@vibase/api'
 import type { D1WorkerEnv } from './compose.js'
-import { workerFor } from './instance.js'
 
 export class MailSyncWorkflow extends WorkflowEntrypoint<D1WorkerEnv, MailSyncParams> {
   async run(event: WorkflowEventLike<MailSyncParams>, step: WorkflowStepLike): Promise<MailSyncSummary> {
+    const { workerFor } = await import('./instance.js')
     return workerFor(this.env).runMailSync(event, step)
   }
 }
