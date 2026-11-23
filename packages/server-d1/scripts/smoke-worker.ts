@@ -31,7 +31,7 @@ import {
   createMigrationTracker,
   recordMigrations,
 } from '@vibase/storage-d1/test'
-import { MIGRATIONS, openControlDb, writeControlMarker, type D1Like } from '@vibase/storage-d1'
+import { MIGRATIONS, openControlDb, type D1Like } from '@vibase/storage-d1'
 import {
   API_URL,
   SECRET_KEY,
