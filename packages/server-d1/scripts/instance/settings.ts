@@ -33,6 +33,8 @@ const KEYS = [
   'auth',
   'owner_email',
 ]
+/** The full record's closed key list: the keys before OPS501 plus `owner_email`; `stage` and `auth` belong to the init shape alone. */
+const FULL_KEYS = KEYS.filter((k) => k !== 'stage' && k !== 'auth')
 /** [[OPS501]] D1: the keys of the init-written shape; every other key belongs to the full record. */
 const INIT_KEYS = ['version', 'env', 'stage', 'api_host', 'auth', 'owner_email']
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -128,7 +130,7 @@ function parseFull(
     return fail('not valid JSON')
   }
   if (!isObject(json)) return fail('must be a JSON object')
-  for (const k of Object.keys(json)) if (!KEYS.includes(k)) fail(`unknown key "${k}"`)
+  for (const k of Object.keys(json)) if (!FULL_KEYS.includes(k)) fail(`unknown key "${k}"`)
   if (json.version !== 1) fail('version must be 1')
   if (json.env !== envName) fail(`env ${JSON.stringify(json.env)} does not match --env ${envName}`)
   const str = (v: unknown, key: string): string =>
