@@ -208,6 +208,9 @@ context uncached, and a Monitor that expires (900 s) and is re-armed is one such
   allows, and send nothing while it runs. If it expires, re-arm it once with no commentary; do not poll, re-read the log
   or run other commands in between.
 - Never start a second gate run while one is going (they contend for the machine and both slow down).
+- In a sprint, run no package's full suite at all (`pnpm -r test`, `pnpm -C packages/<pkg> test` with no file): the
+  gate-tester's run is the full-suite evidence, and [[API516]]'s coder left full runs going in the worktree that
+  contended with it. Stop every background command before you report.
 
 Every D1 package (`@vibase/api`, `server-d1`, `storage-d1`, `cli`) runs its files in parallel at 4 workers ([[OPS223]], [[OPS338]]), alone on the machine, on the 8-core
 development machine: api about 105 s (104 s in the OPS340 run; 382 s on the binding transport; 971 s serial); server-d1 about
@@ -318,7 +321,8 @@ recalibrate the size budget.
 End with this, whether the cycle finished, handed off or is blocked. Facts from this session only, each
 backed by a command you ran or a file you wrote; "not run" is acceptable, a guess is not. **Send it once**, after
 every background command has finished: while waiting, send nothing, never the same report again ([[API105]]: repeated
-reports left the orchestrator sorting duplicates from a real final one).
+reports left the orchestrator sorting duplicates from a real final one). Never send a placeholder ("report to
+follow"): a hand-back ends your run, and [[API516]]'s placeholder cost a continuation run to get the real report.
 
 ```
 CYCLE REPORT — <ID>
