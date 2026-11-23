@@ -108,6 +108,11 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   before the route exists when the gate runs before routing ([[API63]]: the [[CORE61]] `migrations_pending` gate). Keep
   it as a regression guard and pair it with a case that needs the new code (gate open → `200`); a charter should not
   ask for a red run on the first one.
+- **A red run counts only when each test is red for the reason under test.** Read the failure messages, not the
+  count: [[UI504]]'s red run had the clerk rows of `packages/server-d1/src/assets-serving.test.ts` red because the
+  test's Worker env lacked `CONTROL_DB`, not because the asset path was served; the helper was fixed in the green
+  commit. A test that is red for a harness reason would pass for the wrong reason once the harness is fixed, so fix
+  the harness before recording the red run, and say so in `RESULT.md`.
 - **A refusal the real producer cannot emit is proven on crafted inputs at the unit.** Better Auth signs with a key
   encrypted by `AUTH_SECRET`, so it cannot mint a token with a wrong `iss` or `aud`; [[CORE244]] proved those refusals
   (and their absence mutations) at the adapter on hand-signed Ed25519 tokens (`packages/api/src/auth/better-auth.test.ts`)
@@ -982,10 +987,16 @@ Known traps in the scripts below:
   pending action requests. Reset the state between runs (479.18).
 - `e2e:mcp-oauth` is red on `main` past leg 2 until #481 (the Clerk dev instance's DCR refuses the vault's scopes);
   a cycle that names it proves its own legs past leg 2 by the rule above.
+- `smoke:worker` aborts after check 43 on `main` (#505, `getaddrinfo ENOTFOUND push.test` at the connect-callback
+  call). Bypassing that leg reaches the page and asset legs (24b-24e), then a second abort at the better-auth legs
+  (25b+, "a bootstrap with an agent ... requires CONTROL_DB"), so those stay unproven until #505 is fixed ([[UI504]]).
+  A bypass can expose the next failure: quote which legs it actually reached.
+- `e2e:auth-pages` leg 11e (Agents) reads the headings before the list loads and fails on `main`, so legs 12 and 13
+  never run (#508); a cycle that names it proves legs up to 11d and says 12-13 are unrun ([[UI504]] 504.27).
 
 ```bash
 pnpm -C packages/ui e2e:gallery-react             # the React/Tailwind gallery (UI445) built with @vibase/ui/build, served on 127.0.0.1:4174: the components page `/` under PAGE_CSP and the composites page `/composites` (UI443, `?view=parts|shell|shell-bare`) and the lists page `/lists` (UI458: ResourceList, StatusBadge, ConfirmDialog, ListEditor, ChoiceGroup; `?view=dialog-*` opens a dialog state at load) under APP_CSP, each its own bundle under the 100 KB gzipped budget (lists.js 97.1 KB, composites.js 88.9 KB at UI458: a new heavy composite needs its own page or a budget ruling); four theme modes, axe zero violations, focus ring, skip link, Copy, the 375 px row, zero CSP violations; its seen-failing proof is built in (no env var): a leg injects a `<style>` and an inline `<script>` at runtime, the `<style>` must violate PAGE_CSP only and the script must be blocked on both pages; not in the gate
-pnpm -C packages/server-d1 e2e:auth-pages          # the Better Auth pages /invite, /sign-in, /reset-password (UI246), Google buttons (CORE294), a trusted app origin (UI255) and, from UI460, the workspace app (steps 10-12: `/` 302 /home, the signed-out card, the shell with APP_CSP and axe in both themes, 375 px, sign out) and, from UI467, Connected accounts (11c: `/accounts` lists, Connect Gmail's 501, the connect return removed; 13: signed-out `/accounts` returns there after sign-in); local Worker on better-auth, fresh local state, recipe in the file header; not in the gate
+pnpm -C packages/server-d1 e2e:auth-pages          # the Better Auth pages /invite, /sign-in, /reset-password (UI246), Google buttons (CORE294), a trusted app origin (UI255) and, from UI460, the workspace app (steps 8-10 also fetch the bundles' files at `/assets/ui/` and `/assets/app/` and assert the old `/ui/` and `/app/` file paths `404`, UI504; steps 10-12: `/` 302 /home, the signed-out card, the shell with APP_CSP and axe in both themes, 375 px, sign out) and, from UI467, Connected accounts (11c: `/accounts` lists, Connect Gmail's 501, the connect return removed; 13: signed-out `/accounts` returns there after sign-in); local Worker on better-auth, fresh local state, recipe in the file header; not in the gate
 pnpm -C packages/server-d1 e2e:oauth-pages         # Better Auth /device and /consent with the real `vibase login` and an MCP-style client (UI247); local Worker over HTTPS (`wrangler dev --local-protocol https`, recipe in the file header and writing-tests §7), no Clerk; `e2e:auth-pages` is UI246's sibling; not in the gate
 pnpm -C packages/server-d1 e2e:accounts-connect      # the connect return and Home's Connect your email prompt (UI469): its own Worker with the Gmail core four set and no CONNECT_RETURN_URL (Gmail on would flip e2e:auth-pages' 501 legs), Google answered by a Playwright route, the callback's refusal returns real; fresh local state, recipe in the spec header; no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:auth-pages-reset      # self-service reset by email on /sign-in (CORE304): its own email-on Worker from the test-only entry src/test/entry-email.ts (a recording EMAIL binding read at /__emails), over HTTPS, fresh local state (recipe in the spec file header); no Clerk; not in the gate
