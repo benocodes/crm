@@ -1233,9 +1233,10 @@ message bodies or addresses at info level (customer communications are personal 
 
 ## A static page on the API origin ([[UI30]])
 
-The app and auth pages are the pattern for any page the Worker serves (`packages/server-d1/src/app-serving.ts`, `src/ui-serving.ts`; `/connect` was the first, deleted at [[UI476]], and from [[UI507]] is a plain `404`):
+The app and auth pages are the pattern for any page the Worker serves (one entry, `packages/server-d1/src/static-serving.ts`, [[UI510]]; `/connect` was the first, deleted at [[UI476]], and from [[UI507]] is a plain `404`):
 - **Every page is a row of one page table** (`PAGE_TABLE` in `src/app/paths.ts`: exact path plus bundle, [[UI504]] D1).
-  The app's pages are `/app/home`, `/app/accounts`, `/app/agents` ([[UI507]]); `APP_PAGE_PATHS` is a `readonly` view
+  The app's pages are `/app/home`, `/app/accounts`, `/app/agents` ([[UI507]]), the auth pages `/app/sign-in`, `/app/invite`,
+  `/app/reset-password`, `/app/consent`, `/app/device` ([[UI510]]); `APP_PAGE_PATHS` and `AUTH_PAGE_PATHS` are `readonly` views
   derived from the table, and every reader (Worker, dev server, sign-in allow-list, config list, `release:check`,
   `smoke:worker`) reads it, never a copied list. A page is its path exactly: under `/app`, `GET`/`HEAD` of a page is the
   bundle's `index.html` and another method `405`; `GET`/`HEAD` of `/`, `/app` and `/app/` is a static `302 /app/home`
@@ -1245,16 +1246,18 @@ The app and auth pages are the pattern for any page the Worker serves (`packages
   moves leaves no redirect behind: the old path leaves `run_worker_first` and becomes an ordinary unknown path for the
   router (`404` on a ready Worker, `503` before migrations, P5). A built URL that names a page (a sign-in landing, a
   `return_to`, Clerk's sign-out return, an OAuth `callbackURL` default, the connect return) is pinned to a table entry
-  by a test, plus a source scan for the old quoted literal (`src/app/app-urls.test.ts`).
+  by a test, plus a source scan for the old quoted literal (`src/app/app-urls.test.ts`; across packages, `src/app/auth-page-urls.test.ts`
+  reads `@vibase/auth`'s exported `LOGIN_PAGE_PATH`/`CONSENT_PAGE_PATH`/`DEVICE_PAGE_PATH` and `@vibase/api`'s link builders,
+  [[UI510]]). "Derived from the table" means read from it, or pinned to it by a test that goes red when the entry changes:
+  a constant that merely equals an entry is the drift the table prevents (510.19).
 - **Workers Static Assets with `run_worker_first` for the page paths and `/assets/*`.** `assets` is the one block every
   env inherits (unlike `vars`, `d1_databases`, `r2_buckets`, `routes`). The list is derived, never typed: from
-  [[UI507]] it is `APP_RUN_WORKER_FIRST` (`/`, `/app`, `/app/*`, `/assets/*`) then `UI_RUN_WORKER_FIRST` (the auth pages
-  at their old paths until #510 moves them), and the real `wrangler.jsonc`, the setup and release fixtures and both
+  [[UI510]] it is exactly `APP_RUN_WORKER_FIRST` (`/`, `/app`, `/app/*`, `/assets/*`), and the real `wrangler.jsonc`, the setup and release fixtures and both
   `static_routing` lists (`smoke:worker`, `release:check`) equal it (`src/wrangler-config.test.ts`, 507.9). Every static file is at
   `/assets/<bundle>/<file>` ([[UI504]] D3): the build writes it at its URL path inside the binding directory
   (`dist/assets/assets/<bundle>/…`, package `assets/assets/<bundle>/…`), so no file exists at any other path and an old
   or unknown path reaches the Worker and is `404`. One prefix constant (`ASSET_PREFIX`, with `APP_BUNDLE`/`UI_BUNDLE`,
-  `src/app/paths.ts`) is read by both serving modules, the Vite config, the build and the `run_worker_first` list.
+  `src/app/paths.ts`) is read by the serving entry, the Vite config, the build and the `run_worker_first` list.
   **A build must clear every old layout folder** (`buildPage` removes every top-level entry of its output but
   `assets/`): a path that left `run_worker_first` is answered by the binding first, so a stale file from an older build
   would be served there ([[UI504]] P3, `scripts/build.test.ts` seeds the old layout). **The binding answers a folder
@@ -1286,12 +1289,10 @@ The app and auth pages are the pattern for any page the Worker serves (`packages
   shows `a` forever once set. Read a one-shot error from the address (an OAuth callback's `?error=`) into state once
   and drop it from the URL with `history.replaceState`; every submit clears the other sources' errors before it runs.
   The test: error A shown, then action B fails, B's message is the one on the page.
-- **Several pages in one bundle** ([[UI246]], `packages/server-d1/src/ui-serving.ts`): the page paths are one exported
-  constant (`UI_RUN_WORKER_FIRST`; `/assets/*` sits in `APP_RUN_WORKER_FIRST`) that the Worker serves from and that the
-  `wrangler.jsonc` test, the setup and release fixtures, `release:check` and `smoke:worker` read; never a copied list. A
-  provider-specific bundle is gated in the composition before `/auth` and every other gate: its pages and its
-  `/assets/<bundle>/` files are `404 not_found` on any other provider (`compose.ts` hands `/assets/ui` to `serveUi`
-  behind the better-auth check, `serveApp` takes every other `/assets` path). A bundle's `index.html` is reachable only
+- **Several pages in one bundle** ([[UI246]], [[UI510]]): a bundle's pages are its rows of the page table, and the
+  bundle's client routing reads them (`AUTH_PAGE_PATHS` in `src/ui/main.tsx`). A provider-specific bundle is an option of
+  the one serving entry (`serveStatic`'s `builtIn`), decided before `/auth` and every other gate: off `better-auth` its
+  pages and its `/assets/ui/` files are the JSON `404 not_found` for any method, with the security headers (510.10). A bundle's `index.html` is reachable only
   through the page paths. The pages are a separate React
   Vite page build (`scripts/build-ui.ts` over the shared `scripts/vite-pages.ts`, [[UI446]], [[UI489]]) whose module-list test proves `react`, `react-dom` and
   `@vibase/ui/components` and no `preact` or Preact-layer module, with a Worker-bundle check that holds no `preact`,

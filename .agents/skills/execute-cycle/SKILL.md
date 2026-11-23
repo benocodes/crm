@@ -175,7 +175,8 @@ don't guess: stop and report `blocked` with the question.
 and added (`pnpm -C packages/<pkg> test <file>`) and a typecheck of the packages you touched: every package with
 a path in `git diff --name-only main...`, test-only and `scripts/` files included (CORE347 changed a test in
 `packages/webhook-receiver-example/scripts/`, typechecked only `api`, and lost a gate round to a TS2339), and `pnpm lint`
-(about a second; Biome's a11y rules fire only there: UI381 lost a gate round to `useSemanticElements` refusing
+after your last commit (UI510 committed a `release:check` leg after its lint run and lost a gate round to a format diff;
+about a second; Biome's a11y rules fire only there: UI381 lost a gate round to `useSemanticElements` refusing
 `div role="region"`, which wants `<section aria-label>`; a scrollable region keeps `tabIndex={0}` under a scoped
 `biome-ignore` of `noNoninteractiveTabindex` with the reason. Biome turns its React rules on per package once `react`
 is in that package's `package.json`, so adding the dependency can surface errors in files the cycle never touched:
