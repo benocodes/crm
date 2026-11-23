@@ -82,8 +82,9 @@ out, so the coder does not "fix" the wiring to keep it green.
 A change that lowers a read requirement (a narrower scope reads what a wider one did) is cut as "mechanism first, then
 the switch". The first cycle ships the redaction, wired into every output path and proven through a test seam. The
 second cycle lowers the requirement, and in the same cycle it widens every place that checks or parses scopes. Then
-`main` never leaks unredacted data, and never drops delivery to holders of the old scope. Grep every scope-grammar copy
-at plan time: [[API514]]'s spec listed five copies and missed a sixth, the dispatch filter in `webhooks/crm-reads.ts`.
+`main` never leaks unredacted data, and never drops delivery to holders of the old scope. Name every scope-grammar copy in
+the switch cycle's charter. A copy that filters stored scopes drops the new scope without an error, for example the
+dispatch filter in `webhooks/crm-reads.ts` ([[API514]] review).
 
 #### Size budget
 
