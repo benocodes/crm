@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { getPlatformProxy, unstable_readConfig } from 'wrangler'
 import { APP_PAGE_PATHS, APP_PREFIX, APP_RUN_WORKER_FIRST } from './app/paths.js'
-import { UI_PAGE_PATHS, UI_PREFIX, UI_RUN_WORKER_FIRST } from './ui-serving.js'
+import { UI_PAGE_PATHS, UI_RUN_WORKER_FIRST } from './ui-serving.js'
 
 const CONFIG = fileURLToPath(new URL('../wrangler.jsonc', import.meta.url))
 const PLACEHOLDER = '00000000-0000-0000-0000-000000000000'
@@ -108,7 +108,7 @@ describe('assets (UI30 D2)', () => {
   // Every env the file declares (a fork has its own set; none is assumed), plus the top level.
   const declaredEnvs = Object.keys((parse(readFileSync(CONFIG, 'utf8')) as { env?: object }).env ?? {})
   it.each([undefined, ...declaredEnvs])(
-    'env %s binds ASSETS and runs the Worker first for /connect, /connect/*, the auth pages and /ui/* only (UI246 D2)',
+    'env %s binds ASSETS and runs the Worker first for /connect, /connect/*, the auth pages, the app and /assets/* only (UI246 D2, UI504 D4)',
     (env) => {
       const c = unstable_readConfig({ config: CONFIG, env })
       expect(c.assets?.binding).toBe('ASSETS')
@@ -120,7 +120,9 @@ describe('assets (UI30 D2)', () => {
         ...APP_RUN_WORKER_FIRST,
       ])
       for (const p of UI_PAGE_PATHS) expect(c.assets?.run_worker_first, p).toContain(p)
-      expect(c.assets?.run_worker_first).toContain(`${UI_PREFIX}/*`)
+      // [[UI504]] D3, D4: the static files are under /assets/ and nowhere else, so /ui/* is not listed (an old path reaches the Worker's router).
+      expect(c.assets?.run_worker_first).toContain('/assets/*')
+      expect(c.assets?.run_worker_first).not.toContain('/ui/*')
       // [[UI460]] D6: the app's root, its page paths and its bundle prefix.
       for (const p of APP_PAGE_PATHS) expect(c.assets?.run_worker_first, p).toContain(p)
       expect(c.assets?.run_worker_first).toContain('/')
@@ -135,7 +137,11 @@ describe('every run_worker_first list equals the constants the Worker serves (UI
   const EXPECTED = ['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST, ...APP_RUN_WORKER_FIRST]
   const listIn = (text: string): unknown =>
     (parse(text) as { assets?: { run_worker_first?: unknown } }).assets?.run_worker_first
-  it('wrangler.jsonc lists the five pages and /ui/*', () => {
+  it('derived list: /assets/* in, /ui/* out (UI504 D4)', () => {
+    expect(EXPECTED).toContain('/assets/*')
+    expect(EXPECTED).not.toContain('/ui/*')
+  })
+  it('wrangler.jsonc lists the five pages and /assets/*', () => {
     expect(listIn(readFileSync(CONFIG, 'utf8'))).toEqual(EXPECTED)
     expect(UI_PAGE_PATHS).toContain('/consent')
     expect(UI_PAGE_PATHS).toContain('/device')

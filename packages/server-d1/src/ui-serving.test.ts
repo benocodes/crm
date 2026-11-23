@@ -13,12 +13,12 @@ const EXACT_CSP =
   "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 const HTML = '<!doctype html><title>auth</title>'
 const PAGES = ['/sign-in', '/invite', '/reset-password', '/consent', '/device']
-const ASSET_PATHS = ['/ui/app.js', '/ui/ui.css']
-// The fake serves the built files under /ui/ AND, deliberately, the same files (and the pages) at the root: a Worker that routed a path to the assets binding by mistake would answer 200.
+const ASSET_PATHS = ['/assets/ui/app.js', '/assets/ui/ui.css']
+// The fake serves the built files under /assets/ui/ AND, deliberately, the same files (and the pages) at the root: a Worker that routed a path to the assets binding by mistake would answer 200.
 const FILES: Record<string, { type: string; body: string }> = {
-  '/ui/': { type: 'text/html; charset=utf-8', body: HTML },
-  '/ui/app.js': { type: 'text/javascript', body: 'console.log(1)' },
-  '/ui/ui.css': { type: 'text/css', body: 'body{}' },
+  '/assets/ui/': { type: 'text/html; charset=utf-8', body: HTML },
+  '/assets/ui/app.js': { type: 'text/javascript', body: 'console.log(1)' },
+  '/assets/ui/ui.css': { type: 'text/css', body: 'body{}' },
   '/app.js': { type: 'text/javascript', body: 'console.log(1)' },
   '/index.html': { type: 'text/html; charset=utf-8', body: HTML },
   '/sign-in': { type: 'text/html; charset=utf-8', body: HTML },
@@ -81,7 +81,7 @@ beforeEach(async () => {
 afterEach(() => {
   if (headerRules) {
     for (const { at, res } of seen) {
-      if (!PAGES.some((p) => at.includes(` ${p} `)) && !at.includes(' /ui/')) continue
+      if (!PAGES.some((p) => at.includes(` ${p} `)) && !at.includes(' /assets/ui/')) continue
       expect(res.headers.get('content-security-policy'), at).toBe(EXACT_CSP)
       expect(res.headers.get('x-content-type-options'), at).toBe('nosniff')
       expect(res.headers.get('referrer-policy'), at).toBe('strict-origin-when-cross-origin')
@@ -125,8 +125,8 @@ describe('serving matrix: path x provider (D1, D2)', () => {
       expect(res.status).toBe(200)
       const isPage = PAGES.includes(path)
       expect(res.headers.get('content-type')).toMatch(isPage ? /^text\/html/ : /^text\/(javascript|css)/)
-      expect(await res.text()).toBe(FILES[isPage ? '/ui/' : path]!.body)
-      expect(assetCalls).toEqual([{ method: 'GET', path: isPage ? '/ui/' : path }])
+      expect(await res.text()).toBe(FILES[isPage ? '/assets/ui/' : path]!.body)
+      expect(assetCalls).toEqual([{ method: 'GET', path: isPage ? '/assets/ui/' : path }])
       expect((await send(wk, '/meta/v1/me')).status).toBe(503)
     },
   )
@@ -145,7 +145,7 @@ describe('serving matrix: path x provider (D1, D2)', () => {
     async (_name, make) => {
       headerRules = false
       const wk = make()
-      for (const path of [...PAGES, ...ASSET_PATHS, '/ui/', '/ui/index.html']) {
+      for (const path of [...PAGES, ...ASSET_PATHS, '/assets/ui/', '/assets/ui/index.html']) {
         for (const method of ['GET', 'HEAD', 'POST']) {
           const res = await send(wk, path, method)
           expect(res.status, `${method} ${path}`).toBe(404)
@@ -201,17 +201,17 @@ describe('exact paths and methods (D1: a trailing slash is not a page, pinned he
     expect(res.headers.get('content-type')).not.toMatch(/^text\/html/)
   })
 
-  it("/ui/ and /ui/index.html are not pages (the page is reached only at its three paths); an unknown /ui/x is the assets binding's 404 with the headers", async () => {
+  it("/assets/ui/ and /assets/ui/index.html are not pages (the page is reached only at its three paths); an unknown /assets/ui/x is the assets binding's 404 with the headers", async () => {
     const wk = betterAuthWorker()
-    expect((await send(wk, '/ui/')).status).toBe(404)
-    expect((await send(wk, '/ui/index.html')).status).toBe(404)
+    expect((await send(wk, '/assets/ui/')).status).toBe(404)
+    expect((await send(wk, '/assets/ui/index.html')).status).toBe(404)
     expect(assetCalls).toEqual([])
-    const res = await send(wk, '/ui/nope.js')
+    const res = await send(wk, '/assets/ui/nope.js')
     expect(res.status).toBe(404)
-    expect(assetCalls).toEqual([{ method: 'GET', path: '/ui/nope.js' }])
+    expect(assetCalls).toEqual([{ method: 'GET', path: '/assets/ui/nope.js' }])
   })
 
-  it.each(['/sign-in', '/ui/app.js'])(
+  it.each(['/sign-in', '/assets/ui/app.js'])(
     'POST %s is 405 with Allow: GET, HEAD, without asking the assets binding',
     async (path) => {
       const res = await send(betterAuthWorker(), path, 'POST')

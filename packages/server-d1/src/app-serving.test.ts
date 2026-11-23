@@ -12,11 +12,11 @@ import { clerkKit, openWorkerPair, type ClerkKit, type WorkerPair } from './test
 // with the app's policy and security headers on every answer; `/` redirects to `/home`.
 const NOT_FOUND = { error: { code: 'not_found', message: 'no such route' } }
 const HTML = '<!doctype html><title>app</title>'
-// The fake serves the built files under /app/ AND, deliberately, the same files at the root and under /home: a Worker that routed a path to the binding by mistake would answer 200.
+// The fake serves the built files under /assets/app/ AND, deliberately, the same files at the root and under /home: a Worker that routed a path to the binding by mistake would answer 200.
 const FILES: Record<string, { type: string; body: string }> = {
-  '/app/': { type: 'text/html; charset=utf-8', body: HTML },
-  '/app/app.js': { type: 'text/javascript', body: 'console.log(1)' },
-  '/app/app.css': { type: 'text/css', body: 'body{}' },
+  '/assets/app/': { type: 'text/html; charset=utf-8', body: HTML },
+  '/assets/app/app.js': { type: 'text/javascript', body: 'console.log(1)' },
+  '/assets/app/app.css': { type: 'text/css', body: 'body{}' },
   '/app.js': { type: 'text/javascript', body: 'console.log(1)' },
   '/index.html': { type: 'text/html; charset=utf-8', body: HTML },
   '/home': { type: 'text/html; charset=utf-8', body: HTML },
@@ -130,7 +130,7 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toMatch(/^text\/html/)
     expect(await res.text()).toBe(HTML)
-    expect(assetCalls).toEqual([{ method: 'GET', path: '/app/' }])
+    expect(assetCalls).toEqual([{ method: 'GET', path: '/assets/app/' }])
     const head = await send(wk, '/home', 'HEAD')
     expect(head.status).toBe(200)
     expect(await head.text()).toBe('')
@@ -141,7 +141,7 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
     const res = await send(wk, '/accounts')
     expect(res.status).toBe(200)
     expect(await res.text()).toBe(HTML)
-    expect(assetCalls).toEqual([{ method: 'GET', path: '/app/' }])
+    expect(assetCalls).toEqual([{ method: 'GET', path: '/assets/app/' }])
     expect((await send(wk, '/accounts', 'HEAD')).status).toBe(200)
     expect((await send(wk, '/accounts', 'POST')).status).toBe(405)
   })
@@ -151,7 +151,7 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
     const res = await send(wk, '/agents')
     expect(res.status).toBe(200)
     expect(await res.text()).toBe(HTML)
-    expect(assetCalls).toEqual([{ method: 'GET', path: '/app/' }])
+    expect(assetCalls).toEqual([{ method: 'GET', path: '/assets/app/' }])
     expect((await send(wk, '/agents', 'HEAD')).status).toBe(200)
     expect((await send(wk, '/agents', 'POST')).status).toBe(405)
   })
@@ -170,9 +170,9 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
     expect(assetCalls).toEqual([])
   })
 
-  it('/app/app.js and /app/app.css are the assets', async () => {
+  it('/assets/app/app.js and /assets/app/app.css are the assets', async () => {
     const wk = make()
-    for (const path of ['/app/app.js', '/app/app.css']) {
+    for (const path of ['/assets/app/app.js', '/assets/app/app.css']) {
       const res = await send(wk, path)
       expect(res.status, path).toBe(200)
       expect(await res.text(), path).toBe(FILES[path]!.body)
@@ -189,12 +189,26 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
     },
   )
 
-  it.each(['/home', '/app'])('POST %s is 405 with Allow: GET, HEAD', async (path) => {
-    const res = await send(make(), path, 'POST')
+  it('POST /home is 405 with Allow: GET, HEAD', async () => {
+    const res = await send(make(), '/home', 'POST')
     expect(res.status).toBe(405)
     expect(res.headers.get('allow')).toBe('GET, HEAD')
     expect(assetCalls).toEqual([])
   })
+
+  // [[UI504]] P2: /app and everything under it are the JSON 404 for any method (the old file forwarding and the 405 on /app/ are gone).
+  it.each(['/app', '/app/', '/app/app.js', '/app/app.css', '/app/index.html'])(
+    '%s is the JSON 404 for GET, HEAD and POST, and the binding is not asked',
+    async (path) => {
+      const wk = make()
+      for (const method of ['GET', 'HEAD', 'POST']) {
+        const res = await send(wk, path, method)
+        expect(res.status, `${method} ${path}`).toBe(404)
+        if (method === 'GET') expect(await res.json()).toEqual(NOT_FOUND)
+      }
+      expect(assetCalls).toEqual([])
+    },
+  )
 
   it('GET and HEAD / is 302 to /home and drops the query; POST / is 404', async () => {
     const wk = make()
@@ -213,7 +227,7 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
 
   it('without the assets binding every app path and / is 404', async () => {
     const wk = make({ ASSETS: undefined })
-    for (const path of ['/home', '/accounts', '/agents', '/app/app.js', '/app/app.css', '/']) {
+    for (const path of ['/home', '/accounts', '/agents', '/assets/app/app.js', '/assets/app/app.css', '/']) {
       const res = await send(wk, path)
       expect(res.status, path).toBe(404)
       expect(res.headers.get('location'), path).toBeNull()
@@ -336,7 +350,7 @@ describe('appCsp and the headers (D5, group 2)', () => {
     for (const [path, method] of [
       ['/home', 'GET'],
       ['/home', 'HEAD'],
-      ['/app/app.js', 'GET'],
+      ['/assets/app/app.js', 'GET'],
       ['/app/', 'GET'],
       ['/home/x', 'GET'],
       ['/home', 'POST'],
