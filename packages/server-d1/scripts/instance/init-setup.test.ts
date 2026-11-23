@@ -1,5 +1,6 @@
 // [[OPS494]] D4, D6: a file `init` writes is read by setup's own loaders (the round trip), and a Gmail group without the Google client is off, not refused.
 // The `setup:remote` front-end's case of D6 is in `../setup/gmail.test.ts`.
+import { writeFileSync } from 'node:fs'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { openWorkerPair, type WorkerPair } from '../../src/test/kit.js'
 import { runInit } from './init.js'
@@ -32,7 +33,12 @@ const initFile = async (flags: string[]) => {
     .trim()
     .split(' ')
     .slice(2)
-  return { text: readFileSync(w.secretsPath, 'utf8'), path: w.secretsPath, next }
+  return {
+    text: readFileSync(w.secretsPath, 'utf8'),
+    path: w.secretsPath,
+    next,
+    settingsText: readFileSync(w.settingsPath, 'utf8'),
+  }
 }
 const fillCloudflare = (t: string) =>
   t
@@ -48,11 +54,14 @@ describe('round trip: the file init wrote, read by setup', () => {
     ['clerk + gmail', ['--owner-email', OWNER, '--auth', 'clerk']],
     ['none + none', ['--auth', 'none', '--email', 'none']],
   ])('%s', async (name, initFlags) => {
-    const { text, path, next } = await initFile(initFlags)
-    const setupArgs = next
+    const { text, path, next, settingsText } = await initFile(initFlags)
+    // the printed words, as they are, plus the one flag the test adds so nothing is written
+    expect(next, name).toEqual(['--env', 'demo'])
+    const setupArgs = [...next, '--dry-run']
     // empty Cloudflare values count as unset
     expect(() => loadSecrets(path, {}), name).toThrow(/CLOUDFLARE_ACCOUNT_ID/)
     const s = world(fillCloudflare(text))
+    writeFileSync(s.w.settingsPath, settingsText)
     const code = await runSetup(setupArgs, s.w.deps)
     const said = s.w.all()
     if (name.startsWith('clerk')) {
@@ -62,7 +71,12 @@ describe('round trip: the file init wrote, read by setup', () => {
     }
     expect(code, said).toBe(0)
     expect(said).toMatch(GOOGLE_OFF)
-    if (name.startsWith('better-auth')) expect(said).toMatch(/better-auth: .*AUTH_SECRET from .*demo\.env/)
+    expect(said).toContain(`api host ${API_HOST}`)
+    expect(said).toContain(`auth ${initFlags[initFlags.indexOf('--auth') + 1]}`)
+    if (name.startsWith('better-auth')) {
+      expect(said).toMatch(/better-auth: .*AUTH_SECRET from .*demo\.env/)
+      expect(s.settings()).toBe(settingsText) // a dry run leaves init's file alone
+    }
   })
 })
 
