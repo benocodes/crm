@@ -1013,6 +1013,10 @@ Known traps in the scripts below:
   pending action requests. Reset the state between runs (479.18).
 - `e2e:mcp-oauth` is red on `main` past leg 2 until #481 (the Clerk dev instance's DCR refuses the vault's scopes);
   a cycle that names it proves its own legs past leg 2 by the rule above.
+  **Clerk dev instance setup it depends on** (decision 481.1): every vault custom scope (46 today, `packages/api` scope
+  catalogue) must be defined in the Clerk dashboard (OAuth applications > Scopes) as Advertised, and listed in Settings >
+  "Allowed scopes for dynamic clients" (the default scopes can stay the 10 reads). A new vault scope must be added there
+  too, else leg 2 fails with `InvalidClientMetadataError: Invalid scope requested`.
 - `smoke:worker` aborts after check 43 on `main` (#505, `getaddrinfo ENOTFOUND push.test` at the connect-callback
   call). Bypassing that leg reaches the page and asset legs (24b-24e), then a second abort at the better-auth legs
   (25b+, "a bootstrap with an agent ... requires CONTROL_DB"), so those stay unproven until #505 is fixed ([[UI504]]).
