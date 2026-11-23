@@ -20,7 +20,7 @@ export type ConsentModel = { requested: string[]; signIn: string[]; areas: AreaM
 export type SwitchState = Record<string, boolean>
 
 export const SIGN_IN_SCOPES: readonly string[] = ['openid', 'profile', 'email', 'offline_access']
-const PARSEABLE = /^([a-z][a-z0-9_]*):(read|request_approval|write)$/
+const PARSEABLE = /^([a-z][a-z0-9_]*):(read|read_metadata|request_approval|write)$/
 const ACTIONS = ['read', 'request_approval', 'write'] as const
 const OTHER = 'other'
 
@@ -50,7 +50,11 @@ export function buildConsentModel(names: readonly string[]): ConsentModel {
     if (!scopes) continue
     const switches: SwitchDef[] = []
     for (const action of ACTIONS) {
-      const ofAction = scopes.filter((s) => PARSEABLE.exec(s)?.[2] === action)
+      // [[API518]] D2: a requested `read_metadata` rides on its area's Read switch (a read action); it has no switch of its own.
+      const ofAction = scopes.filter((s) => {
+        const a = PARSEABLE.exec(s)?.[2]
+        return a === action || (action === 'read' && a === 'read_metadata')
+      })
       if (ofAction.length === 0) continue
       if (action === 'read') {
         // D4 in the coder's shape (decision 455.8): a scope in NOT_DEFAULT_GRANT never rides on the area's Read switch when that switch is on by default; it gets its own switch, off.

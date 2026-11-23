@@ -39,7 +39,11 @@ describe('agentScopeSet and the filters (D3, P2)', () => {
     const { readAgent } = await import('./crm-reads.js')
     const { execute } = await import('@vibase/storage')
     const facts = (
-      await execute(s.k.e.binding, { kind: 'internal', organizationId: s.k.e.organizationId }, readAgent(s.k.e.organizationId, agent))
+      await execute(
+        s.k.e.binding,
+        { kind: 'internal', organizationId: s.k.e.organizationId },
+        readAgent(s.k.e.organizationId, agent),
+      )
     ).value
     expect(facts?.scopes).toEqual(WITH_META)
   })
@@ -82,7 +86,8 @@ describe('sender (D3, P2)', () => {
     s.handler = () => ok(200)
     const summary = await s.send()
     expect(summary).toMatchObject({ sent: 2, cancelled: 1 })
-    const rowOf = async (sub: string) => (await s.k.all('select * from webhook_deliveries where subscription_id = ?', sub))[0]!
+    const rowOf = async (sub: string) =>
+      (await s.k.all('select * from webhook_deliveries where subscription_id = ?', sub))[0]!
     expect(await rowOf(a.sub.id)).toMatchObject({ event_id: event, status: 'delivered' })
     expect(await rowOf(b.sub.id)).toMatchObject({ event_id: event, status: 'delivered' })
     expect(await rowOf(c.sub.id)).toMatchObject({ status: 'cancelled', last_error: 'cancelled_scope' })

@@ -49,7 +49,7 @@ export const SCOPE_AREAS: readonly ScopeArea[] = [
 
 /** The key of the area a scope belongs to, by its resource; `null` for a name in no area or one that is not `resource:action`. */
 export function areaOfScope(scope: string): string | null {
-  const resource = /^([a-z][a-z0-9_]*):(?:read|request_approval|write)$/.exec(scope)?.[1]
+  const resource = /^([a-z][a-z0-9_]*):(?:read|read_metadata|request_approval|write)$/.exec(scope)?.[1]
   if (resource === undefined) return null
   return SCOPE_AREAS.find((a) => a.resources.includes(resource))?.key ?? null
 }

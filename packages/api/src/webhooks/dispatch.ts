@@ -2,9 +2,8 @@ import { execute, type StorageBinding } from '@vibase/storage'
 import { feedVisibility } from '../events/operations.js'
 import { readStableFeed, type FeedEvent } from '../events/feed.js'
 import type { Registry } from '../registry.js'
-import { ScopeSet } from '../scopes.js'
 import type { BudgetView } from './budget.js'
-import { NIL_CURSOR, readEligibleAgents } from './crm-reads.js'
+import { NIL_CURSOR, agentScopeSet, readEligibleAgents } from './crm-reads.js'
 import type { WebhooksPort } from './port.js'
 
 // [[API7]] D4, D6, D17, D19, D20 ([[API219]]), moved onto the control plane by [[CORE337]] (D8): the dispatcher. For every eligible subscription it reads the agent's own view of the event feed after the subscription's cursor
@@ -69,7 +68,7 @@ export async function eligibleSubscriptions(d: DispatchDeps): Promise<DispatchTa
     .value
   const scopesOf = new Map(
     agents
-      .filter((a) => ScopeSet.parse(a.scopes).has({ resource: 'events', action: 'read' }))
+      .filter((a) => agentScopeSet(d.registry, a.scopes).has({ resource: 'events', action: 'read' }))
       .map((a) => [a.id, a.scopes]),
   )
   const rows = await d.port.dispatchable({ organizationId, eligibleAgentIds: [...scopesOf.keys()] })
@@ -84,7 +83,7 @@ export async function readPage(d: DispatchDeps, target: DispatchTarget): Promise
   const organizationId = organizationOf(d)
   if (organizationId === null) return { kind: 'page', target, events: [], hasMore: false }
   const vis = feedVisibility(d.registry, {
-    scopes: ScopeSet.parse(target.scopes),
+    scopes: agentScopeSet(d.registry, target.scopes),
     actor: { id: target.agentId, kind: 'agent' },
   })
   const feed = (

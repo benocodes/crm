@@ -186,11 +186,13 @@ export type Operation = TenantOperation | AccountOperation | ControlOperation
 export type AnyResource = PreparedResource<any, any>
 
 /**
- * [[API6]] D4: how an event's `resource_type` is shown in the feed. `scope`: the resource whose `read` scope the caller needs; `edge`: also checked
+ * [[API6]] D4: how an event's `resource_type` is shown in the feed. `scope`: the resource whose `read` scope the caller needs (or its `read_metadata` scope when `action` says so, [[API518]]: no production type declares it yet); `edge`: also checked
  * on the edge record's endpoint types (the association events); `owner`: an agent principal sees only events whose record (`after`, or `before` for a delete) holds its own id at
  * the JSON `path` ([[API219]] D19; no production type declares it since [[CORE347]], kept for #217's per-row predicates), a user holding the scope sees all. `invisible`: never shown, with the reason (fail closed: a type with no entry is the same).
  */
-export type EventTypeDecl = { scope: string; edge?: true; owner?: { path: string } } | { invisible: string }
+export type EventTypeDecl =
+  | { scope: string; action?: 'read' | 'read_metadata'; edge?: true; owner?: { path: string } }
+  | { invisible: string }
 
 const OP_NAME = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
 const TOOL_NAME = /^[a-z0-9_]{1,64}$/

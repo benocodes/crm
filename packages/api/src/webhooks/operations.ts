@@ -2,9 +2,8 @@ import { z } from 'zod'
 import { UnitDriftError } from '@vibase/storage'
 import { ApiError, mapStorageError } from '../errors.js'
 import { feedVisibility } from '../events/operations.js'
-import { ScopeSet } from '../scopes.js'
 import type { ControlEnv, ControlOperation, Registry } from '../registry.js'
-import { NIL_CURSOR, readAgent, readLatestEventId, type AgentFacts } from './crm-reads.js'
+import { NIL_CURSOR, agentScopeSet, readAgent, readLatestEventId, type AgentFacts } from './crm-reads.js'
 import type { WebhooksRuntime } from './config.js'
 import type { WebhookDeliveryRecord, WebhookSubscriptionRecord, WebhooksPort } from './port.js'
 import { ROTATION_OVERLAP_MS, mintSecret } from './secrets.js'
@@ -20,7 +19,7 @@ export const MAX_SUBSCRIPTIONS_PER_AGENT = 10
 /** [[API7]] D18: the default `event_types`, stored resolved. */
 export const DEFAULT_EVENT_TYPES = ['interaction.created'] as const
 const EVENT_TYPE = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/
-const SCOPE_STRING = /^[a-z][a-z0-9_]*:(read|request_approval|write)$/
+const SCOPE_STRING = /^[a-z][a-z0-9_]*:(read|read_metadata|request_approval|write)$/
 
 export const webhookRecord = z.object({
   id: z.uuid(),
@@ -173,7 +172,10 @@ export function checkEventTypes(
       throw new ApiError(400, 'unknown_event_type', `unknown event type ${type}: no resource type ${resourceOf(type)}`)
   }
   const vis = feedVisibility(registry, {
-    scopes: ScopeSet.parse(agent.scopes.filter((s) => SCOPE_STRING.test(s))),
+    scopes: agentScopeSet(
+      registry,
+      agent.scopes.filter((s) => SCOPE_STRING.test(s)),
+    ),
     actor: { id: agent.id, kind: 'agent' },
   })
   const readable = new Set(vis.readable)

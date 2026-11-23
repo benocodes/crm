@@ -10,7 +10,8 @@ import { scopesForRole, type ScopePolicy } from './roles.js'
 const declared = ['x:read', 'x:read_metadata', 'x:write', 'x:request_approval', 'y:read']
 const policy: ScopePolicy = {
   'x:read': { member: true, agentGrantable: true },
-  'x:read_metadata': { member: true, agentGrantable: true },
+  // A member's policy has no row for the metadata scope: a member holds it only through the closure of x:read.
+  'x:read_metadata': { member: false, agentGrantable: true },
   'x:write': { member: false, agentGrantable: false },
   'x:request_approval': { member: false, agentGrantable: false },
   'y:read': { member: true, agentGrantable: true },
@@ -57,14 +58,18 @@ describe('the API key path (D3)', () => {
 })
 
 describe('the role path of the user authenticators (D3)', () => {
-  it('a role holding x:read holds x:read_metadata, owner and member alike', () => {
+  it('a role holding x:read holds x:read_metadata through the closure, owner and member alike', () => {
     for (const role of ['owner', 'member'] as const) {
       const set = scopesForRole(role, declared, policy)
       expect(set.has({ resource: 'x', action: 'read_metadata' }), role).toBe(true)
     }
   })
   it('a member policy that grants x:read_metadata alone does not grant x:read', () => {
-    const only: ScopePolicy = { ...policy, 'x:read': { member: false, agentGrantable: false } }
+    const only: ScopePolicy = {
+      ...policy,
+      'x:read': { member: false, agentGrantable: false },
+      'x:read_metadata': { member: true, agentGrantable: true },
+    }
     const set = scopesForRole('member', declared, only)
     expect(set.has({ resource: 'x', action: 'read_metadata' })).toBe(true)
     expect(set.has({ resource: 'x', action: 'read' })).toBe(false)

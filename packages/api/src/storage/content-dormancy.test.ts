@@ -34,11 +34,16 @@ describe('the metadata scope is not live yet', () => {
     expect(SCOPE_AREAS.flatMap((a) => a.resources).filter((r) => r.includes('read_metadata'))).toEqual([])
   })
 
-  it('every role and a messages:read agent hold exactly today\'s closed sets (no read_metadata anywhere)', () => {
+  it("every role and a messages:read agent hold exactly today's closed sets (no read_metadata anywhere)", () => {
     const declared = declaredScopes()
     // Today's closure, restated: the grants, plus request_approval beside each declared write.
     const today = (grants: string[]) =>
-      [...new Set([...grants, ...grants.filter((g) => g.endsWith(':write')).map((g) => g.replace(/:write$/, ':request_approval'))])]
+      [
+        ...new Set([
+          ...grants,
+          ...grants.filter((g) => g.endsWith(':write')).map((g) => g.replace(/:write$/, ':request_approval')),
+        ]),
+      ]
         .filter((s) => declared.includes(s) || grants.includes(s))
         .sort()
     expect(scopesForRole('owner', declared).toStrings()).toEqual(today(declared))

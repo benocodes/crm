@@ -5,9 +5,8 @@ import { openToken } from '../connections/credentials.js'
 import { eventFor, feedVisibility, record as eventRecord } from '../events/operations.js'
 import { visible, type FeedEvent } from '../events/feed.js'
 import type { Registry } from '../registry.js'
-import { ScopeSet } from '../scopes.js'
 import type { BudgetView } from './budget.js'
-import { agentLive, readAgentsAndEvents } from './crm-reads.js'
+import { agentLive, agentScopeSet, readAgentsAndEvents } from './crm-reads.js'
 import type { WebhookDeliveryOutcome, WebhooksPort } from './port.js'
 import { secretsInForce, signatureHeader } from './signing.js'
 
@@ -192,7 +191,7 @@ function visibilityRead(a: { registry: Registry; rows: Candidate[] }): PreparedO
       const reads: Record<string, ReturnType<typeof readAll>> = {}
       for (const [agentId, rows] of byAgent) {
         const vis = feedVisibility(a.registry, {
-          scopes: ScopeSet.parse(rows[0]!.scopes),
+          scopes: agentScopeSet(a.registry, rows[0]!.scopes),
           actor: { id: agentId, kind: 'agent' },
         })
         const seen = visible(vis)
@@ -342,7 +341,7 @@ async function sendWave(
   const sendable: Candidate[] = []
   for (const row of rows) {
     if (row.deleted || row.agentMissing) recorded.set(row.id, cancel(row, 'cancelled_subscription'))
-    else if (!row.agentLive || !ScopeSet.parse(row.scopes).has({ resource: 'events', action: 'read' }))
+    else if (!row.agentLive || !agentScopeSet(d.registry, row.scopes).has({ resource: 'events', action: 'read' }))
       recorded.set(row.id, cancel(row, 'cancelled_scope'))
     else sendable.push(row)
   }
@@ -358,7 +357,10 @@ async function sendWave(
           if (rotation.length === 0 || opened.some((s) => s === null))
             return void recorded.set(row.id, fail(row, SPENT, null))
           // [[API514]] D11: the payload is the event as the agent's stored scopes may see it, projected like `events.get` (the stored event stays whole).
-          const caller = { scopes: ScopeSet.parse(row.scopes), actor: { id: row.agentId, kind: 'agent' as const } }
+          const caller = {
+            scopes: agentScopeSet(d.registry, row.scopes),
+            actor: { id: row.agentId, kind: 'agent' as const },
+          }
           const body = JSON.stringify(eventRecord(organizationId, eventFor(d.registry, caller, row.event)))
           const timestamp = Math.floor(d.clock().getTime() / 1000)
           const signature = await signatureHeader({ secrets: opened as string[], id: row.eventId, timestamp, body })

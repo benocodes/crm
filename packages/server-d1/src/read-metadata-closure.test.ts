@@ -35,9 +35,14 @@ const CLI = 'client_cli'
 const DCR = 'client_dcr'
 const META = 'contacts:read_metadata'
 const declared = [...createVibaseRegistry().declaredScopes(), META].sort()
-const open: ScopePolicy = { ...SCOPE_POLICY, [META]: { member: true, agentGrantable: true } }
+// The metadata scope is agent-grantable but a member's policy has no row for it: a member holds it only through the closure of contacts:read.
+const open: ScopePolicy = { ...SCOPE_POLICY, [META]: { member: false, agentGrantable: true } }
 /** A policy where a member holds the metadata scope without `contacts:read`. */
-const metaOnly: ScopePolicy = { ...open, 'contacts:read': { member: false, agentGrantable: true } }
+const metaOnly: ScopePolicy = {
+  ...open,
+  [META]: { member: true, agentGrantable: true },
+  'contacts:read': { member: false, agentGrantable: true },
+}
 
 const rows = async (sqlText: string, ...binds: unknown[]) =>
   (
@@ -87,8 +92,10 @@ const setStored = (agentSubjectOrClient: { sub?: string; client?: string }, scop
     )
     .bind(JSON.stringify(scopes), agentSubjectOrClient.sub ?? agentSubjectOrClient.client)
     .run()
-const has = (set: { has(s: { resource: string; action: 'read' | 'read_metadata' }): boolean }, action: 'read' | 'read_metadata') =>
-  set.has({ resource: 'contacts', action })
+const has = (
+  set: { has(s: { resource: string; action: 'read' | 'read_metadata' }): boolean },
+  action: 'read' | 'read_metadata',
+) => set.has({ resource: 'contacts', action })
 
 describe('an agent account (role agent, CLI client token)', () => {
   const asAccount = async (stored: string[], request: string) => {
