@@ -71,3 +71,51 @@ describe('closure under write => request_approval (D31)', () => {
     expect(ScopeSet.parse(['tasks:write']).has({ resource: 'tasks', action: 'request_approval' })).toBe(false)
   })
 })
+
+// [[API518]] D2 and D3 (P1): the action `read_metadata` is in the grammar, and `read => read_metadata` closes only where it is declared.
+describe('the read_metadata action (API518 D2)', () => {
+  it('parses and formats it', () => {
+    expect(parseScope('messages:read_metadata')).toEqual({ resource: 'messages', action: 'read_metadata' })
+    expect(formatScope({ resource: 'messages', action: 'read_metadata' })).toBe('messages:read_metadata')
+  })
+  it.each(['x:read_meta', 'x:readmetadata', 'X:read_metadata', 'x:read_metadata_', 'x:read-metadata', 'x:metadata'])(
+    'still refuses malformed %j',
+    (s) => {
+      expect(() => parseScope(s)).toThrow(`invalid scope: ${s}`)
+    },
+  )
+})
+
+describe('closure under read => read_metadata (API518 D3, P1)', () => {
+  const declared = ['x:read', 'x:read_metadata', 'y:read', 'x:write', 'x:request_approval']
+  it('x:read gives x:read_metadata when it is declared', () => {
+    expect(closeScopes(['x:read'], declared).sort()).toEqual(['x:read', 'x:read_metadata'])
+  })
+  it('adds nothing when declared is absent (the grammar has no resource list)', () => {
+    expect(closeScopes(['x:read'])).toEqual(['x:read'])
+    expect(ScopeSet.closed(['x:read']).has({ resource: 'x', action: 'read_metadata' })).toBe(false)
+  })
+  it('adds nothing for a resource that does not declare it, or with an empty declared', () => {
+    expect(closeScopes(['y:read'], declared)).toEqual(['y:read'])
+    expect(closeScopes(['x:read'], [])).toEqual(['x:read'])
+  })
+  it('read_metadata implies nothing: not read, not write, not request_approval', () => {
+    expect(closeScopes(['x:read_metadata'], declared)).toEqual(['x:read_metadata'])
+    const set = ScopeSet.closed(['x:read_metadata'], declared)
+    for (const action of ['read', 'write', 'request_approval'] as const)
+      expect(set.has({ resource: 'x', action })).toBe(false)
+  })
+  it('write => request_approval is unchanged beside it, and write does not give read_metadata', () => {
+    expect(closeScopes(['x:write'], declared).sort()).toEqual(['x:request_approval', 'x:write'])
+    expect(closeScopes(['x:write']).sort()).toEqual(['x:request_approval', 'x:write'])
+  })
+  it('keeps no duplicates', () => {
+    expect(closeScopes(['x:read', 'x:read_metadata', 'x:read'], declared).sort()).toEqual(['x:read', 'x:read_metadata'])
+  })
+  it('an empty input stays empty', () => {
+    expect(closeScopes([], declared)).toEqual([])
+  })
+  it('parse alone does not close', () => {
+    expect(ScopeSet.parse(['x:read']).has({ resource: 'x', action: 'read_metadata' })).toBe(false)
+  })
+})

@@ -1,6 +1,8 @@
 import { sql } from 'kysely'
 import { codecs, defineOperation, readAll, readMaybe, unit, type PreparedOperation } from '@vibase/storage'
 import { toEvent, type FeedEvent } from '../events/feed.js'
+import type { Registry } from '../registry.js'
+import { ScopeSet } from '../scopes.js'
 
 // [[CORE337]] P1, P3: the CRM facts the webhook code needs now that subscriptions live in the control plane. Read-only programs: they run before a control write (an agent's eligibility and scopes, the newest
 // event's id) or beside a control read (agents and events by id). Nothing here writes, and no program reads a `webhook_*` table.
@@ -9,6 +11,10 @@ import { toEvent, type FeedEvent } from '../events/feed.js'
 export const NIL_CURSOR = '00000000-0000-0000-0000-000000000000'
 
 const SCOPE_STRING = /^[a-z][a-z0-9_]*:(read|request_approval|write)$/
+
+/** Red-commit stub ([[API518]]): today's behaviour, unclosed. */
+export const agentScopeSet = (_registry: Registry, stored: readonly string[]): ScopeSet =>
+  ScopeSet.parse(stored.filter((s) => SCOPE_STRING.test(s)))
 
 /** An agent as the webhook code judges it: live (not disabled, not delegated) and the grants it holds, filtered to well-formed scope strings. */
 export interface AgentFacts {

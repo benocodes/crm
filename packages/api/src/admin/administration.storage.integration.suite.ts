@@ -138,6 +138,11 @@ export function engineSuite(engineName: EngineName): void {
           [400, 'unknown_scope', 'unknown scope: zz:read'],
         ],
         [
+          'the metadata scope nothing declares yet (API518)',
+          { name: 'x', scopes: ['messages:read', 'messages:read_metadata'] },
+          [400, 'unknown_scope', 'unknown scope: messages:read_metadata'],
+        ],
+        [
           'a human-only scope',
           { name: 'x', scopes: ['members:read'] },
           [400, 'scope_not_grantable', 'scope not grantable to an agent: members:read'],
