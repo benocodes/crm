@@ -42,13 +42,17 @@ export const messages = withColumnFilters(
         in_reply_to: z.string().nullable(),
         author,
         occurred_at: z.string(),
-        preview: z.string(),
+        preview: z
+          .string()
+          .optional()
+          .describe('The first 200 characters of the body. Present only with messages:read.'),
         version: z.number().int(),
         retracted_at: z.string().nullable(),
-        attachments: z.array(attachment),
+        attachments: z.array(attachment).optional().describe('Attachment metadata. Present only with messages:read.'),
         created_by: z.uuid(),
         created_at: z.string(),
       }),
+      content: { fields: ['preview', 'attachments'], requires: { resource: 'messages', action: 'read' } },
       embed: {
         attachments: {
           table: 'message_attachments',

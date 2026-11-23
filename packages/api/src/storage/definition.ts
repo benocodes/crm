@@ -115,7 +115,13 @@ export type DerivedInput<D extends DerivedMap> = { readonly [F in keyof D]: Deri
  * and each field's output type fits the stored column, or an embed field of the definition whose schema is an array.
  * Anything else maps to `never`, so the call site fails.
  */
-export type RecordShape<T extends Table, S, E extends EmbedMap = {}, D extends DerivedMap = {}> = {
+export type RecordShape<
+  T extends Table,
+  S,
+  E extends EmbedMap = {},
+  D extends DerivedMap = {},
+  F extends string = never,
+> = {
   [K in keyof S]: K extends DerivedKeys<D>
     ? S[K] extends z.ZodType<infer O>
       ? [O] extends [DerivedValue[D[K & keyof D]] | null | undefined]
@@ -124,17 +130,27 @@ export type RecordShape<T extends Table, S, E extends EmbedMap = {}, D extends D
       : never
     : K extends EmbedKeys<E>
       ? S[K] extends z.ZodType<infer O>
-        ? [O] extends [readonly unknown[]]
+        ? [K extends F ? Exclude<O, undefined> : O] extends [readonly unknown[]]
           ? S[K]
           : never
         : never
       : K extends PublicColumn<T>
         ? S[K] extends z.ZodType<infer O>
-          ? [O] extends [RowOf<T>[K]]
+          ? [K extends F ? Exclude<O, undefined> : O] extends [RowOf<T>[K]]
             ? S[K]
             : never
           : never
         : never
+}
+
+/**
+ * The content fields of a record ([[API514]] D5): present only for a caller holding `requires`. A caller below that level gets the record
+ * without these keys (absent, not null) on every output path, through the one projection function (`storage/projection.ts`). The record
+ * schema names each as an optional field.
+ */
+export type ContentDecl<F extends string = string> = {
+  readonly fields: readonly F[]
+  readonly requires: Scope
 }
 
 /**
@@ -210,6 +226,8 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
    * each as an optional field: it is absent for a caller without the field's `requires` scopes.
    */
   readonly derived?: Readonly<Record<string, DerivedDecl>>
+  /** [[API514]] D5: the record's content fields and the scope that reveals them. Absent: the record has no content field (a thread). */
+  readonly content?: ContentDecl
   /**
    * [[CORE133]] D8: the derived fields a list can be sorted by (names from `derived`; stored columns come later). A list that declares them takes
    * `sort` and `order`, pages sorted results with an opaque cursor bound to that sort, and types `after`/`next_cursor` as strings.
@@ -280,14 +298,16 @@ type Output<S extends z.ZodRawShape> = z.output<z.ZodObject<S>> extends infer O 
 /** Validates a definition. The record's shape is checked against the table at the call site (`RecordShape`). */
 export function definePreparedResource<
   T extends Table,
-  S extends z.ZodRawShape & RecordShape<T, S, E, D> & { id: z.ZodType<string> },
+  S extends z.ZodRawShape & RecordShape<T, S, E, D, F> & { id: z.ZodType<string> },
   E extends EmbedMap = {},
   D extends DerivedMap = {},
+  const F extends string = never,
 >(
-  def: Omit<PreparedResource<T, Output<S>>, 'record' | 'embed' | 'derived'> & {
+  def: Omit<PreparedResource<T, Output<S>>, 'record' | 'embed' | 'derived' | 'content'> & {
     readonly record: z.ZodObject<S>
     readonly embed?: EmbedInput<E>
     readonly derived?: DerivedInput<D>
+    readonly content?: ContentDecl<F>
   },
 ): PreparedResource<T, Output<S>> {
   // The ONE reviewed cast of the definition layer: zod's conditional output type cannot be related to `Output<S>`
@@ -335,6 +355,10 @@ export function definePreparedResource<
     for (const f of spec.filters ?? [])
       if (!(f in (full.customFilters ?? {})))
         throw new Error(`derived "${field}" names filter "${f}", which is not a custom filter (${full.name})`)
+  }
+  for (const field of full.content?.fields ?? []) {
+    if (!(field in full.record.shape)) throw new Error(`content "${field}" is not a field of the record (${full.name})`)
+    if (field in (full.derived ?? {})) throw new Error(`content "${field}" is a derived field (${full.name})`)
   }
   const sorts = full.sorts ?? []
   sorts.forEach((field, i) => {

@@ -6391,6 +6391,10 @@
                       "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
                     }
                   ],
+                  "content": {
+                    "fields": ["preview", "attachments"],
+                    "requires": "messages:read"
+                  },
                   "aggregate": null
                 },
                 "columns": [

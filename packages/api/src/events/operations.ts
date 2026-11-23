@@ -5,6 +5,7 @@ import { ApiError } from '../errors.js'
 import { parseInput } from '../resources/define.js'
 import type { Registry, TenantOperation } from '../registry.js'
 import type { PreparedEnv } from '../storage/definition.js'
+import { projectEvent, type Caller } from '../storage/projection.js'
 import { readFeedEvent, readStableFeed, type FeedEvent, type FeedVisibility } from './feed.js'
 
 // [[API6]] D2, D4, D5, D6, D17: the event feed's two operations. Hand-written, tenant kind, D1 only. `events` is not a resource definition: no generic
@@ -69,6 +70,13 @@ export function feedVisibility(registry: Registry, env: Pick<PreparedEnv, 'scope
   return { readable: readable.sort(), ...(edge ? { edge } : {}), ...(owned.length > 0 ? { owned } : {}) }
 }
 
+/**
+ * [[API514]] D11: the event as this caller may see it. `events.list`, `events.get` and the webhook sender each call this on a stored event before
+ * `record` renders it, so a `message.*` event's `before` and `after` are projected by the one function (`storage/projection.ts`); the stored row is never changed.
+ */
+export const eventFor = (registry: Registry, caller: Caller, ev: FeedEvent): FeedEvent =>
+  projectEvent(registry.resources(), caller, ev)
+
 export const record = (organizationId: string, ev: FeedEvent) => ({
   id: ev.id,
   organization_id: organizationId,
@@ -111,7 +119,7 @@ function listOperation(
           const feed = u.decode(rows, f)
           if (feed.status === 'unknown_cursor')
             throw new ApiError(400, 'invalid_cursor', 'after is not the id of an event')
-          const data = feed.events.map((ev) => record(env.organizationId, ev))
+          const data = feed.events.map((ev) => record(env.organizationId, eventFor(registry, env, ev)))
           return { data, next_cursor: feed.has_more ? data[data.length - 1]!.id : null }
         },
       })
@@ -133,7 +141,7 @@ function getOperation(registry: Registry, env: PreparedEnv, rawId: string): Prep
         decode: (rows, f) => {
           const ev = u.decode(rows, f)
           if (ev === null) throw notFound()
-          return record(env.organizationId, ev)
+          return record(env.organizationId, eventFor(registry, env, ev))
         },
       })
     },

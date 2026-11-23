@@ -93,6 +93,12 @@ export const schemaAggregate = z.object({
     ),
 })
 
+// [[API514]] D9, D10: the record fields a caller sees only with a scope (they are absent from the record without it, and a filter or sort on them is refused).
+export const schemaContent = z.object({
+  fields: z.array(z.string()).describe('The record fields that are present only with `requires`.'),
+  requires: z.string().describe('The scope that reveals the fields. Without it they are absent, not null.'),
+})
+
 export const schemaResource = z.object({
   name: z.string(),
   surface: z.enum(['api', 'meta']),
@@ -110,6 +116,9 @@ export const schemaResource = z.object({
     .describe(
       'The filters the list accepts: column filters in record field order, then custom filters in declaration order.',
     ),
+  content: schemaContent
+    .optional()
+    .describe('The record fields hidden from a caller without a scope; absent when the record has none.'),
   aggregate: schemaAggregate
     .nullable()
     .describe('How `<list>.aggregate` aggregates this list, or null when the list has no aggregate operation.'),

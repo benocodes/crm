@@ -5,6 +5,7 @@ import { ApiError } from '../errors.js'
 import { formatScope } from '../scopes.js'
 import { canonicalId } from '../storage/prepare.js'
 import { selectRecord, toRecord } from '../storage/crud.js'
+import { projectRecord } from '../storage/projection.js'
 import type { PreparedEnv, PreparedResource } from '../storage/definition.js'
 import { listItem, orientedEdges, readableTypes, type AssociationListItem } from './operations.js'
 import type { EndpointTypes } from './definition.js'
@@ -58,7 +59,7 @@ export function getWithAssociations<R extends { id: string }>(
           if (!row) throw new ApiError(404, 'not_found', `${def.eventName} not found`)
           const rows = found.all('edges')
           return {
-            ...toRecord(def, row),
+            ...projectRecord(def, env, toRecord(def, row)),
             associations: rows
               .slice(0, EMBEDDED_LIMIT)
               .map((r) =>
