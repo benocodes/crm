@@ -35,7 +35,8 @@ const issuer = await testIssuer(),
       ['user_send_member', clerkUser({ id: 'user_send_member', email: 'member@vibase.test', role: 'member' })],
     ]),
   )
-const mail = new FakeGmail([gmailFixture('plain')], {
+// The fixture's own internalDate is a fixed 2026-10-22; the 30-day backfill window is measured from the real clock, so date the message relative to now (#520).
+const mail = new FakeGmail([gmailFixture('plain', (s) => ({ ...s, internalDate: Date.now() - 86_400_000 }))], {
   profile: { emailAddress: 'owner@vibase.test', historyId: '1000' },
 })
 const logs: string[] = []
