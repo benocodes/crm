@@ -87,6 +87,9 @@ const signInForm = async (page: Page, email: string, password: string) => {
     await page.waitForTimeout(11_000)
     await attempt()
   }
+  // A sign-in lands on /app/home (UI461 D3); /app/sign-in then shows the signed-in view.
+  await page.waitForURL((u) => u.pathname === '/app/home')
+  await visit(page, '/app/sign-in')
 }
 
 test('1. discovery says self_service_reset: true, and /sign-in offers "Forgot password?" instead of the ask-an-owner line', async ({
@@ -109,7 +112,9 @@ test('2. setup: the owner signs up from the bootstrap URL and invites the member
   await owner.page.getByLabel('Email').fill('owner@e2e.test')
   await owner.page.getByLabel('Password').fill(OWNER_PASSWORD)
   await owner.page.getByRole('button', { name: 'Create account' }).click()
-  await owner.page.waitForURL('**/sign-in')
+  // A finished sign-up lands on /app/home (UI461 D3); /app/sign-in then shows the signed-in view.
+  await owner.page.waitForURL((u) => u.pathname === '/app/home')
+  await visit(owner.page, '/app/sign-in')
   await expect(owner.page.getByText('Signed in as owner@e2e.test')).toBeVisible()
   const invited = await owner.page.evaluate(async (email) => {
     const t = (await (await fetch('/auth/token')).json()) as { token: string }
@@ -126,7 +131,8 @@ test('2. setup: the owner signs up from the bootstrap URL and invites the member
   await anon.page.getByLabel('Email').fill(MEMBER)
   await anon.page.getByLabel('Password').fill(OLD)
   await anon.page.getByRole('button', { name: 'Create account' }).click()
-  await anon.page.waitForURL('**/sign-in')
+  await anon.page.waitForURL((u) => u.pathname === '/app/home')
+  await visit(anon.page, '/app/sign-in')
   await expect(anon.page.getByText(`Signed in as ${MEMBER}`)).toBeVisible()
   // sign the first browser out so it is the anonymous one asking for a reset; the second browser keeps a session
   await anon.page.getByRole('button', { name: 'Sign out' }).click()
@@ -152,7 +158,7 @@ test('3. a known address: Forgot password? reveals the form (axe clean), the con
   await expect.poll(async () => (await recorded(request)).length, { timeout: 15_000 }).toBe(1)
   const m = (await recorded(request))[0]!
   expect(m.to).toBe(MEMBER)
-  expect(m.subject).toBe('Reset your Vibase password at localhost:8787')
+  expect(m.subject).toBe(`Reset your Vibase password at ${new URL(BASE).host}`)
 })
 
 test('4. an unknown address gets the same confirmation and no new message', async ({ request }) => {
