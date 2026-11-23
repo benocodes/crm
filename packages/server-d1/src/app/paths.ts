@@ -22,8 +22,7 @@ export const PAGE_TABLE: readonly { readonly path: string; readonly bundle: type
 export const APP_PAGE_PATHS: readonly string[] = PAGE_TABLE.filter((p) => p.bundle === APP_BUNDLE).map((p) => p.path)
 /** The auth bundle's page paths, read from the table. */
 export const AUTH_PAGE_PATHS: readonly string[] = PAGE_TABLE.filter((p) => p.bundle === UI_BUNDLE).map((p) => p.path)
-/** The auth pages the sign-in page links to by name (they are table entries; `paths.test` and `auth-page-urls.test` pin them). */
-export const SIGN_IN_PATH = '/app/sign-in'
+/** The one auth page the sign-in return allow-list honours (a table entry, [[UI510]] P6). */
 export const DEVICE_PATH = '/app/device'
 /** [[UI504]] D3, P4: the static files of both bundles are at `/assets/<bundle>/<file>` and nowhere else. The one prefix every serving module, the build and the config list read. */
 export const ASSET_PREFIX = '/assets'
