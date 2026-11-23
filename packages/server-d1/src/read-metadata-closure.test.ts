@@ -165,15 +165,20 @@ describe('a delegated agent (a DCR client)', () => {
   })
 })
 
-describe('dormant: the real declared scopes (API518 group 5)', () => {
-  it('an OAuth request for messages:read_metadata is dropped like any undeclared scope, from every principal', async () => {
+describe('live: the real declared scopes (API516 group 1)', () => {
+  const LIVE = 'messages:read_metadata'
+  it('a token asking for messages:read_metadata from a principal whose stored scopes hold only messages:read keeps it, on each path', async () => {
     const real = createVibaseRegistry().declaredScopes()
-    expect(real).not.toContain('messages:read_metadata')
+    expect(real).toContain(LIVE)
     const { authenticate } = await setup(SCOPE_POLICY, real)
     profile('user_o', 'owner')
+    await authenticate(await oauth('user_o', DCR, 'messages:read')) // first sight of the delegated agent
+    await setStored({ client: DCR }, ['messages:read'])
+    const delegated = await authenticate(await oauth('user_o', DCR, LIVE))
+    expect(delegated.toStrings()).toEqual([LIVE])
     const asPerson = await authenticate(await oauth('user_o', CLI, 'messages:read messages:read_metadata'))
-    expect(asPerson.toStrings()).toEqual(['messages:read'])
-    const asDelegate = await authenticate(await oauth('user_o', DCR, 'messages:read messages:read_metadata'))
-    expect(asDelegate.toStrings()).toEqual(['messages:read'])
+    expect(asPerson.toStrings()).toEqual(['messages:read', LIVE])
+    const [agent] = await rows('select scopes from agents where auth_client_id = ?', DCR)
+    expect(JSON.parse(agent!.scopes)).toEqual(['messages:read'])
   })
 })

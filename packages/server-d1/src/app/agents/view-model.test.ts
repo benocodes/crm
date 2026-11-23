@@ -64,6 +64,17 @@ describe('permissionsLine (D4)', () => {
       'Permissions: messages (read, propose, write, send)',
     )
   })
+  it('read_metadata is shown as "read metadata", before read, and the line shows stored grants only (API516 P1)', () => {
+    expect(permissionsLine(['messages:read_metadata'])).toBe('Permissions: messages (read metadata)')
+    expect(permissionsLine(['messages:read', 'messages:read_metadata'])).toBe(
+      'Permissions: messages (read metadata, read)',
+    )
+    expect(permissionsLine(['messages:write', 'messages:read', 'messages:read_metadata', 'tasks:read'])).toBe(
+      'Permissions: messages (read metadata, read, write), tasks (read)',
+    )
+    // A stored messages:read alone does not show the metadata scope its closure implies.
+    expect(permissionsLine(['messages:read'])).toBe('Permissions: messages (read)')
+  })
   it('request_approval is shown as propose, never raw', () => {
     const line = permissionsLine(['deals:request_approval'])
     expect(line).toBe('Permissions: deals (propose)')
