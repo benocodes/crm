@@ -446,7 +446,18 @@ export async function checkRelease(
       }
       // [[UI507]] D6, P5, [[UI510]] P4: the old app paths, the old auth paths and `/connect` are ordinary unknown paths: never a page or a redirect. This instance is uninitialised, so the router's gate answers 503 before its 404; the Worker suites pin the 404 on a ready one.
       const old = await Promise.all(
-        ['/connect?x=1', '/connect/connect.js', '/home', '/accounts', '/agents', '/sign-in', '/invite', '/reset-password', '/consent', '/device'].map(async (p) => {
+        [
+          '/connect?x=1',
+          '/connect/connect.js',
+          '/home',
+          '/accounts',
+          '/agents',
+          '/sign-in',
+          '/invite',
+          '/reset-password',
+          '/consent',
+          '/device',
+        ].map(async (p) => {
           const r = await fetch(new URL(p, url), { redirect: 'manual' })
           return { p, status: r.status, location: r.headers.get('location') }
         }),
