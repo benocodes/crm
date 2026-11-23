@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./static-metadata": "./src/static-metadata.ts",
     "./test": "./src/test/index.ts"
   },
   "scripts": {

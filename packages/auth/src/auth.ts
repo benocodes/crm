@@ -9,6 +9,8 @@ import { jwt } from 'better-auth/plugins'
 import { D1Dialect } from 'kysely-d1'
 import { uuidv7 } from '@vibase/storage'
 import { hashPassword, verifyPassword } from './password.js'
+import { AUTH_SCOPES, AUTH_SERVER_METADATA_PATH, DEVICE_GRANT, staticMetadataResponse } from './static-metadata.js'
+export { AUTH_SCOPES, AUTH_SERVER_METADATA_PATH, staticAuthServerMetadata } from './static-metadata.js'
 
 /** What the composition needs beyond the database: both are validated by the Worker's composition before they reach here ([[CORE243]] D6, P2). */
 export interface AuthRuntimeConfig {
@@ -43,7 +45,6 @@ export const resourcesFor = (baseURL: string): [string, string] => [baseURL, `${
 /** Registration policy ([[CORE283]] P6): this many registrations per client IP per window. */
 export const REGISTRATION_LIMIT = { window: 60 * 60, max: 10 } as const
 /** RFC 8414 path insertion for the issuer `<base>/auth` ([[CORE283]] D12): the document Better Auth builds, served where the standard says it is. */
-export const AUTH_SERVER_METADATA_PATH = '/.well-known/oauth-authorization-server/auth'
 
 /** The device user code ([[UI247]] D2): 8 characters from a 32-character alphabet without `I`, `O`, `0` and `1` (40 bits), stored unseparated (the page shows it as `XXXX-XXXX`), valid 30 minutes, polled every 5 seconds. */
 export const DEVICE_USER_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -153,7 +154,6 @@ type ModelKey = keyof typeof MODELS
 export const AUTH_TABLES: readonly string[] = Object.values(MODELS)
 
 /** The OIDC scopes this cycle's clients may ask for. The vault's resource scopes join them with token verification ([[CORE244]]). */
-export const AUTH_SCOPES = ['openid', 'profile', 'email', 'offline_access'] as const
 
 /** The claim that marks a session JWT ([[CORE244]] D8): an OAuth access token cannot carry it (the provider fixes the access-token claims), and the API refuses a JWT without it that is not an access token. */
 export const SESSION_TOKEN_CLAIM = 'vibase_token'
@@ -562,75 +562,6 @@ export interface AuthService {
   issueResetToken(email: string): Promise<{ token: string; expiresAt: Date } | null>
 }
 
-/**
- * The authorization-server metadata, built from config alone (OPS252, hq cutover). The library's own handler runs Better Auth's request machinery, which on a cold isolate made
- * several D1 round trips (3.4 s from a US colo to a European database) and overran the 5 s budget of Claude web's connector check, so Claude never reached registration. This
- * document needs no database. It equals what the library emits for this composition with `shapeMetadata` applied (the discovery test compares them), so a library upgrade that
- * changes the document fails that test instead of drifting.
- */
-export function staticAuthServerMetadata(baseURL: string, vaultScopes: readonly string[]): Record<string, unknown> {
-  const issuer = `${baseURL}/auth`
-  const publicMethods = ['client_secret_basic', 'client_secret_post']
-  return {
-    scopes_supported: [...AUTH_SCOPES, ...vaultScopes],
-    issuer,
-    authorization_endpoint: `${issuer}/oauth2/authorize`,
-    token_endpoint: `${issuer}/oauth2/token`,
-    jwks_uri: `${issuer}/jwks`,
-    registration_endpoint: `${issuer}/oauth2/register`,
-    introspection_endpoint: `${issuer}/oauth2/introspect`,
-    revocation_endpoint: `${issuer}/oauth2/revoke`,
-    response_types_supported: ['code'],
-    response_modes_supported: ['query'],
-    grant_types_supported: ['authorization_code', 'client_credentials', 'refresh_token', DEVICE_GRANT],
-    token_endpoint_auth_methods_supported: ['none', ...publicMethods],
-    introspection_endpoint_auth_methods_supported: publicMethods,
-    revocation_endpoint_auth_methods_supported: publicMethods,
-    code_challenge_methods_supported: ['S256'],
-    authorization_response_iss_parameter_supported: true,
-    dpop_signing_alg_values_supported: ['EdDSA', 'ES256', 'ES512', 'PS256', 'RS256'],
-    backchannel_logout_supported: true,
-    backchannel_logout_session_supported: true,
-    claims_supported: [
-      'sub',
-      'iss',
-      'aud',
-      'exp',
-      'iat',
-      'sid',
-      'scope',
-      'azp',
-      'name',
-      'picture',
-      'given_name',
-      'family_name',
-      'email',
-      'email_verified',
-    ],
-    claims_parameter_supported: true,
-    userinfo_endpoint: `${issuer}/oauth2/userinfo`,
-    subject_types_supported: ['public'],
-    acr_values_supported: ['0'],
-    id_token_signing_alg_values_supported: ['EdDSA'],
-    end_session_endpoint: `${issuer}/oauth2/end-session`,
-    request_parameter_supported: false,
-    request_uri_parameter_supported: false,
-    prompt_values_supported: ['login', 'consent', 'create', 'select_account', 'none'],
-    device_authorization_endpoint: `${issuer}/device/code`,
-  }
-}
-
-function staticMetadataResponse(baseURL: string, vaultScopes: readonly string[]): Response {
-  return new Response(JSON.stringify(staticAuthServerMetadata(baseURL, vaultScopes)), {
-    status: 200,
-    headers: {
-      'content-type': 'application/json',
-      'access-control-allow-origin': '*',
-      'cache-control': 'public, max-age=15, stale-while-revalidate=15, stale-if-error=86400',
-    },
-  })
-}
-
 /** The built-in provider for the Worker: build once per isolate; it holds the library's own caches. */
 export function createAuth(db: AuthDatabaseLike, config: AuthRuntimeConfig, opts: CreateAuthOptions = {}): AuthService {
   const captures: ResetCaptures = opts.resetCaptures ?? new Map()
@@ -688,7 +619,6 @@ export function createAuthHandler(
 
 /** The first-party CLI's fixed client id ([[CORE243]] D10). */
 export const CLI_CLIENT_ID = 'vibase-cli'
-const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
 
 /**
  * Seeds the first-party CLI client and the two resource rows it links to ([[CORE283]] D10, P5), through Better Auth's own adapter so the stored shapes are the library's.
