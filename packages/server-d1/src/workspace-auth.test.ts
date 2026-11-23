@@ -281,19 +281,19 @@ describe('CLERK_AUTHORIZED_PARTIES is optional on D1 (D8)', () => {
 })
 
 describe('composition (D24)', () => {
-  it('composes with AUTH_PROVIDER=clerk and no CLERK_WEBHOOK_SECRET, and /webhooks/clerk is 404', async () => {
+  it('composes with AUTH_PROVIDER=clerk and no CLERK_WEBHOOK_SECRET, and /inbound/clerk is 404', async () => {
     await initWorkspace()
     profile('user_a')
     const wk = worker()
     expect((await call(wk, 'GET', '/meta/v1/me', await token('user_a', { vibase_role: 'owner' }))).status).toBe(200)
-    const hook = await wk.fetch(new Request(BASE + '/webhooks/clerk', { method: 'POST', body: '{}' }))
+    const hook = await wk.fetch(new Request(BASE + '/inbound/clerk', { method: 'POST', body: '{}' }))
     expect(hook.status).toBe(404)
   })
 
-  it('a webhook secret that is set is not read: /webhooks/clerk stays 404', async () => {
+  it('a webhook secret that is set is not read: /inbound/clerk stays 404', async () => {
     await initWorkspace()
     const hook = await worker({ CLERK_WEBHOOK_SECRET: 'not-a-whsec' }).fetch(
-      new Request(BASE + '/webhooks/clerk', { method: 'POST', body: '{}' }),
+      new Request(BASE + '/inbound/clerk', { method: 'POST', body: '{}' }),
     )
     expect(hook.status).toBe(404)
   })

@@ -105,7 +105,7 @@ test('2. Connect Gmail navigates to Google (intercepted) with the configured cli
   const u = new URL(page.url())
   expect(`${u.origin}${u.pathname}`).toBe('https://accounts.google.com/o/oauth2/v2/auth')
   expect(u.searchParams.get('client_id')).toBe(CLIENT_ID)
-  expect(u.searchParams.get('redirect_uri')).toBe(`${BASE}/oauth/google/callback`)
+  expect(u.searchParams.get('redirect_uri')).toBe(`${BASE}/oauth/callback/google`)
   state = u.searchParams.get('state') ?? ''
   expect(state.length).toBeGreaterThan(10)
   await page.unroute('https://accounts.google.com/**')
@@ -113,7 +113,7 @@ test('2. Connect Gmail navigates to Google (intercepted) with the configured cli
 
 test('3. Google cancel (simulated): the callback returns to /accounts with consent_denied, shown once and removed from the address bar', async () => {
   const res = await page.request.get(
-    `${BASE}/oauth/google/callback?error=access_denied&state=${encodeURIComponent(state)}`,
+    `${BASE}/oauth/callback/google?error=access_denied&state=${encodeURIComponent(state)}`,
     {
       maxRedirects: 0,
     },
@@ -122,7 +122,7 @@ test('3. Google cancel (simulated): the callback returns to /accounts with conse
   expect(res.headers()['location']).toBe(`${BASE}/accounts?error=consent_denied`)
   expect(res.headers()['cache-control']).toBe('no-store')
   expect(res.headers()['referrer-policy']).toBe('no-referrer')
-  await visit(`${BASE}/oauth/google/callback?error=access_denied&state=${encodeURIComponent(state)}`)
+  await visit(`${BASE}/oauth/callback/google?error=access_denied&state=${encodeURIComponent(state)}`)
   await page.waitForURL((u) => u.pathname === '/accounts')
   const alert = page.getByRole('alert')
   await expect(alert).toContainText('The connection was cancelled at Google. Nothing was connected.')
@@ -135,7 +135,7 @@ test('3. Google cancel (simulated): the callback returns to /accounts with conse
 })
 
 test('4. the callback with no state returns to /accounts?error=state_invalid', async () => {
-  const res = await page.request.get(`${BASE}/oauth/google/callback`, { maxRedirects: 0 })
+  const res = await page.request.get(`${BASE}/oauth/callback/google`, { maxRedirects: 0 })
   expect(res.status()).toBe(302)
   expect(res.headers()['location']).toBe(`${BASE}/accounts?error=state_invalid`)
 })

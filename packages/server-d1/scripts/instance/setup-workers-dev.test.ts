@@ -393,7 +393,7 @@ describe('5. --change-host (D14, P5)', () => {
     const out = s.w.out.join('\n')
     for (const n of CONSEQUENCES) expect(out, n).toContain(n)
     expect(out).toContain(`${BASE}/auth/callback/google`)
-    expect(out).not.toContain('/oauth/google/callback')
+    expect(out).not.toContain('/oauth/callback/google')
     // the re-run with --api-host alone is a plain re-run
     s.w.out.length = 0
     s.w.wrangler.length = 0
@@ -406,7 +406,7 @@ describe('5. --change-host (D14, P5)', () => {
     const s = recordedWorld(RECORD_WD, { secretsText: gmail() })
     expect(await run(s, [...CHANGE, ...ONLY]), s.w.all()).toBe(0)
     const out = s.w.out.join('\n')
-    expect(out).toContain(`${BASE}/oauth/google/callback`)
+    expect(out).toContain(`${BASE}/oauth/callback/google`)
     expect(out).not.toContain('/auth/callback/google')
   })
   it('a missing zone for the new host is refused before any write', async () => {

@@ -130,7 +130,7 @@ describe('the behind gate (D4)', () => {
     for (const [method, path] of [
       ['GET', '/api/v1/tasks'],
       ['POST', '/api/v1/tasks'],
-      ['POST', '/webhooks/clerk'],
+      ['POST', '/inbound/clerk'],
     ] as const) {
       const res = await worker.fetch(
         new Request(BASE + path, {

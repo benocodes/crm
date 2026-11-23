@@ -64,7 +64,7 @@ export function mountGoldenWebhook(
   clerk: GoldenClerkKit,
   deps: { clock: () => Date; newId: () => string },
 ): void {
-  app.post('/webhooks/clerk', clerkWebhookHandler(clerk.adapter, deps))
+  app.post('/inbound/clerk', clerkWebhookHandler(clerk.adapter, deps))
 }
 
 let delivery = 0

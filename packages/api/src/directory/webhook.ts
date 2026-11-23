@@ -39,3 +39,6 @@ export function clerkWebhookHandler(
     return c.json({ received: true }, 200)
   }
 }
+
+/** The path Clerk's webhook is mounted at ([[API503]] D1): one constant, mounted by `createApp`. */
+export const CLERK_WEBHOOK_PATH = '/webhooks/clerk'

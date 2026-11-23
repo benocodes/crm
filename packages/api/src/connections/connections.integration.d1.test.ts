@@ -356,7 +356,7 @@ describe('Postgres compiles only (D29): the connection operations and the callba
         'not_implemented',
       ])
     }
-    const cb = await pg.request('https://vibase.test/oauth/google/callback?code=x&state=y')
+    const cb = await pg.request('https://vibase.test/oauth/callback/google?code=x&state=y')
     expect(cb.status).toBe(501)
   })
 })

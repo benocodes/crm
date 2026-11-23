@@ -148,14 +148,14 @@ async function check(
   return json
 }
 
-/** A Svix-signed delivery to /webhooks/clerk. */
+/** A Svix-signed delivery to /inbound/clerk. */
 async function deliver(type: string, data: unknown, opts: { secret?: string; id?: string } = {}): Promise<Response> {
   const body = JSON.stringify({ data, object: 'event', type, timestamp: Date.now() })
   const id = opts.id ?? `msg_${randomBytes(8).toString('hex')}`
   const ts = String(Math.floor(Date.now() / 1000))
   const key = Buffer.from((opts.secret ?? webhookSecret).replace(/^whsec_/, ''), 'base64')
   const sig = createHmac('sha256', key).update(`${id}.${ts}.${body}`).digest('base64')
-  return fetch(`${base}/webhooks/clerk`, {
+  return fetch(`${base}/inbound/clerk`, {
     method: 'POST',
     headers: { 'svix-id': id, 'svix-timestamp': ts, 'svix-signature': `v1,${sig}`, 'content-type': 'application/json' },
     body,

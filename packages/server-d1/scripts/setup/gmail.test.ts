@@ -237,6 +237,13 @@ describe('validation: each rule refuses its bad case, by variable name, before a
       for (const s of [...Object.values(override), ...SENTINELS]) expect(w.logs.join('\n')).not.toContain(s)
     })
 
+  it('a PUBLIC_BASE_URL refusal names the push endpoint as <it>/inbound/gmail (API503 D2)', async () => {
+    const { w } = setup({ ...FULL, PUBLIC_BASE_URL: '/sentinel/path' })
+    const o = await runSetup(ARGS.none, CONFIRM, w.deps)
+    expect(o.exitCode).toBe(1)
+    expect(w.logs.join('\n')).toContain('the endpoint is <it>/inbound/gmail')
+  })
+
   it('a 32-byte key is accepted (and the neighbours 31 and 33 above are not)', async () => {
     const { w } = setup(FULL)
     const o = await runSetup([...NONE, ...STEPS_ONLY, '--dry-run'], {}, w.deps)

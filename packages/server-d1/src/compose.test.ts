@@ -71,7 +71,7 @@ describe('before the deployment is initialised (D2, D3, D4)', () => {
     ['GET /api/v1/tasks with a key-shaped bearer', 'GET', '/api/v1/tasks', { authorization: 'Bearer vk_anything' }],
     ['GET /api/v1/tasks with a JWT-shaped bearer', 'GET', '/api/v1/tasks', { authorization: 'Bearer a.b.c' }],
     ['GET /api/v1/tasks with no credentials', 'GET', '/api/v1/tasks', {}],
-    ['POST /webhooks/clerk', 'POST', '/webhooks/clerk', {}],
+    ['POST /inbound/clerk', 'POST', '/inbound/clerk', {}],
   ])('%s is 503 not_initialised and no unit runs', async (_n, method, path, headers) => {
     const spy = spyD1(w.d1)
     const worker = composeD1Worker({ ...withClerk(), DB: spy.d1 }, { fetch: kit.fetch })

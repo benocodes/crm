@@ -102,7 +102,7 @@ export async function openAuthKit(e: Engine, opts: { now?: Date; binding?: Stora
         if (value === undefined) delete headers[name]
         else headers[name] = value
       }
-      return app.request('/webhooks/clerk', { method: 'POST', headers, body: signed.body })
+      return app.request('/inbound/clerk', { method: 'POST', headers, body: signed.body })
     },
     profile(sub, o = {}) {
       const email = o.email === undefined ? `${sub}@x.test` : o.email

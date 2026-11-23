@@ -31,7 +31,7 @@ export const GOLDEN_EXPIRED_KEY = 'vk_golden-agent-key-0002-expired-at-seed'
 /**
  * Who sends a step. `user` and `agent` are injected principals (the alg:none stand-in token); `agent-key` and `expired-key` present the
  * seeded API keys; `{ clerk }` is a real Clerk-signed token for that subject (with an optional organisation claim); `webhook` is a
- * Svix-signed delivery of the step's `body` to `POST /webhooks/clerk` (CORE41 P15).
+ * Svix-signed delivery of the step's `body` to `POST /inbound/clerk` (CORE41 P15).
  */
 export type GoldenActor =
   | 'user'
@@ -1081,14 +1081,14 @@ export const directoryScenarios: readonly GoldenScenario[] = [
         as: 'webhook',
         at: at(1),
         method: 'POST',
-        path: '/webhooks/clerk',
+        path: '/inbound/clerk',
         body: MEMBERSHIP_DELIVERY('organizationMembership.updated', GOLDEN_ORG_LINK, 'user_golden_added'),
       },
       {
         as: 'webhook',
         at: at(2),
         method: 'POST',
-        path: '/webhooks/clerk',
+        path: '/inbound/clerk',
         body: MEMBERSHIP_DELIVERY('organizationMembership.updated', GOLDEN_ORG_LINK, 'user_golden_added'),
       },
       { as: 'user', at: at(3), method: 'GET', path: '/meta/v1/memberships' },
@@ -1115,7 +1115,7 @@ export const directoryScenarios: readonly GoldenScenario[] = [
         as: 'webhook',
         at: at(0),
         method: 'POST',
-        path: '/webhooks/clerk',
+        path: '/inbound/clerk',
         body: DELIVERY('organization.updated', { id: GOLDEN_ORG_LINK }),
       },
     ],
@@ -1140,7 +1140,7 @@ export const directoryScenarios: readonly GoldenScenario[] = [
         as: 'webhook',
         at: at(0),
         method: 'POST',
-        path: '/webhooks/clerk',
+        path: '/inbound/clerk',
         body: DELIVERY('user.updated', { id: GOLDEN_SUBJECTS.user }),
       },
       { as: 'user', at: at(1), method: 'GET', path: `/meta/v1/users/${IDS.user}` },
@@ -1148,7 +1148,7 @@ export const directoryScenarios: readonly GoldenScenario[] = [
         as: 'webhook',
         at: at(2),
         method: 'POST',
-        path: '/webhooks/clerk',
+        path: '/inbound/clerk',
         body: DELIVERY('user.updated', { id: 'user_golden_nobody' }),
       },
     ],

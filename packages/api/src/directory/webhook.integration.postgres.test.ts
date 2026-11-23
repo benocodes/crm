@@ -30,7 +30,7 @@ const addB = (t: { externalId: string }) => {
     .push(clerkMembership({ organizationId: t.externalId, userId: 'b', role: 'org:member' }))
 }
 
-describe('POST /webhooks/clerk', () => {
+describe('POST /inbound/clerk', () => {
   it('reconciles on a membership change', async () => {
     const t = await k.seedOrg()
     addB(t)
@@ -130,7 +130,7 @@ describe('POST /webhooks/clerk', () => {
 
   it('does not exist without an adapter', async () => {
     const app = createApp({ userAuthenticator: fakeUserAuthenticator(), storage: pgStorage(k.db) })
-    const res = await app.request('/webhooks/clerk', { method: 'POST', body: '{}' })
+    const res = await app.request('/inbound/clerk', { method: 'POST', body: '{}' })
     expect(res.status).toBe(404)
     expect((await res.json()).error.code).toBe('not_found')
   })

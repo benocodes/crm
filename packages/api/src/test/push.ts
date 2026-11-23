@@ -9,7 +9,7 @@ export const PUSH: PushConfig = {
   subscription: 'projects/vb-p/subscriptions/gmail.push',
   serviceAccount: 'gmail-push@vb-p.iam.gserviceaccount.com',
   publicBaseUrl: 'https://vibase.test',
-  audience: 'https://vibase.test/gmail/push',
+  audience: 'https://vibase.test/inbound/gmail',
 }
 
 export interface PushKey {

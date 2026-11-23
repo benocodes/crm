@@ -382,7 +382,7 @@ describe('organisation claim', () => {
       // Clerk dropped the member; the delivery reconciles the copy.
       adapterKit.members.set(A.ext, [])
       const signed = signClerkWebhook(clerkWebhook('organizationMembership.deleted', { organization: { id: A.ext } }))
-      const res = await app.request('/webhooks/clerk', { method: 'POST', headers: signed.headers, body: signed.body })
+      const res = await app.request('/inbound/clerk', { method: 'POST', headers: signed.headers, body: signed.body })
       expect(res.status).toBe(200)
     }
 
@@ -405,7 +405,7 @@ describe('organisation claim', () => {
       await linkedUser('u1', [{ id: A.id, role: 'owner' }])
       adapterKit.members.set(A.ext, [clerkMembership({ organizationId: A.ext, userId: 'u1', role: 'org:member' })])
       const signed = signClerkWebhook(clerkWebhook('organizationMembership.updated', { organization: { id: A.ext } }))
-      await app.request('/webhooks/clerk', { method: 'POST', headers: signed.headers, body: signed.body })
+      await app.request('/inbound/clerk', { method: 'POST', headers: signed.headers, body: signed.body })
       const before = await eventTypes()
       const res = await call('/meta/v1/agents', 'u1', {
         method: 'POST',

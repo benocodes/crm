@@ -202,7 +202,7 @@ export const SYNTHETIC: Synthetic[] = [
         code: '4/0Asynthetic-code',
         client_id: 'synthetic.apps.test',
         client_secret: 'synthetic-secret',
-        redirect_uri: 'https://api.test/oauth/google/callback',
+        redirect_uri: 'https://api.test/oauth/callback/google',
         code_verifier: 'synthetic-verifier',
       }),
     },

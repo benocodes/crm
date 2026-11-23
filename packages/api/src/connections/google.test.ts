@@ -15,7 +15,7 @@ import {
 import { pkceChallenge, pkceVerifier } from './state.js'
 
 // CHN140 D1, D9, D57: the authorize URL, the code exchange and the ID token check, against a fake Google that mints real signed tokens.
-const REDIRECT = 'https://api.example.test/oauth/google/callback'
+const REDIRECT = 'https://api.example.test/oauth/callback/google'
 const ACCOUNT = { sub: 'sub-1', email: 'ann@example.test' }
 let google: FakeGoogle
 beforeAll(async () => {

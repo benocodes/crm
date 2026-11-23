@@ -235,7 +235,7 @@ describe('connect, happy path (one unit, acting as the user)', () => {
 
   it('the authorize URL carries the redirect URI of PUBLIC_BASE_URL, or the request origin when it is unset', async () => {
     const { authorize_url, expires_at } = await authorize()
-    expect(new URL(authorize_url).searchParams.get('redirect_uri')).toBe('https://vibase.test/oauth/google/callback')
+    expect(new URL(authorize_url).searchParams.get('redirect_uri')).toBe('https://vibase.test/oauth/callback/google')
     expect(expires_at).toBe(new Date(now.getTime() + 10 * 60_000).toISOString())
     const local = buildApp({ ...ENV, PUBLIC_BASE_URL: undefined })
     const res = await local.request('http://localhost:8787/meta/v1/connections/authorize', {
@@ -249,7 +249,7 @@ describe('connect, happy path (one unit, acting as the user)', () => {
     const authBody = (await res.json()) as { authorize_url: string }
     expect(res.status, JSON.stringify(authBody)).toBe(200)
     const url = new URL(authBody.authorize_url)
-    expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:8787/oauth/google/callback')
+    expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:8787/oauth/callback/google')
     // And the callback of the same origin completes the flow (the redirect URI must match at the token endpoint).
     const back = new URL(await google.consent(url.toString(), ANN))
     expect((await local.request(back.toString())).status).toBe(200)
@@ -670,7 +670,7 @@ describe('config gate (D58)', () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
       const partial = { ...ENV, [name]: undefined }
       const gated = buildApp(partial)
-      const cb = await gated.request(`${BASE}/oauth/google/callback?code=x&state=y`)
+      const cb = await gated.request(`${BASE}/oauth/callback/google?code=x&state=y`)
       expect(cb.status).toBe(404)
       const auth = await api('POST', '/meta/v1/connections/authorize', { app: gated, body: { provider: 'google' } })
       expect(auth.status).toBe(501)
@@ -686,7 +686,7 @@ describe('config gate (D58)', () => {
 
   it('a key that does not decode to 32 bytes gates the surface too', async () => {
     const gated = buildApp({ ...ENV, CREDENTIALS_KEY: Buffer.alloc(16).toString('base64') })
-    expect((await gated.request(`${BASE}/oauth/google/callback`)).status).toBe(404)
+    expect((await gated.request(`${BASE}/oauth/callback/google`)).status).toBe(404)
     expect(
       (await api('POST', '/meta/v1/connections/authorize', { app: gated, body: { provider: 'google' } })).status,
     ).toBe(501)
