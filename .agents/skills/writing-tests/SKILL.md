@@ -448,6 +448,8 @@ One program, two engines: the same assertions run on Postgres and D1.
     lines ([[CORE25]]). `schema.json` records the whole `GET /meta/v1/schema` document ([[CORE187]]), so any migration,
     catalog text, registered resource, sort or stated sort cost regenerates it. Operation descriptions are not in any
     golden (the fixtures are scenario transcripts), so a description-only change regenerates nothing ([[CHN423]] 423.11).
+    The OpenAPI record schemas are in no golden either. A record-schema change (a field made optional) regenerates
+    `schema.json` only if the schema document itself changes ([[API514]]).
     Before claiming "golden unchanged",
     check for such derived values. Until #323 is fixed, `golden:check` fails on a clean `main` (committed fixtures are
     Biome-formatted, the generator's output is not): judge drift by `golden:generate`, then `pnpm format`, then
@@ -456,6 +458,10 @@ One program, two engines: the same assertions run on Postgres and D1.
     event-type map after CORE347) is proven through a test-only registration on the test kit's registry, plus one
     assertion against the real registry that no production entry uses it, so a later caller is a deliberate choice
     (`packages/api/src/events/owner-predicate.integration.d1.test.ts`).
+  - A **caller below a level no scope grants yet** can be tested on the real paths. Raise the real definition's reveal
+    scope inside the test (for example to `messages:write`) and restore it in `afterEach`. A caller with the read scope
+    but not the raised one is then below the level, and no production file needs a test hook
+    (`packages/api/src/storage/content-projection.integration.d1.test.ts`, [[API514]] 514.24).
   - A **no-caller test** (a dormant cycle's "no non-test module calls X") matches a use, never the bare name: an import
     specifier or a call (`/\bX\s*\(/`, `/import[^;]*\bX\b/`), or the sources with comments stripped. A substring grep is
     turned red by a comment naming X, and the only fix that keeps it green is rewording the comment ([[CHN428]]: a header

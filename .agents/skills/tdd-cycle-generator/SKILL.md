@@ -79,6 +79,12 @@ A dormant cycle usually proves "nothing calls this yet" with a test (a grep for 
 charter names it under "In this cycle" as a deletion, with the dormant cycle's review notes carried into its Watch
 out, so the coder does not "fix" the wiring to keep it green.
 
+A change that lowers a read requirement (a narrower scope reads what a wider one did) is cut as "mechanism first, then
+the switch". The first cycle ships the redaction, wired into every output path and proven through a test seam. The
+second cycle lowers the requirement, and in the same cycle it widens every place that checks or parses scopes. Then
+`main` never leaks unredacted data, and never drops delivery to holders of the old scope. Grep every scope-grammar copy
+at plan time: [[API514]]'s spec listed five copies and missed a sixth, the dispatch filter in `webhooks/crm-reads.ts`.
+
 #### Size budget
 
 Count these before you write the charter, and put the counts in its **Size** line:
@@ -403,6 +409,12 @@ gate green first time. The budget holds for a path move cut by bundle: a rider c
 accurate to 5%, and planner rules that fixed every answer under the new prefix (P4) left the coder harness choices only.
 The one charter miss was an answer stated for the wrong phase: `release:check` runs on an uninitialised instance (`503`,
 not `404`; `writing-tests`, smoke scripts).
+**API514** cycle 1 (`knowledge/specs/031-API514-scope-messages-read-metadata/RETRO.md`): 5 groups (1 matrix: output path
+× caller), 6 decisions, no migration, no E2E, dormant. +157 code / +428 test lines, 15 files. The gate passed first
+time and review approved round 1 with no findings; coder cost was not measured. The budget holds for a 13-decision spec
+split at plan time. One path was covered only after green: the keyset-sorted list decode, a second decode in the same file. A charter
+that names "list" should say "both list decodes". Charter riders that guess at a golden's contents ("record schema optionality") or at an architecture's shape
+("payload builder") are better phrased as "where it lands".
 
 ### Step 3: Resolve identities
 

@@ -656,6 +656,21 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   `cross join` and assert the exact index lines of `EXPLAIN QUERY PLAN`, not just "SEARCH" (plain joins let SQLite start
   from the wide table, still a SEARCH, [[CORE131]] Decision 7). A derived field may share its name with a custom filter
   only when it lists that filter in its own `filters` (`deals.status`, [[CORE130]]); any other clash is a load-time throw.
+- **Content fields** ([[API514]], `content: { fields, requires }` on a definition; `messages` declares `preview` and
+  `attachments`, revealed by `messages:read`): stored columns a caller below `requires` must not see. They are absent,
+  not null, from every output, and the record schema marks them optional. The one projection point is
+  `src/storage/projection.ts` (`projectRecord`, `projectEvent`). Nothing else strips the keys. Today it has six callers:
+  - list, both the plain and the keyset-sorted decode in `storage/crud.ts`;
+  - get;
+  - `getWithAssociations` in `associations/embed.ts`;
+  - `events.list` and `events.get` (`eventFor` in `events/operations.ts`);
+  - the webhook payload in `webhooks/sender.ts`, against the agent's stored scopes.
+
+  Any new path that renders such a record, or decodes an event's `before`/`after`, calls it. It needs its own case in
+  `content-projection.integration.d1.test.ts`, with an absence mutation. Stored events stay whole: projection happens
+  at read time. A filter key or sort field that is a content field goes through `checkContentScope` before any query,
+  which answers `403 insufficient_scope` naming `requires`. Schema discovery shows the declaration as a resource-level
+  `content` key.
 - **Sorting by a derived field** ([[CORE133]], `sorts: [...]` on a definition, cursor codec in `src/resources/sort-cursor.ts`,
   keyset in `src/storage/crud.ts` `afterPosition`). Only a list that declares `sorts` gets `sort` and `order`. On every
   other list, both stay unknown filters with the same message as before. A `sorts` name must be a non-boolean derived field
