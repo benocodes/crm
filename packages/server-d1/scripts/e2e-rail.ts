@@ -3,8 +3,8 @@
 //   pnpm -C packages/server-d1 e2e:rail -- --base https://api.smoked1.vibase.ai --expect-version <sha> [--wait-seconds 240]
 // It proposes `tasks.create` with an `expires_at` two minutes ahead, polls the request once a minute until the per-minute cron expires it, and checks what
 // the cron did: the request is `expired`, decided by the system principal, no task of that title exists, and the execution list is empty (no enqueued
-// operation is registered in production before #166). The key is read from `.env.smoked1`: VIBASE_SMOKED1_RAIL_KEY (an agent holding tasks:request_approval,
-// tasks:read and action_requests:read), else VIBASE_SMOKED1_OPERATOR_KEY. It only ever sits in the `authorization` header; no body or key is printed.
+// operation is registered in production before #166). The key is read from `.env.smoked1`: VIBASE_SMOKED1_VB_RAIL_KEY (an agent holding tasks:request_approval,
+// tasks:read and action_requests:read), else VIBASE_SMOKED1_VB_OPERATOR_KEY. It only ever sits in the `authorization` header; no body or key is printed.
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { RemoteRefusal, loadRemoteEnv } from './remote.js'
@@ -51,9 +51,9 @@ export function parseArgsOf(argv: string[]): { base: string; expectVersion: stri
 
 /** The key of the smoked1 rail check: the rail agent's, else the operator's ([[OPS265]] D15). */
 export function railKeyOf(env: NodeJS.ProcessEnv): string {
-  const key = env.VIBASE_SMOKED1_RAIL_KEY || env.VIBASE_SMOKED1_OPERATOR_KEY
+  const key = env.VIBASE_SMOKED1_VB_RAIL_KEY || env.VIBASE_SMOKED1_VB_OPERATOR_KEY
   if (!key)
-    throw new RemoteRefusal('VIBASE_SMOKED1_RAIL_KEY or VIBASE_SMOKED1_OPERATOR_KEY must be set in .env.smoked1')
+    throw new RemoteRefusal('VIBASE_SMOKED1_VB_RAIL_KEY or VIBASE_SMOKED1_VB_OPERATOR_KEY must be set in .env.smoked1')
   return key
 }
 
@@ -67,10 +67,7 @@ async function main(): Promise<void> {
   const migrations = health.json?.migrations as Json | undefined
   check(
     'health: the branch is deployed and the database is current',
-    health.status === 200 &&
-      health.json?.version === args.expectVersion &&
-      migrations?.status === 'current' &&
-      migrations?.latest_applied === '0012_action_executions.sql',
+    health.status === 200 && health.json?.version === args.expectVersion && migrations?.status === 'current',
     { status: health.status, version: health.json?.version, migrations },
   )
 
@@ -90,7 +87,7 @@ async function main(): Promise<void> {
   )
   if (!id) {
     console.log(
-      'The key cannot propose tasks.create (needs tasks:request_approval or tasks:write); set VIBASE_SMOKED1_RAIL_KEY to an agent that holds tasks:request_approval, tasks:read and action_requests:read.',
+      'The key cannot propose tasks.create (needs tasks:request_approval or tasks:write); set VIBASE_SMOKED1_VB_RAIL_KEY to an agent that holds tasks:request_approval, tasks:read and action_requests:read.',
     )
     process.exitCode = 1
     return

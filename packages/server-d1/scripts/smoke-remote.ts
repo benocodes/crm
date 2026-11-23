@@ -1,6 +1,6 @@
 // Smoke of a deployed instance ([[OPS4]] C9):
 //   pnpm -C packages/server-d1 smoke:remote -- --base <url> --phase before|after --expect-version <sha>
-// Phase `after` reads the operator key from VIBASE_SMOKED1_OPERATOR_KEY (.env.smoked1); the key is only ever placed in the
+// Phase `after` reads the operator key from VIBASE_SMOKED1_VB_OPERATOR_KEY (.env.smoked1); the key is only ever placed in the
 // `authorization` header and failure details print a status and an error code, never a header or a body.
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
@@ -164,8 +164,8 @@ async function after(base: string, version: string, key: string): Promise<void> 
 
 /** The operator key of the smoked1 instance, from the environment ([[OPS265]] D15). */
 export function operatorKeyOf(env: NodeJS.ProcessEnv): string {
-  const key = env.VIBASE_SMOKED1_OPERATOR_KEY
-  if (!key) throw new RemoteRefusal('VIBASE_SMOKED1_OPERATOR_KEY must be set in .env.smoked1 for --phase after')
+  const key = env.VIBASE_SMOKED1_VB_OPERATOR_KEY
+  if (!key) throw new RemoteRefusal('VIBASE_SMOKED1_VB_OPERATOR_KEY must be set in .env.smoked1 for --phase after')
   return key
 }
 

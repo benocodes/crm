@@ -185,7 +185,7 @@ describe('loadRemoteEnv (C3, #380)', () => {
     return `${dir}/`
   }
   const clear = () => {
-    for (const k of [...CF, 'VIBASE_SMOKED1_OPERATOR_KEY']) delete process.env[k]
+    for (const k of [...CF, 'VIBASE_SMOKED1_VB_OPERATOR_KEY']) delete process.env[k]
   }
 
   it('refuses without credentials, names the file it looked in and leaks no value', () => {
@@ -206,13 +206,14 @@ describe('loadRemoteEnv (C3, #380)', () => {
     clear()
     const root = repo({
       '.env.smoked1':
-        'CLOUDFLARE_ACCOUNT_ID=fake-acct\nCLOUDFLARE_API_TOKEN=fake-token\nVIBASE_SMOKED1_OPERATOR_KEY=fake-op\n',
-      '.env': 'CLOUDFLARE_ACCOUNT_ID=root-acct\nCLOUDFLARE_API_TOKEN=root-token\nVIBASE_SMOKED1_OPERATOR_KEY=root-op\n',
+        'CLOUDFLARE_ACCOUNT_ID=fake-acct\nCLOUDFLARE_API_TOKEN=fake-token\nVIBASE_SMOKED1_VB_OPERATOR_KEY=fake-op\n',
+      '.env':
+        'CLOUDFLARE_ACCOUNT_ID=root-acct\nCLOUDFLARE_API_TOKEN=root-token\nVIBASE_SMOKED1_VB_OPERATOR_KEY=root-op\n',
     })
     loadRemoteEnv('smoked1', root)
     expect(process.env.CLOUDFLARE_ACCOUNT_ID).toBe('fake-acct')
     expect(process.env.CLOUDFLARE_API_TOKEN).toBe('fake-token')
-    expect(process.env.VIBASE_SMOKED1_OPERATOR_KEY).toBe('fake-op')
+    expect(process.env.VIBASE_SMOKED1_VB_OPERATOR_KEY).toBe('fake-op')
   })
 
   it('smoked1 with only a root .env refuses: the root file is not a fallback', () => {

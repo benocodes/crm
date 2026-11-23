@@ -1059,6 +1059,9 @@ service context enforces it, so scope checks are written once.
   - **A new declared scope is not in a remote Clerk instance until `setup:remote` runs there** ([[OPS65]]):
     `scopes_supported` advertises it at once, and `vibase login` requests every advertised scope ([[API6]] D19).
     Name the mirror run as owed for each env in the retro and SPRINT.md (`events:read`, [[API214]]).
+  - **A new scope also goes into the Clerk dev instance by hand** (decision 481.1): define it in the dashboard (OAuth
+    applications > Scopes) as Advertised and add it to Settings > "Allowed scopes for dynamic clients", else
+    `e2e:mcp-oauth` leg 2 fails with `InvalidClientMetadataError: Invalid scope requested`.
   - Human-only scopes (`agentGrantable: false`) are never granted to an agent; bootstrap refuses them.
   - **"Not a default grant" covers every place the vault picks scopes the owner did not name** ([[CORE261]]
     review round 1): Clerk setup's C7 `default_scopes`, Better Auth's `clientRegistrationDefaultScopes`, the
