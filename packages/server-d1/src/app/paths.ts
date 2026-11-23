@@ -14,7 +14,7 @@ export const PAGE_TABLE: readonly { readonly path: string; readonly bundle: type
   { path: '/app/agents', bundle: APP_BUNDLE },
 ]
 /** The app bundle's page paths, read from the table (one list: the Worker, the dev server and the sign-in allow-list read this). */
-export const APP_PAGE_PATHS: string[] = PAGE_TABLE.filter((p) => p.bundle === APP_BUNDLE).map((p) => p.path)
+export const APP_PAGE_PATHS: readonly string[] = PAGE_TABLE.filter((p) => p.bundle === APP_BUNDLE).map((p) => p.path)
 /** [[UI504]] D3, P4: the static files of both bundles are at `/assets/<bundle>/<file>` and nowhere else. The one prefix every serving module, the build and the config list read. */
 export const ASSET_PREFIX = '/assets'
 /** What `wrangler.jsonc`'s `assets.run_worker_first` lists for the app: the root and `/app` (they redirect), everything under `/app/` (the pages and the Worker's 404 for the rest, so the binding never answers there) and the static files (`/assets/*`), derived from the constants the Worker serves. */

@@ -346,7 +346,7 @@ describe('appCsp and the headers (D5, group 2)', () => {
     expect(res.headers.get('content-security-policy')).toContain(new URL(kit.issuer.issuer).origin)
   })
 
-  it('per provider, the composed Worker serves /home under APP_CSP (no issuer) or APP_CSP plus the issuer origin and the Clerk hosts (UI476 P3, carried from connect-csp-providers)', async () => {
+  it('per provider, the composed Worker serves /app/home under APP_CSP (no issuer) or APP_CSP plus the issuer origin and the Clerk hosts (UI476 P3, carried from connect-csp-providers)', async () => {
     const SELF_ONLY =
       "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     for (const make of [betterAuthWorker, unsetWorker]) {
