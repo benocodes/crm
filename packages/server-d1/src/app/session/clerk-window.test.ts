@@ -24,12 +24,12 @@ describe('windowClerk sign-out return (UI460 P3)', () => {
     }
     return calls
   }
-  it('the app returns to the URL its caller gave (<origin>/home)', async () => {
+  it('the app returns to the URL its caller gave (<origin>/app/home)', async () => {
     const calls = fake()
-    const c = windowClerk(AUTH, { loadScript: async () => {}, signOutReturn: 'https://w.test/home' })
+    const c = windowClerk(AUTH, { loadScript: async () => {}, signOutReturn: 'https://w.test/app/home' })
     await c.load()
     await c.signOut()
-    expect(calls).toEqual([{ redirectUrl: 'https://w.test/home' }])
+    expect(calls).toEqual([{ redirectUrl: 'https://w.test/app/home' }])
   })
   it('signOutReturn is required (UI476 P4): a seam built without it does not typecheck, and no connect default is invented', async () => {
     const calls = fake()
@@ -45,9 +45,9 @@ describe('windowClerk sign-out return (UI460 P3)', () => {
       load: async () => {},
       redirectToSignIn: async (o: unknown) => void urls.push(o),
     }
-    const c = windowClerk(AUTH, { loadScript: async () => {}, signOutReturn: 'https://w.test/home' })
+    const c = windowClerk(AUTH, { loadScript: async () => {}, signOutReturn: 'https://w.test/app/home' })
     await c.load()
-    await c.redirectToSignIn('https://w.test/home')
-    expect(urls).toEqual([{ redirectUrl: 'https://w.test/home' }])
+    await c.redirectToSignIn('https://w.test/app/home')
+    expect(urls).toEqual([{ redirectUrl: 'https://w.test/app/home' }])
   })
 })

@@ -48,7 +48,7 @@ const make = (script: Record<string, Answer[]>) => {
   return {
     ...f,
     navigated,
-    seam: betterAuthSession({ fetch: f.fetchFn, navigate: (u) => void navigated.push(u), returnPath: '/home' }),
+    seam: betterAuthSession({ fetch: f.fetchFn, navigate: (u) => void navigated.push(u), returnPath: '/app/home' }),
   }
 }
 
@@ -116,7 +116,7 @@ describe('redirectToSignIn (R3)', () => {
   it('ignores its argument: exactly /sign-in?return_to=<the given path>, relative', async () => {
     const a = make({})
     await a.seam.redirectToSignIn('https://evil.example/x')
-    expect(a.navigated).toEqual(['/sign-in?return_to=/home'])
+    expect(a.navigated).toEqual(['/sign-in?return_to=/app/home'])
   })
 })
 
@@ -145,9 +145,9 @@ describe('profileUrl', () => {
 // [[UI460]] P2, P3, [[UI476]] P4: where Sign in goes comes from the caller's page path, which is required (no connect default). A path only, never a query.
 describe('redirectToSignIn (UI460 P2, P3; UI476 P4)', () => {
   it.each([
-    ['/home', '/sign-in?return_to=/home'],
-    ['/accounts', '/sign-in?return_to=/accounts'],
-    ['/agents', '/sign-in?return_to=/agents'],
+    ['/app/home', '/sign-in?return_to=/app/home'],
+    ['/app/accounts', '/sign-in?return_to=/app/accounts'],
+    ['/app/agents', '/sign-in?return_to=/app/agents'],
   ])('returnPath %s goes to %s, whatever URL it is given', async (returnPath, expected) => {
     const urls: string[] = []
     const seam = betterAuthSession({ navigate: (u) => void urls.push(u), returnPath })

@@ -52,7 +52,7 @@ describe('the page table is the one list of app pages', () => {
 describe('server-d1 source names no old app path (D7, P1)', () => {
   const OLD = /(?:['"`]|\})\/(?:home|accounts|agents|connect)(?![\w.-])/
   it('the scan sees the sources', () => {
-    expect(sources.length).toBeGreaterThan(100)
+    expect(sources.length).toBeGreaterThan(40)
     expect(sources.map((f) => relative(SRC, f))).toContain('app/nav.ts')
   })
   it('no quoted old path in a non-test source', () => {

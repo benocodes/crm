@@ -330,7 +330,7 @@ It runs the same steps as upgrade (the migrations the instance lacks, control da
 | The program refuses the secrets file | Make it readable by you only: `chmod 600`. |
 | Owner login has no access (Clerk) | Check the accepted invitation, `public_metadata.vibase_role`, and the session-token claim. |
 
-Gmail requires additional Google OAuth and Pub/Sub configuration. Consult the server package's README for the current checklist before connecting a mailbox. Once it is configured, connect the mailbox from **Connected accounts** in the app: after Google's consent the connect flow returns to your instance's own `/accounts` page unless you set `CONNECT_RETURN_URL` to send people elsewhere.
+Gmail requires additional Google OAuth and Pub/Sub configuration. Consult the server package's README for the current checklist before connecting a mailbox. Once it is configured, connect the mailbox from **Connected accounts** in the app: after Google's consent the connect flow returns to your instance's own `/app/accounts` page unless you set `CONNECT_RETURN_URL` to send people elsewhere.
 
 ## From source
 

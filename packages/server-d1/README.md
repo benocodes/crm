@@ -30,7 +30,7 @@ pnpm -C packages/server-d1 exec wrangler d1 migrations apply CONTROL_DB --local
 pnpm -C packages/server-d1 bootstrap -- --org "Acme" --issuer https://clerk.example.com --agent my-agent
 
 # 3. Start the Worker locally (leave it running; stop it with Ctrl-C).
-pnpm -C packages/server-d1 dev   # builds the auth pages and the app, runs `wrangler dev --local --port 8787` and the Vite dev server on :5173 (open http://localhost:5173/home); `dev:worker` is build + `wrangler dev` alone
+pnpm -C packages/server-d1 dev   # builds the auth pages and the app, runs `wrangler dev --local --port 8787` and the Vite dev server on :5173 (open http://localhost:5173/app/home); `dev:worker` is build + `wrangler dev` alone
 ```
 
 In another terminal, with `KEY` set to the `vk_...` key step 2 printed:
@@ -64,22 +64,22 @@ A request carrying an `Origin` header must come from `CORS_ALLOWED_ORIGINS` (emp
 **OAuth sign-in** ([[API115]]): with Clerk configured, a standard MCP client given only `<origin>/mcp` signs a person in with no static key. Its first
 request is `401` with `WWW-Authenticate: Bearer resource_metadata="<origin>/.well-known/oauth-protected-resource/mcp", scope="<read and write scopes>"`;
 the document names the Clerk issuer, the client registers itself (DCR), the person consents on Clerk's screen, and the token resolves to a delegated
-agent for that (client, person) that an owner can disable on `/agents`. `/.well-known/vibase` carries the URL as `mcp`, and the three discovery
+agent for that (client, person) that an owner can disable on `/app/agents`. `/.well-known/vibase` carries the URL as `mcp`, and the three discovery
 documents answer a browser's `OPTIONS` preflight. `pnpm -C packages/server-d1 e2e:mcp-oauth` proves the whole flow (Playwright, Clerk dev instance, `.env.dev` only).
 
 ## The workspace app
 
-Signing in lands on **`/home`** ([[UI461]]), the workspace app's Home: a person who signs in or accepts an invitation goes there, or back to the app page they came from (`return_to`). An old `/connect` link, or an after-sign-in setting that still names it, lands on `/home` ([[UI443]] D3): `/connect` is a redirect and serves nothing. Until an enabled agent is connected, Home's *Get started* section shows *Connect an agent* with the login command, the MCP URL (when advertised) and the API-key line, and a *Check again* button that re-reads the agents list.
+Signing in lands on **`/app/home`** ([[UI461]]), the workspace app's Home: a person who signs in or accepts an invitation goes there, or back to the app page they came from (`return_to`). `/` and `/app` redirect to it. The old app paths (`/app/home`, `/app/accounts`, `/app/agents`) and `/connect` answer 404 ([[UI507]]): change any link or after-sign-in setting that still names one. Until an enabled agent is connected, Home's *Get started* section shows *Connect an agent* with the login command, the MCP URL (when advertised) and the API-key line, and a *Check again* button that re-reads the agents list.
 
-**`/agents`** ([[UI459]]) lists the agents that act in this workspace (name, Enabled or Disabled, how it connected, its permissions), where an owner can *Disable* (after a confirmation) or *Enable* one; a member sees the list without those buttons. Its *Connect an agent* section shows `vibase login --server <origin>`, the API-key fallback and the MCP URL, which every instance advertises. The page does not edit permissions: for an agent with none it shows the CLI grant command (`vibase agents update <id> --scopes ...`). With no `CLERK_PUBLISHABLE_KEY` the pages say sign-in is not configured. They call only `me.get`, `agents.list`, `agents.update` and the other registered operations, with a Clerk session token as a Bearer header, so the server's scopes decide everything.
+**`/app/agents`** ([[UI459]]) lists the agents that act in this workspace (name, Enabled or Disabled, how it connected, its permissions), where an owner can *Disable* (after a confirmation) or *Enable* one; a member sees the list without those buttons. Its *Connect an agent* section shows `vibase login --server <origin>`, the API-key fallback and the MCP URL, which every instance advertises. The page does not edit permissions: for an agent with none it shows the CLI grant command (`vibase agents update <id> --scopes ...`). With no `CLERK_PUBLISHABLE_KEY` the pages say sign-in is not configured. They call only `me.get`, `agents.list`, `agents.update` and the other registered operations, with a Clerk session token as a Bearer header, so the server's scopes decide everything.
 
 ```bash
 pnpm -C packages/server-d1 build        # Vite bundles the auth pages and the app into dist/assets/assets/{ui,app}/ (gitignored; a build clears any older layout); dev, smoke:worker and deploy:remote do it first
-pnpm -C packages/server-d1 dev          # build, then wrangler dev --local on :8787 and the Vite dev server (hot reload) on :5173; open http://localhost:5173/home. Everything but the pages and their sources is proxied to :8787 unchanged; the built pages stay on :8787. Needs `AUTH_TRUSTED_ORIGINS` (Better Auth) / `CLERK_AUTHORIZED_PARTIES` (Clerk) to name http://localhost:5173 (see `.dev.vars.example`). Arguments after `--` go to wrangler dev
+pnpm -C packages/server-d1 dev          # build, then wrangler dev --local on :8787 and the Vite dev server (hot reload) on :5173; open http://localhost:5173/app/home. Everything but the pages and their sources is proxied to :8787 unchanged; the built pages stay on :8787. Needs `AUTH_TRUSTED_ORIGINS` (Better Auth) / `CLERK_AUTHORIZED_PARTIES` (Clerk) to name http://localhost:5173 (see `.dev.vars.example`). Arguments after `--` go to wrangler dev
 pnpm -C packages/server-d1 dev:worker   # build, then wrangler dev --local on :8787 alone
 # E2E (Playwright + @clerk/testing, Clerk development instance, keys from the gitignored .env.dev only; not part of `pnpm test`):
 pnpm -C packages/server-d1 exec playwright install chromium
-pnpm -C packages/server-d1 e2e:agents-clerk   # the Account Portal round trip and /agents; also e2e:mcp-oauth and e2e:action-requests
+pnpm -C packages/server-d1 e2e:agents-clerk   # the Account Portal round trip and /app/agents; also e2e:mcp-oauth and e2e:action-requests
 ```
 
 The E2E's Account Portal step signs in with a Backend-API sign-in token (`__clerk_ticket` on the portal URL), which works whatever sign-in methods the development instance offers; it does not rely on an email-code or password route.
@@ -97,7 +97,7 @@ Locally set `CLERK_AUTHORIZED_PARTIES=http://localhost:8787` and `CLERK_PUBLISHA
 | `CLERK_ISSUER` | var | public value, required with `AUTH_PROVIDER=clerk` |
 | `CLERK_AUTHORIZED_PARTIES` | var | optional on D1: comma-separated origins allowed as a session token's `azp`; unset, a token carrying an `azp` is 401. The app's own origin must be listed (`setup:remote` adds `https://<api-host>`; locally `http://localhost:8787`) |
 | `CLERK_PUBLISHABLE_KEY` | var | public; returned as `auth.publishable_key` by `/.well-known/vibase` for the app pages. Its Frontend API host must be `CLERK_ISSUER`'s, or every request is `500 internal` (the variable is named, the value never). Unset: the page says sign-in is not configured |
-| `ASSETS` | assets binding | the built auth pages and app (`dist/assets/assets/ui/`, `dist/assets/assets/app/`: the files sit at their URL path), served only at their pages (`/sign-in`, `/invite`, `/reset-password`, `/consent`, `/device`, `/home`, `/accounts`, `/agents`, `/`) and their static files under `/assets/app/<file>` and `/assets/ui/<file>` (the latter on Better Auth only) by the Worker, which adds the security headers; `/ui/*` and `/app/*` are no files; `/connect` is a redirect to `/home` |
+| `ASSETS` | assets binding | the built auth pages and app (`dist/assets/assets/ui/`, `dist/assets/assets/app/`: the files sit at their URL path), served only at their pages (`/sign-in`, `/invite`, `/reset-password`, `/consent`, `/device`, `/app/home`, `/app/accounts`, `/app/agents`, `/`) and their static files under `/assets/app/<file>` and `/assets/ui/<file>` (the latter on Better Auth only) by the Worker, which adds the security headers; `/ui/*` is no file; `/app/<page>` is a page, `/` and `/app` redirect to `/app/home`, and the old paths and `/connect` are 404 |
 | `CLERK_JWT_KEY`, `CLERK_SECRET_KEY` | secrets | required with `AUTH_PROVIDER=clerk`; the key is a PEM (line breaks, or `\n` escapes, optionally quoted) |
 | `AUTH_ROLE_CLAIM` | var | the session-token claim holding `owner`, `member` or `agent`; default `vibase_role`; an empty value fails closed |
 | `AUTH_CLI_CLIENT_ID` | var | the first-party CLI's public OAuth client id; its tokens act as the signed-in person, any other OAuth client is a delegated agent ([[CORE77]]). Unset: no CLI client; set but blank fails closed |
@@ -112,7 +112,7 @@ Locally set `CLERK_AUTHORIZED_PARTIES=http://localhost:8787` and `CLERK_PUBLISHA
 | `GMAIL_PUSH_SERVICE_ACCOUNT` | var | the service account email Pub/Sub signs push requests as; a push token for any other `email` is refused; optional; set by `setup:remote` from `.env.<env>` |
 | `MAIL_SYNC` | Workflow binding | the sync run. Push is **on** only with Gmail configured, this binding, and all four of `GMAIL_TOPIC_NAME`, `GMAIL_PUSH_SUBSCRIPTION`, `GMAIL_PUSH_SERVICE_ACCOUNT` and `PUBLIC_BASE_URL` set and well formed (one parser, shared with `setup:remote`). Off: `POST /inbound/gmail` answers `404`, no watch is registered or renewed; a partly set group logs `push is off: set or fix <names>` at startup |
 | `PUBLIC_BASE_URL` | var | absolute `https` URL of the Worker, origin only (no path), for OAuth redirects and as push's endpoint base (`<it>/inbound/gmail` is the token audience); default `https://<api-host>` when the Gmail group is set; set by `setup:remote` from `.env.<env>` |
-| `CONNECT_RETURN_URL` | var | optional; unset, the connect flow returns to the instance's own `/accounts` (Connected accounts) when the app is served, otherwise to a built-in result page; set it only to send people elsewhere (absolute `https` URL); set by `setup:remote` from `.env.<env>` |
+| `CONNECT_RETURN_URL` | var | optional; unset, the connect flow returns to the instance's own `/app/accounts` (Connected accounts) when the app is served, otherwise to a built-in result page; set it only to send people elsewhere (absolute `https` URL); set by `setup:remote` from `.env.<env>` |
 | `GMAIL_BACKFILL_DAYS` | var | positive integer, days of mail to backfill on connect; optional; set by `setup:remote` from `.env.<env>` |
 | `ATTACHMENT_MAX_BYTES` | var | positive integer, the largest attachment kept; optional; set by `setup:remote` from `.env.<env>` |
 | `VERSION` | var | the deployed git sha, set by `deploy:remote`; `/health` reports it (`dev` when absent) |
@@ -243,7 +243,7 @@ pnpm -C packages/server-d1 smoke:remote -- --base https://api.smoked1.vibase.ai 
 
 ### Putting the workspace app on `hq` (user-run: every step is a hard stop for agents)
 
-`hq` (Worker `vault-hq`, `https://api.hq.vibase.ai`, Clerk production, keys in the gitignored `.env.hq`) gets the app pages (`/home`, `/agents`) with the next deploy,
+`hq` (Worker `vault-hq`, `https://api.hq.vibase.ai`, Clerk production, keys in the gitignored `.env.hq`) gets the app pages (`/app/home`, `/app/agents`) with the next deploy,
 plus two vars: `CLERK_PUBLISHABLE_KEY` and `https://api.hq.vibase.ai` in `CLERK_AUTHORIZED_PARTIES`. Run, from the repository root:
 
 ```bash
@@ -263,10 +263,10 @@ CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env hq --api-host 
 # 5. Smoke (<sha> is `git rev-parse HEAD`), then open the page in a browser and sign in.
 pnpm -C packages/server-d1 smoke:remote -- --base https://api.hq.vibase.ai --phase after --expect-version <sha>
 curl -s https://api.hq.vibase.ai/.well-known/vibase    # auth.publishable_key is the pk_live_ key
-open https://api.hq.vibase.ai/home
+open https://api.hq.vibase.ai/app/home
 ```
 
-Optional, in the Clerk dashboard (Paths): set the Account Portal's after-sign-in URL to `https://api.hq.vibase.ai/home`.
+Optional, in the Clerk dashboard (Paths): set the Account Portal's after-sign-in URL to `https://api.hq.vibase.ai/app/home`.
 
 Before the first remote bootstrap writes anything, the CLI proves on the live database that a failed `batch()` leaves no
 marker (`atomicity probe: atomic`); if it does not, it stops. Migrations are expand-only with respect to the running
@@ -391,7 +391,7 @@ the vars `GOOGLE_CLIENT_ID`, `GMAIL_TOPIC_NAME`, `GMAIL_PUSH_SUBSCRIPTION`, `GMA
 
 1. Create the Google resources above (the subscription can exist before the Worker answers: until deploy the route is `404` and Pub/Sub retries).
 2. Set the vars and secrets, **migrate, then deploy** (`db:migrate:remote`, then `deploy:remote`). Push is on once all four push vars are set.
-3. Connect the mailbox from **Connected accounts** in the app (`/accounts`, **Connect Gmail**; it calls `connections.authorize`). The callback registers the watch (INBOX and SENT) before it writes the connection; if that fails the connection
+3. Connect the mailbox from **Connected accounts** in the app (`/app/accounts`, **Connect Gmail**; it calls `connections.authorize`). The callback registers the watch (INBOX and SENT) before it writes the connection; if that fails the connection
    still commits and the next cron tick registers it. Mailboxes connected before push was configured get their watch at the next tick (every 15 minutes).
 4. The 15-minute cron renews every watch with less than 6 days left (Google drops a watch after 7 days) and stays the safety net: a push Vibase never got is
    served by the next tick. Deleting a connection calls Gmail's `users.stop` after the delete commits, best effort.

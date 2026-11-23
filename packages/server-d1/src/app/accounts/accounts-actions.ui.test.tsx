@@ -11,9 +11,9 @@ const CID = '0190aaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee'
 const RW = ['connections:read', 'connections:write']
 afterEach(() => {
   cleanup()
-  history.replaceState(null, '', '/accounts')
+  history.replaceState(null, '', '/app/accounts')
 })
-beforeEach(() => history.replaceState(null, '', '/accounts'))
+beforeEach(() => history.replaceState(null, '', '/app/accounts'))
 
 type Res<T> = { status: number; body: T | null; code?: string; message?: string }
 const ok = <T,>(body: T): Res<T> => ({ status: 200, body })
@@ -72,7 +72,7 @@ describe('row actions render by the matrix (group 1: P4)', () => {
     for (const address of ['amy@x.test', 'bob@x.test']) {
       const row = within(rowOf(address))
       expect(row.getByRole('link', { name: `Settings: ${address}` }).getAttribute('href')).toBe(
-        address === 'amy@x.test' ? '/accounts?connection=amy' : '/accounts?connection=bob',
+        address === 'amy@x.test' ? '/app/accounts?connection=amy' : '/app/accounts?connection=bob',
       )
       expect(row.getByRole('button', { name: `Sync now: ${address}` })).toBeTruthy()
       expect(row.getByRole('button', { name: `Disconnect: ${address}` })).toBeTruthy()
@@ -180,7 +180,7 @@ describe('Disconnect (group 5: D8, P6)', () => {
   })
 
   it('from the settings view a 204 navigates to /accounts and nothing is carried', async () => {
-    history.replaceState(null, '', `/accounts?connection=${CID}`)
+    history.replaceState(null, '', `/app/accounts?connection=${CID}`)
     const api = fakeApi()
     const navigate = show(api)
     await screen.findByRole('heading', { level: 1, name: 'cid@x.test' })
@@ -188,7 +188,7 @@ describe('Disconnect (group 5: D8, P6)', () => {
     await user.click(screen.getByRole('button', { name: 'Disconnect' }))
     const dialog = await screen.findByRole('alertdialog', { name: 'Disconnect cid@x.test?' })
     await user.click(within(dialog).getByRole('button', { name: 'Disconnect' }))
-    await waitFor(() => expect(navigate).toHaveBeenCalledExactlyOnceWith('/accounts'))
+    await waitFor(() => expect(navigate).toHaveBeenCalledExactlyOnceWith('/app/accounts'))
     expect(api.deleteConnection).toHaveBeenCalledExactlyOnceWith(CID)
   })
 })

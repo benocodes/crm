@@ -100,10 +100,10 @@ test('1. the owner signs in and makes agents P (proposal-only) and W (write), an
   page,
   request,
 }) => {
-  await page.goto('/home')
+  await page.goto('/app/home')
   await clerk.loaded({ page })
   await clerk.signIn({ page, emailAddress: OWNER.email })
-  await page.goto('/home')
+  await page.goto('/app/home')
   ownerToken = await sessionToken(page)
   const owner = as(request, ownerToken)
   for (const [who, name, scopes] of [

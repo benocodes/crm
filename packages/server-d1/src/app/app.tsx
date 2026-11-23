@@ -35,9 +35,9 @@ function RouterNavLink({ href, className, children }: AppNavLinkProps) {
 }
 
 export const TITLES: Record<string, string> = {
-  '/home': 'Home',
-  '/accounts': 'Connected accounts',
-  '/agents': 'Agents',
+  '/app/home': 'Home',
+  '/app/accounts': 'Connected accounts',
+  '/app/agents': 'Agents',
 }
 
 /** document.title follows the route: the page's name, `Home` for an unknown path, then ` · Vibase`. */
@@ -53,7 +53,7 @@ function NotFound() {
   return (
     <SettingsPage title="Page not found">
       <p className="text-sm">There is no page at this address.</p>
-      <Link to="/home" className="text-sm font-medium underline underline-offset-4">
+      <Link to="/app/home" className="text-sm font-medium underline underline-offset-4">
         Back to Home
       </Link>
     </SettingsPage>
@@ -145,11 +145,11 @@ export function App({ state, provider, origin, mcpUrl, api, onCheckAgain, onSign
         >
           <Routes>
             <Route
-              path="/accounts"
+              path="/app/accounts"
               element={<AccountsPage api={api} userId={state.who.userId} scopes={state.scopes} />}
             />
             <Route
-              path="/agents"
+              path="/app/agents"
               element={
                 <AgentsPage
                   api={api}
@@ -160,7 +160,7 @@ export function App({ state, provider, origin, mcpUrl, api, onCheckAgain, onSign
               }
             />
             <Route
-              path="/home"
+              path="/app/home"
               element={
                 <HomePage
                   who={state.who}

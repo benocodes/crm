@@ -43,9 +43,9 @@ describe('Home over the real API client', () => {
       getToken: () => seam.getToken(),
       fetch: fetchSpy as typeof fetch,
     })
-    const controller = createAppController({ seam, api, origin: 'https://w.test', path: () => '/home' })
+    const controller = createAppController({ seam, api, origin: 'https://w.test', path: () => '/app/home' })
     render(
-      <MemoryRouter initialEntries={['/home']}>
+      <MemoryRouter initialEntries={['/app/home']}>
         <AppRoot controller={controller} provider="better-auth" origin="https://w.test" mcpUrl={null} api={api} />
       </MemoryRouter>,
     )

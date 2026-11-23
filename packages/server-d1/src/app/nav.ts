@@ -20,16 +20,16 @@ export interface NavRow {
 }
 
 export const NAV: readonly NavRow[] = [
-  { label: 'Home', href: '/home', icon: House },
+  { label: 'Home', href: '/app/home', icon: House },
   // [[UI467]] D1, D12: shown by the page's read scope.
   {
     label: 'Connected accounts',
-    href: '/accounts',
+    href: '/app/accounts',
     icon: Mail,
     visible: (ctx) => ctx.scopes.includes('connections:read'),
   },
   // [[UI459]] D1, D8: shown by the page's read scope.
-  { label: 'Agents', href: '/agents', icon: Bot, visible: (ctx) => ctx.scopes.includes('agents:read') },
+  { label: 'Agents', href: '/app/agents', icon: Bot, visible: (ctx) => ctx.scopes.includes('agents:read') },
 ]
 
 /** The rows `ctx` may see, as the shell's entries. Which one is current comes from the router's location (`NavLink`), not from here. */

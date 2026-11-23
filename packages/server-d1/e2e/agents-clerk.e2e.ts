@@ -1,7 +1,7 @@
 import { clerk, setupClerkTestingToken } from '@clerk/testing/playwright'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
-// [[UI479]] E2E (the Clerk-only legs of the deleted `e2e:connect`, [[UI30]], re-homed on the app pages `/home` and `/agents`, [[UI443]], [[UI459]]): the Account Portal round trip, the owner's
+// [[UI479]] E2E (the Clerk-only legs of the deleted `e2e:connect`, [[UI30]], re-homed on the app pages `/app/home` and `/app/agents`, [[UI443]], [[UI459]]): the Account Portal round trip, the owner's
 // Agents page (Disable and Enable an API-key agent), the agent role, a member, and signing out, in a real browser against a local Worker on Clerk and the Clerk DEVELOPMENT instance.
 //
 // Prerequisite, as for `e2e:mcp-oauth` and `e2e:action-requests`: a local Worker on E2E_BASE_URL (default http://localhost:8787) from this worktree (`pnpm -C packages/server-d1 dev`),
@@ -63,7 +63,7 @@ const sessionToken = (page: Page) =>
   )
 const row = (page: Page, text: string) => page.getByRole('listitem').filter({ hasText: text })
 
-test('A. the Account Portal round trip: Sign in leaves with redirect_url <base>/home, a sign-in ticket brings the browser back signed in', async ({
+test('A. the Account Portal round trip: Sign in leaves with redirect_url <base>/app/home, a sign-in ticket brings the browser back signed in', async ({
   page,
   context,
   baseURL,
@@ -71,7 +71,7 @@ test('A. the Account Portal round trip: Sign in leaves with redirect_url <base>/
   await setupClerkTestingToken({ context })
   const violations: string[] = []
   page.on('console', (m) => /content security policy/i.test(m.text()) && violations.push(m.text()))
-  const response = await page.goto('/home')
+  const response = await page.goto('/app/home')
   expect(response!.headers()['content-security-policy']).toContain(new URL(ISSUER).origin)
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
   expect(violations).toEqual([])
@@ -84,7 +84,7 @@ test('A. the Account Portal round trip: Sign in leaves with redirect_url <base>/
   const u = new URL(page.url())
   const back =
     u.searchParams.get('redirect_url') ?? new URLSearchParams(u.hash.replace(/^#\/?\??/, '')).get('redirect_url')
-  expect(back).toBe(`${baseURL}/home`)
+  expect(back).toBe(`${baseURL}/app/home`)
   // Deterministic, whatever sign-in methods the instance offers: a server-side sign-in token for the owner, used as the `__clerk_ticket` on the portal URL.
   const res = await page.request.post(`${BAPI}/sign_in_tokens`, {
     headers: { authorization: `Bearer ${SECRET}` },
@@ -93,17 +93,17 @@ test('A. the Account Portal round trip: Sign in leaves with redirect_url <base>/
   expect(res.ok()).toBe(true)
   const { token } = (await res.json()) as { token: string }
   await page.goto(`${page.url()}${page.url().includes('?') ? '&' : '?'}__clerk_ticket=${token}`)
-  await page.waitForURL(`${baseURL}/home`)
+  await page.waitForURL(`${baseURL}/app/home`)
   await expect(page.getByText(users.owner.email).first()).toBeVisible()
 })
 
-test('B. owner on /agents: e2e-key is an Enabled API-key agent; Disable (confirmed) refuses its key, Enable restores it; the Connect an agent section', async ({
+test('B. owner on /app/agents: e2e-key is an Enabled API-key agent; Disable (confirmed) refuses its key, Enable restores it; the Connect an agent section', async ({
   page,
   request,
   baseURL,
 }) => {
   expect(AGENT_KEY, 'E2E_AGENT_KEY (the key bootstrap printed) must be set: leg B proves the 401 and 200').toBeTruthy()
-  await open(page, 'owner', '/agents')
+  await open(page, 'owner', '/app/agents')
   const key = row(page, 'e2e-key')
   await expect(key).toBeVisible()
   await expect(key.getByText('API-key agent')).toBeVisible()
@@ -128,13 +128,13 @@ test('C. agent role: the app admits no agent principal (No access to this worksp
   browser,
 }) => {
   // UI479 479.10/479.12: `state.ts` ([[UI443]]) refuses a principal that is not a person ("The app is for people"), so the agent-role person gets the no-access card.
-  await open(page, 'agent', '/agents')
+  await open(page, 'agent', '/app/agents')
   await expect(page.getByRole('heading', { name: 'No access to this workspace' })).toBeVisible()
   await expect(page.getByText('An agent should use the MCP, the CLI or the SDK instead.')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Agents' })).toHaveCount(0)
   const ctx = await browser.newContext()
   const owner = await ctx.newPage()
-  await open(owner, 'owner', '/agents')
+  await open(owner, 'owner', '/app/agents')
   const agent = row(owner, 'Agent account')
   await expect(agent.first()).toBeVisible()
   await expect(agent.first().getByText(/vibase agents update .* --scopes/)).toBeVisible()
@@ -145,7 +145,7 @@ test('D. member: the list with no Disable, no Enable and no grant command; a for
   page,
   request,
 }) => {
-  await open(page, 'member', '/agents')
+  await open(page, 'member', '/app/agents')
   await expect(page.getByRole('listitem').first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Disable' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Enable' })).toHaveCount(0)
@@ -161,14 +161,14 @@ test('D. member: the list with no Disable, no Enable and no grant command; a for
   expect(res.status()).toBe(403)
 })
 
-test('E. sign out from /agents shows the signed-out state, and Sign in on /agents leaves with redirect_url <base>/agents', async ({
+test('E. sign out from /app/agents shows the signed-out state, and Sign in on /app/agents leaves with redirect_url <base>/app/agents', async ({
   page,
   baseURL,
 }) => {
-  await open(page, 'owner', '/agents')
+  await open(page, 'owner', '/app/agents')
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible({ timeout: 30000 })
-  await page.goto('/agents')
+  await page.goto('/app/agents')
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
   await page.getByRole('button', { name: 'Sign in' }).click()
   await page.waitForURL(
@@ -178,5 +178,5 @@ test('E. sign out from /agents shows the signed-out state, and Sign in on /agent
   const u = new URL(page.url())
   const back =
     u.searchParams.get('redirect_url') ?? new URLSearchParams(u.hash.replace(/^#\/?\??/, '')).get('redirect_url')
-  expect(back).toBe(`${baseURL}/agents`)
+  expect(back).toBe(`${baseURL}/app/agents`)
 })

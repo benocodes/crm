@@ -124,8 +124,8 @@ test('0. the invited person signs up (the shared session), then signs out', asyn
   await page.getByLabel('Email').fill('owner@e2e.test')
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Create account' }).click()
-  // A finished sign-up lands on /home (UI461 D3); /sign-in then shows the signed-in view.
-  await page.waitForURL((u) => u.pathname === '/home')
+  // A finished sign-up lands on /app/home (UI461 D3); /sign-in then shows the signed-in view.
+  await page.waitForURL((u) => u.pathname === '/app/home')
   await visit('/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
   await signOutHere()
@@ -396,14 +396,14 @@ test('5. every new page carries the exact headers; /consent without a request ex
   await axeBoth('consent-no-request')
 })
 
-// [[UI297]] leg 3 of [[UI247]] D8, moved to the Agents page by [[UI476]]: the app's `/agents` on `better-auth`, in the same browser context (the session of the legs above is live, and leg 2 left one delegated agent).
+// [[UI297]] leg 3 of [[UI247]] D8, moved to the Agents page by [[UI476]]: the app's `/app/agents` on `better-auth`, in the same browser context (the session of the legs above is live, and leg 2 left one delegated agent).
 const sessionEmail = (p: Page) =>
   p.evaluate(
     async () =>
       ((await (await fetch('/auth/get-session')).json()) as { user?: { email?: string } } | null)?.user?.email,
   )
 
-test('6. /agents signed in: the delegated agent agents.list returns is listed as Signed in through you, a self-only CSP, no request leaves the origin', async () => {
+test('6. /app/agents signed in: the delegated agent agents.list returns is listed as Signed in through you, a self-only CSP, no request leaves the origin', async () => {
   const outside: string[] = []
   const listener = (r: { url(): string }) => {
     if (
@@ -415,7 +415,7 @@ test('6. /agents signed in: the delegated agent agents.list returns is listed as
       outside.push(r.url())
   }
   page.on('request', listener)
-  const response = await page.goto(`${BASE}/agents`)
+  const response = await page.goto(`${BASE}/app/agents`)
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agents')
   // the name agents.list returns for the delegated agent (delegated_by is the person), read with the session token the page itself uses
   const listed = await page.evaluate(async () => {
@@ -437,11 +437,11 @@ test('6. /agents signed in: the delegated agent agents.list returns is listed as
 })
 
 // [[UI461]] D10, [[UI469]] D13: leg 2 left a delegated agent, so Home has no Connect an agent prompt; the owner holds `connections:write` and owns no mailbox, so Get started shows Connect your email alone.
-test('6b. /home with a delegated agent: Get started shows Connect your email and no Connect an agent prompt', async () => {
+test('6b. /app/home with a delegated agent: Get started shows Connect your email and no Connect an agent prompt', async () => {
   // Wait for both reads, so the absence below is a result and not a page still loading.
   const agentsRead = page.waitForResponse((r) => r.url().includes('/meta/v1/agents') && r.status() === 200)
   const connectionsRead = page.waitForResponse((r) => r.url().includes('/meta/v1/connections') && r.status() === 200)
-  await page.goto('/home')
+  await page.goto('/app/home')
   await agentsRead
   await connectionsRead
   await expect(page.getByRole('region', { name: 'Who you are' })).toBeVisible()
@@ -450,35 +450,28 @@ test('6b. /home with a delegated agent: Get started shows Connect your email and
   await expect(page.getByRole('region', { name: 'Connect an agent' })).toHaveCount(0)
 })
 
-test('7. /agents: Sign out shows the signed-out card; get-session answers null', async () => {
-  await visit(`${BASE}/agents`)
+test('7. /app/agents: Sign out shows the signed-out card; get-session answers null', async () => {
+  await visit(`${BASE}/app/agents`)
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
   expect(await page.evaluate(async () => (await (await fetch('/auth/get-session')).text()).trim())).toBe('null')
   await axeBoth('agents-signed-out')
 })
 
-test('8. /agents: Sign in goes to /sign-in?return_to=/agents and comes back signed in as the same person', async () => {
+test('8. /app/agents: Sign in goes to /sign-in?return_to=/app/agents and comes back signed in as the same person', async () => {
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.waitForURL((u) => u.pathname === '/sign-in' && u.searchParams.get('return_to') === '/agents')
+  await page.waitForURL((u) => u.pathname === '/sign-in' && u.searchParams.get('return_to') === '/app/agents')
   await signInHere()
-  await page.waitForURL((u) => u.pathname === '/agents')
+  await page.waitForURL((u) => u.pathname === '/app/agents')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agents')
   expect(await sessionEmail(page)).toBe('owner@e2e.test')
 })
 
-// [[UI476]] D10: `/connect` is a redirect to Home and nothing under it is served (the Preact page is deleted).
-test('8b. /connect?x=1 ends on /home with the shell shown; the raw GET is 302 /home; /connect/connect.js is 404', async ({
-  request,
-}) => {
-  await page.goto(`${BASE}/connect?x=1`)
-  await page.waitForURL((u) => u.pathname === '/home')
-  expect(new URL(page.url()).search).toBe('')
-  await expect(page.getByRole('navigation', { name: 'Workspace' })).toBeVisible()
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Welcome to your CRM')
-  const raw = await request.get(`${BASE}/connect`, { maxRedirects: 0, ignoreHTTPSErrors: true } as never)
-  expect(raw.status()).toBe(302)
-  expect(raw.headers().location).toBe('/home')
-  const gone = await request.get(`${BASE}/connect/connect.js`, { ignoreHTTPSErrors: true } as never)
-  expect(gone.status()).toBe(404)
+// [[UI507]] D6: `/connect` is gone: 404, never a redirect.
+test('8b. /connect?x=1 and /connect/connect.js are 404, never a redirect', async ({ request }) => {
+  for (const path of ['/connect?x=1', '/connect', '/connect/connect.js']) {
+    const raw = await request.get(`${BASE}${path}`, { maxRedirects: 0, ignoreHTTPSErrors: true } as never)
+    expect(raw.status(), path).toBe(404)
+    expect(raw.headers().location, path).toBeUndefined()
+  }
 })

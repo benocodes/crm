@@ -60,7 +60,6 @@ export interface CheckResult {
   serverVersion: string
   wranglerVersion: string
   health: Record<string, unknown>
-  connectStatus: number
 }
 
 const empty = (root: string, name: string) => {
@@ -410,7 +409,7 @@ export async function checkRelease(
         binding: 'ASSETS',
         routerConfig: {
           has_user_worker: true,
-          static_routing: { user_worker: ['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST, ...APP_RUN_WORKER_FIRST] },
+          static_routing: { user_worker: [...APP_RUN_WORKER_FIRST, ...UI_RUN_WORKER_FIRST] },
         },
       },
       bindings: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '', VERSION: manifest.version, COMMIT: manifest.commit },
@@ -446,48 +445,53 @@ export async function checkRelease(
           )
         log(`${binding} tracker: current (${state.applied.length} applied = ${shipped.length} shipped)`)
       }
-      // [[UI476]] D10: `/connect` is a redirect to Home (the query dropped) and nothing under it is served: the Preact page is not in the package.
-      const connect = await fetch(new URL('/connect?x=1', url), { redirect: 'manual' })
-      const connectJs = await fetch(new URL('/connect/connect.js', url), { redirect: 'manual' })
-      if (connect.status !== 302 || connect.headers.get('location') !== '/home' || connectJs.status !== 404)
-        throw new ReleaseRefusal(
-          `/connect is not the redirect to /home: /connect ${connect.status} -> ${connect.headers.get('location')}, /connect/connect.js ${connectJs.status} (expected 302 /home and 404)`,
-        )
-      log(`/connect ${connect.status} -> ${connect.headers.get('location')}, /connect/connect.js ${connectJs.status}`)
-      // [[UI460]] D6: the workspace app is served beside it: the page, its bundle, and the root redirect.
-      const home = await fetch(new URL('/home', url), { redirect: 'manual' })
+      // [[UI507]] D6: the old app paths and `/connect` are gone (404, never a redirect or a page).
+      const old = await Promise.all(
+        ['/connect?x=1', '/connect/connect.js', '/home', '/accounts', '/agents'].map(async (p) => {
+          const r = await fetch(new URL(p, url), { redirect: 'manual' })
+          return `${p} ${r.status}${r.headers.get('location') ? ` -> ${r.headers.get('location')}` : ''}`
+        }),
+      )
+      if (old.some((o) => !o.includes(' 404') || o.includes('->')))
+        throw new ReleaseRefusal(`an old app path is still served (expected 404 for each): ${old.join(', ')}`)
+      log(old.join(', '))
+      // [[UI507]] D1, D2: the workspace app's pages are at /app/<page>; `/` and `/app` redirect to Home. [[UI504]] D3: its bundle is at /assets/app/ and nowhere else.
+      const home = await fetch(new URL('/app/home', url), { redirect: 'manual' })
       const appJs = await fetch(new URL('/assets/app/app.js', url))
       const oldAppJs = await fetch(new URL('/app/app.js', url))
       const root = await fetch(new URL('/', url), { redirect: 'manual' })
+      const appRoot = await fetch(new URL('/app', url), { redirect: 'manual' })
       if (
         home.status !== 200 ||
         appJs.status !== 200 ||
         oldAppJs.status !== 404 ||
         root.status !== 302 ||
-        root.headers.get('location') !== '/home'
+        root.headers.get('location') !== '/app/home' ||
+        appRoot.status !== 302 ||
+        appRoot.headers.get('location') !== '/app/home'
       )
         throw new ReleaseRefusal(
-          `the workspace app is not served: /home ${home.status}, /assets/app/app.js ${appJs.status}, /app/app.js ${oldAppJs.status}, / ${root.status} -> ${root.headers.get('location')}`,
+          `the workspace app is not served: /app/home ${home.status}, /assets/app/app.js ${appJs.status}, /app/app.js ${oldAppJs.status}, / ${root.status} -> ${root.headers.get('location')}, /app ${appRoot.status} -> ${appRoot.headers.get('location')}`,
         )
       log(
-        `/home ${home.status}, /assets/app/app.js ${appJs.status}, /app/app.js ${oldAppJs.status}, / ${root.status} -> ${root.headers.get('location')}`,
+        `/app/home ${home.status}, /assets/app/app.js ${appJs.status}, /app/app.js ${oldAppJs.status}, / ${root.status} -> ${root.headers.get('location')}, /app ${appRoot.status} -> ${appRoot.headers.get('location')}`,
       )
       // [[UI467]] D1, D14: the Connected accounts page is served beside Home, and nothing below it.
-      const accounts = await fetch(new URL('/accounts', url), { redirect: 'manual' })
-      const accountsBelow = await fetch(new URL('/accounts/x', url), { redirect: 'manual' })
+      const accounts = await fetch(new URL('/app/accounts', url), { redirect: 'manual' })
+      const accountsBelow = await fetch(new URL('/app/accounts/x', url), { redirect: 'manual' })
       if (accounts.status !== 200 || accountsBelow.status !== 404)
         throw new ReleaseRefusal(
-          `the Connected accounts page is not served: /accounts ${accounts.status}, /accounts/x ${accountsBelow.status}`,
+          `the Connected accounts page is not served: /app/accounts ${accounts.status}, /app/accounts/x ${accountsBelow.status}`,
         )
-      log(`/accounts ${accounts.status}, /accounts/x ${accountsBelow.status}`)
+      log(`/app/accounts ${accounts.status}, /app/accounts/x ${accountsBelow.status}`)
       // [[UI459]] D1: the Agents page, likewise.
-      const agentsPage = await fetch(new URL('/agents', url), { redirect: 'manual' })
-      const agentsBelow = await fetch(new URL('/agents/x', url), { redirect: 'manual' })
+      const agentsPage = await fetch(new URL('/app/agents', url), { redirect: 'manual' })
+      const agentsBelow = await fetch(new URL('/app/agents/x', url), { redirect: 'manual' })
       if (agentsPage.status !== 200 || agentsBelow.status !== 404)
         throw new ReleaseRefusal(
-          `the Agents page is not served: /agents ${agentsPage.status}, /agents/x ${agentsBelow.status}`,
+          `the Agents page is not served: /app/agents ${agentsPage.status}, /app/agents/x ${agentsBelow.status}`,
         )
-      log(`/agents ${agentsPage.status}, /agents/x ${agentsBelow.status}`)
+      log(`/app/agents ${agentsPage.status}, /app/agents/x ${agentsBelow.status}`)
       return {
         clientInstallPath: clientInstall,
         serverInstallPath: install,
@@ -495,7 +499,6 @@ export async function checkRelease(
         serverVersion,
         wranglerVersion,
         health,
-        connectStatus: connect.status,
       }
     } finally {
       await mf.dispose()
