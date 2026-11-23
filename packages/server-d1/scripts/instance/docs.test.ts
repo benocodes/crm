@@ -351,6 +351,8 @@ describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
 describe('the docs and help agree with the program on workers.dev (OPS308 D13)', () => {
   const s = () => page('deployment/self-hosting')
   const USAGE = '(--api-host <host> | --workers-dev)'
+  /** [[OPS501]] D6: on `vibase-server setup` the pair is optional (a recorded host is the default); `setup:remote` still requires it. */
+  const SERVER_USAGE = '[--api-host <host> | --workers-dev]'
   it("self-hosting has the no-domain path with --workers-dev, the registration flag as the operator's one-time step, and the move section with its consequences", () => {
     const md = s()
     expect(md).toMatch(/npx @vibase\/server-d1@<version> setup --env \S+ --workers-dev /)
@@ -372,11 +374,14 @@ describe('the docs and help agree with the program on workers.dev (OPS308 D13)',
     expect(line).toContain(USAGE)
   })
   it("both usage lines and the setup:remote header name the pair; release:check's help assertion requires it and sees an edited line", () => {
-    expect(INSTANCE_HELP).toContain(`vibase-server setup --env <name> ${USAGE}`)
+    expect(INSTANCE_HELP).toContain(`vibase-server setup --env <name> ${SERVER_USAGE}`)
     expect(read('../setup-remote.ts')).toContain(USAGE)
     expect(serverHelpProblems(INSTANCE_HELP)).toEqual([])
-    expect(serverHelpProblems(INSTANCE_HELP.replace(USAGE, '--api-host <host>'))).toEqual([
-      `setup --env <name> ${USAGE} ... [--dry-run] [--yes]`,
+    expect(serverHelpProblems(INSTANCE_HELP.replace(SERVER_USAGE, '--api-host <host>'))).toEqual([
+      `setup --env <name> ${SERVER_USAGE} ... [--dry-run] [--yes]`,
+    ])
+    expect(serverHelpProblems(INSTANCE_HELP.replace('settings file and secrets file', 'secrets file'))).toEqual([
+      'init writes the settings file and the secrets file',
     ])
   })
   it('OPS487 D8: release:check needs both `upgrade --env <name> [--dry-run]` and `redeploy --env <name> [--dry-run]`, and rejects an `upgrade ... [--rollback]` line', () => {
@@ -397,7 +402,7 @@ describe('the docs and help agree with the program on workers.dev (OPS308 D13)',
     const { runSetup } = await import('./setup.js')
     const err: string[] = []
     await runSetup(['--env', 'x', '--bogus'], { out: () => {}, err: (l: string) => void err.push(l) } as never)
-    expect(err.join('\n')).toContain(USAGE)
+    expect(err.join('\n')).toContain(SERVER_USAGE)
   })
 })
 
@@ -479,6 +484,41 @@ describe('OPS494 D8: init in the help and the docs', () => {
       const md = read(RECIPE)
       const step4 = md.slice(md.indexOf('## 4.'), md.indexOf('## 5.'))
       expect(step4).toMatch(/vibase-server init/)
+    },
+  )
+})
+
+// [[OPS501]] D7: init writes the settings file, and the short form is what the docs and the help show next.
+describe('OPS501 D7: the short form in the help and the docs', () => {
+  it('the help: init says it writes both files and setup needs only --env after it; at most five init lines', () => {
+    const lines = INSTANCE_HELP.split('\n')
+    const at = lines.findIndex((l) => l.startsWith('  vibase-server init'))
+    let end = at
+    while (lines[end] !== '') end++
+    expect(end - at).toBeLessThanOrEqual(5)
+    expect(lines.slice(at, end).join('\n')).toMatch(/settings file and secrets file/)
+    expect(lines.slice(at, end).join('\n')).toMatch(/setup then needs only --env/)
+  })
+  it('the server README template: the setup line is the short form and the init paragraph names the settings file', () => {
+    const md = read('../../../release/templates/server-d1-README.md')
+    expect(md).toMatch(/setup --env <name> \[--dry-run\]\n/)
+    expect(md).toMatch(/writes the settings file \(the API host, the auth provider and the owner email/)
+  })
+  it('self-hosting: init writes the settings file, and the Better Auth section opens on `setup --env mycompany`', () => {
+    const md = page('deployment/self-hosting')
+    expect(md).toMatch(/write the instance's two files, the settings file and the secrets file/)
+    expect(md).toMatch(/`setup --env mycompany` is the whole command/)
+    expect(md).toMatch(/printing the command to run next: `setup --env <name>`/)
+  })
+  const RECIPE = '../../../../knowledge/recipes/deploy-a-new-instance.md'
+  it.skipIf(!existsSync(fileURLToPath(new URL(RECIPE, import.meta.url))))(
+    "the recipe's steps 4 and 5 use the short form",
+    () => {
+      const md = read(RECIPE)
+      const step4 = md.slice(md.indexOf('## 4.'), md.indexOf('## 5.'))
+      expect(step4).toMatch(/stage: "init"/)
+      expect(step4).toMatch(/`setup --env <env>` command it prints/)
+      expect(md.slice(md.indexOf('## 5.'))).toMatch(/\nvs setup --env <env> --dry-run\n/)
     },
   )
 })

@@ -217,11 +217,23 @@ export async function checkRelease(
       throw new ReleaseRefusal(
         `the installed \`vibase-server init\` did not write ${secretsFile} at mode 600 (exit ${first.status}): ${first.stderr.trim()}`,
       )
+    // [[OPS501]]: init also writes the settings file, marked `stage: "init"`, which setup reads.
+    const settingsFile = join(initConfig, 'vibase', 'instances', 'check.json')
+    let written: { stage?: unknown; api_host?: unknown } = {}
+    try {
+      written = JSON.parse(readFileSync(settingsFile, 'utf8'))
+    } catch {}
+    if (written.stage !== 'init' || written.api_host !== 'api.check.example.com')
+      throw new ReleaseRefusal(
+        `the installed \`vibase-server init\` did not write ${settingsFile} with stage "init" and the --api-host given`,
+      )
     if (initRun().status !== 2)
       throw new ReleaseRefusal(
         'the installed `vibase-server init` overwrote or did not refuse an existing secrets file',
       )
-    log('vibase-server init: writes the secrets file (mode 600) and refuses to overwrite it')
+    log(
+      'vibase-server init: writes the secrets file (mode 600) and the settings file (stage init), and refuses to overwrite',
+    )
     // [[OPS234]]: `upgrade` is in the installed bundle, refuses at the same missing settings file, and the installed wrangler accepts the exact deploy argument list
     // `upgrade` builds (plus `--dry-run`, which makes no network call) against a config generated from a sample settings file; the settings' vars must survive `--var`.
     // [[OPS487]]: `redeploy` is listed beside `upgrade` (no `--rollback`: `serverHelpProblems` above judged both lines), and refuses at the same missing settings file.
@@ -284,9 +296,9 @@ export async function checkRelease(
 
     // [[OPS232]]: `setup` is in the installed bundle, refuses at the missing secrets file (an empty config home, no Cloudflare values), and the bundle carries the bootstrap
     // program in the one file: no lazy chunk, no root `.env` loader. cli/ holds server.js alone: the client is another package.
-    if (!/vibase-server setup --env <name> \(--api-host <host> \| --workers-dev\)/.test(help))
+    if (!/vibase-server setup --env <name> \[--api-host <host> \| --workers-dev\]/.test(help))
       throw new ReleaseRefusal(
-        'the installed `vibase-server --help` does not list `setup --env <name> (--api-host <host> | --workers-dev)`',
+        'the installed `vibase-server --help` does not list `setup --env <name> [--api-host <host> | --workers-dev]`',
       )
     const noSecretsSetup = spawnSync(
       serverBin,

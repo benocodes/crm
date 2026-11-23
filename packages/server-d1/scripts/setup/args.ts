@@ -22,6 +22,10 @@ export function apiHostProblem(host: string): string | null {
   return null
 }
 
+/** [[OPS501]] D1: the owner email's rule, shared by `vibase-server init` (the flag) and the settings file's `owner_email`. */
+export const emailProblem = (v: string, label = '--owner-email'): string | null =>
+  /^[^\s@]+@[^\s@]+$/.test(v) ? null : `${label} ${v}: expected an email address (one @, text on both sides, no spaces)`
+
 export const authProblem = (auth: string): string | null =>
   (PROVIDERS as readonly string[]).includes(auth)
     ? null

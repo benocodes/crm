@@ -67,6 +67,8 @@ export interface SetupCtx extends ClerkCtx {
   secrets: Secrets
   creds: Credentials
   settingsPath: string
+  /** [[OPS501]] D4: the settings file on disk was written by `init`; `config:write` replaces it with the full record. */
+  initWritten?: boolean
   secretsPath: string
   /** The settings file as it was read, `null` when there is none yet. */
   existing: InstanceSettings | null
@@ -293,7 +295,13 @@ const configWrite: Step = async (ctx) => {
     ctx.wrote = true
     return { ...result('config:write', status, detail), ...(leftBehind.length ? { manual: leftBehind } : {}) }
   }
-  if (existing === null) return write(desired, `write ${ctx.settingsPath}`, 'create')
+  // [[OPS501]] D4: the owner email is recorded only when the record is created, so a run that stops before `bootstrap` still knows it.
+  if (existing === null)
+    return write(
+      { ...desired, ...(opts.ownerEmail ? { owner_email: opts.ownerEmail } : {}) },
+      `write ${ctx.settingsPath}${ctx.initWritten ? " (adopting init's file)" : ''}`,
+      'create',
+    )
 
   const mismatches: string[] = []
   const same = (label: string, a: unknown, b: unknown) => void (a !== b && mismatches.push(label))

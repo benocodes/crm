@@ -19,7 +19,8 @@ export const INSTANCE_HELP = `vibase-server: manage the Vibase instance this ser
 
   vibase-server init [--env <name>] [--api-host <host>] [--owner-email <email>] [--auth better-auth|clerk|none] [--email gmail|none]
                      [--gcp-project <id>] [--secrets-file <path>] [--yes]
-      Writes a new instance's secrets file (mode 600, never overwritten): generated secrets in, an empty line for each value you supply. Local only.
+      Writes a new instance's settings file and secrets file (secrets mode 600, never overwritten): generated secrets in, an empty line for each value you supply;
+      setup then needs only --env (host, provider and owner email come from the settings file). Local only.
       Asks on a terminal for what the flags leave out, then \`proceed? [Y/n]\` (--yes skips the question); with no terminal it needs --env, --api-host and --owner-email (not with --auth none). Exit 0: written, or declined; 2: refused.
 
   vibase-server status --env <name> [--settings <path>] [--secrets-file <path>]
@@ -39,13 +40,14 @@ export const INSTANCE_HELP = `vibase-server: manage the Vibase instance this ser
       \`upgrade\` is the normal, guarded path.
       Exit codes as upgrade.
 
-  vibase-server setup --env <name> (--api-host <host> | --workers-dev) [--auth better-auth|clerk|none] [--owner-email <email>] [--operator-agent <name> --key-env <NAME>]
+  vibase-server setup --env <name> [--api-host <host> | --workers-dev] [--auth better-auth|clerk|none] [--owner-email <email>] [--operator-agent <name> --key-env <NAME>]
                         [--dry-run] [--yes] [--only <steps>] [--settings <path>] [--secrets-file <path>] [more flags: --web-origin, --extra-origin, --org,
                         --worker-name, --d1-name, --control-d1-name, --r2-name, --clerk-publishable-key, --clerk-production, --no-dcr, --rotate-secrets,
                         --register-workers-subdomain <name> (with --workers-dev, only when the account has no subdomain), --change-host (move a recorded instance to the --api-host given)]
       From nothing, or from an instance deployed from source, to a migrated, bootstrapped, deployed, verified instance, with no checkout:
       preflight, config:resources (adopts existing D1 and R2 by name), clerk, config:write (writes the settings file and goes on), migrate,
-      bootstrap, deploy, secrets, verify. Clerk keys, Gmail values and the Cloudflare credentials come from the secrets file; an operator key
+      bootstrap, deploy, secrets, verify. The host, provider and owner email default to init's settings file or the instance's record (a differing flag is refused);
+      a new instance without init's file needs --api-host or --workers-dev. Clerk keys, Gmail values and the Cloudflare credentials come from the secrets file; an operator key
       is appended to it as --key-env. Refuses a live instance that is newer than
       this package. Exit 0: done, or the dry run is complete; 2: refused before the first step; 3: a step failed (it is named; no later step ran).
 

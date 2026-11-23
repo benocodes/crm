@@ -120,7 +120,7 @@ describe('6. help and routing', () => {
     expect(
       serverHelpProblems(INSTANCE_HELP.replace('vibase-server owner-reset --env <name>', 'vibase-server owner-reset')),
     ).toEqual(['owner-reset --env <name> ... [--dry-run] [--yes]'])
-    expect(serverHelpProblems('')).toHaveLength(7)
+    expect(serverHelpProblems('')).toHaveLength(8)
     expect(serverHelpProblems(`${INSTANCE_HELP}\nNeeds CONFIRM_REMOTE=1. No prompts.`)).toEqual([
       'no CONFIRM_REMOTE',
       'no "No prompts"',

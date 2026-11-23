@@ -17,7 +17,7 @@ import { ABORT_LINE, confirmProceed } from './prompt.js'
 import { readWorkerSettings } from './cf-api.js'
 import { compareSemver, parseSemver } from './gate.js'
 import { defaultSecretsPath, loadSecrets } from './secrets.js'
-import { defaultSettingsPath, loadSettings } from './settings.js'
+import { defaultSettingsPath, loadAnySettings } from './settings.js'
 import { parseInstanceSetupArgs } from './setup-args.js'
 import { STEPS, type SetupCtx } from './setup-steps.js'
 import { InstanceRefusal, isRefusal, type InstanceDeps } from './types.js'
@@ -27,7 +27,7 @@ export const EXIT_REFUSED = 2
 export const EXIT_FAILED = 3
 
 const USAGE =
-  'usage: vibase-server setup --env <name> (--api-host <host> | --workers-dev) [--auth better-auth|clerk|none] [--owner-email <e>] [--settings <path>] [--secrets-file <path>] [--dry-run] [--yes] [flags]'
+  'usage: vibase-server setup --env <name> [--api-host <host> | --workers-dev] [--auth better-auth|clerk|none] [--owner-email <e>] [--settings <path>] [--secrets-file <path>] [--dry-run] [--yes] [flags]'
 const row = (r: StepResult) => `${r.status.padEnd(7)} ${r.step.padEnd(17)} ${r.detail}`
 
 /** A step's failure that is a refusal (an unresolvable wrangler) before anything was written is a refusal, not a failed step. */
@@ -50,11 +50,17 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
       parsed = parseInstanceSetupArgs(argv, (env, given) => {
         const path = given ?? defaultSettingsPath(deps.env, deps.homedir, env)
         if (!existsSync(path)) return null
-        const rec = loadSettings(path, env, { allowNoControl: true })
+        const file = loadAnySettings(path, env, { allowNoControl: true })
+        if (file.kind === 'init') return { kind: 'init', init: file.init, where: path }
+        const rec = file.settings
         return {
-          provider: providerFromVars(rec.vars, path),
-          where: path,
-          host: { apiHost: rec.api_host, workersDev: rec.workers_dev === true },
+          kind: 'full',
+          record: {
+            provider: providerFromVars(rec.vars, path),
+            where: path,
+            host: { apiHost: rec.api_host, workersDev: rec.workers_dev === true },
+          },
+          ...(rec.owner_email ? { ownerEmail: rec.owner_email } : {}),
         }
       })
     } catch (e) {
@@ -77,7 +83,12 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     const secrets = loadSecrets(secretsPath, deps.env, derived.env)
     redactSecrets = secrets.redact
     const settingsPath = parsed.settingsPath ?? defaultSettingsPath(deps.env, deps.homedir, derived.env)
-    const existing = existsSync(settingsPath) ? loadSettings(settingsPath, derived.env, { allowNoControl: true }) : null
+    const onDisk = existsSync(settingsPath)
+      ? loadAnySettings(settingsPath, derived.env, { allowNoControl: true })
+      : null
+    // [[OPS501]] D3: a file init wrote is no record: the run is a new instance's, and `config:write` adopts the file.
+    const existing = onDisk?.kind === 'full' ? onDisk.settings : null
+    const initWritten = onDisk?.kind === 'init'
     // [[OPS276]]: the names the settings file records win over the derivation; a name flag that differs is refused before any step.
     const named = existing
       ? applyRecordedNames(
@@ -136,6 +147,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
       secrets,
       creds,
       settingsPath,
+      initWritten,
       secretsPath,
       existing,
       current: existing ?? undefined,
@@ -161,7 +173,7 @@ export async function runSetup(argv: string[], deps: InstanceDeps): Promise<numb
     `package: vibase-server/${manifest.version} (${manifest.commit}), ${Object.keys(manifest.files).length} files verified`,
   )
   say(
-    `setup: env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}${opts.workersDev ? ' (workers.dev)' : ''}, settings ${ctx.settingsPath}${opts.dryRun ? ' (dry run: reads only)' : ''}`,
+    `setup: env ${opts.env}, auth ${opts.auth}, api host ${opts.apiHost}${opts.workersDev ? ' (workers.dev)' : ''}, settings ${ctx.settingsPath}${ctx.initWritten ? ' (written by init)' : ''}${opts.dryRun ? ' (dry run: reads only)' : ''}`,
   )
   for (const n of opts.hostNotes ?? []) say(n)
   if (opts.move)

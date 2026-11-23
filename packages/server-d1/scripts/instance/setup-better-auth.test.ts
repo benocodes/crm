@@ -1,7 +1,7 @@
 // OPS249 cycle 1 on `vibase-server setup`: the provider rule (D1), the Better Auth vars (D2), `AUTH_SECRET` (D3), the Google pair (D4), the bootstrap step (D6) and re-runs that never
 // re-issue the owner link (D7). The same obligations for `setup:remote` are in setup/better-auth.test.ts. Everything runs against the instance kit's fake wrangler and fetch, a real
 // secrets file and settings file on disk, and two real local D1s (CRM and control) behind the bootstrap step.
-import { readFileSync, statSync } from 'node:fs'
+import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { openControlDb, readControlMarker } from '@vibase/storage-d1'
 import { seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
@@ -406,6 +406,10 @@ describe('5. the bootstrap step on better-auth (D6)', () => {
     await run(s)
     await pair.control.prepare('delete from invitations').run()
     await s.sync()
+    // a record made before OPS501 has no owner_email (a newer one would supply the default)
+    const rec = JSON.parse(readFileSync(s.w.settingsPath, 'utf8'))
+    delete rec.owner_email
+    writeFileSync(s.w.settingsPath, JSON.stringify(rec))
     before(s)
     expect(await run(s, ['--env', 'demo', '--api-host', API_HOST])).toBe(3)
     expect(row(s, 'bootstrap').status).toBe('fail')

@@ -639,7 +639,7 @@ describe('secrets and side effects', () => {
 describe('the instance entry', () => {
   it('lists setup in the help', async () => {
     const { INSTANCE_HELP } = await import('./main.js')
-    expect(INSTANCE_HELP).toContain('vibase-server setup --env <name> (--api-host <host> | --workers-dev)')
+    expect(INSTANCE_HELP).toContain('vibase-server setup --env <name> [--api-host <host> | --workers-dev]')
     expect(INSTANCE_HELP).toMatch(/--secrets-file/)
     expect(INSTANCE_HELP).toMatch(
       /Exit 0: done, or the dry run is complete; 2: refused before the first step; 3: a step failed/,
