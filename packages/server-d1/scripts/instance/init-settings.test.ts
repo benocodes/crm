@@ -52,6 +52,11 @@ describe('2. the parser and the other commands (D1, D4, D5)', () => {
         new RegExp(`"${key}" is not allowed with stage "init"`),
       )
   })
+  it('a full record carrying an init-only key (auth) is refused naming the key', () => {
+    expect(() => parseSettings(JSON.stringify({ ...full, auth: 'clerk' }), 'demo', '/s/demo.json')).toThrow(
+      /unknown key "auth"/,
+    )
+  })
   it('an unknown stage value is refused naming it', () => {
     expect(() => parseSettings(JSON.stringify({ ...INIT, stage: 'later' }), 'demo', '/s/demo.json')).toThrow(
       /stage "later"/,
