@@ -1,8 +1,12 @@
 // Test-only: never import from non-test code. A stand-in for [[CORE3]]'s Clerk adapter behind the
 // same UserAuthenticator interface. Like every authenticator it closes the scopes under write => request_approval ([[AGT8]] D31).
 import { ScopeSet } from '../scopes.js'
+import { createVibaseRegistry } from '../operations.js'
 import type { UserAuthenticator } from '../auth/types.js'
 
+// Like production, the closure is taken against the vault's declared scopes ([[API518]] D3), so a stored `x:read` also holds `x:read_metadata` where declared.
+let declaredScopes: readonly string[] | undefined
+const declared = () => (declaredScopes ??= createVibaseRegistry().declaredScopes())
 const b64 = (s: string) => Buffer.from(s).toString('base64url')
 
 /** A JWT-shaped string with an unverified payload. `kind: 'agent'` makes the principal an agent (storage-level suites that have no API-key table). */
@@ -28,7 +32,7 @@ export function fakeUserAuthenticator(): UserAuthenticator {
       return {
         actor: { id: p.userId, kind: p.kind ?? 'user' },
         organizationId: p.organizationId,
-        scopes: ScopeSet.closed(p.scopes),
+        scopes: ScopeSet.closed(p.scopes, declared()),
       }
     },
   }

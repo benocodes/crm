@@ -23,6 +23,7 @@
     "e2e:forms": "tsx scripts/e2e-forms.ts",
     "e2e:gmail-send": "tsx scripts/e2e-gmail-send.ts",
     "e2e:webhook-example": "tsx scripts/e2e-webhook-example.ts",
+    "e2e:metadata-scope": "tsx scripts/e2e-metadata-scope.ts",
     "test": "VITEST_MAX_WORKERS=${VITEST_MAX_WORKERS:-4} vitest run --config ../../vitest.config.ts",
     "typecheck": "tsc --noEmit",
     "bootstrap": "tsx scripts/bootstrap.ts",

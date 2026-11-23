@@ -184,6 +184,11 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
   readonly update?: z.ZodObject
   readonly operations?: readonly CrudAction[]
   readonly scopeResource?: string
+  /**
+   * [[API516]] D7: the action of `scopeResource` that reads this definition's records: list, get, the association endpoint, feed visibility and schema `read_scope` all follow it.
+   * Absent: `read`. `messages` and `threads` declare `read_metadata`, the subject level; their content still needs `messages:read` ([[API514]] D5, D8).
+   */
+  readonly readAction?: 'read' | 'read_metadata'
   /** [[CHN5]] D29: the table exists on D1 only, so every generated operation answers `501 not_implemented` on another engine (checked before any unit runs). */
   readonly d1Only?: boolean
   /**

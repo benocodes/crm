@@ -86,7 +86,12 @@ const code = (r: { body: any }) => r.body?.error?.code
 const message$ = (r: { body: any }) => r.body?.error?.message
 
 /** A lowered read: the metadata holder and the messages:read holder both succeed, with the message records projected for the first; neither is refused with the new text. */
-type Row = { omitsForNeither?: true; name: string; run: (c: Column) => Promise<{ status: number; body: any }>; records: (b: any) => any[] }
+type Row = {
+  omitsForNeither?: true
+  name: string
+  run: (c: Column) => Promise<{ status: number; body: any }>
+  records: (b: any) => any[]
+}
 const ROWS: Row[] = [
   { name: 'messages.list', run: (c) => call(c, 'GET', '/api/v1/messages'), records: (b) => b.data },
   {
@@ -137,7 +142,12 @@ const ROWS: Row[] = [
       const res = await k.app.request('/mcp', {
         method: 'POST',
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'messages_list', arguments: {} } }),
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'messages_list', arguments: {} },
+        }),
       })
       const rpc = (await res.json()) as any
       const text: string = rpc.result?.content?.[0]?.text ?? ''
@@ -203,7 +213,8 @@ describe('every explicit messages:read requirement is unchanged (D8)', () => {
     to: ['jane@acme.test'],
     idempotency_key: 'k-1',
   }
-  const reply = (c: Column) => call(c, 'POST', '/api/v1/messages/send', { ...SEND, connection_id: connection, thread_id: thread })
+  const reply = (c: Column) =>
+    call(c, 'POST', '/api/v1/messages/send', { ...SEND, connection_id: connection, thread_id: thread })
 
   it('the content operation', async () => {
     const meta = await call('metadata', 'GET', `/api/v1/messages/${message}/content`)

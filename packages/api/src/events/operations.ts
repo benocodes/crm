@@ -61,7 +61,7 @@ export function feedVisibility(registry: Registry, env: Pick<PreparedEnv, 'scope
       edge = {
         resourceType: type,
         endpointTypes: [...endpointTypesOf(registry.resources()).values()]
-          .filter((t) => can(t.read.resource))
+          .filter((t) => can(t.read.resource, t.read.action as 'read' | 'read_metadata'))
           .map((t) => t.type)
           .sort(),
       }

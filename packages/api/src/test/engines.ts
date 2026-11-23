@@ -126,6 +126,7 @@ const scopes = () =>
     'agents:write',
     'members:read',
     'messages:read',
+    'messages:read_metadata',
     'interactions:read',
     'files:read',
     'associations:read',

@@ -21,7 +21,7 @@ const attachment = z.object({
 })
 
 /**
- * Read-only ([[CORE25]] D26), `messages:read`. `content_key` is not in the record (the content operation is cycle
+ * Read-only ([[CORE25]] D26), read at `messages:read_metadata`; `preview` and `attachments` need `messages:read` ([[API514]] D5). `content_key` is not in the record (the content operation is cycle
  * [[CORE58]]'s), and attachments are embedded ordered by position, `[]` when there are none.
  */
 export const messages = withColumnFilters(
@@ -32,6 +32,7 @@ export const messages = withColumnFilters(
       eventName: 'message',
       table: 'messages',
       scopeResource: 'messages',
+      readAction: 'read_metadata',
       operations: ['list', 'get'],
       record: z.object({
         id: z.uuid(),

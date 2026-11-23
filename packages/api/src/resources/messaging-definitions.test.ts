@@ -48,6 +48,7 @@ describe('messaging definitions (CORE25 C1)', () => {
       'members:read',
       'members:write',
       'messages:read',
+      'messages:read_metadata',
       'messages:request_approval',
       'messages:write',
       'notes:read',

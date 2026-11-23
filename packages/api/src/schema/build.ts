@@ -6,7 +6,7 @@ import { fullPath } from '../surfaces.js'
 import { STATED_SORT_COSTS } from '../storage/sort-costs.js'
 import { describeColumnFilter, operatorsFor } from '../storage/column-filters.js'
 import { STATED_FILTER_COSTS } from '../storage/filter-costs.js'
-import { crudActions, resourcePath, scopeResourceOf } from '../resources/define.js'
+import { crudActions, readActionOf, resourcePath, scopeResourceOf } from '../resources/define.js'
 import { AUTH_TABLE_PREFIX, CATALOG, HIDDEN_TABLES, defaultLabel, type Catalog } from './catalog.js'
 import type { SchemaDocument } from './document.js'
 
@@ -121,7 +121,7 @@ function resourceOf(def: AnyResource, stated: ReadonlySet<string>, statedFilters
     surface: def.surface,
     path: fullPath({ surface: def.surface, path: resourcePath(def) }),
     operations: resourceOperations(def).map((o) => o.name),
-    read_scope: formatScope({ resource: scope, action: 'read' }),
+    read_scope: formatScope({ resource: scope, action: readActionOf(def) }),
     write_scope:
       actions.has('create') || actions.has('update') || actions.has('delete')
         ? formatScope({ resource: scope, action: 'write' })

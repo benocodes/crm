@@ -6274,7 +6274,7 @@
                   "surface": "api",
                   "path": "/api/v1/messages",
                   "operations": ["messages.list", "messages.get"],
-                  "read_scope": "messages:read",
+                  "read_scope": "messages:read_metadata",
                   "write_scope": null,
                   "sorts": [
                     {
@@ -8052,7 +8052,7 @@
                   "surface": "api",
                   "path": "/api/v1/threads",
                   "operations": ["threads.list", "threads.get"],
-                  "read_scope": "messages:read",
+                  "read_scope": "messages:read_metadata",
                   "write_scope": null,
                   "sorts": [
                     {

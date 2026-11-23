@@ -185,6 +185,8 @@ export function runContractSuite(opts: {
       const ops = crudActions(def)
       const has = (action: CrudAction) => ops.includes(action)
       const scopeRes = scopeResourceOf(def)
+      // A fixture reads a message's attachments, which need `messages:read` ([[API514]] D5); this registry holds no content operation, so no declared scope carries it.
+      const fixtureScopes = () => [...new Set([...registry.declaredScopes(), 'messages:read'])]
       const scopeSets: Record<ContractGrant, string[]> = {
         full: [`${scopeRes}:read`, `${scopeRes}:write`],
         read: [`${scopeRes}:read`],
@@ -207,7 +209,7 @@ export function runContractSuite(opts: {
             kit: (t, d) => ({
               tenant: t,
               async post(path, body) {
-                const res = await session.call(t, 'user', registry.declaredScopes(), 'POST', path, body)
+                const res = await session.call(t, 'user', fixtureScopes(), 'POST', path, body)
                 if (res.status < 200 || res.status >= 300)
                   throw new Error(`fixture post ${path} failed: ${res.status} ${await res.text()}`)
                 return (await res.json()) as { id: string }
@@ -215,7 +217,7 @@ export function runContractSuite(opts: {
               seedMember: (role = 'member') => session.seedMember(t, role),
               insert: (table, row) => session.insert(t, table, row),
               async get(path) {
-                const res = await session.call(t, 'user', registry.declaredScopes(), 'GET', path)
+                const res = await session.call(t, 'user', fixtureScopes(), 'GET', path)
                 if (res.status !== 200) throw new Error(`fixture get ${path} failed: ${res.status} ${await res.text()}`)
                 return res.json()
               },

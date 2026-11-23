@@ -50,7 +50,10 @@ describe('messages and threads read at the metadata scope (D7)', () => {
   it('the lowered reads require it; the content operation and send keep messages:read (D8)', () => {
     for (const name of ['messages.list', 'messages.get', 'threads.list', 'threads.get']) {
       const op = registry.get(name)
-      expect(op?.kind === 'tenant' ? op.scope : undefined, name).toEqual({ resource: 'messages', action: 'read_metadata' })
+      expect(op?.kind === 'tenant' ? op.scope : undefined, name).toEqual({
+        resource: 'messages',
+        action: 'read_metadata',
+      })
     }
     for (const name of ['messages.content']) {
       const op = registry.get(name)

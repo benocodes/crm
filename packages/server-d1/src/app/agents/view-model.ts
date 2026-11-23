@@ -42,8 +42,8 @@ export function connectedText(a: AgentRecord, meId: string, formName?: string): 
   return 'API-key agent'
 }
 
-const ACTION_ORDER = ['read', 'request_approval', 'write']
-const ACTION_TEXT: Record<string, string> = { request_approval: 'propose' }
+const ACTION_ORDER = ['read_metadata', 'read', 'request_approval', 'write']
+const ACTION_TEXT: Record<string, string> = { request_approval: 'propose', read_metadata: 'read metadata' }
 
 /** D4: "Permissions: contacts (read, write), tasks (read)"; grouped by resource in the scopes' sorted order, `request_approval` shown as "propose". */
 export function permissionsLine(scopes: readonly string[]): string {
