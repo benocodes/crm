@@ -333,6 +333,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   A refusal regex that the *old* refusal or usage text also matches passes in the red run for the same reason: assert
   a phrase only the new guard prints (`provider switch is not committed`, never `apply`/`--dry-run`), and a negative
   match on the old text ([[OPS392]], [[OPS393]]).
+- **A check inside a loop over returned records passes on an empty answer.** Assert what came back (the seeded ids,
+  or a count) before looping over the records to check their fields: [[API516]]'s matrix checked `preview` was
+  absent in every listed message and would have passed on an empty page (review round 1).
 - **Append-only tables in an emptied-between-tests database.** A `BEFORE DELETE ... RAISE` trigger (`control_audit`,
   [[CORE245]]) makes a plain `DELETE FROM` fail. `clearD1` (`packages/storage-d1/src/test/index.ts`) drops exactly the
   `BEFORE DELETE` triggers, empties, and recreates them from their stored `sqlite_master.sql`, all in one batch, so the
@@ -1028,4 +1031,5 @@ pnpm -C packages/server-d1 e2e:auth-migration     # the hq auth migration end to
 pnpm -C packages/server-d1 e2e:forms               # a website form posted to the real Worker under `wrangler dev --local` (CHN432): real Turnstile siteverify with the always-pass test secret (needs network; it passes any non-empty token, so the script proves no wrong-token refusal), live `ratelimits` bindings, owner-created form in-process; own temp state and env file, removed at the end; no browser, no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:agents-clerk        # the Clerk-only legs on /app/home and /app/agents (UI479, paths UI507): Account Portal round trip, owner Disable/Enable, agent role, member, sign out; Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only, E2E_AGENT_KEY from bootstrap); same harness and config as the two below; not in the gate
 pnpm -C packages/server-d1 e2e:mcp-oauth          # MCP OAuth end to end (DCR, consent, delegated agent, revocation) on the Clerk dev instance; same harness, not in the gate
+pnpm -C packages/server-d1 e2e:metadata-scope     # messages:read_metadata live (API516): Miniflare Worker on better-auth with an auth_jwks key seeded from @vibase/api/test/better-auth (minted tokens verify), messages captured in-process over FakeGmail (not the MAIL_SYNC leg), agents A/B/C over REST, MCP, the feed and webhook deliveries, delegated agent D's narrowed token; own temp dir; no browser, no Clerk; not in the gate
 ```

@@ -14,6 +14,8 @@ export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'companies:write': 'Create, change and merge companies',
   'companies:request_approval': 'Propose changes to companies for review',
   'interactions:read': 'See who talked to whom, and when, across email, calendar and chat',
+  'messages:read_metadata':
+    'Read the subjects, senders and dates of messages and threads, without bodies or attachments',
   'messages:read': 'Read the content of messages and threads',
   'messages:write': 'Send messages with owner-granted authority',
   'messages:request_approval': 'Propose changes to messages for review',

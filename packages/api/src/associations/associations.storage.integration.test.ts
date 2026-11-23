@@ -185,7 +185,7 @@ describe('associations.create', () => {
     )
     expect([err.status, err.code]).toEqual([403, 'insufficient_scope'])
     expect(err.message).toContain('threads')
-    expect(err.message).toContain('messages:read')
+    expect(err.message).toContain('messages:read_metadata')
     const err2 = await a.fail(
       'associations.create',
       { body: { a_type: 'contacts', a_id: c[1], b_type: 'threads', b_id: th[1] } },

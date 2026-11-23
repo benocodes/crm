@@ -20,6 +20,8 @@ export const SCOPE_POLICY: ScopePolicy = {
   'companies:request_approval': { member: true, agentGrantable: true },
   // Messaging ([[CORE25]] D25): the privacy split - who talked to whom (interactions), what was said (messages, threads), the bytes (files).
   'interactions:read': { member: true, agentGrantable: true },
+  // [[API514]] D4, [[API516]]: the subject level of messages and threads; `messages:read` (the content) implies it.
+  'messages:read_metadata': { member: true, agentGrantable: true },
   'messages:read': { member: true, agentGrantable: true },
   'messages:write': { member: true, agentGrantable: true },
   'messages:request_approval': { member: true, agentGrantable: true },

@@ -43,6 +43,7 @@ describe('identity definitions', () => {
       'members:read',
       'members:write',
       'messages:read',
+      'messages:read_metadata',
       'messages:request_approval',
       'messages:write',
       'notes:read',

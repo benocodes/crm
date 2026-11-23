@@ -19,8 +19,11 @@ brief says **what** to deliver and **what must be proven**; you work out the how
   `blocked`, not a guess.
 - Prove your work with tests on the affected files (`pnpm -C packages/<pkg> test <file>`), plus a typecheck
   of the packages you touched. **Do not run the full gate**: the gate-tester runs it after you report, and
-  wakes you only if it is red. The E2E scenario is not yours either.
+  wakes you only if it is red. Nor a package's full suite (`pnpm -r test`, `pnpm -C packages/<pkg> test` with no
+  file): left running, it contends with the gate-tester's run on the same machine ([[API516]]). The E2E scenario
+  is not yours either, except a script you wrote, run once (`execute-cycle` §5).
 - Don't open a PR, merge, or run `/retrospect`; those belong to other stages.
 - When applying review findings, change only what the findings ask for, rerun the affected tests, commit, push.
 
-End with the skill's `CYCLE REPORT`.
+End with the skill's `CYCLE REPORT`, sent once, as the final account of the run: never a placeholder or a
+"report to follow" ([[API516]]: a placeholder hand-back ended the run and cost a continuation).

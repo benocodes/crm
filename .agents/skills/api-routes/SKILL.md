@@ -1087,8 +1087,15 @@ service context enforces it, so scope checks are written once.
   - **`read ⇒ read_metadata` closes only against the declared set** ([[API518]] P1): `closeScopes(list, declared)`
     adds `x:read_metadata` for `x:read` only when `declared` contains it, and adds nothing with `declared` absent.
     The grammar has no resource list, so an ungated rule would put `contacts:read_metadata` into every set.
-    `write ⇒ request_approval` needs no `declared`. A test stand-in that closes without `declared`
-    (`test/user-auth.ts`) gets no `read_metadata`.
+    `write ⇒ request_approval` needs no `declared`. Since [[API516]] the test stand-in (`test/user-auth.ts`) closes
+    against `createVibaseRegistry().declaredScopes()`, as production does; a stand-in that closed without `declared`
+    would refuse every `messages:read` caller on the lowered reads, and would hide any closure gap. A new test
+    authenticator closes the same way.
+  - **A definition's read action** ([[API516]] D7): `readAction` (`'read' | 'read_metadata'`, default `read`) beside
+    `scopeResource`, read only through `readActionOf(def)` (`resources/define.ts`). List, get, aggregate, the
+    association endpoint type, `Registry.eventTypes()`'s `EventTypeDecl.action` and schema `read_scope` all derive from
+    it; `messages` and `threads` declare `read_metadata`. A requirement that guards content, authored inputs or sending
+    names `messages:read` explicitly and never derives from the definition ([[API514]] D8).
   - **Stored agent scopes become a set only through `agentScopeSet(registry, stored)`**
     (`webhooks/crm-reads.ts`, [[API518]]): it applies the well-formed filter first, so one bad stored scope never
     throws a dispatch, and then closes against `registry.declaredScopes()`. Dispatch, the sender and the webhook

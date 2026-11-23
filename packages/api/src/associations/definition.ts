@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { COLUMN_KINDS, type ColumnKind } from '@vibase/storage'
 import type { Scope } from '../scopes.js'
-import { scopeResourceOf } from '../resources/define.js'
+import { readActionOf, scopeResourceOf } from '../resources/define.js'
 import { definePreparedResource, type PreparedResource } from '../storage/definition.js'
 
 /**
@@ -44,7 +44,7 @@ export type AssociationRecord = {
 export interface EndpointType {
   /** The table name: stored in `a_type`/`b_type`, and the only text that ever reaches SQL as an identifier. */
   readonly type: string
-  /** The read scope needed to see rows of the type (a thread's is `messages:read`). */
+  /** The read scope needed to see rows of the type (a thread's is `messages:read_metadata`). */
   readonly read: Scope
   /** Whether rows have `organization_id` / `deleted_at` (threads and interactions have no `deleted_at`: they are live when they exist). */
   readonly hasOrganization: boolean
@@ -63,7 +63,7 @@ export function endpointTypesOf(defs: readonly PreparedResource<any, any>[]): En
     const kinds = COLUMN_KINDS[def.table as keyof typeof COLUMN_KINDS] as Record<string, ColumnKind>
     out.set(def.table, {
       type: def.table,
-      read: { resource: scopeResourceOf(def), action: 'read' },
+      read: { resource: scopeResourceOf(def), action: readActionOf(def) },
       hasOrganization: 'organization_id' in kinds,
       softDeletes: 'deleted_at' in kinds,
       ...(def.neighbours ? { neighbours: def.neighbours } : {}),

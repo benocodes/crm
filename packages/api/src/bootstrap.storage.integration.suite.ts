@@ -149,6 +149,12 @@ export function engineSuite(engineName: EngineName): void {
       expect(principal!.scopes.toStrings()).toEqual(['tasks:read'])
     })
 
+    it('a bootstrapped agent holding messages:read_metadata alone keeps it ([[API516]]: declared and grantable)', async () => {
+      const r = await bootstrap(e.binding, { ...OPTS, scopes: ['messages:read_metadata'] }, env())
+      const principal = await createApiKeyAuthenticator({ port: store })(kit.binding, r.key, kit.env())
+      expect(principal!.scopes.toStrings()).toEqual(['messages:read_metadata'])
+    })
+
     it('a bootstrapped linked user signs in without a profile fetch', async () => {
       await bootstrap(e.binding, { ...OPTS, authSubject: 'user_boot' }, env())
       const res = await kit.call('/meta/v1/me', 'user_boot')
@@ -170,13 +176,6 @@ export function engineSuite(engineName: EngineName): void {
         const before = await state()
         await expect(bootstrap(e.binding, { ...OPTS, scopes: ['nope:read'] }, env())).rejects.toThrow(
           'unknown scope: nope:read',
-        )
-        expect(await state()).toEqual(before)
-      })
-      it('the metadata scope that nothing declares yet ([[API518]]: valid grammar, undeclared, refused as any undeclared scope)', async () => {
-        const before = await state()
-        await expect(bootstrap(e.binding, { ...OPTS, scopes: ['messages:read_metadata'] }, env())).rejects.toThrow(
-          'unknown scope: messages:read_metadata',
         )
         expect(await state()).toEqual(before)
       })

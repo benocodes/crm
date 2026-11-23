@@ -21,7 +21,14 @@ import {
 import { endpointTypesOf, type EndpointTypes } from './associations/definition.js'
 import { embeddedFields, getWithAssociations, includeQuery } from './associations/embed.js'
 import { fullPath, type Surface } from './surfaces.js'
-import { crudActions, parseInput, resourcePath, scopeResourceOf, type CrudAction } from './resources/define.js'
+import {
+  crudActions,
+  parseInput,
+  readActionOf,
+  resourcePath,
+  scopeResourceOf,
+  type CrudAction,
+} from './resources/define.js'
 
 /**
  * [[AGT8]] D32: whether an operation may be the target of an action request. `eligible: true` may name the stored record an id-bearing
@@ -273,7 +280,8 @@ export class Registry {
   /** The feed's visibility map: every registered definition's `eventName` under its scope resource, then the explicit entries. A type with no entry is invisible. */
   eventTypes(): ReadonlyMap<string, EventTypeDecl> {
     const out = new Map<string, EventTypeDecl>()
-    for (const def of this.defs) out.set(def.eventName, { scope: scopeResourceOf(def) })
+    // [[API516]] P2: the action is the owning definition's read action ([[API518]] D8), never set per event type.
+    for (const def of this.defs) out.set(def.eventName, { scope: scopeResourceOf(def), action: readActionOf(def) })
     for (const [type, decl] of this.explicitEventTypes) out.set(type, decl)
     return out
   }
@@ -400,7 +408,7 @@ export function resourceOperations(
       summary: `List ${def.name}`,
       method: 'get',
       path: p,
-      scope: { resource: s, action: 'read' },
+      scope: { resource: s, action: readActionOf(def) },
       request: { query: z.object(query) },
       response: {
         status: 200,
@@ -434,7 +442,7 @@ export function resourceOperations(
       description: aggregateDescription(def),
       method: 'get',
       path: `${p}/aggregate`,
-      scope: { resource: s, action: 'read' },
+      scope: { resource: s, action: readActionOf(def) },
       request: { query: z.object({ ...aggregateParams(def), ...filterFields(def) }) },
       response: { status: 200, schema: aggregateAnswer },
       prepare: (env, input) => aggregateOperation(def, env, input.query),
@@ -448,7 +456,7 @@ export function resourceOperations(
       summary: `Get a ${def.eventName}`,
       method: 'get',
       path: `${p}/{id}`,
-      scope: { resource: s, action: 'read' },
+      scope: { resource: s, action: readActionOf(def) },
       // [[CORE62]] D6: an associable record can embed its edges (`?include=associations`); other resources take no query.
       request: { params: idParams, ...(def.associable ? { query: getQuery } : {}) },
       response: { status: 200, schema: def.associable ? (def.record as z.ZodObject).extend(embeddedFields) : rec },

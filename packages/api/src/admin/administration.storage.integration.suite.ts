@@ -125,6 +125,12 @@ export function engineSuite(engineName: EngineName): void {
         })
       })
 
+      it('create keeps messages:read_metadata alone, stored as given: declared and grantable, never closed into the row (API516)', async () => {
+        const a = await call('agents.create', { body: { name: 'meta', scopes: ['messages:read_metadata'] } })
+        expect(a.scopes).toEqual(['messages:read_metadata'])
+        expect((await row('agents', a.id)).scopes).toEqual(['messages:read_metadata'])
+      })
+
       it('create with no scopes stores an empty list', async () => {
         const a = await call('agents.create', { body: { name: 'empty' } })
         expect(a.scopes).toEqual([])
@@ -136,11 +142,6 @@ export function engineSuite(engineName: EngineName): void {
           'an unknown scope',
           { name: 'x', scopes: ['tasks:read', 'zz:read'] },
           [400, 'unknown_scope', 'unknown scope: zz:read'],
-        ],
-        [
-          'the metadata scope nothing declares yet (API518)',
-          { name: 'x', scopes: ['messages:read', 'messages:read_metadata'] },
-          [400, 'unknown_scope', 'unknown scope: messages:read_metadata'],
         ],
         [
           'a human-only scope',

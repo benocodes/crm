@@ -19,13 +19,13 @@ export const ALL_READ = [
   'contacts:read',
   'companies:read',
   'tasks:read',
-  'messages:read',
+  'messages:read_metadata',
   'interactions:read',
   'associations:read',
   'associations:write',
 ]
-/** An agent that may link and read everything except message content (threads). */
-export const NO_MESSAGES = ALL_READ.filter((s) => s !== 'messages:read')
+/** An agent that may link and read everything except messages and threads: neither messages scope ([[API516]] D7: threads read at the metadata scope). */
+export const NO_MESSAGES = ALL_READ.filter((s) => s !== 'messages:read_metadata')
 
 export function assocKit(e: Engine) {
   const registry = createVibaseRegistry()

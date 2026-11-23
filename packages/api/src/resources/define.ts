@@ -11,9 +11,16 @@ export type Filter = {
 }
 export type CrudAction = 'list' | 'get' | 'create' | 'update' | 'delete'
 export const CRUD_ACTIONS: readonly CrudAction[] = ['list', 'get', 'create', 'update', 'delete']
-type Named = { name: string; operations?: readonly CrudAction[]; scopeResource?: string }
+type Named = {
+  name: string
+  operations?: readonly CrudAction[]
+  scopeResource?: string
+  readAction?: 'read' | 'read_metadata'
+}
 export const crudActions = (def: Named): readonly CrudAction[] => def.operations ?? CRUD_ACTIONS
 export const scopeResourceOf = (def: Named): string => def.scopeResource ?? def.name
+/** [[API516]] D7: the action that reads the definition's records (default `read`). */
+export const readActionOf = (def: Named): 'read' | 'read_metadata' => def.readAction ?? 'read'
 export const resourcePath = (def: Named): string => '/' + def.name.replaceAll('_', '-')
 const issues = (e: z.ZodError) => e.issues.map((i) => i.message).join('; ')
 
