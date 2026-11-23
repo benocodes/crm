@@ -52,7 +52,7 @@ const withRecord = (vars: Record<string, string>) =>
       { formattingOptions: { insertSpaces: true, tabSize: 2 } },
     ),
   )
-const tokenOf = (logs: string[]) => /\/invite#token=([A-Za-z0-9_-]+)/.exec(logs.join('\n'))?.[1]
+const tokenOf = (logs: string[]) => /\/app\/invite#token=([A-Za-z0-9_-]+)/.exec(logs.join('\n'))?.[1]
 const urlLines = (logs: string[]) => logs.filter((l) => l.includes('/app/invite#token='))
 
 /** The first run of a new instance writes the env block and stops ([[OPS65]] D10); the second one does the rest. */

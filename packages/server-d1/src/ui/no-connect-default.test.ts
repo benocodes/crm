@@ -43,7 +43,7 @@ const ALLOWED: Record<string, number> = {
   'packages/server-d1/scripts/dev-server.test.ts': 2,
   'packages/server-d1/scripts/smoke-worker.ts': 7,
   'packages/server-d1/src/static-serving.test.ts': 12,
-  'packages/server-d1/src/static-serving.ts': 2,
+  'packages/server-d1/src/static-serving.ts': 1,
   'packages/server-d1/src/ui/continuation.test.ts': 2,
   'packages/server-d1/src/ui/sign-in-page.ui.test.tsx': 2,
   'packages/server-d1/src/wrangler-config.test.ts': 4,

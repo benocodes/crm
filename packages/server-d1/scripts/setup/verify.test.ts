@@ -258,7 +258,7 @@ describe('2. the next steps on better-auth (D8)', () => {
   it("GH442 item 5: the invitation URL appears once, in the closing Claim block after the final status line, and in no step's lines", async () => {
     const w = world()
     const o = await fullRun(w)
-    const token = /\/invite#token=([A-Za-z0-9_-]+)/.exec(w.logs.join('\n'))?.[1]
+    const token = /\/app\/invite#token=([A-Za-z0-9_-]+)/.exec(w.logs.join('\n'))?.[1]
     expect(token).toBeTruthy()
     for (const r of o.results) expect((r.lines ?? []).join('\n'), r.step).not.toContain('/app/invite')
     expect(w.logs.filter((l) => l.includes('/app/invite#token='))).toHaveLength(1)

@@ -93,7 +93,7 @@ export function ConsentPage({ navigate = goTo }: PageProps) {
   const [state, setState] = useState<SwitchState>(() => defaultState(model))
   const [busy, setBusy] = useState<'allow' | 'deny' | 'out' | undefined>(undefined)
   const alertRef = useRef<HTMLDivElement>(null)
-  const toSignIn = () => navigate(`/sign-in?${oauthQuery}`)
+  const toSignIn = () => navigate(`/app/sign-in?${oauthQuery}`)
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs once on mount; the page reads its address and session once
   useEffect(() => {

@@ -159,7 +159,11 @@ describe('the callback error on /sign-in (P1)', () => {
 describe('a Google error does not mask a later error (review round 1)', () => {
   const DISC = { 'GET /.well-known/vibase': DISCOVERY(['password', 'google']) }
   it('/app/sign-in?error=invitation_required then a wrong password: the alert is the wrong-credentials message, and the error left the address', async () => {
-    history.replaceState(null, '', '/app/sign-in?error=invitation_required&error_description=x&return_to=%2Fdevice')
+    history.replaceState(
+      null,
+      '',
+      '/app/sign-in?error=invitation_required&error_description=x&return_to=%2Fapp%2Fdevice',
+    )
     fakeFetch({
       'GET /auth/get-session': NO_SESSION,
       ...DISC,
@@ -169,7 +173,7 @@ describe('a Google error does not mask a later error (review round 1)', () => {
     const user = userEvent.setup()
     await user.type(await screen.findByLabelText('Email'), 'ann@x.test')
     await user.type(screen.getByLabelText('Password'), 'a long enough password')
-    expect(location.search).toBe('?return_to=%2Fdevice')
+    expect(location.search).toBe('?return_to=%2Fapp%2Fdevice')
     await user.click(screen.getByRole('button', { name: /^sign in$/i }))
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe(MESSAGES.wrongCredentials))
   })

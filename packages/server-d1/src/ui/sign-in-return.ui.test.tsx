@@ -13,7 +13,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 const APP = 'https://app.example.com/orders?tab=open'
-const at = (returnTo: string) => history.replaceState(null, '', `/app/sign-in?return_to=${encodeURIComponent(returnTo)}`)
+const at = (returnTo: string) =>
+  history.replaceState(null, '', `/app/sign-in?return_to=${encodeURIComponent(returnTo)}`)
 beforeEach(() => history.replaceState(null, '', '/app/sign-in'))
 
 const NO_SESSION = { status: 200, json: null }

@@ -1,10 +1,9 @@
-// [[UI247]] D6 (b), [[UI461]] D3: where `/sign-in` may send a person back to. The allow-list is exact pathnames: `/device` and the app's pages (`APP_PAGE_PATHS`, read at call time). A `return_to` is resolved against the page's origin and honoured only when
-// it stays on that origin and its pathname is one of them (so `//evil.example/device`, `/device/../x`, `/devices` and `javascript:` are all ignored). Returns the path and query to go to, or null.
-import { APP_PAGE_PATHS } from '../app/paths.js'
+// [[UI247]] D6 (b), [[UI461]] D3: where `/sign-in` may send a person back to. The allow-list is exact pathnames: `/app/device` and the app's pages (`APP_PAGE_PATHS`, read at call time). A `return_to` is resolved against the page's origin and honoured only when
+// it stays on that origin and its pathname is one of them (so `//evil.example/app/device`, `/app/device/../x`, `/app/devices` and `javascript:` are all ignored). Returns the path and query to go to, or null.
+import { APP_PAGE_PATHS, DEVICE_PATH } from '../app/paths.js'
 
-const RETURN_PATHS: readonly string[] = ['/device']
-const allowed = (pathname: string): boolean =>
-  RETURN_PATHS.includes(pathname) || APP_PAGE_PATHS.some((p) => p === pathname)
+// [[UI510]] P6: the table's app pages plus `/app/device`, read at call time.
+const allowed = (pathname: string): boolean => pathname === DEVICE_PATH || APP_PAGE_PATHS.some((p) => p === pathname)
 
 export function returnTarget(search: string): string | null {
   const value = new URLSearchParams(search).get('return_to')

@@ -291,7 +291,7 @@ describe('return_to (D6 b)', () => {
   )
 
   it('a signed-in visitor is offered a Continue link to an allowed target', async () => {
-    history.replaceState(null, '', '/app/sign-in?return_to=%2Fdevice%3Fuser_code%3DABCDEFGH')
+    history.replaceState(null, '', '/app/sign-in?return_to=%2Fapp%2Fdevice%3Fuser_code%3DABCDEFGH')
     fakeFetch({ 'GET /auth/get-session': session({ email: 'ann@x.test' }) })
     render(<SignInPage />)
     const link = await screen.findByRole('link', { name: /continue/i })
@@ -306,7 +306,7 @@ describe('return_to (D6 b)', () => {
   })
 
   it('Google sign-in from /sign-in?return_to=/device lands on that target, not /sign-in (#375)', async () => {
-    history.replaceState(null, '', '/app/sign-in?return_to=%2Fdevice%3Fuser_code%3DABCDEFGH')
+    history.replaceState(null, '', '/app/sign-in?return_to=%2Fapp%2Fdevice%3Fuser_code%3DABCDEFGH')
     const f = fakeFetch({
       'GET /auth/get-session': NO_SESSION,
       'GET /.well-known/vibase': { status: 200, json: { auth: { sign_in_methods: ['password', 'google'] } } },
@@ -321,19 +321,22 @@ describe('return_to (D6 b)', () => {
     })
   })
 
-  it.each(['https://evil.example/device', '//evil.example/device', '/app/device/../x', '/devices', 'javascript:alert(1)'])(
-    'return_to=%s is ignored: sign-in continues to /home, not the target',
-    async (target) => {
-      history.replaceState(null, '', `/app/sign-in?return_to=${encodeURIComponent(target)}`)
-      fakeFetch({
-        'GET /auth/get-session': NO_SESSION,
-        'POST /auth/sign-in/email': { status: 200, json: { user: { email: 'ann@x.test' } } },
-      })
-      const go = vi.fn()
-      render(<SignInPage navigate={go} />)
-      await signInWith()
-      await waitFor(() => expect(go).toHaveBeenCalledWith('/app/home'))
-      expect(go).toHaveBeenCalledTimes(1)
-    },
-  )
+  it.each([
+    'https://evil.example/device',
+    '//evil.example/device',
+    '/app/device/../x',
+    '/devices',
+    'javascript:alert(1)',
+  ])('return_to=%s is ignored: sign-in continues to /home, not the target', async (target) => {
+    history.replaceState(null, '', `/app/sign-in?return_to=${encodeURIComponent(target)}`)
+    fakeFetch({
+      'GET /auth/get-session': NO_SESSION,
+      'POST /auth/sign-in/email': { status: 200, json: { user: { email: 'ann@x.test' } } },
+    })
+    const go = vi.fn()
+    render(<SignInPage navigate={go} />)
+    await signInWith()
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/app/home'))
+    expect(go).toHaveBeenCalledTimes(1)
+  })
 })

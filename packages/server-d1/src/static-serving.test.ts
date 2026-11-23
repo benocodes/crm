@@ -85,7 +85,8 @@ beforeEach(async () => {
   await createMigrationTracker(w.d1) // the database is behind: every gate would answer 503 if the app route came after it
 })
 const isAuthPage = (at: string) => /^\w+ \/app\/(sign-in|invite|reset-password|consent|device)(?=[/?\s])/.test(at)
-const isApp = (at: string) => !isAuthPage(at) && /^(GET|HEAD|POST) \/app(?=[/?\s])/.test(at) || /^(GET|HEAD) \/ \(302\)/.test(at)
+const isApp = (at: string) =>
+  (!isAuthPage(at) && /^(GET|HEAD|POST) \/app(?=[/?\s])/.test(at)) || /^(GET|HEAD) \/ \(302\)/.test(at)
 // D5: every app answer (page, asset, 404, 405, 302) carries the policy, nosniff and the referrer policy; HTML is no-store.
 afterEach(() => {
   for (const { at, res, issuer } of seen) {

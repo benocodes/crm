@@ -44,7 +44,9 @@ describe('no session', () => {
     const go = vi.fn()
     render(<DevicePage navigate={go} />)
     await waitFor(() =>
-      expect(go).toHaveBeenCalledWith(`/app/sign-in?return_to=${encodeURIComponent('/app/device?user_code=abcd-efgh')}`),
+      expect(go).toHaveBeenCalledWith(
+        `/app/sign-in?return_to=${encodeURIComponent('/app/device?user_code=abcd-efgh')}`,
+      ),
     )
     expect(screen.queryByLabelText(MESSAGES.deviceCodeLabel)).toBeNull()
   })
@@ -53,7 +55,7 @@ describe('no session', () => {
     fakeFetch({ 'GET /auth/get-session': { status: 500, text: 'boom' } })
     const go = vi.fn()
     render(<DevicePage navigate={go} />)
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/app/sign-in?return_to=%2Fdevice'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/app/sign-in?return_to=%2Fapp%2Fdevice'))
   })
 })
 

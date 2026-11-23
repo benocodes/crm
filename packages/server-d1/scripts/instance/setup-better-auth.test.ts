@@ -58,7 +58,7 @@ const bulks = (s: SetupWorld) =>
     .filter((c) => c.args.includes('secret') && c.args.includes('bulk'))
     .map((c) => JSON.parse(c.input!) as Record<string, string>)
 const urlLines = (s: SetupWorld) => s.w.out.filter((l) => l.includes('/app/invite#token='))
-const tokenOf = (s: SetupWorld) => /\/invite#token=([A-Za-z0-9_-]+)/.exec(s.w.out.join('\n'))?.[1]
+const tokenOf = (s: SetupWorld) => /\/app\/invite#token=([A-Za-z0-9_-]+)/.exec(s.w.out.join('\n'))?.[1]
 const before = (s: SetupWorld) => {
   s.w.out.length = 0
   s.w.err.length = 0

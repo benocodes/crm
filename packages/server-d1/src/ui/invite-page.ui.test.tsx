@@ -41,14 +41,17 @@ describe('the fragment token', () => {
     replace.mockRestore()
   })
 
-  it.each(['/app/invite', '/app/invite#', '/app/invite#token=', '/app/invite#other=1'])('%s: an explanation and no form', (url) => {
-    history.replaceState(null, '', url)
-    fakeFetch({})
-    render(<InvitePage />)
-    expect(screen.getByText(MESSAGES.inviteNoToken)).toBeTruthy()
-    expect(screen.queryByLabelText('Email')).toBeNull()
-    expect(screen.queryByRole('button')).toBeNull()
-  })
+  it.each(['/app/invite', '/app/invite#', '/app/invite#token=', '/app/invite#other=1'])(
+    '%s: an explanation and no form',
+    (url) => {
+      history.replaceState(null, '', url)
+      fakeFetch({})
+      render(<InvitePage />)
+      expect(screen.getByText(MESSAGES.inviteNoToken)).toBeTruthy()
+      expect(screen.queryByLabelText('Email')).toBeNull()
+      expect(screen.queryByRole('button')).toBeNull()
+    },
+  )
 
   it('the form has the three fields with their autocomplete values', () => {
     render(<InvitePage />)

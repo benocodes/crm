@@ -30,7 +30,7 @@ export async function loadSession(config: AppConfig, env: Env): Promise<Session>
     signIn: async () => {
       const back = new URL(env.location.href)
       back.hash = ''
-      env.location.assign(`${config.apiOrigin}/sign-in?return_to=${encodeURIComponent(back.href)}`)
+      env.location.assign(`${config.apiOrigin}/app/sign-in?return_to=${encodeURIComponent(back.href)}`)
     },
     signOut: async () => {
       const r = await client.signOut()

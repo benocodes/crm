@@ -50,6 +50,14 @@ describe('the auth pages own links', () => {
   })
 })
 
+describe("the auth bundle's client routing reads the table (P1)", () => {
+  it('main.tsx has a case for every auth page of the table', () => {
+    const main = readFileSync(fileURLToPath(new URL('../ui/main.tsx', import.meta.url)), 'utf8')
+    for (const p of AUTH_PAGES.filter((x) => x !== '/app/sign-in')) expect(main, p).toContain(`case '${p}':`)
+    expect(main).toContain('AUTH_PAGE_PATHS')
+  })
+})
+
 describe('no non-test source names an old auth path (P5)', () => {
   const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
   const walk = (d: string): string[] =>
@@ -66,21 +74,18 @@ describe('no non-test source names an old auth path (P5)', () => {
   // A quoted, template or `}`-led old path (`/auth/device` and the other `/auth/...` machine paths are not preceded by a quote).
   const OLD = /(?:['"`}])\/(?:sign-in|invite|reset-password|consent|device)(?![\w-])(?!\/code)/
   const roots = ['server-d1/src', 'server-d1/scripts', 'api/src', 'auth/src', 'approvals-app/src']
-  const files = roots
-    .flatMap((r) => walk(join(ROOT, r)))
-    .filter((f) => /\.tsx?$/.test(f) && !isTest(f))
+  const files = roots.flatMap((r) => walk(join(ROOT, r))).filter((f) => /\.tsx?$/.test(f) && !isTest(f))
   it('the scan sees the sources', () => {
     expect(files.map((f) => relative(ROOT, f))).toContain('auth/src/auth.ts')
     expect(files.map((f) => relative(ROOT, f))).toContain('approvals-app/src/better-auth.ts')
   })
   it('the old paths appear in no source line (only /auth/sign-in/... machine paths)', () => {
-    const hits = files
-      .flatMap((f) =>
-        code(readFileSync(f, 'utf8'))
-          .split('\n')
-          .filter((l) => OLD.test(l) && !/\/auth\/|ctx\.path === '\/sign-in\/social'|call\('POST', '\/auth/.test(l))
-          .map((l) => `${relative(ROOT, f)}: ${l.trim()}`),
-      )
+    const hits = files.flatMap((f) =>
+      code(readFileSync(f, 'utf8'))
+        .split('\n')
+        .filter((l) => OLD.test(l) && !/\/auth\/|ctx\.path === '\/sign-in\/social'|call\('POST', '\/auth/.test(l))
+        .map((l) => `${relative(ROOT, f)}: ${l.trim()}`),
+    )
     expect(hits).toEqual([])
   })
 })

@@ -2,6 +2,7 @@
 import type { ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
+import { AUTH_PAGE_PATHS } from '../app/paths.js'
 import { ConsentPage } from './consent-page.js'
 import { DevicePage } from './device-page.js'
 import { InvitePage } from './invite-page.js'
@@ -9,14 +10,15 @@ import { ResetPage } from './reset-page.js'
 import { SignInPage } from './sign-in-page.js'
 
 const pageFor = (path: string): { title: string; view: ReactNode } => {
-  switch (path) {
-    case '/invite':
+  switch (AUTH_PAGE_PATHS.find((p) => p === path)) {
+    // The paths are the page table's (`AUTH_PAGE_PATHS`; `auth-page-urls.test.ts` checks every entry has a case here).
+    case '/app/invite':
       return { title: 'Accept your invitation', view: <InvitePage /> }
-    case '/reset-password':
+    case '/app/reset-password':
       return { title: 'Set a new password', view: <ResetPage /> }
-    case '/consent':
+    case '/app/consent':
       return { title: 'Allow access', view: <ConsentPage /> }
-    case '/device':
+    case '/app/device':
       return { title: 'Sign in from your terminal', view: <DevicePage /> }
     default:
       return { title: 'Sign in', view: <SignInPage /> }
@@ -26,6 +28,6 @@ const { title, view } = pageFor(location.pathname)
 document.title = `${title} - Vibase`
 // The page column the Preact layer's card carried: 28rem of content plus 1.5rem padding each side (31rem), centred, 1.5rem above and below, plus a 1rem gutter so a narrow screen keeps a margin (33rem with the gutters).
 // No transitions: the Preact layer had none, and a colour-scheme change must show at once (a transitioning button is mid-colour for 150 ms, which axe's contrast check and a screenshot both catch).
-// The first render is synchronous, as Preact's `render` was: a page that takes the token from the address fragment (`/invite`, `/reset-password`) must have removed it by the time the document has loaded, not a scheduler tick later.
+// The first render is synchronous, as Preact's `render` was: a page that takes the token from the address fragment (`/app/invite`, `/app/reset-password`) must have removed it by the time the document has loaded, not a scheduler tick later.
 const root = createRoot(document.getElementById('root')!)
 flushSync(() => root.render(<div className="mx-auto my-6 max-w-132 px-4 [&_*]:transition-none!">{view}</div>))

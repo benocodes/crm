@@ -87,8 +87,7 @@ import {
 } from '@vibase/storage-d1'
 import { readDeployment } from './init-deployment.js'
 import { countCalls, countD1 } from './count-d1.js'
-import { serveApp, type AssetsLike } from './app-serving.js'
-import { isUiPath, serveUi } from './ui-serving.js'
+import { serveStatic, type AssetsLike } from './static-serving.js'
 import { gmailTransport } from '@vibase/api'
 import {
   AUTH_SERVER_METADATA_PATH,
@@ -942,17 +941,14 @@ export function composeD1Worker(
       try {
         const url = new URL(req.url)
         if (req.method === 'GET' && url.pathname === '/health') return await health()
-        // [[UI460]] D1, D2 ([[UI443]]): the workspace app (`/app`, `/app/*`), the `/` redirect exist for every provider and are static: they answer before every gate, with the policy for the provider (Clerk's hosts on Clerk).
-        const appPage = await serveApp(req, {
+        // [[UI510]] D5: the one static entry for `/`, `/app/*` and `/assets/*`: the app's pages exist for every provider (with Clerk's hosts in the policy on Clerk), the auth pages and `/assets/ui/` only for the built-in provider;
+        // all of it answers before every gate.
+        const staticAnswer = await serveStatic(req, {
           assets: env.ASSETS,
           issuer: discovery.provider?.name === 'clerk' ? discovery.provider.issuer : undefined,
+          builtIn,
         })
-        if (appPage) return appPage
-        // [[UI246]] D1, D2: the auth pages and their bundle exist only for the built-in provider (no route at all otherwise), and are static: they answer before every gate.
-        if (isUiPath(url.pathname))
-          return builtIn
-            ? ((await serveUi(req, { assets: env.ASSETS })) ?? json(NO_SUCH_ROUTE, 404))
-            : json(NO_SUCH_ROUTE, 404)
+        if (staticAnswer) return staticAnswer
         // [[CORE243]] D1: `/auth/*` exists only for the built-in provider; for clerk and unset it is no route at all, before every gate. For better-auth it passes the migration gate
         // and the configuration gate, then the control gate ([[CORE259]] D6, D7: the auth tables live in the control-plane database, which must be migrated and paired with this
         // CRM database). It still touches no vault table (CORE243 D5).

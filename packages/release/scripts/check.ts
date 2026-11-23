@@ -36,7 +36,6 @@ import { readMigrationState, type D1Like } from '@vibase/storage-d1'
 import { verifySums } from '../src/pack.js'
 import { readReleaseVersion } from '../src/version.js'
 import { APP_RUN_WORKER_FIRST } from '../../server-d1/src/app/paths.js'
-import { UI_RUN_WORKER_FIRST } from '../../server-d1/src/ui-serving.js'
 import { withGeneratedConfig } from '../../server-d1/scripts/instance/config.js'
 import { deployArgs } from '../../server-d1/scripts/instance/upgrade.js'
 import { wranglerEnv } from './build.js'
@@ -409,7 +408,7 @@ export async function checkRelease(
         binding: 'ASSETS',
         routerConfig: {
           has_user_worker: true,
-          static_routing: { user_worker: [...APP_RUN_WORKER_FIRST, ...UI_RUN_WORKER_FIRST] },
+          static_routing: { user_worker: [...APP_RUN_WORKER_FIRST] },
         },
       },
       bindings: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '', VERSION: manifest.version, COMMIT: manifest.commit },

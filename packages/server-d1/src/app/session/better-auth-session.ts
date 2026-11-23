@@ -10,7 +10,7 @@ export function betterAuthSession(deps: {
   const doFetch: typeof fetch = deps.fetch ?? ((input, init) => fetch(input, init))
   // [[UI460]] P2, P3: the page path the person comes back to, from the caller (`/app/home`, `/app/accounts` or `/app/agents` for the app; required, [[UI476]] P4); a path only, never a query.
   const signIn = () =>
-    `/sign-in?return_to=${typeof deps.returnPath === 'function' ? deps.returnPath() : deps.returnPath}`
+    `/app/sign-in?return_to=${typeof deps.returnPath === 'function' ? deps.returnPath() : deps.returnPath}`
   const navigate = deps.navigate ?? ((url: string) => location.assign(url))
   let signedIn = false
 
@@ -48,7 +48,7 @@ export function betterAuthSession(deps: {
       signedIn = await readSession()
       return signedIn
     },
-    // R3: the argument is ignored; the target is the seam's own `returnPath` (`/sign-in` admits an allow-listed path).
+    // R3: the argument is ignored; the target is the seam's own `returnPath` (`/app/sign-in` admits an allow-listed path).
     async redirectToSignIn() {
       navigate(signIn())
     },

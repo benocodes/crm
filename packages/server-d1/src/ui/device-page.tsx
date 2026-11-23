@@ -15,7 +15,7 @@ import { MESSAGES, genericFailure } from './messages.js'
 import { goTo, type PageProps } from './page.js'
 import { scopeItems } from './scope-text.js'
 
-const signInLink = (): string => `/sign-in?return_to=${encodeURIComponent(location.pathname + location.search)}`
+const signInLink = (): string => `/app/sign-in?return_to=${encodeURIComponent(location.pathname + location.search)}`
 const unseparated = (code: string): string => code.replace(/-/g, '')
 
 /** One message per result the page knows ([[UI247]] D3); anything else is the generic failure with its status. The server's own words are never shown. */

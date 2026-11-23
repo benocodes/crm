@@ -288,7 +288,7 @@ describe('the reset message end to end (D6)', () => {
     expect(m.to).toBe('ann@x.test')
     expect(m.subject).toBe('Reset your Vibase password at vibase.test')
     const link = linkIn(m.text)
-    expect(link).toMatch(/^https:\/\/vibase\.test\/reset-password#token=[A-Za-z0-9_-]{10,}$/)
+    expect(link).toMatch(/^https:\/\/vibase\.test\/app\/reset-password#token=[A-Za-z0-9_-]{10,}$/)
     expect(m.html).toContain(link)
     for (const part of [m.subject, m.text, m.html]) expect(part).not.toMatch(/Mallory|script|alert/)
     expect(m.text).toMatch(/1 hour/)

@@ -23,9 +23,9 @@ export async function newInvitationToken(
   return { token, hash: await hashInvitationToken(token) }
 }
 
-/** `<PUBLIC_BASE_URL>/invite#token=<token>`: the token is in the fragment, which a browser never sends and a server log never sees ([[UI246]] serves `/invite`). */
+/** `<PUBLIC_BASE_URL>/app/invite#token=<token>`: the token is in the fragment, which a browser never sends and a server log never sees ([[UI246]] serves the page, [[UI510]] moved it under `/app`). */
 export const invitationUrl = (publicBaseUrl: string, token: string): string =>
-  `${publicBaseUrl.replace(/\/+$/, '')}/invite#token=${token}`
+  `${publicBaseUrl.replace(/\/+$/, '')}/app/invite#token=${token}`
 
 const ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 /** Trimmed and lowercased; `null` when it is not an address (no whitespace, one `@`, a dotted domain, at most 254 characters). */
@@ -46,8 +46,8 @@ export function invitationStatus(
 }
 
 /**
- * `<PUBLIC_BASE_URL>/reset-password#token=<token>` ([[UI246]] D6): built from the `token` Better Auth hands `emailAndPassword.sendResetPassword`, never from its `url` (which puts the token in a path
+ * `<PUBLIC_BASE_URL>/app/reset-password#token=<token>` ([[UI246]] D6): built from the `token` Better Auth hands `emailAndPassword.sendResetPassword`, never from its `url` (which puts the token in a path
  * segment and a `callbackURL` query, both of which reach server logs). Its callers are the owner-issued link ([[CORE288]]), `owner-reset` ([[OPS249]]) and email ([[CORE248]]).
  */
 export const passwordResetUrl = (publicBaseUrl: string, token: string): string =>
-  `${publicBaseUrl.replace(/\/+$/, '')}/reset-password#token=${token}`
+  `${publicBaseUrl.replace(/\/+$/, '')}/app/reset-password#token=${token}`

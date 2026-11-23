@@ -88,7 +88,7 @@ test('1. the app opens signed out with a Sign in button; the Better Auth chunk l
 
 test('2. Sign in goes to the vault /sign-in with return_to the app', async () => {
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.waitForURL(/localhost:8787\/sign-in/)
+  await page.waitForURL(/localhost:8787\/app\/sign-in/)
   expect(page.url()).toBe(`${API}/app/sign-in?return_to=http%3A%2F%2Flocalhost%3A8788%2F`)
 })
 

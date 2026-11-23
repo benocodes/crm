@@ -11,7 +11,7 @@ export const MESSAGES = {
   wrongCredentials: 'The email or password is wrong.',
   signInAcceptanceFailed: 'Your account is almost ready, but setup did not finish. Sign in again to retry.',
   signInHelp: 'Forgot your password? Ask an owner for a reset link.',
-  // [[CORE304]] D7: the self-service reset request on /sign-in (only when discovery says `self_service_reset`).
+  // [[CORE304]] D7: the self-service reset request on /app/sign-in (only when discovery says `self_service_reset`).
   forgotPassword: 'Forgot password?',
   resetRequestTitle: 'Reset your password',
   resetRequestSend: 'Send reset link',
