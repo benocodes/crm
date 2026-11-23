@@ -627,6 +627,14 @@ A test that fails once and then passes is a bug until its cause is found. Do not
 - **Read the failure for what it says.** CORE35's flake expected the injected clock and received wall-clock
   time: that named the cause (a trigger stamping `updated_at`, enabled on a fresh DB and disabled by a leak
   on reruns) directly.
+- **Dates and times in tests are relative to now, never literal.** A test, fixture or E2E script that carries a
+  fixed date ("2026-10-22", `Date.parse(...)`) rots the day it falls outside a window the product measures from
+  the real clock (the Gmail backfill's 30 days, token and invitation expiry, "recent" filters, retention).
+  It then fails with no code change, and the failure looks like a product bug: `e2e:webhook-example` and
+  `e2e:gmail-send` timed out waiting for a capture because their fixture message had aged past the backfill
+  window (#520). Derive every date from `Date.now()` (a day before, an hour after) at call time. Pin a literal
+  date only when the test is about that exact value (a parser, a formatter, a golden); say why in a comment,
+  and prefer an injected clock where the code takes one. Fixture helpers must default to now-relative dates.
 - A full-suite failure that reproduces standalone is a real bug, not contention. If it only fails in the
   full run, rerun once; to tell "my change broke it" from "it was already broken", revert your diff against
   the clean tree and rerun. A pre-existing failure belongs in a follow-up, not in your commit.
