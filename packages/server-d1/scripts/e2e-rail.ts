@@ -67,9 +67,7 @@ async function main(): Promise<void> {
   const migrations = health.json?.migrations as Json | undefined
   check(
     'health: the branch is deployed and the database is current',
-    health.status === 200 &&
-      health.json?.version === args.expectVersion &&
-      migrations?.status === 'current',
+    health.status === 200 && health.json?.version === args.expectVersion && migrations?.status === 'current',
     { status: health.status, version: health.json?.version, migrations },
   )
 

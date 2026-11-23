@@ -207,7 +207,8 @@ describe('loadRemoteEnv (C3, #380)', () => {
     const root = repo({
       '.env.smoked1':
         'CLOUDFLARE_ACCOUNT_ID=fake-acct\nCLOUDFLARE_API_TOKEN=fake-token\nVIBASE_SMOKED1_VB_OPERATOR_KEY=fake-op\n',
-      '.env': 'CLOUDFLARE_ACCOUNT_ID=root-acct\nCLOUDFLARE_API_TOKEN=root-token\nVIBASE_SMOKED1_VB_OPERATOR_KEY=root-op\n',
+      '.env':
+        'CLOUDFLARE_ACCOUNT_ID=root-acct\nCLOUDFLARE_API_TOKEN=root-token\nVIBASE_SMOKED1_VB_OPERATOR_KEY=root-op\n',
     })
     loadRemoteEnv('smoked1', root)
     expect(process.env.CLOUDFLARE_ACCOUNT_ID).toBe('fake-acct')
