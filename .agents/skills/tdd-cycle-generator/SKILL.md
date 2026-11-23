@@ -396,6 +396,13 @@ ceiling even at 8 decisions. The charter told the coder to "run `smoke:worker` o
 obligation as "green from the branch": `main` aborted, so the obligation was unmeetable (#505). The planner runs a named
 non-gate check on `main` at plan time and writes the obligation against what it saw (green, or "same ok count as `main`
 plus a restored bypass for the legs past the abort").
+**UI507** (`knowledge/specs/030-UI507-app-pages-under-app/RETRO.md`, [[UI504]] cycle 2): 6 groups (1 matrix), 8 spec
+decision halves + 5 planner rules, no migration, 1 local E2E part (edited legs), riders counted by `git grep` at plan time
+(~62 files; 59 real). ~228k / 84 calls in one run plus a 2k / 4-call fix round (+118 code / +540 test lines, 59 files),
+gate green first time. The budget holds for a path move cut by bundle: a rider counted with the grep, not estimated, was
+accurate to 5%, and planner rules that fixed every answer under the new prefix (P4) left the coder harness choices only.
+The one charter miss was an answer stated for the wrong phase: `release:check` runs on an uninitialised instance (`503`,
+not `404`; `writing-tests`, smoke scripts).
 
 ### Step 3: Resolve identities
 
