@@ -7,6 +7,7 @@ import type { Database } from '@vibase/db'
 import { randomBytes } from 'node:crypto'
 import { createOwnerTestDb, createTestDb, seedAgent, seedOrganization, seedUser, truncateAll } from '@vibase/db/test'
 import { createApp } from '../rest/app.js'
+import { CLERK_WEBHOOK_PATH } from '../directory/webhook.js'
 import {
   clerkMembership,
   clerkOrganization,
@@ -133,7 +134,7 @@ export function useAdminKit(opts: { max?: number } = {}): AdminKit {
         if (value === undefined) delete headers[name]
         else headers[name] = value
       }
-      return k.app.request('/inbound/clerk', { method: 'POST', headers, body: signed.body })
+      return k.app.request(CLERK_WEBHOOK_PATH, { method: 'POST', headers, body: signed.body })
     }
     k.systemId = async () =>
       (await k.owner.selectFrom('principals').select('id').where('kind', '=', 'system').executeTakeFirstOrThrow()).id

@@ -1,4 +1,4 @@
-// `POST /gmail/push` ([[CHN5]] D15, D87, D88): Pub/Sub's authenticated push of a Gmail notification, and the sync it requests.
+// `POST /inbound/gmail` ([[CHN5]] D15, D87, D88): Pub/Sub's authenticated push of a Gmail notification, and the sync it requests.
 //
 // Order, each step before the next: push is on (else 404); the bearer is present and JWT-shaped with an RS256 header (else 401, and no JWKS fetch, so an
 // unauthenticated caller cannot make the Worker call Google); the JWKS is fetched per request through the injected `fetch` (a failure is 503 so Pub/Sub retries);
@@ -11,7 +11,7 @@ import { defineOperation, execute, readSet, unit, uuidv7, type D1Binding, type S
 import type { PushConfig } from '../../connections/config.js'
 import { instanceId, markRequested, type MailSyncInstances } from '../../sync/request.js'
 
-export const PUSH_PATH = '/gmail/push'
+export const PUSH_PATH = '/inbound/gmail'
 /** Google's signing keys. A constant: tests inject it only through the composition's `fetch`, never a variable ([[CHN5]] D87). */
 export const GOOGLE_JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs'
 const ISSUERS = ['https://accounts.google.com', 'accounts.google.com']

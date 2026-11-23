@@ -1,4 +1,4 @@
-// `GET /oauth/google/callback` ([[CHN5]] D9, D32, D33, D55, D57): a plain route at the root, outside the registry. The browser that arrives carries no
+// `GET /oauth/callback/google` ([[CHN5]] D9, D32, D33, D55, D57): a plain route at the root, outside the registry. The browser that arrives carries no
 // bearer token, so the signed state is its only binding to a vault user. Every refusal answers a short code (a redirect parameter or the
 // built-in page), writes nothing and emits nothing; nothing from Google, the query string or a secret reaches the page or a log line.
 import type { Context } from 'hono'

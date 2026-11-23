@@ -5,7 +5,7 @@ import { internalEnv } from '../storage/internal.js'
 import { reconcileOrganization, refreshUser } from './sync.js'
 
 /**
- * `POST /webhooks/clerk` ([[CORE3]] D18, D23): the signature is the only credential, so there is no auth
+ * `POST /inbound/clerk` ([[CORE3]] D18, D23): the signature is the only credential, so there is no auth
  * middleware. A delivery is a hint: the handler fetches current state and reconciles, so duplicate and
  * out-of-order deliveries are harmless. A failure is a non-2xx and the provider retries (a fetch failure 500, drift 409,
  * a snapshot over the cap 400). On D1 a delivery for another provider organisation is acknowledged and ignored before
@@ -41,4 +41,4 @@ export function clerkWebhookHandler(
 }
 
 /** The path Clerk's webhook is mounted at ([[API503]] D1): one constant, mounted by `createApp`. */
-export const CLERK_WEBHOOK_PATH = '/webhooks/clerk'
+export const CLERK_WEBHOOK_PATH = '/inbound/clerk'

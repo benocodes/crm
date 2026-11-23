@@ -110,8 +110,8 @@ Locally set `CLERK_AUTHORIZED_PARTIES=http://localhost:8787` and `CLERK_PUBLISHA
 | `GMAIL_TOPIC_NAME` | var | `projects/<p>/topics/<t>`, the Pub/Sub topic Gmail watches publish to; optional; set by `setup:remote` from `.env.<env>` |
 | `GMAIL_PUSH_SUBSCRIPTION` | var | `projects/<p>/subscriptions/<s>`, the push subscription; a push whose body names another subscription is refused; optional; set by `setup:remote` from `.env.<env>` |
 | `GMAIL_PUSH_SERVICE_ACCOUNT` | var | the service account email Pub/Sub signs push requests as; a push token for any other `email` is refused; optional; set by `setup:remote` from `.env.<env>` |
-| `MAIL_SYNC` | Workflow binding | the sync run. Push is **on** only with Gmail configured, this binding, and all four of `GMAIL_TOPIC_NAME`, `GMAIL_PUSH_SUBSCRIPTION`, `GMAIL_PUSH_SERVICE_ACCOUNT` and `PUBLIC_BASE_URL` set and well formed (one parser, shared with `setup:remote`). Off: `POST /gmail/push` answers `404`, no watch is registered or renewed; a partly set group logs `push is off: set or fix <names>` at startup |
-| `PUBLIC_BASE_URL` | var | absolute `https` URL of the Worker, origin only (no path), for OAuth redirects and as push's endpoint base (`<it>/gmail/push` is the token audience); default `https://<api-host>` when the Gmail group is set; set by `setup:remote` from `.env.<env>` |
+| `MAIL_SYNC` | Workflow binding | the sync run. Push is **on** only with Gmail configured, this binding, and all four of `GMAIL_TOPIC_NAME`, `GMAIL_PUSH_SUBSCRIPTION`, `GMAIL_PUSH_SERVICE_ACCOUNT` and `PUBLIC_BASE_URL` set and well formed (one parser, shared with `setup:remote`). Off: `POST /inbound/gmail` answers `404`, no watch is registered or renewed; a partly set group logs `push is off: set or fix <names>` at startup |
+| `PUBLIC_BASE_URL` | var | absolute `https` URL of the Worker, origin only (no path), for OAuth redirects and as push's endpoint base (`<it>/inbound/gmail` is the token audience); default `https://<api-host>` when the Gmail group is set; set by `setup:remote` from `.env.<env>` |
 | `CONNECT_RETURN_URL` | var | optional; unset, the connect flow returns to the instance's own `/accounts` (Connected accounts) when the app is served, otherwise to a built-in result page; set it only to send people elsewhere (absolute `https` URL); set by `setup:remote` from `.env.<env>` |
 | `GMAIL_BACKFILL_DAYS` | var | positive integer, days of mail to backfill on connect; optional; set by `setup:remote` from `.env.<env>` |
 | `ATTACHMENT_MAX_BYTES` | var | positive integer, the largest attachment kept; optional; set by `setup:remote` from `.env.<env>` |
@@ -340,8 +340,8 @@ them with the ones you already use before running anything.
 3. **Scopes** (the consent screen's data access): `openid`, `email`, `https://www.googleapis.com/auth/gmail.readonly` and
    `https://www.googleapis.com/auth/gmail.send`. Vibase requires `gmail.readonly` (a grant without it is refused as `scope_missing`); `gmail.send` is
    recorded when granted and used by nothing yet.
-4. **OAuth client**: a *Web application*. Authorised redirect URI, exactly: `https://<api-host>/oauth/google/callback` (it is `PUBLIC_BASE_URL` plus
-   `/oauth/google/callback`, so they must agree). The client id is `GOOGLE_CLIENT_ID` (a var); the client secret is `GOOGLE_CLIENT_SECRET` (a secret).
+4. **OAuth client**: a *Web application*. Authorised redirect URI, exactly: `https://<api-host>/oauth/callback/google` (it is `PUBLIC_BASE_URL` plus
+   `/oauth/callback/google`, so they must agree). The client id is `GOOGLE_CLIENT_ID` (a var); the client secret is `GOOGLE_CLIENT_SECRET` (a secret).
 
 ### 2. The topic Gmail publishes to
 
@@ -360,7 +360,7 @@ gcloud pubsub topics add-iam-policy-binding gmail.watch \
 ### 3. The push service account and the authenticated subscription
 
 Pub/Sub calls Vibase with an OIDC token signed as a service account you create. Vibase checks the token's signature against Google's keys, its
-issuer, its **audience (it must equal `<PUBLIC_BASE_URL>/gmail/push` exactly)**, its `email` (this service account) and `email_verified`, and that the body
+issuer, its **audience (it must equal `<PUBLIC_BASE_URL>/inbound/gmail` exactly)**, its `email` (this service account) and `email_verified`, and that the body
 names this subscription.
 
 ```bash
@@ -375,9 +375,9 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
 
 gcloud pubsub subscriptions create gmail.push \
   --topic=gmail.watch \
-  --push-endpoint="https://<api-host>/gmail/push" \
+  --push-endpoint="https://<api-host>/inbound/gmail" \
   --push-auth-service-account="gmail-push@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --push-auth-token-audience="https://<api-host>/gmail/push"
+  --push-auth-token-audience="https://<api-host>/inbound/gmail"
 ```
 
 `GMAIL_PUSH_SUBSCRIPTION` is `projects/<project id>/subscriptions/gmail.push`; `GMAIL_PUSH_SERVICE_ACCOUNT` is `gmail-push@<project id>.iam.gserviceaccount.com`.
@@ -412,7 +412,7 @@ can overlap, and the recorder's index is one object read, extended and written b
 | `[watch] ... failed` | a network error or a `5xx` | none: the next tick retries |
 | a connection `reauth_required` after a tick | Google answered `invalid_grant`: access was revoked | reconnect the mailbox |
 | `[gmail-push] refused: bearer / alg / header` | no token, or not an RS256 JWT | only Pub/Sub's authenticated push may call the route |
-| `[gmail-push] refused: token` | bad signature, issuer, **audience** or expiry | the subscription's `--push-auth-token-audience` must equal `<PUBLIC_BASE_URL>/gmail/push` |
+| `[gmail-push] refused: token` | bad signature, issuer, **audience** or expiry | the subscription's `--push-auth-token-audience` must equal `<PUBLIC_BASE_URL>/inbound/gmail` |
 | `[gmail-push] refused: email` / `email_verified` | the token is for another service account | the subscription's `--push-auth-service-account` must be `GMAIL_PUSH_SERVICE_ACCOUNT` |
 | `[gmail-push] refused: subscription` | the body names another subscription | `GMAIL_PUSH_SUBSCRIPTION` must be this subscription's full name |
 | `[gmail-push] the JWKS could not be fetched` (answers `503`) | Google's keys were unreachable; Pub/Sub retries | none |

@@ -268,7 +268,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `src/auth/workspace-authenticator.ts`. The role is read on every request from the claim `AUTH_ROLE_CLAIM`
     (default `vibase_role`) and mapped through `SCOPE_POLICY`. The vault never reads or writes `memberships`
     for it. A missing, unknown or non-string role throws `403 organization_forbidden` before first
-    sight, so a refused token writes nothing. `/webhooks/clerk` is not mounted. `me.get` answers agents (the
+    sight, so a refused token writes nothing. `/inbound/clerk` is not mounted. `me.get` answers agents (the
     op flag `agents: true`), and memberships are synthesised from the role. `CLERK_AUTHORIZED_PARTIES` is
     optional on D1, because session tokens minted through Clerk's Backend API carry no `azp`. An `azp` that is
     present must still be listed. Bootstrap uses `src/bootstrap-workspace.ts` (no human, attributed to `system`).
@@ -316,7 +316,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `reconcilePlanOperation` then `reconcileOperation`, one unit with a constant statement count), `refreshUser`
     (`refreshUserOperation`, outcomes `updated | unchanged | unknown | conflict | unsupported`),
     `system-principal.ts` (`systemPrincipalRead`, `systemPrincipalSteps`: created lazily inside a unit that writes an
-    event) and `clerkWebhookHandler(adapter, { clock?, newId? })`, mounted as `POST /webhooks/clerk` by `createApp`
+    event) and `clerkWebhookHandler(adapter, { clock?, newId? })`, mounted as `POST /inbound/clerk` by `createApp`
     only when an `authAdapter` is given. It is the first plain route: no auth middleware (the Svix signature is
     its credential), not in OpenAPI, `c.var.storage` only. Directory events are attributed to the system principal;
   - admin-kit (`src/test/admin-kit.ts`): `call(path, sub, { org })` mints the organisation claim from the copy
@@ -432,19 +432,26 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     even when the soft-delete drifts (the D1 runtime ignores `expect: 'affected'`), so a `409` can still have removed the
     machinery rows. Until #163 lands, never put a statement there whose loss leaves a live row broken without a test of
     the drift case.
-  - **A plain route that verifies a remote-signed token** (`POST /gmail/push`, [[CHN5]] D87) does every local check
+  - **A plain route that verifies a remote-signed token** (`POST /inbound/gmail`, [[CHN5]] D87) does every local check
     first (bearer present, JWT-shaped, the header's `alg`) and only then fetches keys, so an unauthenticated caller cannot
     make the Worker call out per request; it reads the body only after the token passes, with a cap. For a sender that
     retries every non-2xx for days (Pub/Sub), a verified payload that cannot decode, or is oversized, is acknowledged
     (`204` and a log line), and only a transient failure (keys unreachable `503`, D1 `500`) asks for a retry.
   - **`OperationInput.origin`** is the request's origin, set by REST only (MCP leaves it undefined, and
     `validateInput` preserves it). Read it only where a spec names the request origin as a fallback.
-  - **The Google OAuth callback** (`GET /oauth/google/callback`, `src/connections/callback.ts`) is the second plain
+  - **The Google OAuth callback** (`GET /oauth/callback/google`, `src/connections/callback.ts`) is the second plain
     route: the signed state is its credential, every refusal is a fixed code (redirect parameter or built-in page)
     that writes nothing, and log lines carry the code or error class only. A new OAuth-style callback follows it.
+  - **Machine endpoints follow two families** ([[API503]] D6, user ruling 504.12). A provider's browser redirect back
+    after an OAuth connect is `/oauth/callback/<provider>`; a provider calling the vault server to server (push,
+    webhook) is `/inbound/<provider>`, with no kind segment. `<provider>` is the party whose console holds the URL
+    (`/oauth/callback/microsoft`, `/inbound/zernio`). Sign-in stays under Better Auth's `/auth/callback/google`, and
+    the browser form route `/f/<public_id>` is not in either family. Each path is one exported constant in `@vibase/api`
+    (`CALLBACK_PATH`, `PUSH_PATH`, `CLERK_WEBHOOK_PATH`); redirect URIs, audiences, setup text and smokes derive from it,
+    never a literal (`machine-path-literals.test.ts` enforces it). A retired path is removed, not aliased.
   - `GET /api/v1/openapi.json` (`Vibase records API`) and `GET /meta/v1/openapi.json` (`Vibase meta API`) are
     unauthenticated; each lists only its surface's operations at full paths. There is no root document and no
-    root resource path ([[API32]] D4, D5, D8). Machinery (`/health`, `/webhooks/clerk`) stays at the root,
+    root resource path ([[API32]] D4, D5, D8). Machinery (`/health`, `/inbound/clerk`) stays at the root,
     unversioned, outside the registry (D7).
 - **Errors.** `renderError` turns an `ApiError` into its own status and body. `run()` refuses a tenant operation
   with no organisation (`403 organization_required`) before any unit, so no tenancy error reaches it. Anything else is

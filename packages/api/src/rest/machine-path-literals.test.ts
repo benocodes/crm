@@ -6,7 +6,8 @@ import { describe, expect, it } from 'vitest'
 // [[API503]] D2: every non-test source derives these URLs from its constant. The old paths appear nowhere; a new path
 // appears as a literal only in the line that defines its constant (a comment may name it).
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
-const OLD = ['/oauth/google/callback', '/gmail/push', '/webhooks/clerk']
+// `channels/gmail/push.js` is a module path, not the URL
+const OLD = [/\/oauth\/google\/callback/, /\/gmail\/push(?!\.js)/, /\/webhooks\/clerk/]
 const NEW = ['/oauth/callback/google', '/inbound/gmail', '/inbound/clerk']
 const DEFINITIONS = [
   /export const CALLBACK_PATH = '\/oauth\/callback\/google'/,
@@ -48,7 +49,7 @@ describe('machine-endpoint paths in non-test source (API503 D2)', () => {
     const hits = files.flatMap((f) =>
       readFileSync(f, 'utf8')
         .split('\n')
-        .flatMap((l, i) => (OLD.some((o) => l.includes(o)) ? [`${relative(ROOT, f)}:${i + 1}`] : [])),
+        .flatMap((l, i) => (OLD.some((o) => o.test(l)) ? [`${relative(ROOT, f)}:${i + 1}`] : [])),
     )
     expect(hits).toEqual([])
   })

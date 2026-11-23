@@ -14,7 +14,7 @@ import { SignJWT, exportSPKI, generateKeyPair } from 'jose'
 import { sql } from 'kysely'
 import { createDb, withServiceRole } from '@vibase/db'
 import { postgresBinding } from '@vibase/storage-postgres'
-import { createApp, createAuthAdapter, createVibaseRegistry } from '@vibase/api'
+import { CLERK_WEBHOOK_PATH, createApp, createAuthAdapter, createVibaseRegistry } from '@vibase/api'
 
 const ISSUER = 'https://smoke.clerk.test'
 const rand = randomBytes(4).toString('hex')
@@ -148,14 +148,14 @@ async function check(
   return json
 }
 
-/** A Svix-signed delivery to /inbound/clerk. */
+/** A Svix-signed delivery to the Clerk webhook path. */
 async function deliver(type: string, data: unknown, opts: { secret?: string; id?: string } = {}): Promise<Response> {
   const body = JSON.stringify({ data, object: 'event', type, timestamp: Date.now() })
   const id = opts.id ?? `msg_${randomBytes(8).toString('hex')}`
   const ts = String(Math.floor(Date.now() / 1000))
   const key = Buffer.from((opts.secret ?? webhookSecret).replace(/^whsec_/, ''), 'base64')
   const sig = createHmac('sha256', key).update(`${id}.${ts}.${body}`).digest('base64')
-  return fetch(`${base}/inbound/clerk`, {
+  return fetch(`${base}${CLERK_WEBHOOK_PATH}`, {
     method: 'POST',
     headers: { 'svix-id': id, 'svix-timestamp': ts, 'svix-signature': `v1,${sig}`, 'content-type': 'application/json' },
     body,

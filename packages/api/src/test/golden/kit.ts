@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto'
 import type { Hono } from 'hono'
 import { createUserAuthenticator } from '../../auth/user-authenticator.js'
 import type { UserAuthenticator } from '../../auth/types.js'
-import { clerkWebhookHandler } from '../../directory/webhook.js'
+import { CLERK_WEBHOOK_PATH, clerkWebhookHandler } from '../../directory/webhook.js'
 import { createVibaseRegistry } from '../../operations.js'
 import {
   clerkMembership,
@@ -64,7 +64,7 @@ export function mountGoldenWebhook(
   clerk: GoldenClerkKit,
   deps: { clock: () => Date; newId: () => string },
 ): void {
-  app.post('/inbound/clerk', clerkWebhookHandler(clerk.adapter, deps))
+  app.post(CLERK_WEBHOOK_PATH, clerkWebhookHandler(clerk.adapter, deps))
 }
 
 let delivery = 0

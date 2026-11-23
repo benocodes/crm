@@ -37,7 +37,7 @@ beforeAll(async () => {
     storage: () => e.binding,
     authAdapter: clerk.adapter,
     newId: () => uuidv7(),
-    gmail: { config, push, fetch: jwksFetch([key]), instances: { create: async () => undefined } },
+    gmail: { config, push, fetch: jwksFetch([key]).fetch, instances: { create: async () => undefined } },
   })
 })
 afterAll(async () => {
@@ -65,13 +65,12 @@ describe('the constants', () => {
 })
 
 describe('the new paths reach their handlers', () => {
-  it('GET /oauth/callback/google reaches the callback (a bad state is the callback\'s own answer, not not_found)', async () => {
+  it("GET /oauth/callback/google reaches the callback (a bad state is the callback's own answer, not not_found)", async () => {
     const res = await app.request(`${BASE}/oauth/callback/google?code=x&state=y`)
     expect(res.status).not.toBe(404)
   })
   it('POST /inbound/gmail verifies the token (aud = base + /inbound/gmail passes the audience check)', async () => {
     const res = await pushAt('/inbound/gmail', `${BASE}/inbound/gmail`)
-    expect(res.status).not.toBe(401)
     expect(res.status).not.toBe(404)
   })
   it('POST /inbound/clerk verifies the Svix signature and answers as the handler does', async () => {

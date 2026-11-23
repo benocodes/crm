@@ -14,9 +14,9 @@ import { googleCallbackHandler } from '../connections/callback.js'
 import type { MailSyncInstances } from '../sync/request.js'
 import { gmailConfigNotice, gmailUnconfigured, type GmailConfig, type PushConfig } from '../connections/config.js'
 import { PUSH_PATH, gmailPushHandler } from '../channels/gmail/push.js'
+import { CLERK_WEBHOOK_PATH, clerkWebhookHandler } from '../directory/webhook.js'
 import { CALLBACK_PATH } from '../connections/operations.js'
 import { GOOGLE_ENDPOINTS, type GoogleEndpoints } from '../connections/google.js'
-import { clerkWebhookHandler } from '../directory/webhook.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createVibaseRegistry } from '../operations.js'
 import type { AuditRuntime } from '../audit/port.js'
@@ -63,7 +63,7 @@ export interface GmailAppOptions {
   defaultReturnPath?: string
   /** The `MAIL_SYNC` Workflow binding ([[CHN141]] D75). Absent: `connections.sync` answers `501 provider_not_configured` and the callback requests no sync. */
   instances?: MailSyncInstances
-  /** Push configuration from `parsePushConfig` ([[CHN5]] D87). Push is on only when this is set AND `config` and `instances` are too; otherwise `POST /gmail/push` answers 404 and no watch is registered. */
+  /** Push configuration from `parsePushConfig` ([[CHN5]] D87). Push is on only when this is set AND `config` and `instances` are too; otherwise `POST /inbound/gmail` answers 404 and no watch is registered. */
   push?: PushConfig | null
   /** The variables `parsePushConfig` found missing or malformed (names only), logged at startup. */
   pushProblems?: readonly string[]
@@ -82,7 +82,7 @@ export interface AppOptions {
   authAdapter?: AuthAdapter
   /**
    * A single-workspace composition (the D1 Worker, [[CORE64]] D24): the organisation is the deployment's, the role comes from the
-   * token's claim, `/webhooks/clerk` is not mounted and `me.get` answers agents. `adapter` is the workspace adapter, absent when
+   * token's claim, `/inbound/clerk` is not mounted and `me.get` answers agents. `adapter` is the workspace adapter, absent when
    * the deployment is API-key only. Exclusive with `authAdapter` and `userAuthenticator`.
    */
   workspace?: {
@@ -490,7 +490,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   // Plain route, not an operation: the Svix signature is its only credential, and it is not documented.
   if (options.authAdapter)
     app.post(
-      '/webhooks/clerk',
+      CLERK_WEBHOOK_PATH,
       clerkWebhookHandler(options.authAdapter, { clock: options.clock, newId: options.newId }),
     )
 
