@@ -9,10 +9,11 @@ describe('returnTarget', () => {
   it.each([
     ['/device', '/device'],
     ['/device?user_code=ABCDEFGH', '/device?user_code=ABCDEFGH'],
-    ['/connect', '/connect'],
-    ['/home', '/home'],
-    ['/home?x=1', '/home?x=1'],
-    [`${location.origin}/home`, '/home'],
+    ['/app/home', '/app/home'],
+    ['/app/home?x=1', '/app/home?x=1'],
+    ['/app/accounts', '/app/accounts'],
+    ['/app/agents', '/app/agents'],
+    [`${location.origin}/app/home`, '/app/home'],
     [`${location.origin}/device?user_code=ABCDEFGH`, '/device?user_code=ABCDEFGH'],
   ])('%s is honoured as %s', (value, expected) => {
     expect(returnTarget(q(value))).toBe(expected)
@@ -32,17 +33,25 @@ describe('returnTarget', () => {
     '',
     '/\\evil.example',
     'device',
-    '/home/',
-    '/home/x',
-    '/homes',
-    '/home/../x',
-    'home',
-    '/accounts/x',
+    '/home',
+    '/accounts',
+    '/agents',
+    '/connect',
+    '/home?x=1',
+    `${location.origin}/home`,
+    '/app/home/',
+    '/app/home/x',
+    '/app/homes',
+    '/app/home/../x',
+    'app/home',
+    '/app/accounts/x',
     '/members',
-    '/agents/x',
+    '/app/agents/x',
+    '/app',
+    '/app/',
     '/app/app.js',
-    '//evil.example/home',
-    '/home/..%2Fx',
+    '//evil.example/app/home',
+    '/app/home/..%2Fx',
   ])('%j is ignored', (value) => {
     expect(returnTarget(q(value))).toBeNull()
   })
@@ -68,16 +77,16 @@ describe('the allow-list follows APP_PAGE_PATHS', () => {
     expect(returnTarget(q('/members'))).toBe('/members')
   })
   it('/agents is a return target (UI459 D1)', () => {
-    expect(returnTarget(q('/agents'))).toBe('/agents')
-    expect(returnTarget(q('/agents/'))).toBeNull()
+    expect(returnTarget(q('/app/agents'))).toBe('/app/agents')
+    expect(returnTarget(q('/app/agents/'))).toBeNull()
   })
   it('/accounts is a return target (UI467 D1)', () => {
-    expect(returnTarget(q('/accounts'))).toBe('/accounts')
-    expect(returnTarget(q('/accounts?x=1'))).toBe('/accounts?x=1')
-    expect(returnTarget(q('/accounts/'))).toBeNull()
+    expect(returnTarget(q('/app/accounts'))).toBe('/app/accounts')
+    expect(returnTarget(q('/app/accounts?x=1'))).toBe('/app/accounts?x=1')
+    expect(returnTarget(q('/app/accounts/'))).toBeNull()
   })
   it('a cross-origin https /home is still the callbackURL path, not a page target', () => {
-    expect(returnTarget(q('https://app.example.com/home'))).toBeNull()
-    expect(crossOriginTarget(q('https://app.example.com/home'))).toBe('https://app.example.com/home')
+    expect(returnTarget(q('https://app.example.com/app/home'))).toBeNull()
+    expect(crossOriginTarget(q('https://app.example.com/app/home'))).toBe('https://app.example.com/app/home')
   })
 })

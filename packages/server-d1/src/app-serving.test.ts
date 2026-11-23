@@ -1,24 +1,31 @@
 import { fileURLToPath } from 'node:url'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMigrationTracker } from '@vibase/storage-d1/test'
+import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
+import { MIGRATIONS, openControlDb } from '@vibase/storage-d1'
 import { APP_CSP } from '@vibase/ui/csp'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { APP_PAGE_PATHS } from './app/paths.js'
 import { appCsp } from './app-serving.js'
 import { AUTH_BASE, AUTH_SECRET } from './test/auth-kit.js'
-import { clerkKit, openWorkerPair, type ClerkKit, type WorkerPair } from './test/kit.js'
+import { bootstrapD1, clerkKit, openWorkerPair, type ClerkKit, type WorkerPair } from './test/kit.js'
 
 // [[UI460]] D1, D2 (group 1), D5 (group 2): the workspace app is served by the Worker from the assets binding for every provider, before the migration, configuration and control gates,
-// with the app's policy and security headers on every answer; `/` redirects to `/home`.
+// with the app's policy and security headers on every answer; `/`, `/app` and `/app/` redirect to `/app/home` ([[UI507]]: the pages are at `/app/<page>`).
 const NOT_FOUND = { error: { code: 'not_found', message: 'no such route' } }
 const HTML = '<!doctype html><title>app</title>'
-// The fake serves the built files under /assets/app/ AND, deliberately, the same files at the root and under /home: a Worker that routed a path to the binding by mistake would answer 200.
+// The fake serves the built files under /assets/app/ AND, deliberately, the same files at the root, under /app/ and at the old page paths: a Worker that routed a path to the binding by mistake would answer 200.
 const FILES: Record<string, { type: string; body: string }> = {
   '/assets/app/': { type: 'text/html; charset=utf-8', body: HTML },
   '/assets/app/app.js': { type: 'text/javascript', body: 'console.log(1)' },
   '/assets/app/app.css': { type: 'text/css', body: 'body{}' },
   '/app.js': { type: 'text/javascript', body: 'console.log(1)' },
   '/index.html': { type: 'text/html; charset=utf-8', body: HTML },
+  '/app/home': { type: 'text/html; charset=utf-8', body: HTML },
+  '/app/home/': { type: 'text/html; charset=utf-8', body: HTML },
+  '/app/home/x': { type: 'text/html; charset=utf-8', body: HTML },
+  '/app/unknown': { type: 'text/html; charset=utf-8', body: HTML },
+  '/app/': { type: 'text/html; charset=utf-8', body: HTML },
+  '/app/app.js': { type: 'text/javascript', body: 'console.log(1)' },
   '/home': { type: 'text/html; charset=utf-8', body: HTML },
   '/home/': { type: 'text/html; charset=utf-8', body: HTML },
   '/accounts': { type: 'text/html; charset=utf-8', body: HTML },
@@ -77,8 +84,7 @@ beforeEach(async () => {
   await w.d1.prepare('drop table if exists d1_migrations').run()
   await createMigrationTracker(w.d1) // the database is behind: every gate would answer 503 if the app route came after it
 })
-const isApp = (at: string) =>
-  /^(GET|HEAD|POST) \/(home|accounts|agents|app|connect(?=[/?\s]))/.test(at) || /^(GET|HEAD) \/ \(302\)/.test(at)
+const isApp = (at: string) => /^(GET|HEAD|POST) \/app(?=[/?\s])/.test(at) || /^(GET|HEAD) \/ \(302\)/.test(at)
 // D5: every app answer (page, asset, 404, 405, 302) carries the policy, nosniff and the referrer policy; HTML is no-store.
 afterEach(() => {
   for (const { at, res, issuer } of seen) {
@@ -118,55 +124,55 @@ const PROVIDERS: [string, (over?: Partial<D1WorkerEnv>) => ReturnType<typeof com
 ]
 
 describe('the constants the Worker serves (D1)', () => {
-  it('the app has three page paths: /home, /accounts and /agents (UI459 D1)', () => {
-    expect([...APP_PAGE_PATHS]).toEqual(['/home', '/accounts', '/agents'])
+  it('the app has three page paths under /app: /app/home, /app/accounts and /app/agents (UI507 D1)', () => {
+    expect([...APP_PAGE_PATHS]).toEqual(['/app/home', '/app/accounts', '/app/agents'])
   })
 })
 
-describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
-  it('GET and HEAD /home answer the app index.html from the binding, with the database behind (before the migration gate)', async () => {
+const PAGES = ['/app/home', '/app/accounts', '/app/agents']
+describe.each(PROVIDERS)('routing matrix: %s (D1, D2, P4)', (_name, make) => {
+  it.each(PAGES)(
+    'GET and HEAD %s answer the app index.html from the binding, POST is 405 Allow: GET, HEAD, with the database behind (before the migration gate)',
+    async (path) => {
+      const wk = make()
+      const res = await send(wk, path)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toMatch(/^text\/html/)
+      expect(await res.text()).toBe(HTML)
+      expect(assetCalls).toEqual([{ method: 'GET', path: '/assets/app/' }])
+      const head = await send(wk, path, 'HEAD')
+      expect(head.status).toBe(200)
+      expect(await head.text()).toBe('')
+      const post = await send(wk, path, 'POST')
+      expect(post.status).toBe(405)
+      expect(post.headers.get('allow')).toBe('GET, HEAD')
+    },
+  )
+
+  it('a page with a query is still the page', async () => {
+    expect((await send(make(), '/app/home?x=1')).status).toBe(200)
+  })
+
+  // P4: every other /app/ path is the JSON 404 for any method; the binding is never asked.
+  it.each([
+    '/app/home/',
+    '/app/home/x',
+    '/app/accounts/',
+    '/app/accounts/x',
+    '/app/agents/',
+    '/app/agents/x',
+    '/app/unknown',
+    '/app/sign-in',
+    '/app/app.js',
+    '/app/app.css',
+    '/app/index.html',
+  ])('%s is the JSON 404 for GET, HEAD and POST, and the binding is not asked', async (path) => {
     const wk = make()
-    const res = await send(wk, '/home')
-    expect(res.status).toBe(200)
-    expect(res.headers.get('content-type')).toMatch(/^text\/html/)
-    expect(await res.text()).toBe(HTML)
-    expect(assetCalls).toEqual([{ method: 'GET', path: '/assets/app/' }])
-    const head = await send(wk, '/home', 'HEAD')
-    expect(head.status).toBe(200)
-    expect(await head.text()).toBe('')
-  })
-
-  it('GET and HEAD /accounts answer the app index.html like /home, with the policy (UI467 D1)', async () => {
-    const wk = make()
-    const res = await send(wk, '/accounts')
-    expect(res.status).toBe(200)
-    expect(await res.text()).toBe(HTML)
-    expect(assetCalls).toEqual([{ method: 'GET', path: '/assets/app/' }])
-    expect((await send(wk, '/accounts', 'HEAD')).status).toBe(200)
-    expect((await send(wk, '/accounts', 'POST')).status).toBe(405)
-  })
-
-  it('GET and HEAD /agents answer the app index.html like /home, with the policy (UI459 D1)', async () => {
-    const wk = make()
-    const res = await send(wk, '/agents')
-    expect(res.status).toBe(200)
-    expect(await res.text()).toBe(HTML)
-    expect(assetCalls).toEqual([{ method: 'GET', path: '/assets/app/' }])
-    expect((await send(wk, '/agents', 'HEAD')).status).toBe(200)
-    expect((await send(wk, '/agents', 'POST')).status).toBe(405)
-  })
-
-  it.each(['/agents/', '/agents/x'])("%s is the Worker's 404 not_found (UI459 D1)", async (path) => {
-    const res = await send(make(), path)
-    expect(res.status).toBe(404)
-    expect(await res.json()).toEqual(NOT_FOUND)
-    expect(assetCalls).toEqual([])
-  })
-
-  it.each(['/accounts/', '/accounts/x'])("%s is the Worker's 404 not_found (UI467 D1)", async (path) => {
-    const res = await send(make(), path)
-    expect(res.status).toBe(404)
-    expect(await res.json()).toEqual(NOT_FOUND)
+    for (const method of ['GET', 'HEAD', 'POST']) {
+      const res = await send(wk, path, method)
+      expect(res.status, `${method} ${path}`).toBe(404)
+      if (method === 'GET') expect(await res.json()).toEqual(NOT_FOUND)
+    }
     expect(assetCalls).toEqual([])
   })
 
@@ -179,45 +185,28 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
     }
   })
 
-  it.each(['/app', '/app/', '/app/index.html', '/home/', '/home/x'])(
-    "%s is the Worker's 404 not_found, and the binding is not asked for the page",
-    async (path) => {
-      const res = await send(make(), path)
-      expect(res.status).toBe(404)
-      expect(await res.json()).toEqual(NOT_FOUND)
-      expect(assetCalls).toEqual([])
-    },
-  )
-
-  it('POST /home is 405 with Allow: GET, HEAD', async () => {
-    const res = await send(make(), '/home', 'POST')
-    expect(res.status).toBe(405)
-    expect(res.headers.get('allow')).toBe('GET, HEAD')
-    expect(assetCalls).toEqual([])
-  })
-
-  // [[UI504]] P2: /app and everything under it are the JSON 404 for any method (the old file forwarding and the 405 on /app/ are gone).
-  it.each(['/app', '/app/', '/app/app.js', '/app/app.css', '/app/index.html'])(
-    '%s is the JSON 404 for GET, HEAD and POST, and the binding is not asked',
+  it.each(['/', '/app', '/app/', '/?a=1&b=2', '/app?x=1', '/app/?x=1'])(
+    'GET and HEAD %s are 302 to /app/home and drop the query',
     async (path) => {
       const wk = make()
-      for (const method of ['GET', 'HEAD', 'POST']) {
+      for (const method of ['GET', 'HEAD']) {
         const res = await send(wk, path, method)
-        expect(res.status, `${method} ${path}`).toBe(404)
-        if (method === 'GET') expect(await res.json()).toEqual(NOT_FOUND)
+        expect(res.status, `${method} ${path}`).toBe(302)
+        expect(res.headers.get('location'), `${method} ${path}`).toBe('/app/home')
       }
       expect(assetCalls).toEqual([])
     },
   )
 
-  it('GET and HEAD / is 302 to /home and drops the query; POST / is 404', async () => {
+  it.each(['/app', '/app/'])('POST %s is 405 with Allow: GET, HEAD', async (path) => {
+    const res = await send(make(), path, 'POST')
+    expect(res.status).toBe(405)
+    expect(res.headers.get('allow')).toBe('GET, HEAD')
+    expect(res.headers.get('location')).toBeNull()
+  })
+
+  it('POST / stays what it was: the Worker own answer for a path nothing serves, never the redirect', async () => {
     const wk = make()
-    for (const method of ['GET', 'HEAD']) {
-      const res = await send(wk, '/?a=1&b=2', method)
-      expect(res.status, method).toBe(302)
-      expect(res.headers.get('location'), method).toBe('/home')
-    }
-    // POST / stays what it was: the Worker's own answer for a path nothing serves (404, or its gate's 503 here, with the database behind), never the redirect.
     const post = await send(wk, '/', 'POST')
     expect(post.status).toBe((await send(wk, '/nothing-here', 'POST')).status)
     expect(post.status).not.toBe(302)
@@ -225,95 +214,86 @@ describe.each(PROVIDERS)('routing matrix: %s (D1, D2)', (_name, make) => {
     expect(assetCalls).toEqual([])
   })
 
-  it('without the assets binding every app path and / is 404', async () => {
+  it('without the assets binding every /app path and / is 404, any method', async () => {
     const wk = make({ ASSETS: undefined })
-    for (const path of ['/home', '/accounts', '/agents', '/assets/app/app.js', '/assets/app/app.css', '/']) {
+    for (const path of [...PAGES, '/app', '/app/', '/app/home/x', '/assets/app/app.js', '/']) {
       const res = await send(wk, path)
       expect(res.status, path).toBe(404)
       expect(res.headers.get('location'), path).toBeNull()
     }
+    for (const path of [...PAGES, '/app', '/app/'])
+      expect((await send(wk, path, 'POST')).status, `POST ${path}`).toBe(404)
   })
 })
 
-// [[UI476]] P2 (476.2), group 1: /connect is a redirect to /home and nothing else under /connect/ is served; every answer carries the app's headers (the afterEach above), never asks the binding.
-describe.each(PROVIDERS)('/connect redirects to /home (UI476 P2): %s', (_name, make) => {
-  const REDIRECTS = ['/connect', '/connect/', '/connect?return=x', '/connect/?return=x']
-  const GONE = ['/connect/connect.js', '/connect/nope', '/connect/x/y']
-
-  it.each(REDIRECTS)(
-    'GET and HEAD %s are 302 Location: /home (the query dropped), the binding is not asked',
-    async (path) => {
-      const wk = make()
-      for (const method of ['GET', 'HEAD']) {
-        const res = await send(wk, path, method)
-        expect(res.status, `${method} ${path}`).toBe(302)
-        expect(res.headers.get('location'), `${method} ${path}`).toBe('/home')
-      }
-      expect(assetCalls).toEqual([])
-    },
-  )
-
-  it.each(REDIRECTS)('POST %s is 405 with Allow: GET, HEAD, with or without the binding', async (path) => {
-    for (const wk of [make(), make({ ASSETS: undefined })]) {
-      const res = await send(wk, path, 'POST')
-      expect(res.status, path).toBe(405)
-      expect(res.headers.get('allow'), path).toBe('GET, HEAD')
-    }
-    expect(assetCalls).toEqual([])
-  })
-
-  it.each(REDIRECTS)('without the binding GET and HEAD %s are 404, never a redirect', async (path) => {
-    const wk = make({ ASSETS: undefined })
-    for (const method of ['GET', 'HEAD']) {
-      const res = await send(wk, path, method)
-      expect(res.status, `${method} ${path}`).toBe(404)
-      expect(res.headers.get('location'), `${method} ${path}`).toBeNull()
-    }
-  })
-
-  it.each(GONE)("%s is the app's JSON 404 not_found for every method, with or without the binding", async (path) => {
-    for (const wk of [make(), make({ ASSETS: undefined })])
+// [[UI507]] D6, P5: the old page paths and /connect are ordinary unknown paths: 404 on a ready Worker, 503 before the migrations, never a page or a redirect. The binding fake still holds files at /home and /connect on purpose.
+describe('the old paths are gone (D6 app half, P5)', () => {
+  const OLD = ['/home', '/accounts', '/agents', '/home/x', '/connect', '/connect?x=1', '/connect/x', '/connect/']
+  const ready = async () => {
+    await recordMigrations(
+      w.d1,
+      MIGRATIONS.map((m) => m.name),
+    )
+    await bootstrapD1(
+      w.d1,
+      {
+        organizationName: 'Acme',
+        authProvider: 'better-auth',
+        authOrgId: 'better-auth',
+        publicBaseUrl: AUTH_BASE,
+        ownerEmail: 'owner@x.test',
+      },
+      { control: openControlDb(w.control) },
+    )
+  }
+  it('a ready better-auth Worker answers 404 (never 302 or 200) for GET, HEAD and POST, with no app policy, and never asks the binding', async () => {
+    await ready()
+    const wk = betterAuthWorker()
+    for (const path of OLD)
       for (const method of ['GET', 'HEAD', 'POST']) {
         const res = await send(wk, path, method)
         expect(res.status, `${method} ${path}`).toBe(404)
         expect(res.headers.get('location'), `${method} ${path}`).toBeNull()
-        if (method !== 'HEAD') expect(await res.json(), `${method} ${path}`).toEqual(NOT_FOUND)
+        expect(res.headers.get('content-security-policy'), `${method} ${path}`).toBeNull()
       }
     expect(assetCalls).toEqual([])
   })
 
-  it('/connectx and /connect.js are not claimed: the Worker answers them as any unknown path, never the redirect', async () => {
-    const wk = make()
-    for (const path of ['/connectx', '/connect.js']) {
+  it('with the database behind they are the gate answer (503), not a page or a redirect', async () => {
+    const wk = betterAuthWorker()
+    for (const path of OLD) {
       const res = await send(wk, path)
+      expect(res.status, path).toBe(503)
       expect(res.headers.get('location'), path).toBeNull()
-      expect(res.status, path).not.toBe(302)
     }
     expect(assetCalls).toEqual([])
   })
+
+  it('/connectx and /connect.js are ordinary unknown paths too', async () => {
+    for (const path of ['/connectx', '/connect.js']) expect((await send(betterAuthWorker(), path)).status).not.toBe(302)
+  })
 })
 
-describe('/connect redirects before the gates (UI476 P2)', () => {
-  it('with the database behind and a misconfigured provider, /connect is still 302 /home', async () => {
+describe('the redirect and the pages answer before the gates (D2)', () => {
+  it('with the database behind and a misconfigured provider, / and /app are still 302 /app/home', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const wk = betterAuthWorker({ AUTH_SECRET: 'too short' })
     expect((await send(wk, '/meta/v1/me')).status).not.toBe(302)
-    const res = await send(wk, '/connect')
-    expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toBe('/home')
+    for (const path of ['/', '/app', '/app/']) {
+      const res = await send(wk, path)
+      expect(res.status, path).toBe(302)
+      expect(res.headers.get('location'), path).toBe('/app/home')
+    }
   })
-})
-
-describe('before the gates (D1)', () => {
-  it('a misconfigured provider still serves /home (it answers before the configuration gate)', async () => {
+  it('a misconfigured provider still serves /app/home (before the configuration gate)', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    const res = await send(betterAuthWorker({ AUTH_SECRET: 'too short' }), '/home')
+    const res = await send(betterAuthWorker({ AUTH_SECRET: 'too short' }), '/app/home')
     expect(res.status).toBe(200)
   })
-  it('the database being behind does not stop /home, while the API answers 503', async () => {
+  it('the database being behind does not stop /app/home, while the API answers 503', async () => {
     const wk = betterAuthWorker()
     expect(((await (await send(wk, '/health')).json()) as any).migrations.status).toBe('behind')
-    expect((await send(wk, '/home')).status).toBe(200)
+    expect((await send(wk, '/app/home')).status).toBe(200)
     expect((await send(wk, '/meta/v1/me')).status).toBe(503)
   })
 })
@@ -348,12 +328,12 @@ describe('appCsp and the headers (D5, group 2)', () => {
   it('every app answer through the composed Worker carries the policy: page, HEAD, asset, 404, 405, 302 (checked after each test)', async () => {
     const wk = betterAuthWorker()
     for (const [path, method] of [
-      ['/home', 'GET'],
-      ['/home', 'HEAD'],
+      ['/app/home', 'GET'],
+      ['/app/home', 'HEAD'],
       ['/assets/app/app.js', 'GET'],
       ['/app/', 'GET'],
-      ['/home/x', 'GET'],
-      ['/home', 'POST'],
+      ['/app/home/x', 'GET'],
+      ['/app/home', 'POST'],
       ['/', 'GET'],
     ] as const)
       await send(wk, path, method)
@@ -361,7 +341,7 @@ describe('appCsp and the headers (D5, group 2)', () => {
   })
 
   it('on Clerk the composed Worker hands the issuer to the policy', async () => {
-    const res = await send(clerkWorker(), '/home')
+    const res = await send(clerkWorker(), '/app/home')
     expect(res.headers.get('content-security-policy')).toBe(appCsp(kit.issuer.issuer))
     expect(res.headers.get('content-security-policy')).toContain(new URL(kit.issuer.issuer).origin)
   })
@@ -370,12 +350,12 @@ describe('appCsp and the headers (D5, group 2)', () => {
     const SELF_ONLY =
       "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     for (const make of [betterAuthWorker, unsetWorker]) {
-      const csp = (await send(make(), '/home')).headers.get('content-security-policy')!
+      const csp = (await send(make(), '/app/home')).headers.get('content-security-policy')!
       expect(csp).toBe(SELF_ONLY)
       expect(csp).not.toMatch(/clerk|challenges\.cloudflare\.com|\/auth|vibase\.test/)
     }
     const i = new URL(kit.issuer.issuer).origin
-    expect((await send(clerkWorker(), '/home')).headers.get('content-security-policy')).toBe(
+    expect((await send(clerkWorker(), '/app/home')).headers.get('content-security-policy')).toBe(
       `default-src 'self'; script-src 'self' ${i} https://challenges.cloudflare.com https://*.protect.clerk.com; style-src 'self' 'unsafe-inline'; connect-src 'self' ${i} https://*.protect.clerk.com:*; img-src 'self' https://img.clerk.com; worker-src 'self' blob:; frame-src https://challenges.cloudflare.com https://*.protect.clerk.com; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`,
     )
   })

@@ -108,23 +108,22 @@ describe('assets (UI30 D2)', () => {
   // Every env the file declares (a fork has its own set; none is assumed), plus the top level.
   const declaredEnvs = Object.keys((parse(readFileSync(CONFIG, 'utf8')) as { env?: object }).env ?? {})
   it.each([undefined, ...declaredEnvs])(
-    'env %s binds ASSETS and runs the Worker first for /connect, /connect/*, the auth pages, the app and /assets/* only (UI246 D2, UI504 D4)',
+    'env %s binds ASSETS and runs the Worker first for /, /app, /app/*, /assets/* and the auth pages only (UI246 D2, UI504 D4, UI507 P3)',
     (env) => {
       const c = unstable_readConfig({ config: CONFIG, env })
       expect(c.assets?.binding).toBe('ASSETS')
       // Derived from the constants the Worker serves, never a copied list: a page or prefix the Worker serves but `run_worker_first` omits would be answered by the assets binding without the headers.
-      expect(c.assets?.run_worker_first).toEqual([
-        '/connect',
-        '/connect/*',
-        ...UI_RUN_WORKER_FIRST,
-        ...APP_RUN_WORKER_FIRST,
-      ])
+      expect(c.assets?.run_worker_first).toEqual([...APP_RUN_WORKER_FIRST, ...UI_RUN_WORKER_FIRST])
+      // [[UI507]] D4 interim, P3: the old app pages and /connect are not listed (an old path reaches the Worker's router and 404s); the new pages are covered by /app/*.
+      for (const old of ['/home', '/accounts', '/agents', '/connect', '/connect/*'])
+        expect(c.assets?.run_worker_first, old).not.toContain(old)
+      expect(c.assets?.run_worker_first).toEqual(['/', '/app', '/app/*', '/assets/*', ...UI_PAGE_PATHS])
       for (const p of UI_PAGE_PATHS) expect(c.assets?.run_worker_first, p).toContain(p)
       // [[UI504]] D3, D4: the static files are under /assets/ and nowhere else, so /ui/* is not listed (an old path reaches the Worker's router).
       expect(c.assets?.run_worker_first).toContain('/assets/*')
       expect(c.assets?.run_worker_first).not.toContain('/ui/*')
       // [[UI460]] D6: the app's root, its page paths and its bundle prefix.
-      for (const p of APP_PAGE_PATHS) expect(c.assets?.run_worker_first, p).toContain(p)
+      for (const p of APP_PAGE_PATHS) expect(p.startsWith(`${APP_PREFIX}/`), p).toBe(true)
       expect(c.assets?.run_worker_first).toContain('/')
       expect(c.assets?.run_worker_first).toContain(`${APP_PREFIX}/*`)
       expect(resolve(dirname(CONFIG), c.assets!.directory!)).toMatch(/packages\/server-d1\/dist\/assets$/)
@@ -134,7 +133,7 @@ describe('assets (UI30 D2)', () => {
 
 // [[UI247]] D1: every list that must equal the constant, read from the real files (the release fixture and the setup fixture are strings and files that stay in step with `wrangler.jsonc` by hand).
 describe('every run_worker_first list equals the constants the Worker serves (UI247 D1)', () => {
-  const EXPECTED = ['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST, ...APP_RUN_WORKER_FIRST]
+  const EXPECTED = [...APP_RUN_WORKER_FIRST, ...UI_RUN_WORKER_FIRST]
   const listIn = (text: string): unknown =>
     (parse(text) as { assets?: { run_worker_first?: unknown } }).assets?.run_worker_first
   it('derived list: /assets/* in, /ui/* out (UI504 D4)', () => {

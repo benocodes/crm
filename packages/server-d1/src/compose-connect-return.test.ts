@@ -35,10 +35,10 @@ const callback = (extra: Partial<D1WorkerEnv>) =>
   )
 
 describe('the callback default return path follows ASSETS (D5)', () => {
-  it('with ASSETS bound and CONNECT_RETURN_URL unset: 302 to the instance /accounts', async () => {
+  it('with ASSETS bound and CONNECT_RETURN_URL unset: 302 to the instance /app/accounts', async () => {
     const res = await callback({ ASSETS })
     expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toBe(`${BASE}/accounts?error=state_invalid`)
+    expect(res.headers.get('location')).toBe(`${BASE}/app/accounts?error=state_invalid`)
   })
   it('without ASSETS: the built-in result page', async () => {
     const res = await callback({})
