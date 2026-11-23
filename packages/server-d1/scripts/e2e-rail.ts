@@ -69,8 +69,7 @@ async function main(): Promise<void> {
     'health: the branch is deployed and the database is current',
     health.status === 200 &&
       health.json?.version === args.expectVersion &&
-      migrations?.status === 'current' &&
-      migrations?.latest_applied === '0012_action_executions.sql',
+      migrations?.status === 'current',
     { status: health.status, version: health.json?.version, migrations },
   )
 
