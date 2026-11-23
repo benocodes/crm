@@ -445,16 +445,19 @@ export async function checkRelease(
           )
         log(`${binding} tracker: current (${state.applied.length} applied = ${shipped.length} shipped)`)
       }
-      // [[UI507]] D6: the old app paths and `/connect` are gone (404, never a redirect or a page).
+      // [[UI507]] D6, P5: the old app paths and `/connect` are ordinary unknown paths: never a page or a redirect. This instance is uninitialised, so the router's gate answers 503 before its 404; the Worker suites pin the 404 on a ready one.
       const old = await Promise.all(
         ['/connect?x=1', '/connect/connect.js', '/home', '/accounts', '/agents'].map(async (p) => {
           const r = await fetch(new URL(p, url), { redirect: 'manual' })
-          return `${p} ${r.status}${r.headers.get('location') ? ` -> ${r.headers.get('location')}` : ''}`
+          return { p, status: r.status, location: r.headers.get('location') }
         }),
       )
-      if (old.some((o) => !o.includes(' 404') || o.includes('->')))
-        throw new ReleaseRefusal(`an old app path is still served (expected 404 for each): ${old.join(', ')}`)
-      log(old.join(', '))
+      const oldLine = old.map((o) => `${o.p} ${o.status}${o.location ? ` -> ${o.location}` : ''}`).join(', ')
+      if (old.some((o) => (o.status !== 404 && o.status !== 503) || o.location !== null))
+        throw new ReleaseRefusal(
+          `an old app path is still served (expected 404, or 503 before initialisation, for each): ${oldLine}`,
+        )
+      log(oldLine)
       // [[UI507]] D1, D2: the workspace app's pages are at /app/<page>; `/` and `/app` redirect to Home. [[UI504]] D3: its bundle is at /assets/app/ and nowhere else.
       const home = await fetch(new URL('/app/home', url), { redirect: 'manual' })
       const appJs = await fetch(new URL('/assets/app/app.js', url))
