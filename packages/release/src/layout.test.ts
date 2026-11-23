@@ -143,7 +143,7 @@ describe('D8 (2), (3), (4), (9): the server package', () => {
       expect(() => assertServerLayout(dir, s.version), f).toThrow(new RegExp(f.replace(/[.]/g, '\\.')))
     }
   })
-  it('UI246 D2: a server package without one of the page assets is refused by name; assets/ui/ files are allowed, other asset directories still are not', () => {
+  it('UI246 D2: a server package without one of the page assets is refused by name; assets/assets/ui/ files are allowed, other asset directories still are not', () => {
     for (const f of ['assets/assets/ui/index.html', 'assets/assets/ui/app.js', 'assets/assets/ui/ui.css']) {
       const { dir, s } = server()
       unlinkSync(join(dir, f))
