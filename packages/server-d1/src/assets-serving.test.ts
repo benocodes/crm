@@ -83,7 +83,10 @@ const betterAuth = (over: Partial<D1WorkerEnv> = {}) =>
     ...over,
   })
 const clerk = () =>
-  composeD1Worker({ DB: w.d1, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, ASSETS }, { fetch: kit.fetch })
+  composeD1Worker(
+    { DB: w.d1, CONTROL_DB: w.control, ...kit.env, CLERK_WEBHOOK_SECRET: undefined, ASSETS },
+    { fetch: kit.fetch },
+  )
 const unset = () => composeD1Worker({ DB: w.d1, ASSETS })
 
 type Provider = 'better-auth' | 'clerk' | 'unset'
