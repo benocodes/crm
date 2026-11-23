@@ -456,18 +456,22 @@ export async function checkRelease(
       log(`/connect ${connect.status} -> ${connect.headers.get('location')}, /connect/connect.js ${connectJs.status}`)
       // [[UI460]] D6: the workspace app is served beside it: the page, its bundle, and the root redirect.
       const home = await fetch(new URL('/home', url), { redirect: 'manual' })
-      const appJs = await fetch(new URL('/app/app.js', url))
+      const appJs = await fetch(new URL('/assets/app/app.js', url))
+      const oldAppJs = await fetch(new URL('/app/app.js', url))
       const root = await fetch(new URL('/', url), { redirect: 'manual' })
       if (
         home.status !== 200 ||
         appJs.status !== 200 ||
+        oldAppJs.status !== 404 ||
         root.status !== 302 ||
         root.headers.get('location') !== '/home'
       )
         throw new ReleaseRefusal(
-          `the workspace app is not served: /home ${home.status}, /app/app.js ${appJs.status}, / ${root.status} -> ${root.headers.get('location')}`,
+          `the workspace app is not served: /home ${home.status}, /assets/app/app.js ${appJs.status}, /app/app.js ${oldAppJs.status}, / ${root.status} -> ${root.headers.get('location')}`,
         )
-      log(`/home ${home.status}, /app/app.js ${appJs.status}, / ${root.status} -> ${root.headers.get('location')}`)
+      log(
+        `/home ${home.status}, /assets/app/app.js ${appJs.status}, /app/app.js ${oldAppJs.status}, / ${root.status} -> ${root.headers.get('location')}`,
+      )
       // [[UI467]] D1, D14: the Connected accounts page is served beside Home, and nothing below it.
       const accounts = await fetch(new URL('/accounts', url), { redirect: 'manual' })
       const accountsBelow = await fetch(new URL('/accounts/x', url), { redirect: 'manual' })

@@ -20,11 +20,15 @@ const SERVER_FIXED = [
   'worker/worker.js',
   'wrangler.base.jsonc',
 ]
-/** [[UI246]] D2: the auth pages the Worker serves from `assets/ui/`; a package without one would answer its pages with a 404, so each is required. */
-export const SERVER_UI_ASSETS = ['assets/ui/index.html', 'assets/ui/app.js', 'assets/ui/ui.css']
+/** [[UI246]] D2, [[UI504]] D3: the auth pages the Worker serves from `assets/assets/ui/` (the binding directory is `assets/`, the files sit at their URL path `/assets/ui/…` inside it); a package without one would answer its pages with a 404, so each is required. */
+export const SERVER_UI_ASSETS = ['assets/assets/ui/index.html', 'assets/assets/ui/app.js', 'assets/assets/ui/ui.css']
 
-/** [[UI460]] D6: the workspace app the Worker serves from `assets/app/`; a package without one would answer `/home` with a 404, so each is required. */
-export const SERVER_APP_ASSETS = ['assets/app/index.html', 'assets/app/app.js', 'assets/app/app.css']
+/** [[UI460]] D6, [[UI504]] D3: the workspace app the Worker serves from `assets/assets/app/`; a package without one would answer `/home` with a 404, so each is required. */
+export const SERVER_APP_ASSETS = [
+  'assets/assets/app/index.html',
+  'assets/assets/app/app.js',
+  'assets/assets/app/app.css',
+]
 
 const readJson = (file: string): Record<string, any> | null => {
   try {
@@ -78,7 +82,11 @@ export function serverProblems(dir: string, version: string): string[] {
   ])
   const out = fileDiff(
     listFiles(dir),
-    (f) => SERVER_FIXED.includes(f) || f.startsWith('assets/ui/') || f.startsWith('assets/app/') || migrations.has(f),
+    (f) =>
+      SERVER_FIXED.includes(f) ||
+      f.startsWith('assets/assets/ui/') ||
+      f.startsWith('assets/assets/app/') ||
+      migrations.has(f),
     [...SERVER_FIXED, ...SERVER_UI_ASSETS, ...SERVER_APP_ASSETS],
   )
   const pkg = readJson(join(dir, 'package.json'))

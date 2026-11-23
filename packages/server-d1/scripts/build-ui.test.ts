@@ -35,13 +35,13 @@ describe('buildUi (the pages bundle)', () => {
       walk(out)
         .map((f) => f.slice(out.length + 1))
         .sort(),
-    ).toEqual(['ui/app.js', 'ui/index.html', 'ui/ui.css'])
+    ).toEqual(['assets/ui/app.js', 'assets/ui/index.html', 'assets/ui/ui.css'])
   })
 
   it('the HTML references its script and stylesheet by absolute /ui/ paths, with no inline script, handler or style', () => {
-    const html = readFileSync(join(out, 'ui/index.html'), 'utf8')
-    expect(html).toContain('src="/ui/app.js"')
-    expect(html).toContain('href="/ui/ui.css"')
+    const html = readFileSync(join(out, 'assets/ui/index.html'), 'utf8')
+    expect(html).toContain('src="/assets/ui/app.js"')
+    expect(html).toContain('href="/assets/ui/ui.css"')
     expect(html).not.toMatch(/<script(?![^>]*\bsrc=)/i)
     expect(html).not.toMatch(/modulepreload/)
     expect(html).not.toMatch(/<style|\sstyle\s*=|\son[a-z]+\s*=/i)
@@ -55,7 +55,7 @@ describe('buildUi (the pages bundle)', () => {
   })
 
   it('the stylesheet is the Tailwind build ([[UI447]] D7: no comparison with the removed Preact `ui.css`), and holds a rule for a class only the page code uses', () => {
-    const css = readFileSync(join(out, 'ui/ui.css'), 'utf8')
+    const css = readFileSync(join(out, 'assets/ui/ui.css'), 'utf8')
     expect(css).not.toContain('--vb-')
     // `max-w-132` is on the pages' mount wrapper (main.tsx) and nowhere in packages/ui/src/components, so only the page source scan can have produced it.
     const components = walk(fileURLToPath(new URL('../../ui/src/components', import.meta.url)))
@@ -68,7 +68,7 @@ describe('buildUi (the pages bundle)', () => {
   // UI446 fix round 1: the E2E's dark-mode axe check caught buttons mid-transition (light-mode colours for 150 ms after the scheme flipped). The stylesheet must carry the dark tokens
   // under both spellings (the media query and data-theme), and the pages must switch transitions off.
   it('the stylesheet swaps every token the buttons use in dark mode, by media query and by data-theme, and the pages disable transitions', () => {
-    const css = readFileSync(join(out, 'ui/ui.css'), 'utf8')
+    const css = readFileSync(join(out, 'assets/ui/ui.css'), 'utf8')
     const block = (selector: string): string => {
       const at = css.indexOf(selector)
       expect(at, selector).toBeGreaterThan(-1)
@@ -107,8 +107,8 @@ describe('buildUi (the pages bundle)', () => {
   })
 
   it('the pages stay within the budget: 100 KB gzipped JS, 20 KB gzipped CSS', () => {
-    const js = gzipSync(readFileSync(join(out, 'ui/app.js'))).length
-    const css = gzipSync(readFileSync(join(out, 'ui/ui.css'))).length
+    const js = gzipSync(readFileSync(join(out, 'assets/ui/app.js'))).length
+    const css = gzipSync(readFileSync(join(out, 'assets/ui/ui.css'))).length
     console.log(`auth pages bundle: ${js} B gz JS, ${css} B gz CSS`)
     expect(js).toBeLessThanOrEqual(JS_BUDGET)
     expect(css).toBeLessThanOrEqual(CSS_BUDGET)
@@ -125,13 +125,13 @@ describe('buildUi (the pages bundle)', () => {
   })
 
   it('the script embeds a catalogue sentence and an OIDC scope sentence', () => {
-    const js = readFileSync(join(out, 'ui/app.js'), 'utf8')
+    const js = readFileSync(join(out, 'assets/ui/app.js'), 'utf8')
     expect(js).toContain('View deals (also called opportunities)')
     expect(js).toContain('Stay signed in: keep access until you sign out or the access is revoked')
   })
 
   it('the script is a single browser bundle with no source map comment, eval, require or static import/export (a dynamic `import(` is bounded by the exact file list, UI489 D3)', () => {
-    const js = readFileSync(join(out, 'ui/app.js'), 'utf8')
+    const js = readFileSync(join(out, 'assets/ui/app.js'), 'utf8')
     expect(js.length).toBeGreaterThan(5000)
     expect(js).not.toMatch(/sourceMappingURL/)
     expect(js).not.toMatch(/\beval\(|new Function\(/)

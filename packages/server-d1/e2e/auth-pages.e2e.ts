@@ -242,17 +242,20 @@ test('7. /reset-password: no fragment explains; a bogus token with matching pass
 })
 
 test('8. every page and the bundle carry the exact headers', async ({ request }) => {
-  for (const path of ['/sign-in', '/invite', '/reset-password', '/ui/app.js', '/ui/ui.css']) {
+  for (const path of ['/sign-in', '/invite', '/reset-password', '/assets/ui/app.js', '/assets/ui/ui.css']) {
     const res = await request.get(path)
     expect(res.status(), path).toBe(200)
     const h = res.headers()
     expect(h['content-security-policy'], path).toBe(EXACT_CSP)
     expect(h['x-content-type-options'], path).toBe('nosniff')
     expect(h['referrer-policy'], path).toBe('strict-origin-when-cross-origin')
-    if (path === '/ui/app.js' || path === '/ui/ui.css') continue
+    if (path === '/assets/ui/app.js' || path === '/assets/ui/ui.css') continue
     expect(h['cache-control'], path).toBe('no-store')
   }
   expect((await request.get('/sign-in/', { maxRedirects: 0 })).status()).toBe(404)
+  // [[UI504]] D6: the old file paths are gone (the router's 404 for /ui/*, the static 404 for /app/*).
+  for (const path of ['/ui/app.js', '/ui/ui.css', '/app/app.js', '/app/app.css', '/app/index.html'])
+    expect((await request.get(path, { maxRedirects: 0 })).status(), path).toBe(404)
 })
 
 // [[UI255]] D3, D7, D8: a trusted app origin. The Worker's `.dev.vars` also carries `AUTH_TRUSTED_ORIGINS=http://localhost:8788` (inert for every step above). The "app" is a stub page a throwaway node listener serves on
@@ -331,7 +334,7 @@ test('9. [UI255] a trusted app origin: credentialed CORS on /auth, sign-in retur
 const APP_CSP_EXACT =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 
-test('10. [UI460] signed out: / redirects to /home, the sign-in card has no sidebar and Sign in goes to /sign-in?return_to=/home; /home/ and /app/ are 404, /app/app.js is 200', async ({
+test('10. [UI460] signed out: / redirects to /home, the sign-in card has no sidebar and Sign in goes to /sign-in?return_to=/home; /home/ and /app/ are 404, /assets/app/app.js is 200 and /app/app.js is 404', async ({
   request,
 }) => {
   await context.clearCookies()
@@ -346,9 +349,10 @@ test('10. [UI460] signed out: / redirects to /home, the sign-in card has no side
   await expect(page.getByRole('navigation')).toHaveCount(0)
   expect(page.url()).toMatch(/\/home$/) // nothing navigated on load
   await axeBoth(page, 'app-signed-out')
-  const asset = await request.get('/app/app.js')
+  const asset = await request.get('/assets/app/app.js')
   expect(asset.status()).toBe(200)
   expect(asset.headers()['content-security-policy']).toBe(APP_CSP_EXACT)
+  expect((await request.get('/app/app.js')).status()).toBe(404)
   expect((await request.get('/home/')).status()).toBe(404)
   expect((await request.get('/app/')).status()).toBe(404)
   // Sign in from a page URL that carries a query: only the path comes back as return_to.

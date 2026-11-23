@@ -46,7 +46,7 @@ describe('D8 forbidden content', () => {
     ['.dev.vars', '.dev.vars', 'A=1', 'dev-vars'],
     ['wrangler.jsonc', 'wrangler.jsonc', '{}', 'wrangler-config'],
     ['sk_live_', 'worker/worker.js', 'const k = "sk_live_abcdef"', 'sk_live_'],
-    ['sk_test_', 'assets/app/app.js', 'const k = "sk_test_abcdef"', 'sk_test_'],
+    ['sk_test_', 'assets/assets/app/app.js', 'const k = "sk_test_abcdef"', 'sk_test_'],
     ['a PEM block', 'cli/server.js', 'k = "-----BEGIN PRIVATE KEY-----\\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC"', 'pem'],
     ['an env database_id (first)', 'migrations/0001_a.sql', `-- ${realIds[0]}`, 'database-id'],
     ['an env database_id (last)', 'README.md', `id ${realIds.at(-1)}`, 'database-id'],

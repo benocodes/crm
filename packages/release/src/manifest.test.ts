@@ -73,7 +73,7 @@ describe('D4 verify refusals', () => {
   it('a clean stage verifies', () => {
     expect(verifyRelease(stage().outDir)).toEqual([])
   })
-  it.each(['worker/worker.js', 'assets/app/index.html', 'migrations/0001_a.sql', 'cli/server.js'])(
+  it.each(['worker/worker.js', 'assets/assets/app/index.html', 'migrations/0001_a.sql', 'cli/server.js'])(
     'a changed byte in %s names the path',
     (f) => {
       const { outDir } = stage()
@@ -82,19 +82,25 @@ describe('D4 verify refusals', () => {
       expect(() => assertRelease(outDir)).toThrow(f)
     },
   )
-  it.each(['worker/worker.js', 'assets/app/app.js', 'migrations/0002_b.sql'])('a missing %s names the path', (f) => {
-    const { outDir } = stage()
-    unlinkSync(join(outDir, f))
-    expect(verifyRelease(outDir)).toContainEqual({ path: f, kind: 'missing' })
-    expect(() => assertRelease(outDir)).toThrow(f)
-  })
-  it.each(['worker/extra.js', 'assets/app/extra.js', 'migrations/0003_c.sql'])('an extra %s names the path', (f) => {
-    const { outDir } = stage()
-    mkdirSync(join(outDir, f, '..'), { recursive: true })
-    writeFileSync(join(outDir, f), 'x')
-    expect(verifyRelease(outDir)).toEqual([{ path: f, kind: 'extra' }])
-    expect(() => assertRelease(outDir)).toThrow(f)
-  })
+  it.each(['worker/worker.js', 'assets/assets/app/app.js', 'migrations/0002_b.sql'])(
+    'a missing %s names the path',
+    (f) => {
+      const { outDir } = stage()
+      unlinkSync(join(outDir, f))
+      expect(verifyRelease(outDir)).toContainEqual({ path: f, kind: 'missing' })
+      expect(() => assertRelease(outDir)).toThrow(f)
+    },
+  )
+  it.each(['worker/extra.js', 'assets/assets/app/extra.js', 'migrations/0003_c.sql'])(
+    'an extra %s names the path',
+    (f) => {
+      const { outDir } = stage()
+      mkdirSync(join(outDir, f, '..'), { recursive: true })
+      writeFileSync(join(outDir, f), 'x')
+      expect(verifyRelease(outDir)).toEqual([{ path: f, kind: 'extra' }])
+      expect(() => assertRelease(outDir)).toThrow(f)
+    },
+  )
   it('a migrations entry whose hash differs from the file is refused', () => {
     const { outDir } = stage()
     const p = join(outDir, 'release.json')

@@ -31,13 +31,13 @@ describe('buildApp', () => {
       walk(out)
         .map((f) => f.slice(out.length + 1))
         .sort(),
-    ).toEqual(['app/app.css', 'app/app.js', 'app/index.html'])
+    ).toEqual(['assets/app/app.css', 'assets/app/app.js', 'assets/app/index.html'])
   })
 
   it('the HTML references its script and stylesheet by absolute /app/ paths, with no inline script, handler or style, and a div root (not a landmark)', () => {
-    const html = readFileSync(join(out, 'app/index.html'), 'utf8')
-    expect(html).toContain('src="/app/app.js"')
-    expect(html).toContain('href="/app/app.css"')
+    const html = readFileSync(join(out, 'assets/app/index.html'), 'utf8')
+    expect(html).toContain('src="/assets/app/app.js"')
+    expect(html).toContain('href="/assets/app/app.css"')
     expect(html).toContain('<div id="root">')
     expect(html).not.toMatch(/<script(?![^>]*\bsrc=)/i)
     expect(html).not.toMatch(/modulepreload/)
@@ -52,7 +52,7 @@ describe('buildApp', () => {
   })
 
   it('the stylesheet is the Tailwind build and holds the shell’s classes', () => {
-    const css = readFileSync(join(out, 'app/app.css'), 'utf8')
+    const css = readFileSync(join(out, 'assets/app/app.css'), 'utf8')
     expect(css.length).toBeGreaterThan(2000)
     expect(css).toContain('--primary')
     expect(css).toMatch(/\.md\\:flex-row/)
@@ -64,12 +64,12 @@ describe('buildApp', () => {
       .filter((f) => /\.tsx?$/.test(f))
       .map((f) => readFileSync(f, 'utf8'))
     expect(components.some((t) => t.includes('max-w-132'))).toBe(false)
-    expect(readFileSync(join(out, 'app/app.css'), 'utf8')).toMatch(/\.max-w-132\{/)
+    expect(readFileSync(join(out, 'assets/app/app.css'), 'utf8')).toMatch(/\.max-w-132\{/)
   })
 
   // UI460 E2E: the dark-mode axe check caught a button mid-transition (as UI446's did on the auth pages); the app switches transitions off the same way.
   it('the stylesheet switches transitions off under the mount wrapper', () => {
-    expect(readFileSync(join(out, 'app/app.css'), 'utf8')).toContain(
+    expect(readFileSync(join(out, 'assets/app/app.css'), 'utf8')).toContain(
       'transition-none\\! *{transition-property:none!important}',
     )
   })
@@ -90,7 +90,7 @@ describe('buildApp', () => {
   })
 
   it('the script is a single browser bundle with no source map comment, eval, require or static import/export (a dynamic `import(` is bounded by the exact file list, UI489 D3)', () => {
-    const js = readFileSync(join(out, 'app/app.js'), 'utf8')
+    const js = readFileSync(join(out, 'assets/app/app.js'), 'utf8')
     expect(js.length).toBeGreaterThan(5000)
     expect(js).not.toMatch(/sourceMappingURL/)
     expect(js).not.toMatch(/\beval\(|new Function\(/)
@@ -98,8 +98,8 @@ describe('buildApp', () => {
   })
 
   it('stays within the budget: 150 KB gzipped JS, 25 KB gzipped CSS', () => {
-    const js = gzipSync(readFileSync(join(out, 'app/app.js'))).length
-    const css = gzipSync(readFileSync(join(out, 'app/app.css'))).length
+    const js = gzipSync(readFileSync(join(out, 'assets/app/app.js'))).length
+    const css = gzipSync(readFileSync(join(out, 'assets/app/app.css'))).length
     console.log(`app bundle: ${js} B gz JS, ${css} B gz CSS`)
     expect(js).toBeLessThanOrEqual(APP_JS_BUDGET)
     expect(css).toBeLessThanOrEqual(APP_CSS_BUDGET)

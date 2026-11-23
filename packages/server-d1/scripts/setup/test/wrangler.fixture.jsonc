@@ -34,13 +34,13 @@
       "/reset-password",
       "/consent",
       "/device",
-      "/ui/*",
       "/",
       "/home",
       "/accounts",
       "/agents",
       "/app",
-      "/app/*"
+      "/app/*",
+      "/assets/*"
     ]
   },
   // Local R2 (no account needed): message bodies and file bytes, served by messages.content and files.content.

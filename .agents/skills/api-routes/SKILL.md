@@ -1234,10 +1234,19 @@ message bodies or addresses at info level (customer communications are personal 
 ## A static page on the API origin ([[UI30]])
 
 The app and auth pages are the pattern for any page the Worker serves (`packages/server-d1/src/app-serving.ts`, `src/ui-serving.ts`; `/connect` was the first, deleted at [[UI476]], and is now a `302 /home`):
-- **Workers Static Assets with `run_worker_first` for the page's prefix only.** `assets` is the one block every
-  env inherits (unlike `vars`, `d1_databases`, `r2_buckets`, `routes`). Build into a directory that mirrors
-  the request prefix (`dist/assets/app/…`), so no asset exists at any other path even if
-  `run_worker_first` were widened. In `smoke:worker`, Miniflare serves it with
+- **Workers Static Assets with `run_worker_first` for the page paths and `/assets/*`.** `assets` is the one block every
+  env inherits (unlike `vars`, `d1_databases`, `r2_buckets`, `routes`). Every static file is at
+  `/assets/<bundle>/<file>` ([[UI504]] D3): the build writes it at its URL path inside the binding directory
+  (`dist/assets/assets/<bundle>/…`, package `assets/assets/<bundle>/…`), so no file exists at any other path and an old
+  or unknown path reaches the Worker and is `404`. One prefix constant (`ASSET_PREFIX`, with `APP_BUNDLE`/`UI_BUNDLE`,
+  `src/app/paths.ts`) is read by both serving modules, the Vite config, the build and the `run_worker_first` list.
+  **A build must clear every old layout folder** (`buildPage` removes every top-level entry of its output but
+  `assets/`): a path that left `run_worker_first` is answered by the binding first, so a stale file from an older build
+  would be served there ([[UI504]] P3, `scripts/build.test.ts` seeds the old layout). **The binding answers a folder
+  path with its `index.html`**, so the Worker refuses `/assets/<bundle>/`, `…/index.html` and an unknown bundle as the
+  JSON `404` before it calls the binding; a file of an enabled bundle is `GET`/`HEAD` through the binding, other
+  methods `405`, and without the binding every `/assets/` path is `404` ([[UI504]] P1, 504.20). Prove a binding
+  behaviour in workerd (`smoke:worker`), not only in the Node fake. In `smoke:worker`, Miniflare serves it with
   `assets: { directory, binding, routerConfig: { has_user_worker: true, static_routing: { user_worker: [...] } } }`.
 - **The Worker sets the security headers on every response kind** (HTML, asset, `308`, `404`, `405`): a CSP
   built per request from `CLERK_ISSUER`, `nosniff`, a referrer policy, and `no-store` on HTML. Test them
@@ -1262,11 +1271,13 @@ The app and auth pages are the pattern for any page the Worker serves (`packages
   shows `a` forever once set. Read a one-shot error from the address (an OAuth callback's `?error=`) into state once
   and drop it from the URL with `history.replaceState`; every submit clears the other sources' errors before it runs.
   The test: error A shown, then action B fails, B's message is the one on the page.
-- **Several pages in one bundle** ([[UI246]], `packages/server-d1/src/ui-serving.ts`): the page paths and the asset
-  prefix are one exported constant (`UI_RUN_WORKER_FIRST`) that the Worker serves from and that the `wrangler.jsonc`
-  test, `release:check` and `smoke:worker` read; never a copied list. A provider-specific page is gated in the
-  composition before `/auth` and every other gate (`404 not_found` on any other provider), and its directory's
-  `index.html` is reachable only through the page paths (`/ui/` itself is `404`). The pages are a separate React
+- **Several pages in one bundle** ([[UI246]], `packages/server-d1/src/ui-serving.ts`): the page paths are one exported
+  constant (`UI_RUN_WORKER_FIRST`; `/assets/*` sits in `APP_RUN_WORKER_FIRST`) that the Worker serves from and that the
+  `wrangler.jsonc` test, the setup and release fixtures, `release:check` and `smoke:worker` read; never a copied list. A
+  provider-specific bundle is gated in the composition before `/auth` and every other gate: its pages and its
+  `/assets/<bundle>/` files are `404 not_found` on any other provider (`compose.ts` hands `/assets/ui` to `serveUi`
+  behind the better-auth check, `serveApp` takes every other `/assets` path). A bundle's `index.html` is reachable only
+  through the page paths. The pages are a separate React
   Vite page build (`scripts/build-ui.ts` over the shared `scripts/vite-pages.ts`, [[UI446]], [[UI489]]) whose module-list test proves `react`, `react-dom` and
   `@vibase/ui/components` and no `preact` or Preact-layer module, with a Worker-bundle check that holds no `preact`,
   no `react` page code and no page module. `/connect` is a redirect to `/home` ([[UI476]]); the Preact layer is gone ([[UI447]]).
@@ -1291,7 +1302,7 @@ The app and auth pages are the pattern for any page the Worker serves (`packages
   Worker bundle may hold: `scripts/build-ui.test.ts` ("the Worker bundle") allows exactly `../ui/src/csp.ts` and
   refuses every other ui module. Any new Worker-side import from `@vibase/ui` turns that test red, so run it with
   your affected tests; UI445's only gate-fix round was this test (445.24, 445.25).
-- **`server-d1`'s pages build on Vite, not through `@vibase/ui/build`** ([[UI489]]): `scripts/vite-pages.ts` is the one config factory (root `src/`, base `/`, `@vitejs/plugin-react` and `@tailwindcss/vite`, fixed output names, no `vite.config.*` at the package root); each page has `src/<page>/styles.css` (`@import "@vibase/ui/styles.css" source(none); @source "./";`, the `source(none)` keeps Tailwind from scanning both pages). `buildPage` forces `NODE_ENV=production` for the build and restores it: Vite and `@vitejs/plugin-react` take the mode from `NODE_ENV` when it is set, vitest sets `test`, and the build tests then measured React's development build (app 185 KB gzipped against 121 KB, 489.17). One file per page is proven by the exact file-list test, not by refusing `import(` in the text: react-router's unreached `import(e.module)` stays in the app bundle, and a reachable `import()` emits a second chunk that turns the file list red ([[UI489]] D3). `pnpm dev` is a Vite dev server on :5173 in front of `wrangler dev` on :8787 (`scripts/dev.ts`, `scripts/dev-server.ts`): it owns only the page paths (from `APP_PAGE_PATHS`/`UI_PAGE_PATHS`, never a list), the `/app/` and `/ui/` sources and Vite's own paths, and pipes every other request to the Worker unchanged (`Host`, `Origin`, `Cookie`; redirects not followed), so a new Worker route needs no dev-server change; the local Worker must trust `http://localhost:5173` (`.dev.vars.example`). Dev pages carry no CSP: CSP is proven on the built pages on :8787. `pnpm dev:worker` is the Worker alone. The gallery (`packages/ui`) still uses the helper below until [[UI490]].
+- **`server-d1`'s pages build on Vite, not through `@vibase/ui/build`** ([[UI489]]): `scripts/vite-pages.ts` is the one config factory (root `src/`, base `/assets/` with Vite's `outDir` `<out>/assets`, so a built file's URL is its path, [[UI504]] 504.19; `@vitejs/plugin-react` and `@tailwindcss/vite`, fixed output names, no `vite.config.*` at the package root); each page has `src/<page>/styles.css` (`@import "@vibase/ui/styles.css" source(none); @source "./";`, the `source(none)` keeps Tailwind from scanning both pages). `buildPage` forces `NODE_ENV=production` for the build and restores it: Vite and `@vitejs/plugin-react` take the mode from `NODE_ENV` when it is set, vitest sets `test`, and the build tests then measured React's development build (app 185 KB gzipped against 121 KB, 489.17). One file per page is proven by the exact file-list test, not by refusing `import(` in the text: react-router's unreached `import(e.module)` stays in the app bundle, and a reachable `import()` emits a second chunk that turns the file list red ([[UI489]] D3). `pnpm dev` is a Vite dev server on :5173 in front of `wrangler dev` on :8787 (`scripts/dev.ts`, `scripts/dev-server.ts`): it owns only the page paths (from `APP_PAGE_PATHS`/`UI_PAGE_PATHS`, never a list), the bundles' sources under `/assets/<bundle>/` and Vite's own paths, and pipes every other request to the Worker unchanged (`Host`, `Origin`, `Cookie`; redirects not followed), so a new Worker route needs no dev-server change. Its middleware is registered from a plugin's `configureServer`, because Vite's base middleware runs first and would refuse every path outside `/assets/` ([[UI504]] 504.25); the local Worker must trust `http://localhost:5173` (`.dev.vars.example`). Dev pages carry no CSP: CSP is proven on the built pages on :8787. `pnpm dev:worker` is the Worker alone. The gallery (`packages/ui`) still uses the helper below until [[UI490]].
 - **React pages in `packages/ui`'s gallery build through `@vibase/ui/build`** (`packages/ui/build/`, [[UI445]] D8): the esbuild options
   (automatic JSX on `react`, `process.env.NODE_ENV` defined as `"production"`) and `buildStylesheet({ outFile,
   sources })`, which runs the Tailwind 4 CLI on `src/styles.css`. The CLI has no source flag, so the helper writes a

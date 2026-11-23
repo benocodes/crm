@@ -13,7 +13,7 @@
     "./test": "./src/test/kit.ts"
   },
   "scripts": {
-    "build": "rm -rf dist/assets/connect && tsx scripts/build-ui.ts && tsx scripts/build-app.ts",
+    "build": "tsx scripts/build-ui.ts && tsx scripts/build-app.ts",
     "dev": "tsx scripts/dev.ts",
     "dev:worker": "pnpm build && wrangler dev --local --port 8787",
     "e2e:mcp-oauth": "playwright test --config playwright.config.ts mcp-oauth.e2e.ts",

@@ -1055,7 +1055,7 @@ try {
     { status: res.status },
   )
   // [[UI246]] D1: on clerk the auth pages and their bundle are no route at all, with the real assets binding in front of the Worker (the built files exist: only the provider decides).
-  for (const path of ['/sign-in', '/invite', '/reset-password', '/consent', '/device', '/ui/app.js']) {
+  for (const path of ['/sign-in', '/invite', '/reset-password', '/consent', '/device', '/assets/ui/app.js']) {
     res = await call('GET', path)
     check(
       `24b GET ${path} on clerk -> 404 not_found (the auth pages exist only on better-auth)`,
@@ -1071,7 +1071,7 @@ try {
     '24c GET /home -> 200 HTML from a fresh build with its bundle, the app policy (style-src unsafe-inline, issuer in script-src, none in script-src unsafe), nosniff, no-store',
     res.status === 200 &&
       (res.headers.get('content-type') ?? '').startsWith('text/html') &&
-      homePage.includes('/app/app.js') &&
+      homePage.includes('/assets/app/app.js') &&
       homePolicy.includes("style-src 'self' 'unsafe-inline'") &&
       homePolicy.includes(`script-src 'self' ${issuerOrigin} `) &&
       !/script-src[^;]*unsafe-/.test(homePolicy) &&
@@ -1085,7 +1085,7 @@ try {
     '24c2 GET /accounts -> 200 HTML with the app bundle and the app policy ([[UI467]] D1, D14); /accounts/ and /accounts/x -> 404',
     res.status === 200 &&
       (res.headers.get('content-type') ?? '').startsWith('text/html') &&
-      accountsPage.includes('/app/app.js') &&
+      accountsPage.includes('/assets/app/app.js') &&
       (res.headers.get('content-security-policy') ?? '').includes("style-src 'self' 'unsafe-inline'") &&
       (await call('GET', '/accounts/')).status === 404 &&
       (await call('GET', '/accounts/x')).status === 404,
@@ -1097,7 +1097,7 @@ try {
     '24c3 GET /agents -> 200 HTML with the app bundle and the app policy ([[UI459]] D1); /agents/ and /agents/x -> 404',
     res.status === 200 &&
       (res.headers.get('content-type') ?? '').startsWith('text/html') &&
-      agentsPage.includes('/app/app.js') &&
+      agentsPage.includes('/assets/app/app.js') &&
       (res.headers.get('content-security-policy') ?? '').includes("style-src 'self' 'unsafe-inline'") &&
       (await call('GET', '/agents/')).status === 404 &&
       (await call('GET', '/agents/x')).status === 404,
@@ -1111,16 +1111,21 @@ try {
       (res.headers.get('content-security-policy') ?? '') !== '',
     { status: res.status, location: res.headers.get('location') },
   )
-  res = await call('GET', '/app/app.js')
+  res = await call('GET', '/assets/app/app.js')
+  const oldAppJs = await call('GET', '/app/app.js')
   check(
-    '24e GET /app/app.js -> 200 javascript with the headers; /home/, /app/ and /app -> 404',
+    '24e GET /assets/app/app.js -> 200 javascript with the headers through the real binding; /app/app.js, /assets/app/, /assets/app/index.html, /assets, /home/, /app/ and /app -> 404 (UI504)',
     res.status === 200 &&
       (res.headers.get('content-type') ?? '').includes('javascript') &&
       (res.headers.get('content-security-policy') ?? '') !== '' &&
+      oldAppJs.status === 404 &&
+      (await call('GET', '/assets/app/')).status === 404 &&
+      (await call('GET', '/assets/app/index.html')).status === 404 &&
+      (await call('GET', '/assets')).status === 404 &&
       (await call('GET', '/home/')).status === 404 &&
       (await call('GET', '/app/')).status === 404 &&
       (await call('GET', '/app')).status === 404,
-    { status: res.status },
+    { status: res.status, old: oldAppJs.status },
   )
   res = await call('GET', '/.well-known/vibase')
   body = await json(res)

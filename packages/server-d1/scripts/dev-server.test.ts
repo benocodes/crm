@@ -58,8 +58,8 @@ describe('the constants and the owned set', () => {
 
 describe('pages and sources are the dev server’s own', () => {
   it.each([
-    ...APP_PAGE_PATHS.map((p) => [p, '/app/main.tsx'] as const),
-    ...UI_PAGE_PATHS.map((p) => [p, '/ui/main.tsx'] as const),
+    ...APP_PAGE_PATHS.map((p) => [p, '/assets/app/main.tsx'] as const),
+    ...UI_PAGE_PATHS.map((p) => [p, '/assets/ui/main.tsx'] as const),
   ])('%s answers its page’s HTML with the Vite client, its own entry module, and no CSP', async (path, entry) => {
     const before = seen.length
     const res = await get(path)
@@ -78,7 +78,7 @@ describe('pages and sources are the dev server’s own', () => {
     expect(await res.text()).toContain('/@vite/client')
   })
 
-  it.each(['/app/main.tsx', '/ui/main.tsx'])(
+  it.each(['/assets/app/main.tsx', '/assets/ui/main.tsx'])(
     '%s answers a transformed module (JSX compiled, imports rewritten)',
     async (path) => {
       const before = seen.length
@@ -94,14 +94,14 @@ describe('pages and sources are the dev server’s own', () => {
   )
 
   it('a component module answers with React Fast Refresh wired (import.meta.hot)', async () => {
-    const res = await get('/app/app.tsx')
+    const res = await get('/assets/app/app.tsx')
     expect(res.status).toBe(200)
     expect(await res.text()).toContain('import.meta.hot')
   }, 60_000)
 
   it('Vite’s own client path is Vite’s', async () => {
     const before = seen.length
-    const res = await get('/@vite/client')
+    const res = await get('/assets/@vite/client')
     expect(res.status).toBe(200)
     expect(await res.text()).toContain('createHotContext')
     expect(seen.length).toBe(before)
@@ -109,14 +109,17 @@ describe('pages and sources are the dev server’s own', () => {
 })
 
 describe('everything else reaches the Worker as sent', () => {
-  it.each(['/', '/connect', '/.well-known/vibase', '/mcp', '/app', '/meta'])('GET %s is proxied', async (path) => {
-    const res = await get(path)
-    expect(lastSeen().url).toBe(path)
-    if (path !== '/connect') {
-      expect(res.status).toBe(200)
-      expect(await res.text()).toBe(`upstream:GET:${path}`)
-    }
-  })
+  it.each(['/', '/connect', '/.well-known/vibase', '/mcp', '/app', '/meta', '/app/main.tsx', '/ui/main.tsx'])(
+    'GET %s is proxied',
+    async (path) => {
+      const res = await get(path)
+      expect(lastSeen().url).toBe(path)
+      if (path !== '/connect') {
+        expect(res.status).toBe(200)
+        expect(await res.text()).toBe(`upstream:GET:${path}`)
+      }
+    },
+  )
 
   it('a POST keeps method, path, query, body, Origin and Cookie', async () => {
     const res = await get('/api/contacts?x=1', {

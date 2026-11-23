@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -29,17 +29,17 @@ const pkgJson = () =>
   }
 
 describe('nothing builds the connect page (UI476 D10)', () => {
-  it('the build output has the ui/ and app/ directories and no connect/', () => {
-    expect(readdirSync(out).sort()).toEqual(['app', 'ui'])
+  it('the build output holds assets/ only (assets/ui/ and assets/app/) and no connect/', () => {
+    expect(readdirSync(out).sort()).toEqual(['assets'])
+    expect(readdirSync(join(out, 'assets')).sort()).toEqual(['app', 'ui'])
     expect(walk(out).filter((f) => /(^|\/)connect(\/|\.)/.test(f.slice(out.length)))).toEqual([])
   })
 
-  it('the build script builds the auth pages and the app, and removes a stale connect/ left by an earlier build', () => {
+  it("the build script builds the auth pages and the app; the clearing of stale folders is the build's (UI504 P3, below)", () => {
     const build = pkgJson().scripts.build!
     expect(build).not.toContain('build-connect')
     expect(build).toContain('build-ui')
     expect(build).toContain('build-app')
-    expect(build).toMatch(/rm -rf dist\/assets\/connect/)
   })
 
   it('the page, its build script, its serving module and its browser E2E are deleted', () => {
@@ -57,10 +57,46 @@ describe('nothing builds the connect page (UI476 D10)', () => {
   })
 })
 
+// [[UI504]] P3: a build leaves no file in the binding directory outside assets/<bundle>/, even over a directory an older build filled (stale /ui/app.js would be served by the binding, /ui/* no longer going to the Worker first).
+describe('a build clears the old layout (UI504 P3)', () => {
+  it('seeded with dist/assets/{ui,app,connect}/ files, both builds leave only assets/<bundle>/ files', async () => {
+    const seeded = mkdtempSync(join(tmpdir(), 'pages-seeded-'))
+    try {
+      for (const f of [
+        'ui/app.js',
+        'ui/ui.css',
+        'ui/index.html',
+        'app/app.js',
+        'app/app.css',
+        'app/index.html',
+        'connect/connect.js',
+        'stray.txt',
+      ]) {
+        mkdirSync(dirname(join(seeded, f)), { recursive: true })
+        writeFileSync(join(seeded, f), 'stale')
+      }
+      await buildUi(seeded)
+      await buildApp(seeded)
+      const files = walk(seeded).map((f) => f.slice(seeded.length + 1))
+      expect(files.filter((f) => !/^assets\/(ui|app)\//.test(f))).toEqual([])
+      expect(files.sort()).toEqual([
+        'assets/app/app.css',
+        'assets/app/app.js',
+        'assets/app/index.html',
+        'assets/ui/app.js',
+        'assets/ui/index.html',
+        'assets/ui/ui.css',
+      ])
+    } finally {
+      rmSync(seeded, { recursive: true, force: true })
+    }
+  }, 120_000)
+})
+
 describe('the page toolchain is Vite ([[UI489]] D1, D3, D7, D8)', () => {
   it('build runs both page builds and still clears connect/; dev is the runner; dev:worker is the Worker alone', () => {
     const s = pkgJson().scripts
-    expect(s.build).toBe('rm -rf dist/assets/connect && tsx scripts/build-ui.ts && tsx scripts/build-app.ts')
+    expect(s.build).toBe('tsx scripts/build-ui.ts && tsx scripts/build-app.ts')
     expect(s.dev).toBe('tsx scripts/dev.ts')
     expect(s['dev:worker']).toBe('pnpm build && wrangler dev --local --port 8787')
   })

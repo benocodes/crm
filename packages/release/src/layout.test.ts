@@ -13,6 +13,8 @@ import {
   assertExportsResolve,
   assertServerLayout,
   clientProblems,
+  SERVER_APP_ASSETS,
+  SERVER_UI_ASSETS,
   serverProblems,
 } from './layout.js'
 import { stageClient, stageServer } from './stage.js'
@@ -141,28 +143,36 @@ describe('D8 (2), (3), (4), (9): the server package', () => {
       expect(() => assertServerLayout(dir, s.version), f).toThrow(new RegExp(f.replace(/[.]/g, '\\.')))
     }
   })
-  it('UI246 D2: a server package without one of the page assets is refused by name; assets/ui/ files are allowed, other asset directories still are not', () => {
-    for (const f of ['assets/ui/index.html', 'assets/ui/app.js', 'assets/ui/ui.css']) {
+  it('UI246 D2: a server package without one of the page assets is refused by name; assets/assets/ui/ files are allowed, other asset directories still are not', () => {
+    for (const f of ['assets/assets/ui/index.html', 'assets/assets/ui/app.js', 'assets/assets/ui/ui.css']) {
       const { dir, s } = server()
       unlinkSync(join(dir, f))
       expect(() => assertServerLayout(dir, s.version), f).toThrow(new RegExp(`${f.replace(/[.]/g, '\\.')}.*missing`))
     }
     const { dir, s } = server()
-    put(dir, 'assets/ui/extra.js', 'x')
+    put(dir, 'assets/assets/ui/extra.js', 'x')
     expect(serverProblems(dir, s.version)).toEqual([])
-    put(dir, 'assets/uix/y.js', 'x')
+    put(dir, 'assets/assets/uix/y.js', 'x')
     expect(() => assertServerLayout(dir, s.version)).toThrow(/assets\/uix\/y\.js/)
   })
+  it('UI504 D3: the old layout (assets/ui/, assets/app/) is refused by name, and the constants name assets/assets/<bundle>/ only', () => {
+    for (const f of [...SERVER_UI_ASSETS, ...SERVER_APP_ASSETS]) expect(f).toMatch(/^assets\/assets\/(ui|app)\//)
+    for (const f of ['assets/ui/app.js', 'assets/app/app.js']) {
+      const { dir, s } = server()
+      put(dir, f, 'x')
+      expect(() => assertServerLayout(dir, s.version), f).toThrow(new RegExp(`${f.replace(/[.]/g, '\\.')}.*extra`))
+    }
+  })
   it('UI460 D6: a server package without one of the app assets is refused by name; assets/app/ files are allowed, assets/appx/ is not', () => {
-    for (const f of ['assets/app/index.html', 'assets/app/app.js', 'assets/app/app.css']) {
+    for (const f of ['assets/assets/app/index.html', 'assets/assets/app/app.js', 'assets/assets/app/app.css']) {
       const { dir, s } = server()
       unlinkSync(join(dir, f))
       expect(() => assertServerLayout(dir, s.version), f).toThrow(new RegExp(`${f.replace(/[.]/g, '\\.')}.*missing`))
     }
     const { dir, s } = server()
-    put(dir, 'assets/app/extra.js', 'x')
+    put(dir, 'assets/assets/app/extra.js', 'x')
     expect(serverProblems(dir, s.version)).toEqual([])
-    put(dir, 'assets/appx/y.js', 'x')
+    put(dir, 'assets/assets/appx/y.js', 'x')
     expect(() => assertServerLayout(dir, s.version)).toThrow(/assets\/appx\/y\.js/)
   })
   it('a base config without the nodejs_compat flag is refused by name (CORE243 D2: a deploy with node: imports and no flag fails only remotely)', () => {
