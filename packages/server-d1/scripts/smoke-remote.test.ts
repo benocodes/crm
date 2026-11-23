@@ -39,12 +39,12 @@ describe('afterHealthOk (CORE61 D7)', () => {
 })
 
 describe('operatorKeyOf ([[OPS265]] D15)', () => {
-  it('reads VIBASE_SMOKED1_OPERATOR_KEY', () =>
-    expect(operatorKeyOf({ VIBASE_SMOKED1_OPERATOR_KEY: 'vk_a' })).toBe('vk_a'))
+  it('reads VIBASE_SMOKED1_VB_OPERATOR_KEY', () =>
+    expect(operatorKeyOf({ VIBASE_SMOKED1_VB_OPERATOR_KEY: 'vk_a' })).toBe('vk_a'))
   it('refuses when only the old VAULT_ name is set, and the refusal names the new variable', () => {
     expect(() => operatorKeyOf({ VAULT_SMOKED1_OPERATOR_KEY: 'vk_old' })).toThrow(RemoteRefusal)
     expect(() => operatorKeyOf({ VAULT_SMOKED1_OPERATOR_KEY: 'vk_old' })).toThrow(
-      'VIBASE_SMOKED1_OPERATOR_KEY must be set',
+      'VIBASE_SMOKED1_VB_OPERATOR_KEY must be set',
     )
   })
 })
