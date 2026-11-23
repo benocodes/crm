@@ -119,7 +119,9 @@ For every **Must be tested** obligation in the charter, write the test(s) that p
   That is a recorded deviation, not an equivalent. [[AGT8]] cycle 1 wrote its tests beside a working draft and
   made the red commit by setting the draft aside: two suites then failed on a missing module, not on their
   assertions, and the reviewer had to run a manifest mutation to see them go red. [[CORE283]] wrote five of six
-  groups' tests after the code and had no red commit at all. Write the tests first. If you did not, say so per
+  groups' tests after the code and had no red commit at all. [[API518]] wrote a nine-file grammar change first.
+  It then made the red commit by setting the source files aside and stubbing one helper with today's behaviour,
+  which is the accepted repair, but review still had to check it. Write the tests first. If you did not, say so per
   group in `RESULT.md`'s Deviations, and give every such group a raw absence mutation that turns *that group's*
   tests red; a group with neither a red run nor its own mutation is not proven, and the reviewer returns it.
   That includes pure-function groups (a mapper, a matrix of inputs): [[CHN428]] mutated only its integration groups
