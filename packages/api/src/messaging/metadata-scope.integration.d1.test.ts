@@ -87,19 +87,31 @@ const message$ = (r: { body: any }) => r.body?.error?.message
 
 /** A lowered read: the metadata holder and the messages:read holder both succeed, with the message records projected for the first; neither is refused with the new text. */
 type Row = {
+  returnsMessages?: true
   omitsForNeither?: true
   name: string
   run: (c: Column) => Promise<{ status: number; body: any }>
   records: (b: any) => any[]
 }
 const ROWS: Row[] = [
-  { name: 'messages.list', run: (c) => call(c, 'GET', '/api/v1/messages'), records: (b) => b.data },
   {
+    returnsMessages: true,
+    name: 'messages.list',
+    run: (c) => call(c, 'GET', '/api/v1/messages'),
+    records: (b) => b.data,
+  },
+  {
+    returnsMessages: true,
     name: 'messages.list sorted (the keyset path)',
     run: (c) => call(c, 'GET', '/api/v1/messages?sort=occurred_at&order=desc'),
     records: (b) => b.data,
   },
-  { name: 'messages.get', run: (c) => call(c, 'GET', `/api/v1/messages/${message}`), records: (b) => [b] },
+  {
+    returnsMessages: true,
+    name: 'messages.get',
+    run: (c) => call(c, 'GET', `/api/v1/messages/${message}`),
+    records: (b) => [b],
+  },
   { name: 'threads.list', run: (c) => call(c, 'GET', '/api/v1/threads'), records: () => [] },
   { name: 'threads.get', run: (c) => call(c, 'GET', `/api/v1/threads/${thread}`), records: () => [] },
   {
@@ -131,6 +143,7 @@ const ROWS: Row[] = [
     records: () => [],
   },
   {
+    returnsMessages: true,
     name: 'an MCP tool of the lowered reads (messages_list)',
     run: async (c) => {
       const token = (await import('../test/user-auth.js')).mintTestUserToken({
@@ -166,6 +179,8 @@ describe('the lowered reads (D7): operation x caller', () => {
         const r = await row.run('metadata')
         expect([200, 201], JSON.stringify(r.body)).toContain(r.status)
         const records = row.records(r.body)
+        // An empty list must not pass: the seeded message came back.
+        if (row.returnsMessages) expect(records.map((x) => x.id)).toEqual([message])
         for (const rec of records) {
           expect('preview' in rec, 'preview absent').toBe(false)
           expect('attachments' in rec, 'attachments absent').toBe(false)
@@ -175,7 +190,9 @@ describe('the lowered reads (D7): operation x caller', () => {
       it('a messages:read holder (stored) gets today’s answer, records whole', async () => {
         const r = await row.run('read')
         expect([200, 201], JSON.stringify(r.body)).toContain(r.status)
-        for (const rec of row.records(r.body)) {
+        const records = row.records(r.body)
+        if (row.returnsMessages) expect(records.map((x) => x.id)).toEqual([message])
+        for (const rec of records) {
           expect(rec.preview).toBeTypeOf('string')
           expect(rec.attachments).toHaveLength(1)
         }

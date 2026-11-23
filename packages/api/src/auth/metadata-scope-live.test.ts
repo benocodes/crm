@@ -23,7 +23,9 @@ describe('the scope is live and grantable (D1, D4)', () => {
     expect(declared).toContain('messages:read')
   })
   it('it has a description, a policy row and a consent area', () => {
-    expect(SCOPE_DESCRIPTIONS[META]).toMatch(/subject/i)
+    expect(SCOPE_DESCRIPTIONS[META]).toBe(
+      'Read the subjects, senders and dates of messages and threads, without bodies or attachments',
+    )
     expect(SCOPE_POLICY[META]).toEqual({ member: true, agentGrantable: true })
     expect(areaOfScope(META)).toBe('messages')
     expect(SCOPE_AREAS.find((a) => a.key === 'messages')?.resources).toContain('messages')
