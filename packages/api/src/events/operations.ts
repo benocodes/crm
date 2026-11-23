@@ -46,12 +46,12 @@ const listQuery = z.object({
  * agent sees that type's events only for its own records, a user holding the scope sees all. Dispatch passes the subscription's agent with its stored scopes.
  */
 export function feedVisibility(registry: Registry, env: Pick<PreparedEnv, 'scopes' | 'actor'>): FeedVisibility {
-  const can = (resource: string) => env.scopes.has({ resource, action: 'read' })
+  const can = (resource: string, action: 'read' | 'read_metadata' = 'read') => env.scopes.has({ resource, action })
   const readable: string[] = []
   const owned: NonNullable<FeedVisibility['owned']>[number][] = []
   let edge: FeedVisibility['edge']
   for (const [type, decl] of registry.eventTypes()) {
-    if (!('scope' in decl) || !can(decl.scope)) continue
+    if (!('scope' in decl) || !can(decl.scope, decl.action)) continue
     if (decl.owner && env.actor.kind === 'agent') {
       owned.push({ resourceType: type, path: decl.owner.path, equals: env.actor.id })
       continue

@@ -84,7 +84,14 @@ the switch". The first cycle ships the redaction, wired into every output path a
 second cycle lowers the requirement, and in the same cycle it widens every place that checks or parses scopes. Then
 `main` never leaks unredacted data, and never drops delivery to holders of the old scope. Name every scope-grammar copy in
 the switch cycle's charter. A copy that filters stored scopes drops the new scope without an error, for example the
-dispatch filter in `webhooks/crm-reads.ts` ([[API514]] review).
+dispatch filter in `webhooks/crm-reads.ts` ([[API514]] review). When widening the grammar and its closure, with a
+matrix over authentication paths, makes the switch cycle too big, cut it into three. Ship the grammar and the closure
+dormant first: they are gated on the declared set, so nothing changes until a scope is declared ([[API518]]). Then
+ship the switch.
+
+A dormant cycle proven "through a test seam" sometimes needs a small production hook for the seam, because today's
+declarations cannot express the new case (in [[API518]], an event type readable at `read_metadata`). Name that hook
+in the charter, and name the switch cycle as the one that fills it. Otherwise the coder has to invent it.
 
 #### Size budget
 
@@ -416,6 +423,11 @@ time and review approved round 1 with no findings; coder cost was not measured. 
 split at plan time. One path was covered only after green: the keyset-sorted list decode, a second decode in the same file. A charter
 that names "list" should say "both list decodes". Charter riders that guess at a golden's contents ("record schema optionality") or at an architecture's shape
 ("payload builder") are better phrased as "where it lands".
+**API518** ([[API514]] cycle 2, `knowledge/specs/031-API518-scope-grammar-closure/RETRO.md`): 5 groups (1 matrix:
+5 authentication paths × 3 closure cases), 2 decisions + 3 planner rules, no migration, no E2E, dormant. ~210k / 70
+calls in one run (+61 code / +499 test lines, 19 files). The gate passed first time, and review approved round 1 with
+no findings. The budget holds. The matrix and its per-path mutations were most of the cost, which is about 8 test
+lines per production line.
 
 ### Step 3: Resolve identities
 

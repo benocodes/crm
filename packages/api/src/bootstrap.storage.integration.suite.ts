@@ -173,6 +173,13 @@ export function engineSuite(engineName: EngineName): void {
         )
         expect(await state()).toEqual(before)
       })
+      it('the metadata scope that nothing declares yet ([[API518]]: valid grammar, undeclared, refused as any undeclared scope)', async () => {
+        const before = await state()
+        await expect(bootstrap(e.binding, { ...OPTS, scopes: ['messages:read_metadata'] }, env())).rejects.toThrow(
+          'unknown scope: messages:read_metadata',
+        )
+        expect(await state()).toEqual(before)
+      })
       it('a scope an agent may not hold', async () => {
         const before = await state()
         await expect(bootstrap(e.binding, { ...OPTS, scopes: ['agents:write'] }, env())).rejects.toThrow()

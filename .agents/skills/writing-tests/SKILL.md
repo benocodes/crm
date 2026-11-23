@@ -32,6 +32,12 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   fixture field turned 14 red). **A vendored copy of a dependency's function** keeps a parity test against the
   original in Node, proven by swapping in a near-miss implementation ([[CORE69]]: `mdast-util-to-string` for
   `toPlainText`, 7 parity tests red).
+- **Some sites have no observable absence mutation, and the reason is the construction.** A site that applies a rule
+  can be one whose only consumer reads something the rule never produces. [[API518]]'s scope closure at dispatch
+  eligibility fed only an `events:read` check, and the closure never adds `events:read`. Removing that closure
+  changes nothing a test can see. Run the mutation, record it green in `RESULT.md` with that reason, and point to the
+  sibling site whose mutation does turn red. Do not build a test that cannot fail. A reviewer accepts the record. A
+  site whose mutation stays green **without** such a reason is still unproven.
 - **A "this is gone" test is red only if it is committed before the removal.** When the red commit also `git rm`s the
   file, the test never fails on its own; prove it instead by restoring the file from `main` and seeing it turn red
   ([[UI448]]: restoring `src/test/subset.ts` turned `the old Preact subset scan is gone` red). Likewise a "something

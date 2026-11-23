@@ -1084,6 +1084,20 @@ service context enforces it, so scope checks are written once.
     of `authMiddleware`, `meet` in `workspace-authenticator.ts`, `scopesForRole`, and the test stand-in
     authenticator. `ScopeSet.parse` stays exact and requirement checks stay exact; a new credential path must
     close its set, or a write-only principal cannot propose. Stored grants are never expanded.
+  - **`read ⇒ read_metadata` closes only against the declared set** ([[API518]] P1): `closeScopes(list, declared)`
+    adds `x:read_metadata` for `x:read` only when `declared` contains it, and adds nothing with `declared` absent.
+    The grammar has no resource list, so an ungated rule would put `contacts:read_metadata` into every set.
+    `write ⇒ request_approval` needs no `declared`. A test stand-in that closes without `declared`
+    (`test/user-auth.ts`) gets no `read_metadata`.
+  - **Stored agent scopes become a set only through `agentScopeSet(registry, stored)`**
+    (`webhooks/crm-reads.ts`, [[API518]]): it applies the well-formed filter first, so one bad stored scope never
+    throws a dispatch, and then closes against `registry.declaredScopes()`. Dispatch, the sender and the webhook
+    operations use it. A new check that `ScopeSet.parse`s stored scopes itself skips the closure, and nothing errors.
+  - **The scope grammar has five copies** (`scopes.ts`, `auth/scope-areas.ts`, `webhooks/operations.ts`,
+    `webhooks/crm-reads.ts`, `server-d1`'s `ui/consent-model.ts`). A new action widens every one; find them with
+    `git grep -nE "request_approval\|write|'request_approval'"`. A filtering copy that misses the action drops the
+    scope without any error. Once a scope string is valid grammar but undeclared, it is refused as `unknown scope`,
+    not `invalid scope`.
   - **Every tenant operation that is not a GET declares `proposal`** (`{ eligible: true, target?, alsoRequires? }`
     or `{ eligible: false, reason }`); `Registry.register` refuses one without it, and `proposal.test.ts` pins the
     eligible list. A generated resource that must not be proposed sets `notProposable: '<reason>'` on its

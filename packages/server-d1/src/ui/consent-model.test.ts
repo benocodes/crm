@@ -129,3 +129,41 @@ describe('Write forces Propose', () => {
     expect(grantedScopes(m, off)).toBe('contacts:read')
   })
 })
+
+// [[API518]] D2 (consent grouping): a requested `<area resource>:read_metadata` rides on its area's Read switch and adds no switch of its own.
+describe('read_metadata rides on the Read switch', () => {
+  it('lands on the area Read switch beside the read scope, with the same default, and the shown switches are unchanged', () => {
+    const plain = shape(['messages:read'])
+    const r = shape(['messages:read', 'messages:read_metadata'])
+    expect(r.switches('messages')).toEqual(plain.switches('messages'))
+    expect(r.m.areas.find((a) => a.key === 'messages')!.switches.map((w) => [w.kind, w.scopes])).toEqual([
+      ['read', ['messages:read', 'messages:read_metadata']],
+    ])
+    expect(r.body).toBe('messages:read messages:read_metadata')
+  })
+  it('requested alone it still gets the Read switch, and turning Read off drops it', () => {
+    const r = shape(['contacts:read_metadata'])
+    expect(r.switches('crm')).toEqual([['read', true]])
+    const off = { ...r.s, 'crm:read': false }
+    expect(grantedScopes(r.m, off)).toBe('')
+  })
+  it('every requested scope lands in exactly one switch (nothing dropped, nothing doubled)', () => {
+    const requested = [
+      'contacts:read',
+      'contacts:read_metadata',
+      'contacts:write',
+      'messages:read_metadata',
+      'ghosts:read_metadata',
+      'ghosts:read',
+      'foo:bar',
+    ]
+    const m = buildConsentModel(requested)
+    const landed = m.areas.flatMap((a) => a.switches.flatMap((w) => w.scopes))
+    expect([...landed].sort()).toEqual([...requested].sort())
+  })
+  it('a malformed near-miss is not a read action: it gets a name switch, never the Read switch', () => {
+    const r = shape(['contacts:read', 'contacts:read_meta'])
+    const crm = r.m.areas.find((a) => a.key === 'crm')!
+    expect(crm.switches.find((w) => w.kind === 'read')!.scopes).toEqual(['contacts:read'])
+  })
+})

@@ -1,7 +1,7 @@
-export type ScopeAction = 'read' | 'request_approval' | 'write'
+export type ScopeAction = 'read' | 'read_metadata' | 'request_approval' | 'write'
 export type Scope = { resource: string; action: ScopeAction }
 
-const SCOPE = /^([a-z][a-z0-9_]*):(read|request_approval|write)$/
+const SCOPE = /^([a-z][a-z0-9_]*):(read|read_metadata|request_approval|write)$/
 
 export function parseScope(s: string): Scope {
   const m = SCOPE.exec(s)
@@ -14,8 +14,9 @@ export function formatScope(s: Scope): string {
 }
 
 /**
- * [[AGT8]] D31: the closure of a scope list under `write => request_approval`, the one implication between actions (`read` is
- * independent and `write` implies nothing about it). Every authentication path closes a set BEFORE it meets it with another
+ * [[AGT8]] D31: the closure of a scope list under `write => request_approval` ([[API518]] D3 adds `read => read_metadata`, only where
+ * `declared` is given and contains it), the implications between actions (`read` is independent of `write`, `write` implies nothing
+ * about it, and `read_metadata` implies nothing). Every authentication path closes a set BEFORE it meets it with another
  * (token, owner cap, role, agent-grantable) and before a requirement is checked, so exact-string intersection stays correct:
  * a `request_approval` token over a `write` cap keeps `request_approval` only, a `write` token over a `request_approval` cap
  * likewise. Computed, never stored: a stored grant keeps what was granted. `declared`, when given, limits the added scopes to
@@ -25,10 +26,16 @@ export function closeScopes(strings: readonly string[], declared?: ReadonlySet<s
   const allowed = declared === undefined ? null : new Set(declared)
   const out = new Set(strings)
   for (const s of strings) {
-    const m = /^([a-z][a-z0-9_]*):write$/.exec(s)
+    const m = /^([a-z][a-z0-9_]*):(write|read)$/.exec(s)
     if (!m) continue
-    const implied = `${m[1]}:request_approval`
-    if (allowed === null || allowed.has(implied)) out.add(implied)
+    if (m[2] === 'write') {
+      const implied = `${m[1]}:request_approval`
+      if (allowed === null || allowed.has(implied)) out.add(implied)
+    } else {
+      // [[API518]] D3, P1: `read => read_metadata` only where the vault declares it; with `declared` absent nothing is added (the grammar has no resource list).
+      const implied = `${m[1]}:read_metadata`
+      if (allowed !== null && allowed.has(implied)) out.add(implied)
+    }
   }
   return [...out]
 }
