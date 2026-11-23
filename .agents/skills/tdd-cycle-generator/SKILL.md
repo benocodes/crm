@@ -389,6 +389,13 @@ prose: a deletion's prose pass removed a skill lesson together with the mechanis
 a mechanism a skill paragraph cites, it says "keep the lesson, drop the reason, re-cite a surviving file" for that
 paragraph. Proof that nothing shipped changed: hash the built `dist/assets` tree on `main` twice (determinism) and on the
 branch.
+**API503** (`knowledge/specs/029-API503-machine-endpoint-paths/RETRO.md`): a three-path rename, 6 groups (1 matrix),
+8 decisions (at the limit), no migration, no E2E, five riders. ~164k / 68 calls over two runs (+56 code / +249 test
+lines, 39 files), one review round. Within budget; a mechanical rename with a source-scan test is well under the
+ceiling even at 8 decisions. The charter told the coder to "run `smoke:worker` on `main` first" and still wrote the
+obligation as "green from the branch": `main` aborted, so the obligation was unmeetable (#505). The planner runs a named
+non-gate check on `main` at plan time and writes the obligation against what it saw (green, or "same ok count as `main`
+plus a restored bypass for the legs past the abort").
 
 ### Step 3: Resolve identities
 

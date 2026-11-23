@@ -120,6 +120,12 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   cannot pass for the wrong reason; say "green on first run, control is the discriminator" in `RESULT.md`. Prove such
   a premise in a cycle before any page code depends on it ([[UI449]] cycle 1, group 3 of
   `packages/server-d1/src/oauth-default-scope-workerd.test.ts`).
+- **An accept/refuse pair differs only in the field under test.** Both halves send a request the route would accept
+  in full, and only the checked value changes; otherwise a later check (body validation, a missing header) can refuse
+  the "refused" half for another reason, or keep the "accepted" half from reaching success. Assert the success answer
+  exactly (`204`), not "not 401". [[API503]]'s audience pair first posted a body the push route would not accept with
+  any token; the fix posts a valid `pushBody()` in both, `<base>/inbound/gmail` → `204`, `<base>/gmail/push` → `401`
+  (`packages/api/src/rest/machine-paths.integration.d1.test.ts`).
 - **A fake external provider sits at the network edge, never in shipped configuration** ([[CORE294]], [[UI246]] D9).
   In workerd, Miniflare's outbound service (`startWorkerd({ outbound })` in `packages/auth/src/test/harness.ts`)
   answers every subrequest, so the test also proves nothing else was called; the default throws. In Node, Better
