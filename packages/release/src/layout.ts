@@ -23,7 +23,7 @@ const SERVER_FIXED = [
 /** [[UI246]] D2, [[UI504]] D3: the auth pages the Worker serves from `assets/assets/ui/` (the binding directory is `assets/`, the files sit at their URL path `/assets/ui/…` inside it); a package without one would answer its pages with a 404, so each is required. */
 export const SERVER_UI_ASSETS = ['assets/assets/ui/index.html', 'assets/assets/ui/app.js', 'assets/assets/ui/ui.css']
 
-/** [[UI460]] D6, [[UI504]] D3: the workspace app the Worker serves from `assets/assets/app/`; a package without one would answer `/home` with a 404, so each is required. */
+/** [[UI460]] D6, [[UI504]] D3: the workspace app the Worker serves from `assets/assets/app/`; a package without one would answer `/app/home` with a 404, so each is required. */
 export const SERVER_APP_ASSETS = [
   'assets/assets/app/index.html',
   'assets/assets/app/app.js',

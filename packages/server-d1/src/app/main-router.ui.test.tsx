@@ -56,16 +56,16 @@ describe('client-side navigation', () => {
   it('a nav click changes the view and the URL with no page load and no second discovery, session or me.get', async () => {
     const calls = stubFetch(signedIn)
     const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => {})
-    await mount('/home')
+    await mount('/app/home')
     await vi.waitFor(() => expect(h1()).toBe('Welcome to your CRM'))
     const root = document.querySelector('#root')
     const before = calls.filter((c) => BOOT.includes(c)).sort()
     navLink('Agents').click()
     await vi.waitFor(() => expect(h1()).toBe('Agents'))
-    expect(location.pathname).toBe('/agents')
+    expect(location.pathname).toBe('/app/agents')
     navLink('Connected accounts').click()
     await vi.waitFor(() => expect(h1()).toBe('Connected accounts'))
-    expect(location.pathname).toBe('/accounts')
+    expect(location.pathname).toBe('/app/accounts')
     expect(assign).not.toHaveBeenCalled()
     expect(document.querySelector('#root')).toBe(root)
     expect(calls.filter((c) => BOOT.includes(c)).sort()).toEqual(before)
@@ -75,7 +75,7 @@ describe('client-side navigation', () => {
 
   it('the shell stays mounted across a click (same nav element)', async () => {
     stubFetch(signedIn)
-    await mount('/home')
+    await mount('/app/home')
     await vi.waitFor(() => expect(h1()).toBe('Welcome to your CRM'))
     const nav = document.querySelector('nav')
     navLink('Agents').click()
@@ -85,7 +85,7 @@ describe('client-side navigation', () => {
 
   it('the active nav row and document.title follow the route, including back and forward', async () => {
     stubFetch(signedIn)
-    await mount('/home')
+    await mount('/app/home')
     await vi.waitFor(() => expect(h1()).toBe('Welcome to your CRM'))
     expect(current()).toBe('Home')
     expect(document.title).toBe('Home · Vibase')
@@ -109,9 +109,9 @@ describe('client-side navigation', () => {
   })
 
   it.each([
-    ['/home', 'Welcome to your CRM', 'Home'],
-    ['/accounts', 'Connected accounts', 'Connected accounts'],
-    ['/agents', 'Agents', 'Agents'],
+    ['/app/home', 'Welcome to your CRM', 'Home'],
+    ['/app/accounts', 'Connected accounts', 'Connected accounts'],
+    ['/app/agents', 'Agents', 'Agents'],
   ])('a direct load of %s draws that page with its row current', async (path, heading, row) => {
     stubFetch(signedIn)
     await mount(path)
@@ -121,13 +121,13 @@ describe('client-side navigation', () => {
 
   it('an unknown path inside the SPA shows a not-found state in the shell with a link home', async () => {
     stubFetch(signedIn)
-    await mount('/home')
+    await mount('/app/home')
     await vi.waitFor(() => expect(h1()).toBe('Welcome to your CRM'))
     history.pushState(null, '', '/nope')
     window.dispatchEvent(new PopStateEvent('popstate'))
     await vi.waitFor(() => expect(h1()).toBe('Page not found'))
     expect(current()).toBeUndefined()
-    expect(document.querySelector<HTMLAnchorElement>('main a')?.getAttribute('href')).toBe('/home')
+    expect(document.querySelector<HTMLAnchorElement>('main a')?.getAttribute('href')).toBe('/app/home')
   })
 
   it('signed out after navigating: Sign in returns to the CURRENT route, not the one the page loaded on', async () => {
@@ -141,7 +141,7 @@ describe('client-side navigation', () => {
         return json({ success: true })
       },
     })
-    await mount('/home')
+    await mount('/app/home')
     await vi.waitFor(() => expect(h1()).toBe('Welcome to your CRM'))
     navLink('Agents').click()
     await vi.waitFor(() => expect(h1()).toBe('Agents'))
@@ -152,6 +152,6 @@ describe('client-side navigation', () => {
       return b!
     })
     signIn.click()
-    await vi.waitFor(() => expect(assign).toHaveBeenCalledExactlyOnceWith('/sign-in?return_to=/agents'))
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledExactlyOnceWith('/sign-in?return_to=/app/agents'))
   })
 })

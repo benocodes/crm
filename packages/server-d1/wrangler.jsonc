@@ -28,28 +28,22 @@
     }
   ],
   // The Worker serves the built pages itself (adding the security headers) and goes first for the listed paths only; no asset is reachable at any other path. `assets` is inherited by every env.
-  // `/connect` and `/connect/*` stay in the list so the Worker can answer them with a 302 to /home (an old link; [[UI476]]): nothing is built or served under them.
   // [[UI246]] D2: the auth pages (`/sign-in`, `/invite`, `/reset-password`, `/consent`, `/device`) built beside it by `pnpm build`; same rule, and the list is the one `src/ui-serving.ts` serves.
   // [[UI504]] D3, D4: both bundles' static files are served at `/assets/<bundle>/<file>` (`/assets/*`) and nowhere else; `/ui/*` is no longer listed.
-  // [[UI460]] D6: the workspace app (`/home`, `/accounts`, `/agents`; `/app` and `/app/*` answer the Worker's 404) and the root redirect, built beside them; the list is `APP_RUN_WORKER_FIRST` (`src/app/paths.ts`).
+  // [[UI507]] D4 (interim): the workspace app's pages are `/app/<page>`; `/`, `/app` and `/app/*` and the static files go to the Worker first, then the five auth pages at their current place. The old app paths and `/connect` are not listed (they 404 through the router). The list is `APP_RUN_WORKER_FIRST` then `UI_RUN_WORKER_FIRST`.
   "assets": {
     "directory": "./dist/assets",
     "binding": "ASSETS",
     "run_worker_first": [
-      "/connect",
-      "/connect/*",
+      "/",
+      "/app",
+      "/app/*",
+      "/assets/*",
       "/sign-in",
       "/invite",
       "/reset-password",
       "/consent",
-      "/device",
-      "/",
-      "/home",
-      "/accounts",
-      "/agents",
-      "/app",
-      "/app/*",
-      "/assets/*"
+      "/device"
     ]
   },
   // Local R2 (no account needed): message bodies and file bytes, served by messages.content and files.content.

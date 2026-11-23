@@ -1,4 +1,4 @@
-// [[UI468]] D6, D7, D8 ([[UI458]]): the settings view at `/accounts?connection=<id>`. The logic is `settings-model.ts`; this file reads the connection, draws the form (the owner with `connections:write`) or the read-only view (everyone else) and runs Save and Disconnect.
+// [[UI468]] D6, D7, D8 ([[UI458]]): the settings view at `/app/accounts?connection=<id>`. The logic is `settings-model.ts`; this file reads the connection, draws the form (the owner with `connections:write`) or the read-only view (everyone else) and runs Save and Disconnect.
 // Every string from the vault is rendered as text, never markup.
 import { useEffect, useId, useRef, useState } from 'react'
 import {
@@ -33,7 +33,7 @@ export interface ConnectionSettingsProps {
   /** `me.get`'s user id: only the connection's owner edits. */
   userId: string
   scopes: readonly string[]
-  /** The seam for the full-page load back to `/accounts` after Disconnect; default `window.location.assign`. */
+  /** The seam for the full-page load back to `/app/accounts` after Disconnect; default `window.location.assign`. */
   navigate?: (url: string) => void
 }
 
@@ -56,7 +56,7 @@ const nameOfLabel = (id: string) => SYSTEM_LABEL_OPTIONS.find((o) => o.id === id
 
 const BackLink = () => (
   <ui.Button asChild variant="link">
-    <a href="/accounts">Back to Connected accounts</a>
+    <a href="/app/accounts">Back to Connected accounts</a>
   </ui.Button>
 )
 
@@ -208,7 +208,7 @@ function SettingsBody({
   async function disconnect(): Promise<void> {
     const r = await api.deleteConnection(record.id)
     if (!disconnected(r)) throw new Error(`Could not disconnect ${address} (${r.code ?? r.status}). Try again.`)
-    navigate('/accounts')
+    navigate('/app/accounts')
   }
 
   return (

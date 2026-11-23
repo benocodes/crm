@@ -167,6 +167,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   `GET /openapi.json` → `404` on an uninitialised deployment, where the cold app answers `503 not_initialised`; only
   review caught it. When a cycle changes what a smoke phase expects, check each expectation against the state that
   phase runs in (uninitialised, behind, current) and name the test or the compose case that pins the same answer.
+  The same holds for `release:check`: its installed instance is uninitialised, so an unknown path there is the router
+  gate's `503`, not the ready Worker's `404`. [[UI507]]'s charter asked it for the old app paths' `404`; it asserts
+  "not served" (`404` or `503`, no `Location`) and `src/app-serving.test.ts` pins the `404` on a ready Worker (507.12).
+  A charter that names an answer from `release:check` or a smoke states the phase it runs in.
 - **An absence mutation is per engine: drop every guard that engine has for the property.** The same property can be
   held by different guards on each engine. Removing one guard proves nothing on an engine where another still holds.
   [[CORE41]]: dropping first sight's `assertStep` turns the D1 drift case red (D1 decodes after the batch commits, so
@@ -358,6 +362,11 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   and the absence mutations restore the old default and add a link in an app file. From UI479 it also reads `e2e/`, the
   README, `clerk-setup.md`, `.dev.vars.example`, `wrangler.jsonc`, the docs content and the release templates, and matches a
   host-qualified `https://h/connect`; skills and AGENTS.md get a dead-artefact check instead (no citation of a deleted file).
+  **The same rule holds when you rewrite a path with a search, not only when you scan for it.** Moving the app pages
+  ([[UI507]]) by a quoted-literal pattern over the tests was wrong in two kinds of place: a regex literal (`/\/home$/`)
+  that the pattern missed, and an API URL that merely ends in the segment (`/meta/v1/agents` checked with
+  `url.includes('/agents')`), which it would have rewritten. Match the whole quoted path, then read each hit; the
+  suites caught both, but only because every touched file was run.
 - **A build that stops producing an asset directory deletes it.** `dist/assets/` is gitignored and survives
   between builds, so `wrangler dev` and a deploy would keep serving the removed page from a stale copy; UI476's
   `pnpm build` starts with `rm -rf dist/assets/connect`, pinned in `packages/server-d1/scripts/build.test.ts`.
@@ -849,9 +858,9 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
 - **`locator.evaluateAll()` and `locator.count()` do not wait.** On a client-rendered page they run as soon as they are
   called and can read an empty list before React draws it ([[UI460]] E2E run 1, the app's nav). Wait for the first
   element (`await expect(locator.first()).toBeVisible()`) before reading the set.
-- **Wait for a landing on its pathname, never a URL glob.** `waitForURL('**/home')` matches the whole URL, query
-  included, and returns at once if the current URL already matches: `/sign-in?return_to=/home` satisfies it before
-  any sign-in. Use `page.waitForURL((u) => u.pathname === '/home')` ([[UI461]] E2E fix round).
+- **Wait for a landing on its pathname, never a URL glob.** `waitForURL('**/app/home')` matches the whole URL, query
+  included, and returns at once if the current URL already matches: `/sign-in?return_to=/app/home` satisfies it before
+  any sign-in. Use `page.waitForURL((u) => u.pathname === '/app/home')` ([[UI461]] E2E fix round; paths from [[UI507]]).
 - **An absence assertion (`toHaveCount(0)`) on a client-rendered page passes while it is still loading.** First wait
   for the read the absence depends on (`page.waitForResponse(...)`) or a sibling that must be present
   (`oauth-pages.e2e.ts` leg 6b, [[UI461]]).
@@ -996,13 +1005,13 @@ Known traps in the scripts below:
 
 ```bash
 pnpm -C packages/ui e2e:gallery-react             # the React/Tailwind gallery (UI445) built with @vibase/ui/build, served on 127.0.0.1:4174: the components page `/` under PAGE_CSP and the composites page `/composites` (UI443, `?view=parts|shell|shell-bare`) and the lists page `/lists` (UI458: ResourceList, StatusBadge, ConfirmDialog, ListEditor, ChoiceGroup; `?view=dialog-*` opens a dialog state at load) under APP_CSP, each its own bundle under the 100 KB gzipped budget (lists.js 97.1 KB, composites.js 88.9 KB at UI458: a new heavy composite needs its own page or a budget ruling); four theme modes, axe zero violations, focus ring, skip link, Copy, the 375 px row, zero CSP violations; its seen-failing proof is built in (no env var): a leg injects a `<style>` and an inline `<script>` at runtime, the `<style>` must violate PAGE_CSP only and the script must be blocked on both pages; not in the gate
-pnpm -C packages/server-d1 e2e:auth-pages          # the Better Auth pages /invite, /sign-in, /reset-password (UI246), Google buttons (CORE294), a trusted app origin (UI255) and, from UI460, the workspace app (steps 8-10 also fetch the bundles' files at `/assets/ui/` and `/assets/app/` and assert the old `/ui/` and `/app/` file paths `404`, UI504; steps 10-12: `/` 302 /home, the signed-out card, the shell with APP_CSP and axe in both themes, 375 px, sign out) and, from UI467, Connected accounts (11c: `/accounts` lists, Connect Gmail's 501, the connect return removed; 13: signed-out `/accounts` returns there after sign-in); local Worker on better-auth, fresh local state, recipe in the file header; not in the gate
+pnpm -C packages/server-d1 e2e:auth-pages          # the Better Auth pages /invite, /sign-in, /reset-password (UI246), Google buttons (CORE294), a trusted app origin (UI255) and, from UI460, the workspace app (steps 8-10 also fetch the bundles' files at `/assets/ui/` and `/assets/app/` and assert the old `/ui/` and `/app/` file paths `404`, UI504; steps 10-12: `/`, `/app`, `/app/` 302 /app/home and the old `/home`, `/accounts`, `/agents`, `/connect` 404 (UI507), the signed-out card, the shell with APP_CSP and axe in both themes, 375 px, sign out) and, from UI467, Connected accounts (11c: `/app/accounts` lists, Connect Gmail's 501, the connect return removed; 13: signed-out `/app/accounts` returns there after sign-in); local Worker on better-auth, fresh local state, recipe in the file header; not in the gate
 pnpm -C packages/server-d1 e2e:oauth-pages         # Better Auth /device and /consent with the real `vibase login` and an MCP-style client (UI247); local Worker over HTTPS (`wrangler dev --local-protocol https`, recipe in the file header and writing-tests §7), no Clerk; `e2e:auth-pages` is UI246's sibling; not in the gate
 pnpm -C packages/server-d1 e2e:accounts-connect      # the connect return and Home's Connect your email prompt (UI469): its own Worker with the Gmail core four set and no CONNECT_RETURN_URL (Gmail on would flip e2e:auth-pages' 501 legs), Google answered by a Playwright route, the callback's refusal returns real; fresh local state, recipe in the spec header; no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:auth-pages-reset      # self-service reset by email on /sign-in (CORE304): its own email-on Worker from the test-only entry src/test/entry-email.ts (a recording EMAIL binding read at /__emails), over HTTPS, fresh local state (recipe in the spec file header); no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:approvals-app      # the approvals app (:8788, started by the config) signs in, approves and signs out through Better Auth against a local better-auth Worker on :8787 that the operator starts (UI388); E2E_INVITE_URL from bootstrap; recipe in e2e/approvals-app.e2e.ts; no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:auth-migration     # the hq auth migration end to end (OPS397, OPS394): the real `auth:migrate:remote` plan, apply, claim and revert through a test-only driver (e2e/auth-migration-driver.ts: local D1 pair, fixed Time Travel bookmark, `deploy` = restart the local Worker on the committed record's provider) against the Clerk dev instance (users and sessions by the Backend API, keys from `.env.dev`, E2E_DEV_ENV_FILE may name it), then a claim link opened in the browser; own temp state, removed at the end; recipe in the spec header; E2E_BROWSER_CHANNEL=chrome if Playwright's Chromium is not installed; not in the gate
 pnpm -C packages/server-d1 e2e:forms               # a website form posted to the real Worker under `wrangler dev --local` (CHN432): real Turnstile siteverify with the always-pass test secret (needs network; it passes any non-empty token, so the script proves no wrong-token refusal), live `ratelimits` bindings, owner-created form in-process; own temp state and env file, removed at the end; no browser, no Clerk; not in the gate
-pnpm -C packages/server-d1 e2e:agents-clerk        # the Clerk-only legs on /home and /agents (UI479): Account Portal round trip, owner Disable/Enable, agent role, member, sign out; Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only, E2E_AGENT_KEY from bootstrap); same harness and config as the two below; not in the gate
+pnpm -C packages/server-d1 e2e:agents-clerk        # the Clerk-only legs on /app/home and /app/agents (UI479, paths UI507): Account Portal round trip, owner Disable/Enable, agent role, member, sign out; Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only, E2E_AGENT_KEY from bootstrap); same harness and config as the two below; not in the gate
 pnpm -C packages/server-d1 e2e:mcp-oauth          # MCP OAuth end to end (DCR, consent, delegated agent, revocation) on the Clerk dev instance; same harness, not in the gate
 ```

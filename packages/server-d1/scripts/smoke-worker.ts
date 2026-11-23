@@ -164,7 +164,7 @@ try {
       binding: 'ASSETS',
       routerConfig: {
         has_user_worker: true,
-        static_routing: { user_worker: ['/connect', '/connect/*', ...UI_RUN_WORKER_FIRST, ...APP_RUN_WORKER_FIRST] },
+        static_routing: { user_worker: [...APP_RUN_WORKER_FIRST, ...UI_RUN_WORKER_FIRST] },
       },
     },
     handleRuntimeStdio: (stdout: NodeJS.ReadableStream, stderr: NodeJS.ReadableStream) => {
@@ -1010,15 +1010,15 @@ try {
     { status: res.status, body },
   )
 
-  // 20-24: `/connect` is a redirect to Home and nothing under it is served, with the headers a deploy would send ([[UI476]] P2; the Preact page is gone)
+  // 20-23: `/app` redirects to Home and the old app paths and `/connect` are gone, with the headers a deploy would send ([[UI507]] D2, D6)
   const issuerOrigin = new URL(issuer.issuer).origin
   const manual = (path: string, method = 'GET') => fetch(new URL(path, base), { method, redirect: 'manual' })
-  res = await manual('/connect?x=1')
+  res = await manual('/app?x=1')
   const policy = res.headers.get('content-security-policy') ?? ''
   check(
-    '20 GET /connect?x=1 -> 302 to /home (the query dropped), CSP from CLERK_ISSUER, nosniff, referrer policy',
+    '20 GET /app?x=1 -> 302 to /app/home (the query dropped), CSP from CLERK_ISSUER, nosniff, referrer policy',
     res.status === 302 &&
-      res.headers.get('location') === '/home' &&
+      res.headers.get('location') === '/app/home' &&
       policy.includes(`script-src 'self' ${issuerOrigin} `) &&
       !/script-src[^;]*unsafe-/.test(policy) &&
       policy.includes("frame-ancestors 'none'") &&
@@ -1026,28 +1026,24 @@ try {
       res.headers.get('referrer-policy') === 'strict-origin-when-cross-origin',
     { status: res.status, location: res.headers.get('location'), policy },
   )
-  res = await manual('/connect/')
+  res = await manual('/app/')
   check(
-    '21 GET /connect/ -> 302 to /home, headers present',
+    '21 GET /app/ -> 302 to /app/home, headers present',
     res.status === 302 &&
-      res.headers.get('location') === '/home' &&
+      res.headers.get('location') === '/app/home' &&
       res.headers.get('x-content-type-options') === 'nosniff',
     { status: res.status, location: res.headers.get('location') },
   )
-  res = await manual('/connect/connect.js')
-  check(
-    '22 GET /connect/connect.js -> 404 not_found (the page is gone) with the headers',
-    res.status === 404 &&
-      (await json(res)).error?.code === 'not_found' &&
-      (res.headers.get('content-security-policy') ?? '') !== '',
-    { status: res.status },
-  )
-  res = await manual('/connect/nope')
-  check(
-    '23 GET /connect/nope -> 404 with the headers',
-    res.status === 404 && (res.headers.get('content-security-policy') ?? '') !== '',
-    { status: res.status },
-  )
+  for (const path of ['/connect?x=1', '/connect/', '/connect/connect.js', '/home', '/accounts', '/agents']) {
+    res = await manual(path)
+    check(
+      `22 GET ${path} -> 404 (the old path is gone, never a redirect or a page)`,
+      res.status === 404 && res.headers.get('location') === null,
+      {
+        status: res.status,
+      },
+    )
+  }
   res = await call('GET', '/connect.js')
   check(
     '24 GET /connect.js (a name outside /connect) -> not served',
@@ -1064,11 +1060,11 @@ try {
     )
   }
   // [[UI460]] D1, D2, D5, D6: the workspace app from workerd's real assets binding, for every provider (here clerk): the page, the bundle, and the root redirect, with the app's policy and Clerk's issuer.
-  res = await call('GET', '/home')
+  res = await call('GET', '/app/home')
   const homePage = await res.text()
   const homePolicy = res.headers.get('content-security-policy') ?? ''
   check(
-    '24c GET /home -> 200 HTML from a fresh build with its bundle, the app policy (style-src unsafe-inline, issuer in script-src, none in script-src unsafe), nosniff, no-store',
+    '24c GET /app/home -> 200 HTML from a fresh build with its bundle, the app policy (style-src unsafe-inline, issuer in script-src, none in script-src unsafe), nosniff, no-store',
     res.status === 200 &&
       (res.headers.get('content-type') ?? '').startsWith('text/html') &&
       homePage.includes('/assets/app/app.js') &&
@@ -1079,42 +1075,42 @@ try {
       res.headers.get('cache-control') === 'no-store',
     { status: res.status, homePolicy },
   )
-  res = await call('GET', '/accounts')
+  res = await call('GET', '/app/accounts')
   const accountsPage = await res.text()
   check(
-    '24c2 GET /accounts -> 200 HTML with the app bundle and the app policy ([[UI467]] D1, D14); /accounts/ and /accounts/x -> 404',
+    '24c2 GET /app/accounts -> 200 HTML with the app bundle and the app policy ([[UI467]] D1, D14); /app/accounts/ and /app/accounts/x -> 404',
     res.status === 200 &&
       (res.headers.get('content-type') ?? '').startsWith('text/html') &&
       accountsPage.includes('/assets/app/app.js') &&
       (res.headers.get('content-security-policy') ?? '').includes("style-src 'self' 'unsafe-inline'") &&
-      (await call('GET', '/accounts/')).status === 404 &&
-      (await call('GET', '/accounts/x')).status === 404,
+      (await call('GET', '/app/accounts/')).status === 404 &&
+      (await call('GET', '/app/accounts/x')).status === 404,
     { status: res.status },
   )
-  res = await call('GET', '/agents')
+  res = await call('GET', '/app/agents')
   const agentsPage = await res.text()
   check(
-    '24c3 GET /agents -> 200 HTML with the app bundle and the app policy ([[UI459]] D1); /agents/ and /agents/x -> 404',
+    '24c3 GET /app/agents -> 200 HTML with the app bundle and the app policy ([[UI459]] D1); /app/agents/ and /app/agents/x -> 404',
     res.status === 200 &&
       (res.headers.get('content-type') ?? '').startsWith('text/html') &&
       agentsPage.includes('/assets/app/app.js') &&
       (res.headers.get('content-security-policy') ?? '').includes("style-src 'self' 'unsafe-inline'") &&
-      (await call('GET', '/agents/')).status === 404 &&
-      (await call('GET', '/agents/x')).status === 404,
+      (await call('GET', '/app/agents/')).status === 404 &&
+      (await call('GET', '/app/agents/x')).status === 404,
     { status: res.status },
   )
   res = await fetch(new URL('/', base), { redirect: 'manual' })
   check(
-    '24d GET / -> 302 to /home with the headers',
+    '24d GET / -> 302 to /app/home with the headers',
     res.status === 302 &&
-      res.headers.get('location') === '/home' &&
+      res.headers.get('location') === '/app/home' &&
       (res.headers.get('content-security-policy') ?? '') !== '',
     { status: res.status, location: res.headers.get('location') },
   )
   res = await call('GET', '/assets/app/app.js')
   const oldAppJs = await call('GET', '/app/app.js')
   check(
-    '24e GET /assets/app/app.js -> 200 javascript with the headers through the real binding; /app/app.js, /assets/app/, /assets/app/index.html, /assets, /home/, /app/ and /app -> 404 (UI504)',
+    '24e GET /assets/app/app.js -> 200 javascript with the headers through the real binding; /app/app.js, /assets/app/, /assets/app/index.html, /assets and /app/home/ -> 404 (UI504, UI507)',
     res.status === 200 &&
       (res.headers.get('content-type') ?? '').includes('javascript') &&
       (res.headers.get('content-security-policy') ?? '') !== '' &&
@@ -1122,9 +1118,7 @@ try {
       (await call('GET', '/assets/app/')).status === 404 &&
       (await call('GET', '/assets/app/index.html')).status === 404 &&
       (await call('GET', '/assets')).status === 404 &&
-      (await call('GET', '/home/')).status === 404 &&
-      (await call('GET', '/app/')).status === 404 &&
-      (await call('GET', '/app')).status === 404,
+      (await call('GET', '/app/home/')).status === 404,
     { status: res.status, old: oldAppJs.status },
   )
   res = await call('GET', '/.well-known/vibase')

@@ -143,7 +143,7 @@ export interface D1WorkerEnv {
   /**
    * The Gmail connect surface ([[CHN5]] D58): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `OAUTH_STATE_SECRET` and `CREDENTIALS_KEY` (base64 of 32 bytes)
    * must all be set for it to be on; `CREDENTIALS_KEY_VERSION` (default 1), `PUBLIC_BASE_URL` (the redirect URI's base; unset: the request's origin)
-   * and `CONNECT_RETURN_URL` (unset: the instance's own `/accounts` when the app is served, else a built-in result page) are optional. The three secrets are Worker secrets, never printed.
+   * and `CONNECT_RETURN_URL` (unset: the instance's own `/app/accounts` when the app is served, else a built-in result page) are optional. The three secrets are Worker secrets, never printed.
    */
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
@@ -164,7 +164,7 @@ export interface D1WorkerEnv {
   GMAIL_PUSH_SERVICE_ACCOUNT?: string
   /** The R2 bucket of message bodies and file bytes ([[CORE58]] P12). Absent: the two content routes answer `503 objects_unavailable`. */
   BODIES?: R2BucketLike
-  /** Workers Static Assets: the built pages (`/home` and the app, `/ui/*`). Absent: those paths, `/` and the connect redirect answer 404. */
+  /** Workers Static Assets: the built pages (the app at `/app/<page>`, the auth pages) and their files under `/assets/`. Absent: those paths and `/` answer 404. */
   ASSETS?: AssetsLike
   /**
    * The Google recorder's switch ([[CHN5]] D78, [[CHN153]]): an ISO-8601 UTC instant at most 7 days ahead. While the clock is before it, redacted Gmail and token-endpoint
@@ -612,7 +612,7 @@ export function composeD1Worker(
         config: gmail.config,
         problems: gmail.problems,
         // [[UI469]] D5: with the app served, an unset CONNECT_RETURN_URL returns the connect flow to the instance's own Connected accounts page.
-        ...(env.ASSETS ? { defaultReturnPath: '/accounts' } : {}),
+        ...(env.ASSETS ? { defaultReturnPath: '/app/accounts' } : {}),
         push: pushParsed.config,
         pushProblems: pushParsed.problems,
         ...(googleFetch ? { fetch: googleFetch } : {}),
@@ -942,7 +942,7 @@ export function composeD1Worker(
       try {
         const url = new URL(req.url)
         if (req.method === 'GET' && url.pathname === '/health') return await health()
-        // [[UI460]] D1, D2 ([[UI443]]): the workspace app (`/home`, `/app`, `/app/*`), the `/` redirect and the connect redirect ([[UI476]]) exist for every provider and are static: they answer before every gate, with the policy for the provider (Clerk's hosts on Clerk).
+        // [[UI460]] D1, D2 ([[UI443]]): the workspace app (`/app`, `/app/*`), the `/` redirect exist for every provider and are static: they answer before every gate, with the policy for the provider (Clerk's hosts on Clerk).
         const appPage = await serveApp(req, {
           assets: env.ASSETS,
           issuer: discovery.provider?.name === 'clerk' ? discovery.provider.issuer : undefined,

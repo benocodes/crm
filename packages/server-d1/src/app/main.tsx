@@ -1,6 +1,6 @@
 // The mount of the workspace app ([[UI460]] D4, D7, [[UI443]]): reads the instance's discovery, builds the session seam for this page, the API client and the state machine, and draws. The one file that imports `react-dom`.
 // Mounted once inside a BrowserRouter ([[UI460]] D7 reversed: client-side routing, react-router declarative mode): discovery, the seam, the API and the controller live across navigation.
-// Nothing is stored. Sign in goes back to the CURRENT page by its path only (read when signing in; a query is not carried); Clerk signs out to `<origin>/home`.
+// Nothing is stored. Sign in goes back to the CURRENT page by its path only (read when signing in; a query is not carried); Clerk signs out to `<origin>/app/home`.
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import { AppRoot } from './app.js'
@@ -26,7 +26,7 @@ async function main(): Promise<void> {
   // The router moves `location` with pushState, so a read at the moment of need is the current route.
   const path = () => location.pathname
   const discovery = await discover()
-  const seam = selectSeam(discovery, { returnPath: path, signOutReturn: `${origin}/home` })
+  const seam = selectSeam(discovery, { returnPath: path, signOutReturn: `${origin}/app/home` })
   const api = createApi({
     origin,
     getToken: async () => (seam ? await seam.getToken() : null),

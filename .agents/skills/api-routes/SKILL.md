@@ -1233,9 +1233,24 @@ message bodies or addresses at info level (customer communications are personal 
 
 ## A static page on the API origin ([[UI30]])
 
-The app and auth pages are the pattern for any page the Worker serves (`packages/server-d1/src/app-serving.ts`, `src/ui-serving.ts`; `/connect` was the first, deleted at [[UI476]], and is now a `302 /home`):
+The app and auth pages are the pattern for any page the Worker serves (`packages/server-d1/src/app-serving.ts`, `src/ui-serving.ts`; `/connect` was the first, deleted at [[UI476]], and from [[UI507]] is a plain `404`):
+- **Every page is a row of one page table** (`PAGE_TABLE` in `src/app/paths.ts`: exact path plus bundle, [[UI504]] D1).
+  The app's pages are `/app/home`, `/app/accounts`, `/app/agents` ([[UI507]]); `APP_PAGE_PATHS` is a `readonly` view
+  derived from the table, and every reader (Worker, dev server, sign-in allow-list, config list, `release:check`,
+  `smoke:worker`) reads it, never a copied list. A page is its path exactly: under `/app`, `GET`/`HEAD` of a page is the
+  bundle's `index.html` and another method `405`; `GET`/`HEAD` of `/`, `/app` and `/app/` is a static `302 /app/home`
+  (query dropped), another method on `/app` and `/app/` `405`, and every other `/app/` path (`/app/home/`, `/app/home/x`,
+  `/app/unknown`, `/app/app.js`) is the JSON `404` for any method, decided before the binding (which would answer a
+  folder path with an `index.html`). Without the binding every one of them is `404` ([[UI507]] P4, 507.8). A page that
+  moves leaves no redirect behind: the old path leaves `run_worker_first` and becomes an ordinary unknown path for the
+  router (`404` on a ready Worker, `503` before migrations, P5). A built URL that names a page (a sign-in landing, a
+  `return_to`, Clerk's sign-out return, an OAuth `callbackURL` default, the connect return) is pinned to a table entry
+  by a test, plus a source scan for the old quoted literal (`src/app/app-urls.test.ts`).
 - **Workers Static Assets with `run_worker_first` for the page paths and `/assets/*`.** `assets` is the one block every
-  env inherits (unlike `vars`, `d1_databases`, `r2_buckets`, `routes`). Every static file is at
+  env inherits (unlike `vars`, `d1_databases`, `r2_buckets`, `routes`). The list is derived, never typed: from
+  [[UI507]] it is `APP_RUN_WORKER_FIRST` (`/`, `/app`, `/app/*`, `/assets/*`) then `UI_RUN_WORKER_FIRST` (the auth pages
+  at their old paths until #510 moves them), and the real `wrangler.jsonc`, the setup and release fixtures and both
+  `static_routing` lists (`smoke:worker`, `release:check`) equal it (`src/wrangler-config.test.ts`, 507.9). Every static file is at
   `/assets/<bundle>/<file>` ([[UI504]] D3): the build writes it at its URL path inside the binding directory
   (`dist/assets/assets/<bundle>/…`, package `assets/assets/<bundle>/…`), so no file exists at any other path and an old
   or unknown path reaches the Worker and is `404`. One prefix constant (`ASSET_PREFIX`, with `APP_BUNDLE`/`UI_BUNDLE`,
@@ -1280,7 +1295,7 @@ The app and auth pages are the pattern for any page the Worker serves (`packages
   through the page paths. The pages are a separate React
   Vite page build (`scripts/build-ui.ts` over the shared `scripts/vite-pages.ts`, [[UI446]], [[UI489]]) whose module-list test proves `react`, `react-dom` and
   `@vibase/ui/components` and no `preact` or Preact-layer module, with a Worker-bundle check that holds no `preact`,
-  no `react` page code and no page module. `/connect` is a redirect to `/home` ([[UI476]]); the Preact layer is gone ([[UI447]]).
+  no `react` page code and no page module. `/connect` and the old app paths are `404` ([[UI476]], [[UI507]]); the Preact layer is gone ([[UI447]]).
 - **A React page mounts synchronously** (`src/ui/main.tsx`): `flushSync(() => root.render(...))`. React 19's
   `root.render` is scheduled where Preact's `render` was synchronous, so a page that reads and strips a token from the
   URL fragment during its first render left it in the address at load (UI446 E2E, auth-pages step 7). Pinned by

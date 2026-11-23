@@ -26,7 +26,7 @@ export function HomePage({ who, error, connectEmail, connectAgent, instructions,
               <PromptCard
                 title="Connect your email"
                 text="Connect your Gmail so your conversations land in your CRM."
-                action={{ label: 'Connect Gmail', href: '/accounts' }}
+                action={{ label: 'Connect Gmail', href: '/app/accounts' }}
               />
             ) : null}
             {first.agentError ? <Alert variant="error">{first.agentError}</Alert> : null}

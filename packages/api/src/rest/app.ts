@@ -59,7 +59,7 @@ export interface GmailAppOptions {
   roleOf?: (authSubject: string) => Promise<Role | null>
   /** The scope policy the role re-check applies; default the vault's. */
   policy?: ScopePolicy
-  /** [[UI469]] D5: the page of this instance the callback returns to when `CONNECT_RETURN_URL` is unset (the composition passes `/accounts` when it serves the app). Absent: the built-in result page. */
+  /** [[UI469]] D5: the page of this instance the callback returns to when `CONNECT_RETURN_URL` is unset (the composition passes `/app/accounts` when it serves the app). Absent: the built-in result page. */
   defaultReturnPath?: string
   /** The `MAIL_SYNC` Workflow binding ([[CHN141]] D75). Absent: `connections.sync` answers `501 provider_not_configured` and the callback requests no sync. */
   instances?: MailSyncInstances

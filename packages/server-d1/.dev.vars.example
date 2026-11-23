@@ -3,7 +3,7 @@
 # AUTH_ROLE_CLAIM (default vibase_role) and AUTH_CLI_CLIENT_ID (the CLI's OAuth client id; leave the line out when unset, a blank value fails closed) are optional. CLERK_JWT_KEY is a PEM: write it on one line with literal \n escapes (a PEM pasted with raw line breaks did not load here, API115).
 # There is no CLERK_WEBHOOK_SECRET on D1 (CORE64): membership lives in Clerk, as the vibase_role claim.
 CLERK_ISSUER=
-# The app pages (/home, /agents) are served from the API origin, so that origin is an authorized party (and the Vite dev origin of `pnpm dev`, UI489 D6); the publishable key is public and its host must be CLERK_ISSUER's.
+# The app pages (/app/home, /app/agents) are served from the API origin, so that origin is an authorized party (and the Vite dev origin of `pnpm dev`, UI489 D6); the publishable key is public and its host must be CLERK_ISSUER's.
 CLERK_AUTHORIZED_PARTIES=http://localhost:8787,http://localhost:5173
 CLERK_PUBLISHABLE_KEY=
 CLERK_JWT_KEY=

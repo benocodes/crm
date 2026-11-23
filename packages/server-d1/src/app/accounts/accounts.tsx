@@ -206,7 +206,7 @@ function AccountsList({
       actions: r.actions.map((a) => {
         switch (a) {
           case 'settings':
-            return { label: 'Settings', href: `/accounts?connection=${encodeURIComponent(r.id)}` }
+            return { label: 'Settings', href: `/app/accounts?connection=${encodeURIComponent(r.id)}` }
           case 'sync':
             return { label: 'Sync now', onClick: () => void sync(r.id) }
           case 'reconnect':

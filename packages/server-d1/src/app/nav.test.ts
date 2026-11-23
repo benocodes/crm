@@ -11,13 +11,13 @@ const CTXS = [
 
 describe('NAV', () => {
   it('has the Home row first, to /home, and it is visible for every context, including no scopes', () => {
-    expect(NAV[0]).toMatchObject({ label: 'Home', href: '/home' })
+    expect(NAV[0]).toMatchObject({ label: 'Home', href: '/app/home' })
     for (const ctx of CTXS) expect(visibleNav(NAV, ctx).map((e) => e.label)).toContain('Home')
   })
 
   it('Home carries an icon and the entry is a link to its path', () => {
     const [home] = visibleNav(NAV, CTXS[0]!)
-    expect(home).toMatchObject({ label: 'Home', href: '/home' })
+    expect(home).toMatchObject({ label: 'Home', href: '/app/home' })
     expect(home).not.toHaveProperty('current') // the router's location marks the current row, not the table
     expect(home!.icon).toBeDefined()
   })
@@ -25,8 +25,8 @@ describe('NAV', () => {
 
 describe('visible(ctx) on rows other than Home', () => {
   const rows: NavRow[] = [
-    { label: 'Home', href: '/home' },
-    { label: 'Accounts', href: '/accounts', visible: (ctx) => ctx.scopes.includes('connections:read') },
+    { label: 'Home', href: '/app/home' },
+    { label: 'Accounts', href: '/app/accounts', visible: (ctx) => ctx.scopes.includes('connections:read') },
     { label: 'Clerk only', href: '/clerk-only', visible: (ctx) => ctx.provider === 'clerk' },
   ]
   const labels = (ctx: (typeof CTXS)[number]) => visibleNav(rows, ctx).map((e) => e.label)
@@ -45,7 +45,7 @@ describe('visible(ctx) on rows other than Home', () => {
 describe('the Connected accounts row', () => {
   const labels = (ctx: (typeof CTXS)[number]) => visibleNav(NAV, ctx).map((e) => e.label)
   it('follows Home, links to /accounts with an icon, and shows only with connections:read', () => {
-    expect(NAV[1]).toMatchObject({ label: 'Connected accounts', href: '/accounts' })
+    expect(NAV[1]).toMatchObject({ label: 'Connected accounts', href: '/app/accounts' })
     expect(NAV[1]!.icon).toBeDefined()
     for (const ctx of CTXS.slice(0, 3)) expect(labels(ctx)).not.toContain('Connected accounts')
     expect(labels(CTXS[3]!)).toEqual(['Home', 'Connected accounts'])
@@ -59,7 +59,7 @@ describe('the Agents row', () => {
   it('follows Connected accounts, links to /agents with an icon, and shows only with agents:read', () => {
     const i = NAV.findIndex((r) => r.label === 'Agents')
     expect(i).toBe(NAV.findIndex((r) => r.label === 'Connected accounts') + 1)
-    expect(NAV[i]).toMatchObject({ label: 'Agents', href: '/agents' })
+    expect(NAV[i]).toMatchObject({ label: 'Agents', href: '/app/agents' })
     expect(NAV[i]!.icon).toBeDefined()
     expect(labels([])).not.toContain('Agents')
     expect(labels(['agents:write', 'connections:read'])).not.toContain('Agents')

@@ -135,8 +135,8 @@ test('3. the invited address signs up (case-insensitive) and lands on the signed
   await page.getByLabel('Email').fill('Owner@E2E.test')
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Create account' }).click()
-  // A finished sign-up lands on /home (UI461 D3), where the person is signed in; /sign-in then shows the signed-in view.
-  await page.waitForURL((u) => u.pathname === '/home')
+  // A finished sign-up lands on /app/home (UI461 D3), where the person is signed in; /sign-in then shows the signed-in view.
+  await page.waitForURL((u) => u.pathname === '/app/home')
   await visit('/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
   await axeBoth(page, 'sign-in-signed-in')
@@ -222,8 +222,8 @@ test('6. a wrong password is the one message; the right one signs in', async () 
     await page.waitForTimeout(11_000)
     await attempt(PASSWORD)
   }
-  // With no return_to a finished sign-in continues to /home (UI461 D3); /sign-in then shows the signed-in view.
-  await page.waitForURL((u) => u.pathname === '/home')
+  // With no return_to a finished sign-in continues to /app/home (UI461 D3); /sign-in then shows the signed-in view.
+  await page.waitForURL((u) => u.pathname === '/app/home')
   await visit('/sign-in')
   await expect(page.getByText('Signed in as owner@e2e.test')).toBeVisible()
 })
@@ -334,44 +334,51 @@ test('9. [UI255] a trusted app origin: credentialed CORS on /auth, sign-in retur
 const APP_CSP_EXACT =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 
-test('10. [UI460] signed out: / redirects to /home, the sign-in card has no sidebar and Sign in goes to /sign-in?return_to=/home; /home/ and /app/ are 404, /assets/app/app.js is 200 and /app/app.js is 404', async ({
+test('10. [UI460] signed out: / redirects to /app/home, the sign-in card has no sidebar and Sign in goes to /sign-in?return_to=/app/home; /app/home/ is 404, /home and /connect are 404, /assets/app/app.js is 200 and /app/app.js is 404', async ({
   request,
 }) => {
   await context.clearCookies()
   const root = await request.get('/', { maxRedirects: 0 })
   expect(root.status()).toBe(302)
-  expect(root.headers().location).toBe('/home')
+  expect(root.headers().location).toBe('/app/home')
   expect(root.headers()['content-security-policy']).toBe(APP_CSP_EXACT)
   await visit('/')
-  expect(new URL(page.url()).pathname).toBe('/home')
+  expect(new URL(page.url()).pathname).toBe('/app/home')
   await expect(page.getByRole('heading', { level: 1, name: 'Sign in to Vibase' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
   await expect(page.getByRole('navigation')).toHaveCount(0)
-  expect(page.url()).toMatch(/\/home$/) // nothing navigated on load
+  expect(page.url()).toMatch(/\/app\/home$/) // nothing navigated on load
   await axeBoth(page, 'app-signed-out')
   const asset = await request.get('/assets/app/app.js')
   expect(asset.status()).toBe(200)
   expect(asset.headers()['content-security-policy']).toBe(APP_CSP_EXACT)
   expect((await request.get('/app/app.js')).status()).toBe(404)
-  expect((await request.get('/home/')).status()).toBe(404)
-  expect((await request.get('/app/')).status()).toBe(404)
+  expect((await request.get('/app/home/')).status()).toBe(404)
+  // [[UI507]] D2, D6: /app and /app/ redirect to Home; the old app paths and /connect are gone.
+  for (const path of ['/app', '/app/']) {
+    const r = await request.get(path, { maxRedirects: 0 })
+    expect(r.status(), path).toBe(302)
+    expect(r.headers().location, path).toBe('/app/home')
+  }
+  for (const path of ['/home', '/accounts', '/agents', '/connect', '/connect?x=1', '/connect/x'])
+    expect((await request.get(path, { maxRedirects: 0 })).status(), path).toBe(404)
   // Sign in from a page URL that carries a query: only the path comes back as return_to.
-  await visit('/home?utm=x')
+  await visit('/app/home?utm=x')
   await page.getByRole('button', { name: 'Sign in' }).click()
   await page.waitForURL('**/sign-in?**')
-  expect(new URL(page.url()).searchParams.get('return_to')).toBe('/home')
-  // UI461 D3: the allow-list names the app pages, so a finished sign-in returns to /home.
+  expect(new URL(page.url()).searchParams.get('return_to')).toBe('/app/home')
+  // UI461 D3: the allow-list names the app pages, so a finished sign-in returns to /app/home.
   await page.waitForTimeout(11_000) // Better Auth's 10 s sign-in window
   await page.getByLabel('Email').fill('owner@e2e.test')
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.waitForURL((u) => u.pathname === '/home')
+  await page.waitForURL((u) => u.pathname === '/app/home')
 })
 
 test('11. [UI460] signed in: the shell with Home current, Welcome to your CRM and Who you are, the title, the headers, no CSP violation, axe clean in both themes, every entry inside the viewport at 375 px', async ({
   request,
 }) => {
-  await visit('/home')
+  await visit('/app/home')
   const nav = page.getByRole('navigation', { name: 'Workspace' })
   await expect(nav.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Welcome to your CRM')
@@ -380,7 +387,7 @@ test('11. [UI460] signed in: the shell with Home current, Welcome to your CRM an
   await expect(who).toContainText('owner')
   await expect(who).toContainText('E2E')
   await expect(page).toHaveTitle('Home · Vibase')
-  const res = await page.request.get('/home')
+  const res = await page.request.get('/app/home')
   const h = res.headers()
   expect(h['content-security-policy']).toBe(APP_CSP_EXACT)
   expect(h['x-content-type-options']).toBe('nosniff')
@@ -388,7 +395,7 @@ test('11. [UI460] signed in: the shell with Home current, Welcome to your CRM an
   expect(h['cache-control']).toBe('no-store')
   await axeBoth(page, 'app-home')
   await page.setViewportSize({ width: 375, height: 800 })
-  await visit('/home')
+  await visit('/app/home')
   await expect(nav.getByRole('link', { name: 'Home' })).toBeVisible()
   const links = await nav
     .getByRole('link')
@@ -413,7 +420,7 @@ test('11. [UI460] signed in: the shell with Home current, Welcome to your CRM an
 })
 
 test('11b. [UI461] Home on the fresh instance: Get started above Who you are, Connect an agent with the login command, the MCP URL and the API-key line; Check again keeps the prompt and sends only GETs; axe clean in both themes, no horizontal scroll at 375 px', async () => {
-  await visit('/home')
+  await visit('/app/home')
   const started = page.getByRole('region', { name: 'Get started' })
   await expect(started).toBeVisible()
   const who = page.getByRole('region', { name: 'Who you are' })
@@ -439,18 +446,18 @@ test('11b. [UI461] Home on the fresh instance: Get started above Who you are, Co
     `only GET requests: ${methods.join(',')}`,
   ).toBe(true)
   await page.setViewportSize({ width: 375, height: 800 })
-  await visit('/home')
+  await visit('/app/home')
   await expect(prompt).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await axeBoth(page, 'app-home-first-steps-375')
   await page.setViewportSize({ width: 1280, height: 720 })
 })
 
-test('11c. [UI467] Connected accounts: the sidebar row opens /accounts with it current and the title; an empty Your mailboxes with Connect Gmail; Connect Gmail with no Gmail configured says so and stays; the connect return is shown once and removed from the URL; axe clean in both themes, no horizontal scroll at 375 px', async () => {
-  await visit('/home')
+test('11c. [UI467] Connected accounts: the sidebar row opens /app/accounts with it current and the title; an empty Your mailboxes with Connect Gmail; Connect Gmail with no Gmail configured says so and stays; the connect return is shown once and removed from the URL; axe clean in both themes, no horizontal scroll at 375 px', async () => {
+  await visit('/app/home')
   const nav = page.getByRole('navigation', { name: 'Workspace' })
   await nav.getByRole('link', { name: 'Connected accounts' }).click()
-  await page.waitForURL((u) => u.pathname === '/accounts')
+  await page.waitForURL((u) => u.pathname === '/app/accounts')
   await expect(nav.getByRole('link', { name: 'Connected accounts' })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Connected accounts')
   await expect(page).toHaveTitle('Connected accounts · Vibase')
@@ -461,22 +468,22 @@ test('11c. [UI467] Connected accounts: the sidebar row opens /accounts with it c
   // The script's Worker has no Gmail connect configuration: 501 provider_not_configured, and the page stays.
   await yours.getByRole('button', { name: 'Connect Gmail' }).click()
   await expect(page.getByRole('alert')).toContainText('Gmail is not set up on this instance.')
-  expect(new URL(page.url()).pathname).toBe('/accounts')
+  expect(new URL(page.url()).pathname).toBe('/app/accounts')
   await axeBoth(page, 'app-accounts-not-configured')
   // The callback's return: the error is shown with its code, removed from the URL (other parameters kept), and gone after a reload.
-  await visit('/accounts?error=consent_denied&x=1')
+  await visit('/app/accounts?error=consent_denied&x=1')
   await expect(page.getByRole('alert')).toContainText('The connection was cancelled at Google. Nothing was connected.')
   await expect(page.getByRole('alert')).toContainText('consent_denied')
-  await expect(page).toHaveURL((u) => u.pathname === '/accounts' && u.search === '?x=1')
+  await expect(page).toHaveURL((u) => u.pathname === '/app/accounts' && u.search === '?x=1')
   await axeBoth(page, 'app-accounts-return-error')
   await page.reload()
   await expect(yours).toContainText('No mailbox connected yet')
   await expect(page.getByRole('alert')).toHaveCount(0)
-  await visit('/accounts?connection_id=0190b2c4-0000-7000-8000-000000000001')
+  await visit('/app/accounts?connection_id=0190b2c4-0000-7000-8000-000000000001')
   await expect(page.getByRole('status')).toContainText('Mailbox connected.')
-  await expect(page).toHaveURL((u) => u.pathname === '/accounts' && u.search === '')
+  await expect(page).toHaveURL((u) => u.pathname === '/app/accounts' && u.search === '')
   await page.setViewportSize({ width: 375, height: 800 })
-  await visit('/accounts')
+  await visit('/app/accounts')
   await expect(yours).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await axeBoth(page, 'app-accounts-375')
@@ -493,7 +500,7 @@ test('11d. [UI468] a mailbox: Settings, Sync now and Disconnect on its row; Sync
     .trim()
     .split('\n')
     .pop()!
-  await visit('/accounts')
+  await visit('/app/accounts')
   const yours = page.getByRole('region', { name: 'Your mailboxes' })
   const row = yours.getByRole('listitem').filter({ hasText: 'mailbox@e2e.test' })
   await expect(row).toContainText('Connected')
@@ -507,7 +514,7 @@ test('11d. [UI468] a mailbox: Settings, Sync now and Disconnect on its row; Sync
   await axeBoth(page, 'app-accounts-sync-501')
   // Settings: the owner's form.
   await row.getByRole('link', { name: 'Settings: mailbox@e2e.test' }).click()
-  await page.waitForURL((u) => u.pathname === '/accounts' && u.search === `?connection=${id}`)
+  await page.waitForURL((u) => u.pathname === '/app/accounts' && u.search === `?connection=${id}`)
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('mailbox@e2e.test')
   await expect(page).toHaveTitle('mailbox@e2e.test · Connected accounts · Vibase')
   await expect(page.getByRole('switch', { name: 'Inbox' })).toBeChecked()
@@ -517,7 +524,7 @@ test('11d. [UI468] a mailbox: Settings, Sync now and Disconnect on its row; Sync
   await expect(save).toBeDisabled()
   await axeBoth(page, 'app-accounts-settings')
   await page.setViewportSize({ width: 375, height: 800 })
-  await visit(`/accounts?connection=${id}`)
+  await visit(`/app/accounts?connection=${id}`)
   await expect(save).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await axeBoth(page, 'app-accounts-settings-375')
@@ -552,17 +559,17 @@ test('11d. [UI468] a mailbox: Settings, Sync now and Disconnect on its row; Sync
   await expect(disconnect).toBeFocused()
   await disconnect.click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Disconnect', exact: true }).click()
-  await page.waitForURL((u) => u.pathname === '/accounts' && u.search === '')
+  await page.waitForURL((u) => u.pathname === '/app/accounts' && u.search === '')
   await expect(page.getByRole('region', { name: 'Your mailboxes' })).toContainText('No mailbox connected yet')
   await axeBoth(page, 'app-accounts-after-disconnect')
   // The disconnected id is no longer a mailbox.
-  await visit(`/accounts?connection=${id}`)
+  await visit(`/app/accounts?connection=${id}`)
   await expect(page.getByText('This mailbox is not connected.')).toBeVisible()
   await axeBoth(page, 'app-accounts-settings-not-connected')
 })
 
-test('11e. [UI459] Agents: the sidebar row opens /agents; the list above Connect an agent; an API-key agent, one with no permissions and a form agent; Disable is confirmed, Enable is at once; axe clean in both themes, no horizontal scroll at 375 px', async () => {
-  await visit('/home')
+test('11e. [UI459] Agents: the sidebar row opens /app/agents; the list above Connect an agent; an API-key agent, one with no permissions and a form agent; Disable is confirmed, Enable is at once; axe clean in both themes, no horizontal scroll at 375 px', async () => {
+  await visit('/app/home')
   // The owner's agents and form, through the API with the session's own token (as leg 4 does).
   const made = await page.evaluate(async () => {
     const t = (await (await fetch('/auth/token')).json()) as { token: string }
@@ -585,7 +592,7 @@ test('11e. [UI459] Agents: the sidebar row opens /agents; the list above Connect
   })
   expect([made.scoped.status, made.bare.status, made.form.status]).toEqual([201, 201, 201])
   await page.getByRole('navigation', { name: 'Workspace' }).getByRole('link', { name: 'Agents' }).click()
-  await page.waitForURL((u) => u.pathname === '/agents')
+  await page.waitForURL((u) => u.pathname === '/app/agents')
   await expect(
     page.getByRole('navigation', { name: 'Workspace' }).getByRole('link', { name: 'Agents' }),
   ).toHaveAttribute('aria-current', 'page')
@@ -635,7 +642,7 @@ test('11e. [UI459] Agents: the sidebar row opens /agents; the list above Connect
     list.getByRole('listitem').filter({ hasText: 'e2e-scoped' }).getByRole('button', { name: 'Disable: e2e-scoped' }),
   ).toBeVisible()
   await page.setViewportSize({ width: 375, height: 800 })
-  await visit('/agents')
+  await visit('/app/agents')
   await expect(list).toBeVisible()
   // [[UI459]] review: a row's detail keeps a readable width at 375 px and the row's actions wrap below it instead of squeezing it.
   const bareRow = list.getByRole('listitem').filter({ hasText: 'e2e-bare' })
@@ -658,8 +665,8 @@ test('11e. [UI459] Agents: the sidebar row opens /agents; the list above Connect
   await page.setViewportSize({ width: 1280, height: 720 })
 })
 
-test('12. [UI460] Sign out from the shell shows the sign-in card, and reloading /home stays signed out', async () => {
-  await visit('/home')
+test('12. [UI460] Sign out from the shell shows the sign-in card, and reloading /app/home stays signed out', async () => {
+  await visit('/app/home')
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
   await expect(page.getByRole('navigation')).toHaveCount(0)
@@ -668,17 +675,17 @@ test('12. [UI460] Sign out from the shell shows the sign-in card, and reloading 
   expect(await page.evaluate(async () => (await fetch('/auth/get-session')).json())).toBeNull()
 })
 
-test('13. [UI467] signed out: /accounts shows the Sign in card; Sign in goes to /sign-in?return_to=/accounts and a finished sign-in lands on /accounts', async () => {
-  await visit('/accounts')
+test('13. [UI467] signed out: /app/accounts shows the Sign in card; Sign in goes to /sign-in?return_to=/app/accounts and a finished sign-in lands on /app/accounts', async () => {
+  await visit('/app/accounts')
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
   await expect(page.getByRole('navigation')).toHaveCount(0)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await page.waitForURL('**/sign-in?**')
-  expect(page.url()).toContain('return_to=/accounts')
+  expect(page.url()).toContain('return_to=/app/accounts')
   await page.waitForTimeout(11_000) // Better Auth's 10 s sign-in window
   await page.getByLabel('Email').fill('owner@e2e.test')
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.waitForURL((u) => u.pathname === '/accounts')
+  await page.waitForURL((u) => u.pathname === '/app/accounts')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Connected accounts')
 })

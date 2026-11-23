@@ -13,7 +13,7 @@ describe("no '/connect' default remains in the auth pages", () => {
   })
 })
 
-// [[UI476]] D10 and [[UI479]] P2 (479.2, group 1): the Preact /connect page is deleted and `/connect` is a redirect, so nothing a person or a test reads names `/connect` as a path outside the allow-list:
+// [[UI476]] D10, [[UI479]] P2 (479.2, group 1) and [[UI507]] D6: the Preact /connect page is deleted and `/connect` is a 404, so nothing a person or a test reads names `/connect` as a path outside the allow-list (what is left are the 404 assertions and the notes that say it is gone):
 // the redirect and its test, the `return_to` allow-list (`continuation.ts`) and its tests, the `run_worker_first` lists with their pins, the README's note that an old link still lands on /home, the E2E that asserts the redirect.
 // The scan reads server-d1 `src`, `scripts` and `e2e`, the release package, the docs content and the named files; it matches a bare path and a host-qualified URL (`https://h/connect`, `http://localhost:8787/connect`, `https://<api host>/connect`, 476.15).
 // An allow-listed file pins HOW MANY mentions it has, so a new one turns the scan red.
@@ -35,22 +35,19 @@ const FILE_ROOTS = [
 ]
 /** Allowed files and how many `/connect` mentions each has. */
 const ALLOWED: Record<string, number> = {
-  'packages/server-d1/src/app-serving.ts': 9,
-  'packages/server-d1/src/app-serving.test.ts': 19,
-  'packages/server-d1/src/ui/continuation.ts': 2,
-  'packages/server-d1/src/ui/continuation.test.ts': 3,
-  'packages/server-d1/src/ui/sign-in-page.ui.test.tsx': 2,
-  'packages/server-d1/src/ui/sign-in-return.ui.test.tsx': 1,
-  'packages/server-d1/src/wrangler-config.test.ts': 7,
-  'packages/server-d1/scripts/smoke-worker.ts': 14,
-  'packages/server-d1/scripts/dev-server.test.ts': 6,
-  'packages/server-d1/scripts/setup/test/wrangler.fixture.jsonc': 3,
-  'packages/release/src/fixtures.ts': 2,
-  'packages/release/scripts/check.ts': 10,
-  'packages/server-d1/e2e/oauth-pages.e2e.ts': 6,
-  'packages/server-d1/README.md': 3,
+  'packages/release/scripts/check.ts': 3,
+  'packages/server-d1/README.md': 2,
   'packages/server-d1/clerk-setup.md': 1,
-  'packages/server-d1/wrangler.jsonc': 4,
+  'packages/server-d1/e2e/auth-pages.e2e.ts': 5,
+  'packages/server-d1/e2e/oauth-pages.e2e.ts': 6,
+  'packages/server-d1/scripts/dev-server.test.ts': 2,
+  'packages/server-d1/scripts/smoke-worker.ts': 7,
+  'packages/server-d1/src/app-serving.test.ts': 12,
+  'packages/server-d1/src/app-serving.ts': 2,
+  'packages/server-d1/src/ui/continuation.test.ts': 2,
+  'packages/server-d1/src/ui/sign-in-page.ui.test.tsx': 2,
+  'packages/server-d1/src/wrangler-config.test.ts': 4,
+  'packages/server-d1/wrangler.jsonc': 1,
 }
 /** `/connect` as a whole path segment: not `/connections`, `/connect-return`, `/oauth/connect`, a file name, or the start of a regex literal or an escaped slash (`(/connect an agent/`, `\/connect`). */
 export const CONNECT_PATH = /(?<![\w/.\-\\])\/connect(?![\w-])(?! an agent\/)/g
@@ -144,17 +141,17 @@ describe('no skill or AGENTS.md cites a deleted /connect artefact (UI479)', () =
 })
 
 // [[UI479]] P4 (group 3): the docs name the new places, and only existing scripts.
-describe('the docs name /home and /agents (UI479)', () => {
+describe('the docs name /app/home and /app/agents (UI479, UI507)', () => {
   const read = (f: string) => readFileSync(join(REPO, f), 'utf8')
   const readme = read('packages/server-d1/README.md')
   it('the quickstart names the Agents page and no longer a /connect portal', () => {
     const q = read('packages/docs/src/content/docs/getting-started/quickstart.md')
-    expect(q).toContain('/agents')
+    expect(q).toContain('/app/agents')
     expect(q).not.toMatch(/connect`? portal/)
   })
   it('the README names /home as the landing page and /agents', () => {
-    expect(readme).toContain('`/home`')
-    expect(readme).toContain('`/agents`')
+    expect(readme).toContain('`/app/home`')
+    expect(readme).toContain('`/app/agents`')
   })
   it('every e2e script the README names exists in package.json', () => {
     const pkg = JSON.parse(read('packages/server-d1/package.json')) as { scripts: Record<string, string> }

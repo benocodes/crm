@@ -1,4 +1,4 @@
-// [[UI460]] D1, D2, D5 ([[UI443]]): the workspace app (`/home`, its bundle under `/app/`) and the root redirect, from the Workers Static Assets binding, with the app's policy and the security headers on every
+// [[UI460]] D1, D2, D5 ([[UI443]]): the workspace app (its pages at `/app/<page>`, its files under `/assets/app/`) and the root redirect, from the Workers Static Assets binding, with the app's policy and the security headers on every
 // answer. Served for every provider (the page reads its provider from discovery); static: it reads no storage and needs no credential, so it runs before the migration, configuration and control gates.
 import { APP_CSP } from '@vibase/ui/csp'
 import { APP_BUNDLE, APP_PAGE_PATHS, APP_PREFIX, ASSET_PREFIX, UI_BUNDLE } from './app/paths.js'
@@ -8,7 +8,6 @@ export interface AssetsLike {
 }
 
 const HOME = APP_PAGE_PATHS[0]
-const CONNECT = '/connect'
 /** Where the build puts the page: the assets directory's `assets/app/index.html`, which the binding serves at its directory path. Reached only through the page paths. */
 const INDEX_PATH = `${ASSET_PREFIX}/${APP_BUNDLE}/`
 
@@ -45,12 +44,8 @@ function withHeaders(res: Response, csp: string): Response {
   return out
 }
 
-/** `/connect` and anything under `/connect/`: nothing else (`/connectx` and `/connect.js` are not ours). The Preact page that lived here is gone ([[UI476]] D10); the path is a redirect to Home. */
-const isConnectPath = (pathname: string): boolean => pathname === CONNECT || pathname.startsWith(`${CONNECT}/`)
-
 const isPagePath = (pathname: string): boolean => (APP_PAGE_PATHS as readonly string[]).includes(pathname)
-/** A page path, anything below one (`/home/`, `/home/x`: not pages, the Worker's own 404, but ours to answer before the gates) and anything under `/app/`. `/homex` and `/appx` are not ours; `/app` exactly is (a 404, never the binding's directory page). */
-const isUnderPage = (pathname: string): boolean => APP_PAGE_PATHS.some((p) => pathname.startsWith(`${p}/`))
+/** `/app` itself, `/app/` and anything under `/app/`. `/appx` is not ours. Everything here is decided by `serveApp` (UI507 P4). */
 const isUnderAppPrefix = (pathname: string): boolean => pathname === APP_PREFIX || pathname.startsWith(`${APP_PREFIX}/`)
 /**
  * [[UI504]] D5, P1: what is ours under `/assets`: `/assets` itself, `/assets/` and everything below it except `/assets/ui` and below, which `serveUi` answers (it exists on better-auth only; the caller decides).
@@ -61,9 +56,8 @@ const isAssetPath = (pathname: string): boolean =>
 /** `/assets/ui` and anything under `/assets/ui/`: the auth pages' bundle ([[UI504]] D5). */
 export const isUiAssetPath = (pathname: string): boolean =>
   pathname === `${ASSET_PREFIX}/${UI_BUNDLE}` || pathname.startsWith(`${ASSET_PREFIX}/${UI_BUNDLE}/`)
-/** True for the exact page paths, anything below them, `/app` and anything under `/app/` (the root is decided by `serveApp`, which only claims `GET`/`HEAD`). */
-export const isAppPath = (pathname: string): boolean =>
-  isPagePath(pathname) || isUnderPage(pathname) || isUnderAppPrefix(pathname)
+/** True for `/app` and anything under `/app/` (the root is decided by `serveApp`, which only claims `GET`/`HEAD`). The old page paths (`/home`, `/connect`, ...) are not ours: ordinary unknown paths for the router (UI507 P5). */
+export const isAppPath = (pathname: string): boolean => isUnderAppPrefix(pathname)
 
 const methodNotAllowed = (csp: string) =>
   withHeaders(
@@ -92,12 +86,11 @@ const appAssetFile = (pathname: string): string | undefined => {
 }
 
 /**
- * Answers a request for the root, a page path, under `/app/`, under `/connect` or under `/assets/` (except `/assets/ui/`, [[UI504]]), or `undefined` for any other path (and for a method other than `GET`/`HEAD` on `/`, which stays the Worker's own `404`).
- * `GET`/`HEAD` `/connect` and `/connect/` are `302 /home` with the binding, else `404`; another method on them is `405`; anything else under `/connect/` is the app's JSON `404`, any method ([[UI476]] P2).
- * `GET`/`HEAD` `/` is `302 /home` (the query is dropped) when the binding is there, else `404`; `GET`/`HEAD` of a page path is the one `index.html`; `/app` and everything under `/app/` is the JSON `404`, any method (UI504 P2);
- * `/home/` and `/home/x` are not pages (`404`); another method on those is `405`.
- * `/assets/app/<file>` is the built file (GET/HEAD through the binding, which answers a missing file with its own `404`; another method `405`); `/assets`, `/assets/`, a folder, `index.html` and an unknown bundle are the JSON `404`, any method (P1).
- * Without the binding every `/assets/` path is `404`.
+ * Answers a request for the root, under `/app` or under `/assets/` (except `/assets/ui/`, [[UI504]]), or `undefined` for any other path (and for a method other than `GET`/`HEAD` on `/`, which stays the Worker's own `404`).
+ * `GET`/`HEAD` of `/`, `/app` and `/app/` is `302 /app/home` (the query is dropped), another method on `/app` and `/app/` is `405`; `GET`/`HEAD` of a page path is the one `index.html`, another method `405` ([[UI507]] D1, D2, P4);
+ * every other `/app/` path (`/app/home/`, `/app/home/x`, `/app/unknown`, `/app/app.js`) is the JSON `404`, any method. Without the binding every path here is `404`, any method.
+ * `/assets/app/<file>` is the built file (GET/HEAD through the binding, which answers a missing file with its own `404`; another method `405`); `/assets`, `/assets/`, a folder, `index.html` and an unknown bundle are the JSON `404`, any method (UI504 P1).
+ * The old page paths and `/connect` are not claimed: the router answers them as any unknown path (UI507 P5).
  */
 export async function serveApp(
   req: Request,
@@ -105,14 +98,11 @@ export async function serveApp(
 ): Promise<Response | undefined> {
   const url = new URL(req.url)
   const isRoot = url.pathname === '/'
-  const isConnect = isConnectPath(url.pathname)
   const isAssets = isAssetPath(url.pathname)
-  if (!isRoot && !isConnect && !isAssets && !isAppPath(url.pathname)) return undefined
+  if (!isRoot && !isAssets && !isAppPath(url.pathname)) return undefined
   const read = req.method === 'GET' || req.method === 'HEAD'
   if (isRoot && !read) return undefined
   const csp = appCsp(opts.issuer)
-  // [[UI476]] P2: below `/connect/` nothing is served (the page and its assets are gone), for every method, with or without the binding.
-  if (isConnect && url.pathname !== CONNECT && url.pathname !== `${CONNECT}/`) return notFound(csp)
   if (isAssets) {
     if (!opts.assets) return notFound(csp)
     const file = appAssetFile(url.pathname)
@@ -123,12 +113,12 @@ export async function serveApp(
       csp,
     )
   }
-  // [[UI504]] P2: `/app` and everything under it is claimed and answers the JSON 404 for any method (until the pages move under it).
-  if (isUnderAppPrefix(url.pathname)) return notFound(csp)
-  if (!read) return methodNotAllowed(csp)
+  // Without the binding nothing under `/app` and not the root is served: 404 for any method.
   if (!opts.assets) return notFound(csp)
-  if (isRoot || isConnect) return withHeaders(new Response(null, { status: 302, headers: { location: HOME } }), csp)
-  if (!isPagePath(url.pathname)) return notFound(csp)
+  const redirects = isRoot || url.pathname === APP_PREFIX || url.pathname === `${APP_PREFIX}/`
+  if (!isRoot && !redirects && !isPagePath(url.pathname)) return notFound(csp)
+  if (!read) return methodNotAllowed(csp)
+  if (redirects) return withHeaders(new Response(null, { status: 302, headers: { location: HOME } }), csp)
   return withHeaders(
     await opts.assets.fetch(new Request(new URL(INDEX_PATH, url.origin), { method: req.method, headers: req.headers })),
     csp,

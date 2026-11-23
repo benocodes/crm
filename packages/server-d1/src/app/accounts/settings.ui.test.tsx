@@ -11,9 +11,9 @@ const ME = 'user-me'
 const RW = ['connections:read', 'connections:write']
 afterEach(() => {
   cleanup()
-  history.replaceState(null, '', '/accounts')
+  history.replaceState(null, '', '/app/accounts')
 })
-beforeEach(() => history.replaceState(null, '', `/accounts?connection=${CID}`))
+beforeEach(() => history.replaceState(null, '', `/app/accounts?connection=${CID}`))
 
 type Res<T> = { status: number; body: T | null; code?: string; message?: string }
 const ok = <T,>(body: T): Res<T> => ({ status: 200, body })
@@ -70,7 +70,7 @@ describe('the settings view and its access (group 2: D6, D12, P4)', () => {
     expect(screen.getByText('Loading…')).toBeTruthy()
     d.resolve(ok(rec()))
     await heading()
-    expect(screen.getByRole('link', { name: 'Back to Connected accounts' }).getAttribute('href')).toBe('/accounts')
+    expect(screen.getByRole('link', { name: 'Back to Connected accounts' }).getAttribute('href')).toBe('/app/accounts')
     expect(screen.getByText('Connected')).toBeTruthy()
     expect(screen.getByRole('switch', { name: 'Inbox' }).getAttribute('aria-checked')).toBe('true')
     expect(screen.getByRole('switch', { name: 'Sent' }).getAttribute('aria-checked')).toBe('false')
@@ -122,11 +122,11 @@ describe('the settings view and its access (group 2: D6, D12, P4)', () => {
   it('a 404 says "This mailbox is not connected." with the back link', async () => {
     show(fakeApi({ connection: async () => ({ status: 404, body: null, code: 'not_found' }) }))
     expect(await screen.findByText('This mailbox is not connected.')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Back to Connected accounts' }).getAttribute('href')).toBe('/accounts')
+    expect(screen.getByRole('link', { name: 'Back to Connected accounts' }).getAttribute('href')).toBe('/app/accounts')
   })
 
   it('a malformed id says the same and makes no connections.get call', async () => {
-    history.replaceState(null, '', '/accounts?connection=not-a-uuid')
+    history.replaceState(null, '', '/app/accounts?connection=not-a-uuid')
     const api = fakeApi()
     show(api)
     expect(await screen.findByText('This mailbox is not connected.')).toBeTruthy()

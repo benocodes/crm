@@ -1,4 +1,4 @@
-// [[UI469]] E2E: the Gmail connect flow returns to the instance's own /accounts, and Home prompts a person with no mailbox, in a real browser against a local Worker on `better-auth`
+// [[UI469]] E2E: the Gmail connect flow returns to the instance's own /app/accounts, and Home prompts a person with no mailbox, in a real browser against a local Worker on `better-auth`
 // (this worktree's local D1s from the real wrangler.jsonc). No request leaves localhost: a Playwright route answers `accounts.google.com`, so the callback's SUCCESS return (a real Google token exchange) is not run here;
 // its redirect is proven in-process (api connect.integration.d1 and server-d1 compose-connect-return tests). The callback's REFUSAL returns run for real.
 // Prerequisite: FRESH local state (`rm -rf .wrangler/state` in packages/server-d1; do not share it with another E2E: each consumes the owner invitation), and `.dev.vars` holding `e2e:auth-pages`' set
@@ -58,14 +58,14 @@ const visit = async (url: string) => {
 const noScroll = async () =>
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 
-test('1. the owner signs up and lands on /home: Get started shows Connect your email above Connect an agent; Connect Gmail opens /accounts', async () => {
+test('1. the owner signs up and lands on /app/home: Get started shows Connect your email above Connect an agent; Connect Gmail opens /app/accounts', async () => {
   expect(INVITE_URL, 'E2E_INVITE_URL').toBeTruthy()
   await visit(INVITE_URL!)
   await page.getByLabel('Name').fill('Owner Person')
   await page.getByLabel('Email').fill('owner@e2e.test')
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Create account' }).click()
-  await page.waitForURL((u) => u.pathname === '/home')
+  await page.waitForURL((u) => u.pathname === '/app/home')
   const started = page.getByRole('region', { name: 'Get started' })
   const email = started.getByRole('region', { name: 'Connect your email' })
   const agent = started.getByRole('region', { name: 'Connect an agent' })
@@ -79,15 +79,15 @@ test('1. the owner signs up and lands on /home: Get started shows Connect your e
   expect(order.indexOf('Connect your email')).toBeLessThan(order.indexOf('Connect an agent'))
   await axeBoth('home-both-prompts')
   await page.setViewportSize({ width: 375, height: 800 })
-  await visit('/home')
+  await visit('/app/home')
   await expect(email).toBeVisible()
   await noScroll()
   await page.setViewportSize({ width: 1280, height: 720 })
-  await visit('/home')
+  await visit('/app/home')
   const link = email.getByRole('link', { name: 'Connect Gmail' })
-  await expect(link).toHaveAttribute('href', '/accounts')
+  await expect(link).toHaveAttribute('href', '/app/accounts')
   await link.click()
-  await page.waitForURL((u) => u.pathname === '/accounts')
+  await page.waitForURL((u) => u.pathname === '/app/accounts')
   await expect(page.getByRole('region', { name: 'Your mailboxes' })).toContainText('No mailbox connected yet')
 })
 
@@ -111,7 +111,7 @@ test('2. Connect Gmail navigates to Google (intercepted) with the configured cli
   await page.unroute('https://accounts.google.com/**')
 })
 
-test('3. Google cancel (simulated): the callback returns to /accounts with consent_denied, shown once and removed from the address bar', async () => {
+test('3. Google cancel (simulated): the callback returns to /app/accounts with consent_denied, shown once and removed from the address bar', async () => {
   const res = await page.request.get(
     `${BASE}/oauth/callback/google?error=access_denied&state=${encodeURIComponent(state)}`,
     {
@@ -119,25 +119,25 @@ test('3. Google cancel (simulated): the callback returns to /accounts with conse
     },
   )
   expect(res.status()).toBe(302)
-  expect(res.headers()['location']).toBe(`${BASE}/accounts?error=consent_denied`)
+  expect(res.headers()['location']).toBe(`${BASE}/app/accounts?error=consent_denied`)
   expect(res.headers()['cache-control']).toBe('no-store')
   expect(res.headers()['referrer-policy']).toBe('no-referrer')
   await visit(`${BASE}/oauth/callback/google?error=access_denied&state=${encodeURIComponent(state)}`)
-  await page.waitForURL((u) => u.pathname === '/accounts')
+  await page.waitForURL((u) => u.pathname === '/app/accounts')
   const alert = page.getByRole('alert')
   await expect(alert).toContainText('The connection was cancelled at Google. Nothing was connected.')
   await expect(alert).toContainText('consent_denied')
-  await expect(page).toHaveURL((u) => u.pathname === '/accounts' && u.search === '')
+  await expect(page).toHaveURL((u) => u.pathname === '/app/accounts' && u.search === '')
   await axeBoth('accounts-return-error')
   await page.setViewportSize({ width: 375, height: 800 })
   await noScroll()
   await page.setViewportSize({ width: 1280, height: 720 })
 })
 
-test('4. the callback with no state returns to /accounts?error=state_invalid', async () => {
+test('4. the callback with no state returns to /app/accounts?error=state_invalid', async () => {
   const res = await page.request.get(`${BASE}/oauth/callback/google`, { maxRedirects: 0 })
   expect(res.status()).toBe(302)
-  expect(res.headers()['location']).toBe(`${BASE}/accounts?error=state_invalid`)
+  expect(res.headers()['location']).toBe(`${BASE}/app/accounts?error=state_invalid`)
 })
 
 test('5. with a mailbox the owner owns, Connect your email is gone from Home and Connect an agent remains', async () => {
@@ -146,7 +146,7 @@ test('5. with a mailbox the owner owns, Connect your email is gone from Home and
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
   })
-  await visit('/home')
+  await visit('/app/home')
   const started = page.getByRole('region', { name: 'Get started' })
   await expect(started.getByRole('region', { name: 'Connect an agent' })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Connect your email' })).toHaveCount(0)

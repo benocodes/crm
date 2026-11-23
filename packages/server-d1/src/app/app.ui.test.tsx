@@ -26,7 +26,7 @@ const handlers = () => ({ onSignIn: vi.fn(), onSignOut: vi.fn(), onRetry: vi.fn(
 const show = (state: AppState, over: { provider?: string | null; path?: string; mcpUrl?: string | null } = {}) => {
   const h = handlers()
   render(
-    <MemoryRouter initialEntries={[over.path ?? '/home']}>
+    <MemoryRouter initialEntries={[over.path ?? '/app/home']}>
       <App
         state={state}
         provider={over.provider === undefined ? 'better-auth' : over.provider}
@@ -49,7 +49,7 @@ describe('ready: the shell and Home (D7, D8, P5)', () => {
     show(READY)
     const nav = screen.getByRole('navigation', { name: 'Workspace' })
     const home = within(nav).getByRole('link', { name: 'Home' })
-    expect(home.getAttribute('href')).toBe('/home')
+    expect(home.getAttribute('href')).toBe('/app/home')
     expect(home.getAttribute('aria-current')).toBe('page')
     expect(
       within(nav)
@@ -112,7 +112,7 @@ describe('ready: the shell and Home (D7, D8, P5)', () => {
 
 describe('ready on /accounts (UI467 D1)', () => {
   it('draws the Connected accounts page, not Home, with its nav entry current and Home not', () => {
-    show({ ...READY, scopes: ['connections:read'] }, { path: '/accounts' })
+    show({ ...READY, scopes: ['connections:read'] }, { path: '/app/accounts' })
     expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Connected accounts'])
     const nav = screen.getByRole('navigation', { name: 'Workspace' })
     expect(within(nav).getByRole('link', { name: 'Connected accounts' }).getAttribute('aria-current')).toBe('page')
@@ -129,7 +129,7 @@ describe('ready on /agents (UI459 D1, D2, D8)', () => {
   const showAgents = (scopes: string[]) => {
     const h = handlers()
     render(
-      <MemoryRouter initialEntries={['/agents']}>
+      <MemoryRouter initialEntries={['/app/agents']}>
         <App
           state={{ ...READY, scopes }}
           provider="better-auth"
@@ -306,7 +306,7 @@ describe('Home: Connect your email (D13, P5)', () => {
     expect(email.compareDocumentPosition(agent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(email.textContent).toContain('Connect your Gmail so your conversations land in your CRM.')
     const link = within(email).getByRole('link', { name: 'Connect Gmail' })
-    expect(link.getAttribute('href')).toBe('/accounts')
+    expect(link.getAttribute('href')).toBe('/app/accounts')
     expect(within(email).queryByRole('button')).toBeNull()
   })
 
@@ -320,7 +320,7 @@ describe('Home: Connect your email (D13, P5)', () => {
       { ...EMAIL, connectEmail: { status: 'error', message: EMAIL_UNREADABLE } },
     ]) {
       render(
-        <MemoryRouter initialEntries={['/home']}>
+        <MemoryRouter initialEntries={['/app/home']}>
           <App
             state={state as AppState}
             provider="better-auth"

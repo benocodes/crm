@@ -56,7 +56,7 @@ const api = (...answers: (ApiResult<Me> | Error)[]) => {
     forms: vi.fn(),
   } satisfies Api
 }
-const make = (s: SessionSeam | null, a: Api, path = '/home') =>
+const make = (s: SessionSeam | null, a: Api, path = '/app/home') =>
   createAppController({ seam: s, api: a, origin: 'https://w.test', path: () => path })
 
 describe('the states by input (D4)', () => {
@@ -241,20 +241,20 @@ describe('a 401 re-checks the session once and never loops (D4)', () => {
 describe('signing in and out (D4, P2, P3, group 4)', () => {
   it('Sign in calls the seam with <origin><current page path>, never a query', async () => {
     const s = seam({ isSignedIn: vi.fn(() => false) })
-    const c = make(s, api(ok(ME())), '/home')
+    const c = make(s, api(ok(ME())), '/app/home')
     await c.start()
     await c.signIn()
-    expect(s.redirectToSignIn).toHaveBeenCalledExactlyOnceWith('https://w.test/home')
+    expect(s.redirectToSignIn).toHaveBeenCalledExactlyOnceWith('https://w.test/app/home')
   })
 
   it('Sign in reads the path when called, so a client-side navigation since start is honoured', async () => {
     const s = seam({ isSignedIn: vi.fn(() => false) })
-    let path = '/home'
+    let path = '/app/home'
     const c = createAppController({ seam: s, api: api(ok(ME())), origin: 'https://w.test', path: () => path })
     await c.start()
-    path = '/agents'
+    path = '/app/agents'
     await c.signIn()
-    expect(s.redirectToSignIn).toHaveBeenCalledExactlyOnceWith('https://w.test/agents')
+    expect(s.redirectToSignIn).toHaveBeenCalledExactlyOnceWith('https://w.test/app/agents')
   })
 
   it('a successful sign-out shows signed-out', async () => {

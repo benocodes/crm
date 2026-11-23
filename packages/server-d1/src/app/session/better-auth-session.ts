@@ -8,7 +8,7 @@ export function betterAuthSession(deps: {
   returnPath: string | (() => string)
 }): SessionSeam {
   const doFetch: typeof fetch = deps.fetch ?? ((input, init) => fetch(input, init))
-  // [[UI460]] P2, P3: the page path the person comes back to, from the caller (`/home`, `/accounts` or `/agents` for the app; required, [[UI476]] P4); a path only, never a query.
+  // [[UI460]] P2, P3: the page path the person comes back to, from the caller (`/app/home`, `/app/accounts` or `/app/agents` for the app; required, [[UI476]] P4); a path only, never a query.
   const signIn = () =>
     `/sign-in?return_to=${typeof deps.returnPath === 'function' ? deps.returnPath() : deps.returnPath}`
   const navigate = deps.navigate ?? ((url: string) => location.assign(url))

@@ -47,7 +47,7 @@ describe('the mount', () => {
       'GET /auth/token': () => json({ token: 't' }),
       'GET /meta/v1/me': () => json(ME),
     })
-    await mount('/home')
+    await mount('/app/home')
     await vi.waitFor(() => expect(document.querySelector('h1')?.textContent).toBe('Welcome to your CRM'))
     expect(document.title).toBe('Home · Vibase')
     expect(document.querySelector('#root')!.tagName).toBe('DIV') // not a landmark: the shell renders <main> (443.40)
@@ -60,7 +60,7 @@ describe('the mount', () => {
       'GET /.well-known/vibase': () => json(DISCOVERY),
       'GET /auth/get-session': () => json(null),
     })
-    await mount('/home?utm=x&next=/evil')
+    await mount('/app/home?utm=x&next=/evil')
     const button = await vi.waitFor(() => {
       const b = document.querySelector('button')
       expect(b?.textContent).toBe('Sign in')
@@ -68,19 +68,19 @@ describe('the mount', () => {
     })
     expect(assign).not.toHaveBeenCalled() // nothing navigates on load
     button.click()
-    await vi.waitFor(() => expect(assign).toHaveBeenCalledExactlyOnceWith('/sign-in?return_to=/home'))
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledExactlyOnceWith('/sign-in?return_to=/app/home'))
   })
 
   it('unreadable discovery: unavailable, and no session or API call', async () => {
     const calls = stubFetch({ 'GET /.well-known/vibase': () => json({}, 500) })
-    await mount('/home')
+    await mount('/app/home')
     await vi.waitFor(() => expect(document.body.textContent).toMatch(/unavailable/i))
     expect(calls).toEqual(['GET /.well-known/vibase'])
   })
 
   it('discovery with no provider: unavailable', async () => {
     const calls = stubFetch({ 'GET /.well-known/vibase': () => json({ auth: null }) })
-    await mount('/home')
+    await mount('/app/home')
     await vi.waitFor(() => expect(document.body.textContent).toMatch(/unavailable/i))
     expect(calls).toEqual(['GET /.well-known/vibase'])
   })
@@ -97,7 +97,7 @@ describe('the mount on /agents', () => {
       'GET /meta/v1/me': () => json(ME_READER),
       'GET /meta/v1/agents': () => json({ data: [], next_cursor: null }),
     })
-    await mount('/agents')
+    await mount('/app/agents')
     await vi.waitFor(() => expect(document.querySelector('h1')?.textContent).toBe('Agents'))
     expect(document.title).toBe('Agents · Vibase')
     await vi.waitFor(() => expect(document.body.textContent).toContain('No agents connected yet'))
@@ -118,7 +118,7 @@ describe('the mount on /accounts', () => {
       'GET /meta/v1/me': () => json(ME_READER),
       'GET /meta/v1/connections': () => json({ data: [], next_cursor: null }),
     })
-    await mount('/accounts')
+    await mount('/app/accounts')
     await vi.waitFor(() => expect(document.querySelector('h1')?.textContent).toBe('Connected accounts'))
     expect(document.title).toBe('Connected accounts · Vibase')
     await vi.waitFor(() => expect(document.body.textContent).toContain('No mailbox connected yet'))
@@ -132,13 +132,13 @@ describe('the mount on /accounts', () => {
       'GET /.well-known/vibase': () => json(DISCOVERY),
       'GET /auth/get-session': () => json(null),
     })
-    await mount('/accounts?error=x&utm=1')
+    await mount('/app/accounts?error=x&utm=1')
     const button = await vi.waitFor(() => {
       const b = document.querySelector('button')
       expect(b?.textContent).toBe('Sign in')
       return b!
     })
     button.click()
-    await vi.waitFor(() => expect(assign).toHaveBeenCalledExactlyOnceWith('/sign-in?return_to=/accounts'))
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledExactlyOnceWith('/sign-in?return_to=/app/accounts'))
   })
 })

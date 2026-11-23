@@ -130,7 +130,7 @@ describe('the request', () => {
     const go = vi.fn()
     render(<InvitePage navigate={go} />)
     await submit(await fill())
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/app/home'))
   })
 
   it('the submit button is busy while the request is in flight', async () => {
@@ -308,7 +308,7 @@ describe('the sign-in mode (CORE302 P6)', () => {
     const go = vi.fn()
     render(<InvitePage navigate={go} />)
     await signInFields(await switchToSignIn())
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/app/home'))
     expect(f.requests()).toEqual(['POST /auth/sign-in/email'])
     expect(f.calls[0]!.body).toEqual({ email: 'ann@x.test', password: PASSWORD })
     expect(new Headers(f.calls[0]!.init.headers as HeadersInit).get('vibase-invitation')).toBe(TOKEN)
@@ -335,7 +335,7 @@ describe('the sign-in mode (CORE302 P6)', () => {
     expect((await screen.findByRole('alert')).textContent).toBe(message)
     expect(go).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: /^sign in$/i }))
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/app/home'))
     expect(screen.queryByText(message)).toBeNull()
   })
 

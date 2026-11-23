@@ -8,7 +8,7 @@ import { GoogleButton, useGoogleEnabled } from './google-button.js'
 import { ResetRequest, useSelfServiceReset } from './reset-request.js'
 
 /** A finished sign-in with no valid `return_to` continues here: the workspace app's Home ([[UI461]] D3). */
-const DEFAULT_TARGET = '/home'
+const DEFAULT_TARGET = '/app/home'
 
 /**
  * [[UI246]] D5. A session is the signed-in view (the email as text) with sign-out; no session is the form. No sign-up link (admission is the invitation), a "Forgot password?" request when discovery says `self_service_reset` ([[CORE304]] D7), otherwise a line saying

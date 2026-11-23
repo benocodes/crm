@@ -271,10 +271,10 @@ test("7. the owner disables the agent and the client's next tools/list is 401 wi
   request,
 }) => {
   await setupClerkTestingToken({ context: page.context() })
-  await page.goto('/home')
+  await page.goto('/app/home')
   await clerk.loaded({ page })
   await clerk.signIn({ page, emailAddress: users.owner.email })
-  await page.goto('/home')
+  await page.goto('/app/home')
   await page.waitForFunction(() => (window as any).Clerk?.session, null, { timeout: 30000 })
   const owner = await page.evaluate(() =>
     (window as unknown as { Clerk: { session: { getToken(): Promise<string> } } }).Clerk.session.getToken(),

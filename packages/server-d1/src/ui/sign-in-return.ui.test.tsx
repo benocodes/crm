@@ -7,7 +7,7 @@ import { MESSAGES, genericFailure } from './messages.js'
 import { SignInPage } from './sign-in-page.js'
 
 // [[UI255]] D8, P2 (group 4, page): a cross-origin absolute `return_to` (https, or http://localhost) is never followed by the page itself. It is sent as `callbackURL` on the password and Google requests, and the page navigates only
-// to the `url` a successful answer returns; Better Auth's origin check (server side) is what decides. The same-origin allow-list (/device, /connect) is sign-in-page.test.tsx's and stays unchanged.
+// to the `url` a successful answer returns; Better Auth's origin check (server side) is what decides. The same-origin allow-list (/device and the app pages) is sign-in-page.test.tsx's and stays unchanged.
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -55,7 +55,7 @@ describe("a cross-origin return_to is a callbackURL, never a navigation of the p
     const go = vi.fn()
     render(<SignInPage navigate={go} />)
     await signInWith()
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/app/home'))
     expect(go).toHaveBeenCalledTimes(1)
   })
 
@@ -131,7 +131,7 @@ describe('P2: the failure paths', () => {
     const go = vi.fn()
     render(<SignInPage navigate={go} />)
     await signInWith()
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/app/home'))
     expect(post(f, '/auth/sign-in/email')[0]!.body).not.toHaveProperty('callbackURL')
   })
 })

@@ -25,8 +25,8 @@ beforeAll(async () => {
     req.on('data', (c: Buffer) => chunks.push(c))
     req.on('end', () => {
       seen.push({ method: req.method!, url: req.url!, headers: req.headers, body: Buffer.concat(chunks).toString() })
-      if (req.url === '/connect') {
-        res.writeHead(302, { location: '/home', 'set-cookie': ['sid=abc; Path=/; HttpOnly', 'second=2'] })
+      if (req.url === '/') {
+        res.writeHead(302, { location: '/app/home', 'set-cookie': ['sid=abc; Path=/; HttpOnly', 'second=2'] })
         res.end()
         return
       }
@@ -49,10 +49,11 @@ describe('the constants and the owned set', () => {
     expect([DEV_PORT, WORKER_PORT]).toEqual([5173, 8787])
   })
 
-  it('the owned page paths are exactly the two constants, never a third list (P1), and own neither the root nor /connect', () => {
+  it('the owned page paths are exactly the two constants, never a third list (P1), and own neither the root nor the old page paths', () => {
     expect(devOwnedPaths().sort()).toEqual([...APP_PAGE_PATHS, ...UI_PAGE_PATHS].sort())
     expect(devOwnedPaths()).not.toContain('/')
-    expect(devOwnedPaths()).not.toContain('/connect')
+    for (const old of ['/home', '/accounts', '/agents', '/connect']) expect(devOwnedPaths()).not.toContain(old)
+    expect(devOwnedPaths()).toContain('/app/home')
   })
 })
 
@@ -73,8 +74,20 @@ describe('pages and sources are the dev server’s own', () => {
     expect(seen.length, 'the page never reaches the upstream').toBe(before)
   })
 
+  it('/app/home is the app page (UI507 D9)', async () => {
+    const res = await get('/app/home')
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('src="/assets/app/main.tsx"')
+  })
+
+  it('/home is not a page: it reaches the Worker (UI507 D9)', async () => {
+    const res = await get('/home')
+    expect(lastSeen().url).toBe('/home')
+    expect(res.headers.get('x-from')).toBe('upstream')
+  })
+
   it('a page path with a query is still the page', async () => {
-    const res = await get(`${UI_PAGE_PATHS[0]}?return_to=%2Fhome`)
+    const res = await get(`${UI_PAGE_PATHS[0]}?return_to=%2Fapp%2Fhome`)
     expect(await res.text()).toContain('/@vite/client')
   })
 
@@ -109,12 +122,12 @@ describe('pages and sources are the dev server’s own', () => {
 })
 
 describe('everything else reaches the Worker as sent', () => {
-  it.each(['/', '/connect', '/.well-known/vibase', '/mcp', '/app', '/meta', '/app/main.tsx', '/ui/main.tsx'])(
+  it.each(['/', '/home', '/connect', '/.well-known/vibase', '/mcp', '/app', '/meta', '/app/main.tsx', '/ui/main.tsx'])(
     'GET %s is proxied',
     async (path) => {
       const res = await get(path)
       expect(lastSeen().url).toBe(path)
-      if (path !== '/connect') {
+      if (path !== '/') {
         expect(res.status).toBe(200)
         expect(await res.text()).toBe(`upstream:GET:${path}`)
       }
@@ -143,9 +156,9 @@ describe('everything else reaches the Worker as sent', () => {
   })
 
   it('a 302 with Location and Set-Cookie comes back unfollowed', async () => {
-    const res = await get('/connect')
+    const res = await get('/')
     expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toBe('/home')
+    expect(res.headers.get('location')).toBe('/app/home')
     expect(res.headers.getSetCookie()).toEqual(['sid=abc; Path=/; HttpOnly', 'second=2'])
   })
 

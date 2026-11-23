@@ -88,7 +88,7 @@ describe('the Better Auth seam against the composed Worker', () => {
   it('signed in: load sees the session, getToken is a JWT the API accepts (me, agents), sign-out ends it, signed out getToken is null', async () => {
     const { cookie, id } = await person()
     const b = browser(cookie)
-    const seam = betterAuthSession({ fetch: b.fetchFn, returnPath: '/home' })
+    const seam = betterAuthSession({ fetch: b.fetchFn, returnPath: '/app/home' })
     await seam.load()
     expect(seam.isSignedIn()).toBe(true)
 
@@ -119,7 +119,7 @@ describe('the Better Auth seam against the composed Worker', () => {
   it('a person with no session: load is signed out (200, null) and getToken is null', async () => {
     const b = browser('x=y')
     b.jar.clear()
-    const seam = betterAuthSession({ fetch: b.fetchFn, returnPath: '/home' })
+    const seam = betterAuthSession({ fetch: b.fetchFn, returnPath: '/app/home' })
     await seam.load()
     expect(seam.isSignedIn()).toBe(false)
     expect(await seam.getToken()).toBeNull()

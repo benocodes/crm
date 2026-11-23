@@ -9,9 +9,9 @@ import { AccountsPage } from './accounts.js'
 // [[UI467]] groups 2, 3, 4 (D2, D3, D4, D12): the page over a fake Api; the real client over a fake fetch for "every page".
 afterEach(() => {
   cleanup()
-  history.replaceState(null, '', '/accounts')
+  history.replaceState(null, '', '/app/accounts')
 })
-beforeEach(() => history.replaceState(null, '', '/accounts'))
+beforeEach(() => history.replaceState(null, '', '/app/accounts'))
 
 const NOW = new Date('2026-11-18T12:00:00.000Z')
 const ME = 'user-me'
@@ -288,12 +288,12 @@ describe('Connect Gmail and Reconnect (group 3: D3)', () => {
 
 describe('the connect return (group 2: D4)', () => {
   it('reads connection_id, removes it with replaceState (other parameters kept, no navigation), and names the listed address', async () => {
-    history.replaceState(null, '', '/accounts?connection_id=c-amy&x=1')
+    history.replaceState(null, '', '/app/accounts?connection_id=c-amy&x=1')
     const replace = vi.spyOn(history, 'replaceState')
     const assign = vi.fn()
     const api = fakeApi({ connections: async () => ok([conn('c-amy', { identity_id: 'i-amy' })]) })
     render(<AccountsPage api={api as never} userId={ME} scopes={RW} now={() => NOW} navigate={assign} />)
-    expect(location.pathname + location.search).toBe('/accounts?x=1')
+    expect(location.pathname + location.search).toBe('/app/accounts?x=1')
     expect(replace).toHaveBeenCalled()
     expect(assign).not.toHaveBeenCalled()
     const status = await screen.findByRole('status')
@@ -302,13 +302,13 @@ describe('the connect return (group 2: D4)', () => {
   })
 
   it('an id that is not listed reads "Mailbox connected."', async () => {
-    history.replaceState(null, '', '/accounts?connection_id=00000000-0000-4000-8000-000000000000')
+    history.replaceState(null, '', '/app/accounts?connection_id=00000000-0000-4000-8000-000000000000')
     show(fakeApi({ connections: async () => ok([conn('c-amy')]) }))
     expect((await screen.findByRole('status')).textContent).toBe('Mailbox connected.')
   })
 
   it('an error code shows the callback sentence and the code; the URL loses it', async () => {
-    history.replaceState(null, '', '/accounts?error=consent_denied&x=1')
+    history.replaceState(null, '', '/app/accounts?error=consent_denied&x=1')
     show(fakeApi())
     expect((await screen.findByRole('alert')).textContent).toBe(
       'The connection was cancelled at Google. Nothing was connected. (consent_denied)',
@@ -317,13 +317,13 @@ describe('the connect return (group 2: D4)', () => {
   })
 
   it('an unknown code reads "The mailbox was not connected." and the code', async () => {
-    history.replaceState(null, '', '/accounts?error=brand_new')
+    history.replaceState(null, '', '/app/accounts?error=brand_new')
     show(fakeApi())
     expect((await screen.findByRole('alert')).textContent).toBe('The mailbox was not connected. (brand_new)')
   })
 
   it('a reload (a fresh mount on the cleaned URL) shows no outcome', async () => {
-    history.replaceState(null, '', '/accounts?error=consent_denied&x=1')
+    history.replaceState(null, '', '/app/accounts?error=consent_denied&x=1')
     show(fakeApi())
     await screen.findByRole('alert')
     cleanup()

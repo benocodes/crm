@@ -95,7 +95,7 @@ describe('signing in', () => {
     const go = vi.fn()
     render(<SignInPage navigate={go} />)
     await signInWith()
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/app/home'))
     expect(f.calls.find((c) => c.method === 'POST')!.body).toEqual({
       email: 'ann@x.test',
       password: 'a long enough password',
@@ -195,7 +195,7 @@ describe('signing out', () => {
 const SIGNED =
   'client_id=app-1&redirect_uri=http%3A%2F%2F127.0.0.1%3A33418%2Fcb&scope=openid+contacts%3Aread&state=a%20b&exp=1999999999&sig=AbC%2Fdef%3D'
 
-// [[UI247]] D6 closes UI246 D5's deferral: a signed OAuth query resumes the flow; a return_to of /device or /connect goes back there; nothing else is followed.
+// [[UI247]] D6 closes UI246 D5's deferral: a signed OAuth query resumes the flow; a return_to of /device or an app page goes back there; nothing else is followed.
 describe('the OAuth continuation (D6 a)', () => {
   beforeEach(() => history.replaceState(null, '', `/sign-in?${SIGNED}`))
 
@@ -227,7 +227,7 @@ describe('the OAuth continuation (D6 a)', () => {
     const go = vi.fn()
     render(<SignInPage navigate={go} />)
     await signInWith()
-    await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
+    await waitFor(() => expect(go).toHaveBeenCalledWith('/app/home'))
   })
 
   it.each(['javascript:alert(1)', 'data:text/html,x'])(
@@ -259,17 +259,36 @@ describe('the OAuth continuation (D6 a)', () => {
 })
 
 describe('return_to (D6 b)', () => {
-  it.each(['/device?user_code=ABCDEFGH', '/connect'])('a signed-out person who signs in goes to %s', async (target) => {
-    history.replaceState(null, '', `/sign-in?return_to=${encodeURIComponent(target)}`)
-    fakeFetch({
-      'GET /auth/get-session': NO_SESSION,
-      'POST /auth/sign-in/email': { status: 200, json: { user: { email: 'ann@x.test' } } },
-    })
-    const go = vi.fn()
-    render(<SignInPage navigate={go} />)
-    await signInWith()
-    await waitFor(() => expect(go).toHaveBeenCalledWith(target))
-  })
+  it.each(['/device?user_code=ABCDEFGH', '/app/accounts', '/app/agents'])(
+    'a signed-out person who signs in goes to %s',
+    async (target) => {
+      history.replaceState(null, '', `/sign-in?return_to=${encodeURIComponent(target)}`)
+      fakeFetch({
+        'GET /auth/get-session': NO_SESSION,
+        'POST /auth/sign-in/email': { status: 200, json: { user: { email: 'ann@x.test' } } },
+      })
+      const go = vi.fn()
+      render(<SignInPage navigate={go} />)
+      await signInWith()
+      await waitFor(() => expect(go).toHaveBeenCalledWith(target))
+    },
+  )
+
+  // [[UI507]] D8: the old page paths and /connect are not return targets: sign-in falls back to the default landing.
+  it.each(['/connect', '/home', '/accounts', '/agents'])(
+    'a return_to of the old path %s falls back to /app/home',
+    async (target) => {
+      history.replaceState(null, '', `/sign-in?return_to=${encodeURIComponent(target)}`)
+      fakeFetch({
+        'GET /auth/get-session': NO_SESSION,
+        'POST /auth/sign-in/email': { status: 200, json: { user: { email: 'ann@x.test' } } },
+      })
+      const go = vi.fn()
+      render(<SignInPage navigate={go} />)
+      await signInWith()
+      await waitFor(() => expect(go).toHaveBeenCalledWith('/app/home'))
+    },
+  )
 
   it('a signed-in visitor is offered a Continue link to an allowed target', async () => {
     history.replaceState(null, '', '/sign-in?return_to=%2Fdevice%3Fuser_code%3DABCDEFGH')
@@ -283,7 +302,7 @@ describe('return_to (D6 b)', () => {
     fakeFetch({ 'GET /auth/get-session': session({ email: 'ann@x.test' }) })
     render(<SignInPage />)
     const link = await screen.findByRole('link', { name: /continue/i })
-    expect(link.getAttribute('href')).toBe('/home')
+    expect(link.getAttribute('href')).toBe('/app/home')
   })
 
   it('Google sign-in from /sign-in?return_to=/device lands on that target, not /sign-in (#375)', async () => {
@@ -313,7 +332,7 @@ describe('return_to (D6 b)', () => {
       const go = vi.fn()
       render(<SignInPage navigate={go} />)
       await signInWith()
-      await waitFor(() => expect(go).toHaveBeenCalledWith('/home'))
+      await waitFor(() => expect(go).toHaveBeenCalledWith('/app/home'))
       expect(go).toHaveBeenCalledTimes(1)
     },
   )

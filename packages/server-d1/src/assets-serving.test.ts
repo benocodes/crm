@@ -126,7 +126,7 @@ describe.each(PROVIDERS)('/assets/app/ (any provider): %s', (p) => {
   })
 
   it('a page is the bundle index fetched through the binding folder path, with no-store on the HTML only', async () => {
-    const res = await send(make(p), '/home')
+    const res = await send(make(p), '/app/home')
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('no-store')
     expect(res.headers.get('content-security-policy')).toBe(APP_POLICY(p))
