@@ -541,7 +541,9 @@ try {
       ],
     }),
   )
-  res = await call('GET', `${callbackUrl.pathname}${callbackUrl.search}`)
+  // [[UI469]] D5: with the app's assets bound the callback answers a 302 to <PUBLIC_BASE_URL>/app/accounts; read it, never follow it (push.test is not a host).
+  res = await fetch(new URL(`${callbackUrl.pathname}${callbackUrl.search}`, base), { redirect: 'manual' })
+  const returnedTo = res.headers.get('location') ?? ''
   const connectedPage = await res.text()
   const conn = (await rows('select * from channel_connections'))[0]
   const cred = (await rows('select * from channel_credentials'))[0]
@@ -555,9 +557,11 @@ try {
   const newEvents = (await rows('select type, actor_id from events order by seq')).slice(eventsBeforeConnect)
   const cursor = (await rows('select * from mail_sync_cursors'))[0]
   check(
-    '44 the callback in workerd -> 200 built-in page; one connection owned by the user, an encrypted credential that opens to the refresh token, the cursor, own identities and the events; and the watch row (push is on), registered for INBOX and SENT',
-    res.status === 200 &&
-      connectedPage.includes('You can close this tab') &&
+    '44 the callback in workerd -> 302 to the Accounts page with the connection id; one connection owned by the user, an encrypted credential that opens to the refresh token, the cursor, own identities and the events; and the watch row (push is on), registered for INBOX and SENT',
+    res.status === 302 &&
+      new URL(returnedTo).origin === PUSH_BASE_URL &&
+      new URL(returnedTo).pathname === '/app/accounts' &&
+      new URL(returnedTo).searchParams.get('connection_id') === String(conn?.id) &&
       (await count('channel_connections')) === 1 &&
       conn?.account_id === 'smoke-sub' &&
       conn?.status === 'active' &&
@@ -576,7 +580,7 @@ try {
       newEvents.filter((x) => x.type === 'connection.created').length === 1 &&
       newEvents.filter((x) => x.type === 'identity.created').length === 2 &&
       newEvents.every((x) => x.actor_id === conn?.owner_id),
-    { status: res.status, connectedPage: connectedPage.slice(0, 300), conn, newEvents },
+    { status: res.status, returnedTo, connectedPage: connectedPage.slice(0, 300), conn, newEvents },
   )
   const connectLogs = logLines.join('\n')
   check(
@@ -1153,7 +1157,8 @@ try {
       compatibilityFlags: ['nodejs_compat'],
       d1Databases: {
         DB: `smoke-auth-crm-${crypto.randomUUID()}`,
-        ...(withControl ? { CONTROL_DB: `smoke-auth-control-${crypto.randomUUID()}` } : {}),
+        // The bootstrap needs a control database to mint against ([[CORE356]] P3, [[CORE326]]); without CONTROL_DB the Worker gets a differently named one, which it never reads.
+        [withControl ? 'CONTROL_DB' : 'SMOKE_BOOTSTRAP_CONTROL']: `smoke-auth-control-${crypto.randomUUID()}`,
       },
       d1Persist: false,
       bindings: {
@@ -1167,22 +1172,24 @@ try {
     const url = await auth.ready
     const crm = (await auth.getD1Database('DB')) as unknown as D1Like
     await applyMigrations(crm)
-    const boot = await bootstrapD1(crm, {
-      organizationName: 'Auth smoke',
-      agentName: 'auth-bot',
-      authProvider: 'better-auth',
-      email: 'o@smoke.test',
-      authOrgId: 'org_auth_smoke',
-    })
-    let control: D1Like | undefined
-    if (withControl) {
-      control = (await auth.getD1Database('CONTROL_DB')) as unknown as D1Like
-      await applyControlMigrations(control)
-      await writeControlMarker(openControlDb(control), boot.organizationId)
-    }
+    // [[CORE64]] D11, [[CORE245]]: a better-auth deployment creates no human and no agent here (the owner is invited), and it writes the control marker itself.
+    const control = (await auth.getD1Database(
+      withControl ? 'CONTROL_DB' : 'SMOKE_BOOTSTRAP_CONTROL',
+    )) as unknown as D1Like
+    await applyControlMigrations(control)
+    await bootstrapD1(
+      crm,
+      {
+        organizationName: 'Auth smoke',
+        authProvider: 'better-auth',
+        authOrgId: 'org_auth_smoke',
+        publicBaseUrl: 'http://localhost:8787',
+      },
+      { control: openControlDb(control) },
+    )
     const get = (path: string) =>
       fetch(new URL(path, url), { headers: { origin: 'http://localhost:8787', 'cf-connecting-ip': '203.0.113.9' } })
-    return { crm, control, get }
+    return { crm, control: withControl ? control : undefined, get }
   }
   {
     const without = await betterAuth(false)
