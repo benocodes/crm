@@ -3,7 +3,7 @@ import { DeclarationError, parseExtensionsFile } from '../index.js'
 import { parseExtend } from './extend.js'
 
 // [[CORE555]] P1, P2: the `extend` section's validator. One case per rule; tests assert the rule code and path, not the sentence. The envelope still refuses `extend` (P7).
-const field = (f: Record<string, unknown>) => ({ extend: { contacts: { fields: { a__c: f } } } })
+const field = (f: Record<string, unknown>) => ({ contacts: { fields: { a__c: f } } })
 const refusal = (input: unknown, custom: string[] = []): DeclarationError => {
   try {
     parseExtend(input, custom)

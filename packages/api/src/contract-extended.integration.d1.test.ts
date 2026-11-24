@@ -119,7 +119,7 @@ describe('extension columns are dormant (P7)', () => {
       const out = (await res.json()) as { data: { created: boolean; contact: Record<string, unknown> }[] }
       expect(out.data[0]!.created).toBe(true)
       expect(Object.keys(out.data[0]!.contact).filter((k) => k.endsWith('__c'))).toEqual([])
-      const doc = (await (await s.call(a, 'user', registry.declaredScopes(), 'GET', '/api/v1/schema')).json()) as any
+      const doc = (await (await s.call(a, 'user', registry.declaredScopes(), 'GET', '/meta/v1/schema')).json()) as any
       for (const t of ['contacts', 'companies', 'deals', 'tasks']) {
         const cols = doc.tables.find((x: any) => x.name === t).columns.filter((c: any) => c.name.endsWith('__c'))
         expect(cols.map((c: any) => c.name).sort(), t).toEqual(Object.keys(SHAPES).sort())

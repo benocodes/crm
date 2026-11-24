@@ -32,6 +32,23 @@ export function columnDefinition(name: string, f: FieldDeclaration): string {
 export const bagColumnDefinition = (key: string): string =>
   `${ident('additional_props')} TEXT NOT NULL DEFAULT '{}' CONSTRAINT ${ident(`${key}_additional_props`)} CHECK (json_valid(${ident('additional_props')}) AND json_type(${ident('additional_props')}) = 'object')`
 
+/** [[CORE555]] P3 (D8): an extension field's column on a built-in table. A required field with a constant default is `NOT NULL DEFAULT`; a required field with no default stays nullable (its rule is API validation, CORE559), so `ADD COLUMN` works on a populated table. */
+export const extensionColumnDefinition = (name: string, f: FieldDeclaration): string =>
+  columnDefinition(name, { ...f, required: f.required === true && f.default !== undefined })
+
+/** The indexes a field needs ([[CORE541]] P1, D22): a reference gets `(organization_id, field, id)`, a unique field only the partial unique index over its live non-null rows. */
+export function fieldIndexStatements(key: string, name: string, f: FieldDeclaration): string[] {
+  const t = ident(key)
+  const c = ident(name)
+  if (f.kind === 'reference')
+    return [`CREATE INDEX IF NOT EXISTS ${ident(`idx_${key}_${name}_id`)} ON ${t} ("organization_id", ${c}, "id")`]
+  if (f.unique === true)
+    return [
+      `CREATE UNIQUE INDEX IF NOT EXISTS ${ident(`idx_${key}_${name}_unique`)} ON ${t} ("organization_id", ${c}) WHERE "deleted_at" IS NULL AND ${c} IS NOT NULL`,
+    ]
+  return []
+}
+
 /** The statements that create the table and its indexes, in order ([[CORE541]] P1): a reference gets `(organization_id, field, id)`, a unique field only the partial unique index over its live non-null rows. */
 export function createTableStatements(key: string, declaration: ObjectDeclaration): string[] {
   const t = ident(key)
@@ -48,15 +65,6 @@ export function createTableStatements(key: string, declaration: ObjectDeclaratio
   return [
     `CREATE TABLE IF NOT EXISTS ${t} (\n  ${columns.join(',\n  ')}\n) STRICT`,
     `CREATE INDEX IF NOT EXISTS ${ident(`idx_${key}_organization_id_id`)} ON ${t} ("organization_id", "id")`,
-    ...Object.entries(declaration.fields).flatMap(([name, f]) => {
-      const c = ident(name)
-      if (f.kind === 'reference')
-        return [`CREATE INDEX IF NOT EXISTS ${ident(`idx_${key}_${name}_id`)} ON ${t} ("organization_id", ${c}, "id")`]
-      if (f.unique === true)
-        return [
-          `CREATE UNIQUE INDEX IF NOT EXISTS ${ident(`idx_${key}_${name}_unique`)} ON ${t} ("organization_id", ${c}) WHERE "deleted_at" IS NULL AND ${c} IS NOT NULL`,
-        ]
-      return []
-    }),
+    ...Object.entries(declaration.fields).flatMap(([name, f]) => fieldIndexStatements(key, name, f)),
   ]
 }
