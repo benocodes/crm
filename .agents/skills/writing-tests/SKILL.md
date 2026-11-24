@@ -352,7 +352,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   [[CORE245]]) makes a plain `DELETE FROM` fail. `clearD1` (`packages/storage-d1/src/test/index.ts`) drops exactly the
   `BEFORE DELETE` triggers, empties, and recreates them from their stored `sqlite_master.sql`, all in one batch, so the
   schema after is the migrated one. Never disable a guard trigger in a fixture any other way; the trigger's own refusal
-  test runs on the migrated schema.
+  test runs on the migrated schema. Its table order comes from the migrations, so it cannot know a `__c` reference
+  column an applied `extend` adds between built-ins: a fixture that applies one nulls those columns before `clearD1`
+  (`packages/api/src/test/extension-kit.ts`, `resetKit`; [[CORE559]]).
 - **No assertion that only keeps a binding used.** `expect(u.id).toBeTruthy()` on a freshly seeded row passes
   whatever the code under test does ([[CORE29]] review). If the seeded id is not needed, drop the `const`
   (`await seedUser(...)`); if it is, assert something the code decides.
