@@ -351,7 +351,12 @@ function planBuiltins(
     const table = live.builtins?.[key]
     if (table === undefined) {
       if (Object.keys(declared).length > 0)
-        refuse('table_missing', key, undefined, `${key} is not in the live schema snapshot: nothing can be planned for it`)
+        refuse(
+          'table_missing',
+          key,
+          undefined,
+          `${key} is not in the live schema snapshot: nothing can be planned for it`,
+        )
       continue
     }
     const fields = liveFields(key, table, (c) => c.endsWith('__c'))
@@ -367,28 +372,63 @@ function planBuiltins(
         continue
       }
       if (lf.kind !== f.kind) {
-        refuse('kind_changed', key, name, `${at} is a ${lf.kind} field and the file declares ${f.kind}: a kind never changes`)
+        refuse(
+          'kind_changed',
+          key,
+          name,
+          `${at} is a ${lf.kind} field and the file declares ${f.kind}: a kind never changes`,
+        )
         continue
       }
       if (f.kind === 'reference' && lf.target !== f.target) {
-        refuse('target_changed', key, name, `${at} references ${lf.target} and the file declares ${f.target}: a target never changes`)
+        refuse(
+          'target_changed',
+          key,
+          name,
+          `${at} references ${lf.target} and the file declares ${f.target}: a target never changes`,
+        )
         continue
       }
       const wantNotNull = f.required === true && f.default !== undefined
       if (lf.required && !wantNotNull)
-        refuse('required_to_optional', key, name, `${at} is NOT NULL and the file declares it without a required default`)
+        refuse(
+          'required_to_optional',
+          key,
+          name,
+          `${at} is NOT NULL and the file declares it without a required default`,
+        )
       if (!lf.required && wantNotNull)
-        refuse('optional_to_required', key, name, `${at} is nullable and the file declares it required with a default: a column cannot be tightened in place`)
+        refuse(
+          'optional_to_required',
+          key,
+          name,
+          `${at} is nullable and the file declares it required with a default: a column cannot be tightened in place`,
+        )
       const want = f.default === undefined ? null : literal(f.default)
       if (lf.default !== want)
-        refuse('default_changed', key, name, `${at} has default ${lf.default ?? 'none'} and the file declares ${want ?? 'none'}: a default cannot be changed in place`)
+        refuse(
+          'default_changed',
+          key,
+          name,
+          `${at} has default ${lf.default ?? 'none'} and the file declares ${want ?? 'none'}: a default cannot be changed in place`,
+        )
       if (lf.unique && f.unique !== true)
-        refuse('unique_removed', key, name, `${at} is unique and the file declares it not: the live index would still refuse what the file allows`)
+        refuse(
+          'unique_removed',
+          key,
+          name,
+          `${at} is unique and the file declares it not: the live index would still refuse what the file allows`,
+        )
       if (!lf.unique && f.unique === true) plan.reads.push(violationRead(key, name, f, false))
     }
     for (const name of fields.keys()) if (declared[name] === undefined) plan.archived.push({ object: key, field: name })
     if (table.columns.length + added > COLUMN_LIMIT)
-      refuse('column_cap', key, undefined, `${key} would have ${table.columns.length + added} columns, over D1's ${COLUMN_LIMIT} (core and archived columns count)`)
+      refuse(
+        'column_cap',
+        key,
+        undefined,
+        `${key} would have ${table.columns.length + added} columns, over D1's ${COLUMN_LIMIT} (core and archived columns count)`,
+      )
     const have = new Set(table.indexes.map((i) => i.name))
     for (const [name, f] of Object.entries(declared))
       for (const s of fieldIndexStatements(key, name, f)) {
