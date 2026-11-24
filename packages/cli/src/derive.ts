@@ -106,7 +106,7 @@ export function mergeDocuments(docs: { source: 'api' | 'meta'; doc: unknown }[])
   return [...out.values()]
 }
 
-const kebab = (s: string) => s.replace(/_/g, '-')
+export const kebab = (s: string) => s.replace(/_/g, '-')
 
 function flagType(schema: JsonSchema): { type: FlagType; enum?: string[] } {
   const typeOf = (s: Obj): string | undefined => {

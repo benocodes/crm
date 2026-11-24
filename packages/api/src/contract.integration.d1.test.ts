@@ -23,6 +23,7 @@ import { tasks } from './resources/tasks.js'
 import { fixtures } from './test/fixtures.js'
 import { runContractSuite } from './test/contract.js'
 import { d1Backend } from './test/d1-backend.js'
+import { PROJECTS_KEY, createCustomTables, projectsDefinition } from './test/custom-objects.js'
 
 // The prepared resources through the same prepared path on a local D1 binding per tenant: the SAME assertions as the Postgres run
 // in contract.integration.postgres.test.ts ([[CORE35]] D16, [[CORE36]] rule 9).
@@ -51,7 +52,8 @@ runContractSuite({
       .registerResource(interactions)
       .registerResource(files)
       .registerResource(contactFiles)
-      .registerResource(companyFiles),
+      .registerResource(companyFiles)
+      .registerResource(projectsDefinition()),
   ),
   fixtures: {
     tasks: fixtures.tasks!,
@@ -74,6 +76,8 @@ runContractSuite({
     files: fixtures.files!,
     contact_files: fixtures.contact_files!,
     company_files: fixtures.company_files!,
+    // [[CORE315]]: a test-declared custom object, served by the generic layer; D1 only (its table is created per tenant by `setup`, nothing applies it in production yet).
+    [PROJECTS_KEY]: { input: async () => ({ name: 'Contract project' }), patch: async () => ({ stage: 'active' }) },
   },
-  backend: d1Backend(),
+  backend: d1Backend({ setup: (d1) => createCustomTables(d1) }),
 })

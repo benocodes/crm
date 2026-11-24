@@ -19,11 +19,13 @@ import { fakeUserAuthenticator, mintTestUserToken } from './user-auth.js'
 const CONTRACT_ORG_LINK = 'org_contract'
 const parse = (v: unknown) => (typeof v === 'string' ? JSON.parse(v) : v)
 
-export function d1Backend(): ContractBackend {
+/** `setup` runs once on each tenant's freshly migrated D1 (a test that serves a custom object gives it its table here, [[CORE315]]). */
+export function d1Backend(options: { setup?: (d1: D1Like) => Promise<void> } = {}): ContractBackend {
   return {
     name: 'd1',
     async open(registry: Registry): Promise<ContractSession> {
       const local = await openLocalD1(['A', 'B'])
+      for (const name of ['A', 'B']) await options.setup?.(local.bindings[name]!)
       const names = ['A', 'B'] as const
       const byOrg = new Map<string, { d1: D1Like; app: ReturnType<typeof createApp>; binding: StorageBinding }>()
       // The relational Kysely of a ContractSession is Postgres-only; a cold one stands in on D1 (it cannot execute).

@@ -22,7 +22,8 @@
     "./test/gmail-fixtures": "./src/test/gmail-fixtures.ts",
     "./test/streams": "./src/test/streams.ts",
     "./test/workerd-boundary": "./src/test/workerd-boundary.ts",
-    "./test/rail": "./src/test/rail-kit.ts"
+    "./test/rail": "./src/test/rail-kit.ts",
+    "./test/custom-objects": "./src/test/custom-objects.ts"
   },
   "//": "test: 4 is the default file parallelism, chosen by measurement (OPS223 D4); on a loaded machine run VITEST_MAX_WORKERS=N pnpm test with a lower N and name N in RESULT.md (vitest rejects a second --maxWorkers flag). Postgres stays serial (vitest.projects.ts).",
   "scripts": {
