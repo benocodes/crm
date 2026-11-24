@@ -87,6 +87,9 @@ export const CONTACT_NON_FK_EXEMPTIONS: readonly { table: string; column: string
   { table: 'events', column: 'resource_id' },
 ]
 
+/** Red-commit stub ([[CORE556]]): the entries derived from the composed definitions. */
+export const contactReferencesOf = (_definitions: readonly unknown[]): ContactReference[] => []
+
 /** FKs to contacts(id) that merge must NOT re-point: the tombstone pointer itself (D10). */
 export const CONTACT_REFERENCE_EXEMPTIONS: readonly { table: string; column: string }[] = [
   { table: 'contacts', column: 'merged_into_id' },

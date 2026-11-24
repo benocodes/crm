@@ -39,6 +39,16 @@ describe('accepted (P1, P2)', () => {
     )
     expect(Object.keys(parseExtend({ deals: { fields } }, ['projects__c']).deals!)).toHaveLength(5)
   })
+  it('a reference to contacts on companies, deals and tasks ([[CORE556]] D21)', () => {
+    for (const object of ['companies', 'deals', 'tasks'])
+      expect(
+        (parseExtend({ [object]: { fields: { c__c: { kind: 'reference', target: 'contacts' } } } }) as any)[object]
+          .c__c,
+      ).toEqual({
+        kind: 'reference',
+        target: 'contacts',
+      })
+  })
   it('an empty extend and an object with no fields', () => {
     expect(parseExtend({})).toEqual({})
     expect(parseExtend({ tasks: { fields: {} } })).toEqual({ tasks: {} })
@@ -121,9 +131,9 @@ describe('refused by rule (matrix)', () => {
     ],
     ['unique on a boolean', field({ kind: 'boolean', unique: true }), 'unique_kind', 'extend.contacts.fields.a__c'],
     [
-      'a reference to contacts',
+      'a contacts field that references contacts (its merge re-point would restamp the survivor, CORE556 P3)',
       field({ kind: 'reference', target: 'contacts' }),
-      'reference_contacts_later',
+      'reference_contacts_self',
       'extend.contacts.fields.a__c',
     ],
     [

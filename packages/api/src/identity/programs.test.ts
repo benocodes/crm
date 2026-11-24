@@ -5,7 +5,9 @@ import { ScopeSet } from '../scopes.js'
 import type { PreparedEnv } from '../storage/definition.js'
 import { createOperation } from '../storage/crud.js'
 import { identities } from '../resources/identities.js'
-import { mergeOperation, mergeReadKeys } from './merge.js'
+import { createBuiltIns } from '../resources/built-ins.js'
+import { defineCustomObject } from '../custom/resource.js'
+import { CONTACT_REFERENCES, contactReferencesOf, mergeOperation, mergeReadKeys } from './merge.js'
 import { resolveOperation } from './resolve.js'
 
 // Pure compilation of the identity programs (CORE36 Step 1.4): no database.
@@ -119,6 +121,39 @@ describe.each(['postgres', 'd1'] as const)(
         [mergeReadKeys.refs(0)]: Array.from({ length: n }, (_, i) => identityRow(i + 1)),
       }).statements.length
 
+    // [[CORE556]] D21: a catalog entry derived from a definition (an extension field on tasks, a custom object's field) keeps the unit's statement count independent of the data.
+    const set = createBuiltIns({ tasks: { c__c: { kind: 'reference', target: 'contacts' } } })
+    const projects = defineCustomObject('projects__c', { fields: { c: { kind: 'reference', target: 'contacts' } } })
+    const definitions = [set.companies, set.deals, set.tasks, projects]
+    const derivedCount = (n: number) => {
+      const first = CONTACT_REFERENCES.length
+      return compileOperation(
+        mergeOperation(env(), SURVIVOR, SOURCE, { contacts: set.contacts, definitions }),
+        dialect,
+        {
+          [mergeReadKeys.survivor]: contactRow(SURVIVOR),
+          [mergeReadKeys.source]: contactRow(SOURCE),
+          [mergeReadKeys.refs(first)]: Array.from({ length: n }, (_, i) => ({
+            id: uuid(i + 500),
+            organization_id: ORG,
+            title: `t${i}`,
+            contact__c: SOURCE,
+            created_by: USER,
+            created_at: AT,
+            updated_at: AT,
+            __stamp: AT,
+          })),
+        },
+      ).statements.length
+    }
+    it('merge: the derived entries are in the catalog and compile to the same number of statements for 1 and 10 rows', () => {
+      expect(contactReferencesOf(definitions).map((r) => `${r.table}.${r.column}`)).toEqual([
+        'tasks.contact__c',
+        'projects__c.c',
+      ])
+      expect(derivedCount(1)).toBeGreaterThan(mergeCount(1))
+      expect(derivedCount(10)).toBe(derivedCount(1))
+    })
     it('merge: a source with 1 identity and with 10 identities compile to the same number of statements', () => {
       expect(mergeCount(1)).toBeGreaterThan(0)
       expect(mergeCount(10)).toBe(mergeCount(1))
