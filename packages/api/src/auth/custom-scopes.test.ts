@@ -17,7 +17,7 @@ const declared = createVibaseRegistry({ definitions: [projectsDefinition()] }).d
 const MINE = ['projects__c:read', 'projects__c:request_approval', 'projects__c:write']
 
 describe('the rule', () => {
-  it('has no SCOPE_POLICY rows: the policy table stays the vault\'s own', () => {
+  it("has no SCOPE_POLICY rows: the policy table stays the vault's own", () => {
     expect(Object.keys(SCOPE_POLICY).filter((k) => k.includes('__c'))).toEqual([])
   })
   it('a member holds all three, an owner holds them too', () => {
@@ -35,7 +35,7 @@ describe('the rule', () => {
       'projects__c:write',
     ])
   })
-  it('a newly registered client\'s default grant contains them', () => {
+  it("a newly registered client's default grant contains them", () => {
     for (const s of MINE) expect(defaultGrantScopes(declared)).toContain(s)
   })
   it('a grant stored before the object existed has none of them: the rule adds nothing to a list', () => {

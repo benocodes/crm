@@ -30,14 +30,29 @@ const create = op({
 
 describe('the command of a custom object', () => {
   it('is the object key, untranslated, for every action', () => {
-    expect(deriveCommand(create)).toMatchObject({ resource: 'projects__c', action: 'create', operationId: 'projects__c.create' })
-    expect(deriveCommand(op({ id: 'projects__c.get', method: 'get', path: '/api/v1/projects__c/{id}', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }] }))).toMatchObject({
+    expect(deriveCommand(create)).toMatchObject({
+      resource: 'projects__c',
+      action: 'create',
+      operationId: 'projects__c.create',
+    })
+    expect(
+      deriveCommand(
+        op({
+          id: 'projects__c.get',
+          method: 'get',
+          path: '/api/v1/projects__c/{id}',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        }),
+      ),
+    ).toMatchObject({
       resource: 'projects__c',
       action: 'get',
     })
   })
   it('a plain resource name still turns _ into -', () => {
-    expect(deriveCommand(op({ id: 'blocked_senders.list', method: 'get', path: '/meta/v1/blocked-senders' }))).toMatchObject({
+    expect(
+      deriveCommand(op({ id: 'blocked_senders.list', method: 'get', path: '/meta/v1/blocked-senders' })),
+    ).toMatchObject({
       resource: 'blocked-senders',
       action: 'list',
     })
@@ -67,7 +82,9 @@ describe('the flags', () => {
         parameters: [{ name: 'x__c', in: 'query', required: false, schema: { type: 'integer' } }],
       }),
     )
-    expect(list.flags).toEqual([expect.objectContaining({ name: 'x__c', prop: 'x__c', where: 'query', type: 'integer' })])
+    expect(list.flags).toEqual([
+      expect.objectContaining({ name: 'x__c', prop: 'x__c', where: 'query', type: 'integer' }),
+    ])
     const withBody = deriveCommand(
       op({
         id: 'contacts.update',
@@ -80,7 +97,11 @@ describe('the flags', () => {
     expect(withBody.flags.map((f) => [f.name, f.prop])).toEqual([['referral_source__c', 'referral_source__c']])
   })
   it('the invocation maps --start-date and --x__c to their properties', async () => {
-    const created = await parseInvocation(deriveCommand(create), ['--name', 'Site', '--start-date', '2026-12-01T00:00:00Z', '--budget', '5'], io)
+    const created = await parseInvocation(
+      deriveCommand(create),
+      ['--name', 'Site', '--start-date', '2026-12-01T00:00:00Z', '--budget', '5'],
+      io,
+    )
     expect(created.body).toEqual({ name: 'Site', start_date: '2026-12-01T00:00:00Z', budget: 5 })
     const list = deriveCommand(
       op({

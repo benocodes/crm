@@ -27,7 +27,8 @@ describe('REST', () => {
     expect(paths).toContain(`/api/v1/${PROJECTS_KEY}`)
     expect(paths).toContain(`/api/v1/${PROJECTS_KEY}/{id}`)
     expect(paths.filter((p) => p.includes('--c'))).toEqual([])
-    expect(paths).toContain('/meta/v1/blocked-senders')
+    const meta = (await (await s.app.request('/meta/v1/openapi.json')).json()) as { paths: Record<string, unknown> }
+    expect(Object.keys(meta.paths)).toContain('/meta/v1/blocked-senders')
     expect(resourcePath({ name: PROJECTS_KEY })).toBe(`/${PROJECTS_KEY}`)
     expect(resourcePath({ name: 'blocked_senders' })).toBe('/blocked-senders')
     const made = await s.call(a, 'user', ALL, 'POST', `/api/v1/${PROJECTS_KEY}`, { name: 'x' })
@@ -40,14 +41,17 @@ describe('REST', () => {
       .operations()
       .map((o) => o.name)
       .filter((n) => n.startsWith(PROJECTS_KEY))
-    expect(names.sort()).toEqual(['create', 'delete', 'get', 'list', 'update'].map((x) => `${PROJECTS_KEY}.${x}`).sort())
+    expect(names.sort()).toEqual(
+      ['create', 'delete', 'get', 'list', 'update'].map((x) => `${PROJECTS_KEY}.${x}`).sort(),
+    )
   })
 })
 
 describe('MCP', () => {
   it('the tools are <key>__c_<action> and a call works', async () => {
     const names = deriveTools(registry).map((t) => t.tool.name)
-    for (const action of ['list', 'get', 'create', 'update', 'delete']) expect(names).toContain(`${PROJECTS_KEY}_${action}`)
+    for (const action of ['list', 'get', 'create', 'update', 'delete'])
+      expect(names).toContain(`${PROJECTS_KEY}_${action}`)
     const rpc = async (method: string, params: unknown = {}) =>
       (await (await s.call(a, 'user', ALL, 'POST', '/mcp', { jsonrpc: '2.0', id: 1, method, params })).json()) as any
     const listed = (await rpc('tools/list')).result.tools.map((t: any) => t.name)

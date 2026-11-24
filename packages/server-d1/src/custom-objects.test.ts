@@ -7,7 +7,6 @@ import { bootstrapD1, NOW, openWorkerD1, type WorkerD1, composeD1Worker } from '
 // proposal) and the rail's (the per-minute tick: webhook dispatch reads its event types). Nothing in production passes one yet (T4, #543): this is the composition seam.
 let w: WorkerD1
 let key: string
-let weakKey: string
 const BASE = 'https://w.test'
 const CRED = Buffer.from(Uint8Array.from({ length: 32 }, (_, i) => i + 1)).toString('base64')
 const FULL = [
@@ -41,7 +40,9 @@ const call = async (wk: ReturnType<typeof worker>, method: string, path: string,
   return { status: res.status, body: (await res.json().catch(() => null)) as any }
 }
 const rows = async (sqlText: string) =>
-  ((await (/\bwebhook_/.test(sqlText) ? w.control : w.d1).prepare(sqlText).all()).results ?? []) as Array<Record<string, any>>
+  ((await (/\bwebhook_/.test(sqlText) ? w.control : w.d1).prepare(sqlText).all()).results ?? []) as Array<
+    Record<string, any>
+  >
 
 beforeAll(async () => {
   w = await openWorkerD1()
@@ -55,7 +56,7 @@ beforeEach(async () => {
     await bootstrapD1(
       w.d1,
       { organizationName: 'Acme', agentName: 'bot', authOrgId: 'org_acme', scopes: FULL },
-      { now: NOW, newId: () => uuidv7(NOW) },
+      { now: NOW, newId: () => uuidv7(NOW), definitions: [projectsDefinition()] },
     )
   ).key!
 })
@@ -73,14 +74,12 @@ describe('the app serves the definitions it was given', () => {
     expect((await call(worker(false), 'GET', `/api/v1/${PROJECTS_KEY}`)).status).toBe(404)
   })
   it('an agent whose stored grant predates the object holds none of its scopes', async () => {
-    weakKey = (
-      await bootstrapD1(
-        w.d1,
-        { organizationName: 'Acme', agentName: 'weak', authOrgId: 'org_acme', scopes: ['tasks:read'] },
-        { now: NOW, newId: () => uuidv7(NOW) },
-      )
-    ).key!
-    const refused = await call(worker(), 'GET', `/api/v1/${PROJECTS_KEY}`, undefined, weakKey)
+    // The same key, its stored grant narrowed to a built-in scope: the rule gives it nothing (an owner adds the scopes).
+    await w.d1
+      .prepare('update agents set scopes = ?')
+      .bind(JSON.stringify(['tasks:read']))
+      .run()
+    const refused = await call(worker(), 'GET', `/api/v1/${PROJECTS_KEY}`)
     expect(refused.status).toBe(403)
   })
 })

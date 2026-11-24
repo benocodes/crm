@@ -68,7 +68,10 @@ export function d1Backend(options: { setup?: (d1: D1Like) => Promise<void> } = {
           })
           return byOrg.get(t.organizationId)!.app.request(path, {
             method,
-            headers: { authorization: `Bearer ${token}` },
+            headers: {
+              authorization: `Bearer ${token}`,
+              ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+            },
             body: body === undefined ? undefined : JSON.stringify(body),
           })
         },

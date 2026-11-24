@@ -16,6 +16,7 @@ import { mintControlKey, type BootstrapKeyStore } from './bootstrap.js'
 import { assertAgentGrantable, defaultGrantScopes } from './auth/roles.js'
 import { SYSTEM_PRINCIPAL_READ, systemPrincipalRead, systemPrincipalSteps } from './directory/system-principal.js'
 import { createVibaseRegistry } from './operations.js'
+import type { AnyResource } from './registry.js'
 import { ScopeSet } from './scopes.js'
 
 export type WorkspaceBootstrapResult = {
@@ -126,12 +127,14 @@ export async function bootstrapWorkspace(
     randomBytes?: (n: number) => Uint8Array
     /** Required when `agentName` is given ([[CORE356]] P1, P3): the key is minted on the control plane after the CRM unit. */
     keyStore?: BootstrapKeyStore
+    /** [[CORE315]] D23: the custom objects' definitions, so their scopes are declared and may be granted. Absent: none. */
+    definitions?: readonly AnyResource[]
   } = {},
 ): Promise<WorkspaceBootstrapResult> {
   if (storage.kind !== 'd1') throw new Error('a workspace bootstrap serves a D1 deployment only')
   if (opts.agentName !== undefined && !env.keyStore)
     throw new Error('a bootstrap mints its API key on the control plane: pass the control database (keyStore)')
-  const declared = createVibaseRegistry().declaredScopes()
+  const declared = createVibaseRegistry({ definitions: env.definitions }).declaredScopes()
   const scopes = opts.scopes ? ScopeSet.parse(opts.scopes).toStrings() : defaultGrantScopes(declared)
   for (const s of scopes) if (!declared.includes(s)) throw new Error(`unknown scope: ${s}`)
   assertAgentGrantable(scopes, declared)

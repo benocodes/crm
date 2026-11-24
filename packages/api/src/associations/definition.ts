@@ -1,8 +1,7 @@
 import { z } from 'zod'
-import { COLUMN_KINDS, type ColumnKind } from '@vibase/storage'
 import type { Scope } from '../scopes.js'
 import { readActionOf, scopeResourceOf } from '../resources/define.js'
-import { definePreparedResource, type PreparedResource } from '../storage/definition.js'
+import { columnKindsOf, definePreparedResource, type PreparedResource } from '../storage/definition.js'
 
 /**
  * The `associations` rows as a prepared definition ([[CORE62]] D12): the record, the table and the event name. It is NOT
@@ -60,7 +59,7 @@ export function endpointTypesOf(defs: readonly PreparedResource<any, any>[]): En
   const out = new Map<string, EndpointType>()
   for (const def of defs) {
     if (!def.associable) continue
-    const kinds = COLUMN_KINDS[def.table as keyof typeof COLUMN_KINDS] as Record<string, ColumnKind>
+    const kinds = columnKindsOf(def)
     out.set(def.table, {
       type: def.table,
       read: { resource: scopeResourceOf(def), action: readActionOf(def) },

@@ -29,8 +29,14 @@ beforeEach(async () => {
   ;({ a, b } = await s.reset())
 })
 
-const call = (t: ContractTenant, method: string, path: string, body?: unknown, scopes = ALL, actor: 'user' | 'agent' = 'user') =>
-  s.call(t, actor, scopes, method, path, body)
+const call = (
+  t: ContractTenant,
+  method: string,
+  path: string,
+  body?: unknown,
+  scopes = ALL,
+  actor: 'user' | 'agent' = 'user',
+) => s.call(t, actor, scopes, method, path, body)
 const json = async (res: Response) => ({ status: res.status, body: (await res.json().catch(() => null)) as any })
 const make = async (body: Record<string, unknown> = { name: 'Site rebuild' }, t = a) => {
   const r = await json(await call(t, 'POST', PATH, body))
@@ -38,7 +44,12 @@ const make = async (body: Record<string, unknown> = { name: 'Site rebuild' }, t 
   return r.body as Record<string, any>
 }
 const rowsOf = async (t: ContractTenant, sql: string, ...binds: unknown[]) =>
-  ((await dbOf(t).prepare(sql).bind(...binds).all()).results ?? []) as Array<Record<string, any>>
+  ((
+    await dbOf(t)
+      .prepare(sql)
+      .bind(...binds)
+      .all()
+  ).results ?? []) as Array<Record<string, any>>
 
 describe('create, read, update, delete', () => {
   it('creates a record with the declared defaults and the bookkeeping fields', async () => {
@@ -101,7 +112,11 @@ describe('events are written in the same unit as the write, with the actor', () 
     await call(a, 'PATCH', `${PATH}/${p.id}`, { stage: 'done' })
     await call(a, 'DELETE', `${PATH}/${p.id}`)
     const events = await s.eventsOf(p.id)
-    expect(events.map((e) => e.type)).toEqual([`${PROJECTS_KEY}.created`, `${PROJECTS_KEY}.updated`, `${PROJECTS_KEY}.deleted`])
+    expect(events.map((e) => e.type)).toEqual([
+      `${PROJECTS_KEY}.created`,
+      `${PROJECTS_KEY}.updated`,
+      `${PROJECTS_KEY}.deleted`,
+    ])
     expect(events.every((e) => e.actor_id === a.userId && e.resource_type === PROJECTS_KEY)).toBe(true)
     expect(events[0]!.after).toMatchObject({ id: p.id, name: 'one', active: true, stage: 'planned' })
     expect(events[1]!).toMatchObject({ before: { stage: 'planned' }, after: { stage: 'done' } })
@@ -162,7 +177,9 @@ describe('associations and the feed', () => {
     )
     expect(linked.status, JSON.stringify(linked.body)).toBe(201)
     const fromProject = await json(await call(a, 'GET', `/api/v1/associations?type=${PROJECTS_KEY}&id=${p.id}`))
-    expect(fromProject.body.data.map((x: any) => [x.neighbour_type, x.neighbour_id])).toEqual([['companies', company.id]])
+    expect(fromProject.body.data.map((x: any) => [x.neighbour_type, x.neighbour_id])).toEqual([
+      ['companies', company.id],
+    ])
     const embedded = await json(await call(a, 'GET', `${PATH}/${p.id}?include=associations`))
     expect(embedded.status).toBe(200)
     expect(embedded.body.associations.map((x: any) => x.neighbour_id)).toEqual([company.id])

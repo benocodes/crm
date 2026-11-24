@@ -21,7 +21,9 @@ export const crudActions = (def: Named): readonly CrudAction[] => def.operations
 export const scopeResourceOf = (def: Named): string => def.scopeResource ?? def.name
 /** [[API516]] D7: the action that reads the definition's records (default `read`). */
 export const readActionOf = (def: Named): 'read' | 'read_metadata' => def.readAction ?? 'read'
-export const resourcePath = (def: Named): string => '/' + def.name.replaceAll('_', '-')
+/** The REST path of a resource: `_` becomes `-`, except in a custom object's `__c` name, which is never translated ([[CORE315]] D25). */
+export const resourcePath = (def: Named): string =>
+  '/' + (def.name.endsWith('__c') ? def.name : def.name.replaceAll('_', '-'))
 const issues = (e: z.ZodError) => e.issues.map((i) => i.message).join('; ')
 
 /** Parses `input` with a schema, turning a zod failure into `validation_error`. */

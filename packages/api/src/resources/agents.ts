@@ -1,7 +1,7 @@
 import { sql } from 'kysely'
 import { z } from 'zod'
 import { UnitDriftError, codecs, defineOperation, readMaybe, step, unit, type PreparedOperation } from '@vibase/storage'
-import { SCOPE_POLICY, isAgentGrantable, type ScopePolicy } from '../auth/roles.js'
+import { SCOPE_POLICY, isAgentGrantable, isCustomScope, type ScopePolicy } from '../auth/roles.js'
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
 import { columnsOf, receipt, resultStep, toRecord, updateOperation } from '../storage/crud.js'
@@ -34,9 +34,15 @@ export type AgentRecord = z.infer<typeof agentRecord>
  * Validates scopes for an agent ([[CORE3]] D9): every one must be declared and agent-grantable. The first
  * offender in input order decides the error. Returns the de-duplicated, sorted list.
  */
-export function normalizeAgentScopes(scopes: readonly string[], policy: ScopePolicy = SCOPE_POLICY): string[] {
+export function normalizeAgentScopes(
+  scopes: readonly string[],
+  policy: ScopePolicy = SCOPE_POLICY,
+  declared: readonly string[] = [],
+): string[] {
   for (const s of scopes) {
-    if (!Object.hasOwn(policy, s)) throw new ApiError(400, 'unknown_scope', `unknown scope: ${s}`)
+    // [[CORE315]] D24: a custom object's scope is known when the registry declares it (the caller's own scopes, an owner's, are every declared scope).
+    if (!Object.hasOwn(policy, s) && !(isCustomScope(s) && declared.includes(s)))
+      throw new ApiError(400, 'unknown_scope', `unknown scope: ${s}`)
     if (!isAgentGrantable(s, policy))
       throw new ApiError(400, 'scope_not_grantable', `scope not grantable to an agent: ${s}`)
   }
@@ -76,8 +82,11 @@ export const agents = withColumnFilters(
           disabled: z.boolean(),
         })
         .partial(),
+      // The hook has no environment: it sorts and de-duplicates, and takes a custom object's scope on its grammar. `agents.create` and `agents.update` (the overrides) have already checked every scope against the registry's declared ones.
       prepare: ({ values }) =>
-        Array.isArray(values.scopes) ? { scopes: normalizeAgentScopes(values.scopes as string[]) } : {},
+        Array.isArray(values.scopes)
+          ? { scopes: normalizeAgentScopes(values.scopes as string[], SCOPE_POLICY, values.scopes as string[]) }
+          : {},
       // Disabling twice keeps the first timestamp; the stamp is the unit's clock, never the database's (D2).
       computed: ({ eb, values, now }) => {
         if (values.disabled === true)
@@ -104,6 +113,9 @@ const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.
  */
 function planAgentUpdate(env: PreparedEnv, input: { id: string; body: unknown }): PreparedOperation<AgentRecord> {
   const values = prepareUpdate(agents, env.actor, input.body)
+  // [[CORE315]] D24: a full scope list is checked against the declared scopes (an owner holds every one) before the generic update's hook sorts it.
+  if (Array.isArray(values.scopes))
+    normalizeAgentScopes(values.scopes as string[], SCOPE_POLICY, env.scopes.toStrings())
   const hasAdd = 'add_scopes' in values
   const hasRemove = 'remove_scopes' in values
   if (!hasAdd && !hasRemove) return updateOperation(agents, env, input.id, input.body) as PreparedOperation<AgentRecord>
@@ -120,7 +132,7 @@ function planAgentUpdate(env: PreparedEnv, input: { id: string; body: unknown })
   const overlap = add.find((s) => remove.has(s))
   if (overlap !== undefined)
     throw new ApiError(400, 'validation_error', `add_scopes and remove_scopes both name ${overlap}`)
-  const added = normalizeAgentScopes(add)
+  const added = normalizeAgentScopes(add, SCOPE_POLICY, env.scopes.toStrings())
   const touchesOther = 'name' in values || 'disabled' in values
   return updateOperation(agents, env, input.id, input.body, (before) => {
     const next = [...new Set([...before.scopes, ...added])].filter((s) => !remove.has(s)).sort()
@@ -166,7 +178,7 @@ export function updateAgentOperation(
  */
 export function createAgentOperation(env: PreparedEnv, input: unknown): PreparedOperation<AgentRecord> {
   const values = prepareCreate(agents, env.actor, input)
-  const scopes = normalizeAgentScopes(values.scopes as string[])
+  const scopes = normalizeAgentScopes(values.scopes as string[], SCOPE_POLICY, env.scopes.toStrings())
   const id = env.newId()
   const eventId = env.newId()
   const at = codecs.timestamp.write(env.now)

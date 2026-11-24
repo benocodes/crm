@@ -19,6 +19,7 @@ import { assertAgentGrantable, defaultGrantScopes } from './auth/roles.js'
 import { ApiError } from './errors.js'
 import { normalizeIdentityValue } from './identity/normalize.js'
 import { createVibaseRegistry } from './operations.js'
+import type { AnyResource } from './registry.js'
 import { ScopeSet } from './scopes.js'
 
 export type BootstrapResult = { organizationId: string; userId: string; agentId: string; apiKeyId: string; key: string }
@@ -220,12 +221,14 @@ export async function bootstrap(
     randomBytes?: (n: number) => Uint8Array
     /** Required on every engine ([[CORE356]] P1, P3; [[CORE329]] P3, [[CORE259]] D17): the key is minted on the control plane after the CRM unit. */
     keyStore?: BootstrapKeyStore
+    /** [[CORE315]] D23: the custom objects' definitions, so their scopes are declared and may be granted. Absent: none. */
+    definitions?: readonly AnyResource[]
   } = {},
 ): Promise<BootstrapResult> {
   // P3: refused before either store is written, on every engine (no CRM `api_keys` exists, [[CORE329]]).
   if (!env.keyStore)
     throw new Error('bootstrap mints its API key on the control plane: pass the control database (keyStore)')
-  const declared = createVibaseRegistry().declaredScopes()
+  const declared = createVibaseRegistry({ definitions: env.definitions }).declaredScopes()
   const scopes = opts.scopes ? ScopeSet.parse(opts.scopes).toStrings() : defaultGrantScopes(declared)
   for (const s of scopes) if (!declared.includes(s)) throw new Error(`unknown scope: ${s}`)
   assertAgentGrantable(scopes, declared)

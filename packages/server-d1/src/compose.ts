@@ -50,6 +50,7 @@ import {
   type ObjectStore,
   type R2BucketLike,
   type RateLimiter,
+  type AnyResource,
   type Registry,
   type StreamPrimitives,
   type TransportRegistry,
@@ -290,6 +291,11 @@ export function composeD1Worker(
   deps: {
     fetch?: typeof fetch /** Node tests only ([[AGT8]] D52): operations registered before the queue's, and the transports the runner resolves. The Worker passes neither. */
     operations?: (registry: Registry) => void
+    /**
+     * [[CORE315]] D23: the custom objects' definitions (`defineCustomObject`), ONE dependency handed to every registry this composition builds: the app's, the rail's and the one that lists the declared scopes. Nothing in production passes
+     * any yet (the extensions file is attached by T4, #543): the Worker's entry builds none.
+     */
+    definitions?: readonly AnyResource[]
     transports?: TransportRegistry /** Node tests only: workerd's stream primitives are absent there. */
     streams?: StreamPrimitives
     clock?: () => Date
@@ -414,7 +420,7 @@ export function composeD1Worker(
         : undefined,
     cliClientId,
     publishableKey,
-    declaredScopes: createVibaseRegistry().declaredScopes(),
+    declaredScopes: createVibaseRegistry({ definitions: deps.definitions }).declaredScopes(),
   }
 
   const nowMs = deps.nowMs ?? (() => Date.now())
@@ -625,6 +631,7 @@ export function composeD1Worker(
       objects: env.BODIES ? r2ObjectStore(env.BODIES) : undefined,
       executions: { transports: transportsFor(binding) },
       ...(deps.operations ? { extraOperations: deps.operations } : {}),
+      ...(deps.definitions ? { definitions: deps.definitions } : {}),
     })
 
   async function ensure(): Promise<App | undefined> {
@@ -736,7 +743,10 @@ export function composeD1Worker(
       console.log(`[cron] ${controller.cron}: skipped, ${found.why}`)
       return
     }
-    railRegistry ??= createVibaseRegistry(deps.operations ? { operations: deps.operations } : {})
+    railRegistry ??= createVibaseRegistry({
+      ...(deps.operations ? { operations: deps.operations } : {}),
+      ...(deps.definitions ? { definitions: deps.definitions } : {}),
+    })
     let failure: unknown
     try {
       const out = await railTick({
@@ -1043,7 +1053,10 @@ export function composeD1Worker(
           )
         if (ready) return await ready.fetch(req, undefined, ctx as never)
         if (spec) {
-          cold ??= createApp({ storage: () => NO_UNITS })
+          cold ??= createApp({
+            storage: () => NO_UNITS,
+            ...(deps.definitions ? { definitions: deps.definitions } : {}),
+          })
           return await cold.fetch(req)
         }
         return json(NOT_INITIALISED, 503)

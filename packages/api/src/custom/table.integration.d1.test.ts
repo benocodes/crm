@@ -89,7 +89,10 @@ describe('the generated table', () => {
       { table: 'principals', from: 'created_by', to: 'id', on_delete: 'NO ACTION' },
       { table: 'organizations', from: 'organization_id', to: 'id', on_delete: 'CASCADE' },
     ])
-    const indexes = await all<{ name: string }>(`SELECT name FROM pragma_index_list(?) WHERE origin = 'c'`, PROJECTS_KEY)
+    const indexes = await all<{ name: string }>(
+      `SELECT name FROM pragma_index_list(?) WHERE origin = 'c'`,
+      PROJECTS_KEY,
+    )
     expect(indexes).toHaveLength(1)
     const cols = await all<{ name: string }>(`SELECT name FROM pragma_index_info(?) ORDER BY seqno`, indexes[0]!.name)
     expect(cols.map((c) => c.name)).toEqual(['organization_id', 'id'])
@@ -152,10 +155,13 @@ describe('no core column or table ends in __c (D9)', () => {
       PROJECTS_KEY,
     )
     expect(tables.filter((t) => t.name.endsWith('__c'))).toEqual([])
-    const columns = await all<{ table_name: string; name: string }>(
-      `SELECT m.name AS table_name, c.name FROM sqlite_master m, pragma_table_info(m.name) c WHERE m.type = 'table' AND m.name <> ? AND c.name LIKE '%\\__c' ESCAPE '\\'`,
+    const columns: string[] = []
+    for (const { name } of await all<{ name: string }>(
+      `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name <> ?`,
       PROJECTS_KEY,
-    )
+    ))
+      for (const c of await all<{ name: string }>(`SELECT name FROM pragma_table_info(?)`, name))
+        if (c.name.endsWith('__c')) columns.push(`${name}.${c.name}`)
     expect(columns).toEqual([])
   })
   it('holds for the column inventory the storage layer declares', async () => {

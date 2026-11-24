@@ -16,7 +16,7 @@ import { assertNeighbours, endpointTypesOf } from './associations/definition.js'
 import { associationOperations } from './associations/operations.js'
 import { schemaOperations } from './schema/operations.js'
 import { eventOperations } from './events/operations.js'
-import { Registry } from './registry.js'
+import { Registry, type AnyResource } from './registry.js'
 import { agents } from './resources/agents.js'
 import { companies } from './resources/companies.js'
 import { companyFiles } from './resources/company-files.js'
@@ -58,7 +58,8 @@ export function createVibaseRegistry(
     invitations?: InvitationsRuntime | null /** [[CORE288]] P1, P2: the membership writes' control-plane port; absent or null: they answer `501 provider_not_configured`. The registry has them all the same. */
     members?: MembersRuntime | null /** [[CORE261]] P1, P5: the audit log's read port; absent or null: `audit.list` answers `501 provider_not_configured`. The registry has it all the same. */
     audit?: AuditRuntime | null /** [[CORE351]] P5: the control-plane store of the four `api_keys.*` operations; absent or null: they answer `501 provider_not_configured`. The registry has them all the same. */
-    apiKeys?: ApiKeyStorePort | null
+    apiKeys?: ApiKeyStorePort | null /** [[CORE315]] D23: the custom objects' definitions (`defineCustomObject`), registered before the queue's so `action_requests.create` lists their writes. Absent or empty: the registry of every deployment without one. */
+    definitions?: readonly AnyResource[]
   } = {},
 ): Registry {
   const registry = new Registry()
@@ -100,6 +101,8 @@ export function createVibaseRegistry(
   for (const op of identityOperations()) registry.register(op)
   for (const op of accountOperations()) registry.register(op)
   options.operations?.(registry)
+  // [[CORE315]] D23: before the queue's operations, like every proposable one (the `operation` enum of `action_requests.create` lists what is registered by then).
+  for (const def of options.definitions ?? []) registry.registerResource(def)
   registry.register(messageSendOperation())
   // [[AGT8]] D33: last, because the `operation` enum of `action_requests.create` lists the proposal-eligible operations registered before it.
   registry.registerResource(actionRequests)

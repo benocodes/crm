@@ -108,3 +108,7 @@ export {
   type TurnstileVerifier,
 } from './forms/ingress.js'
 export * from './forms/turnstile.js'
+// [[CORE315]]: custom objects declared as data, and the definition they become.
+export * from './custom/declaration.js'
+export * from './custom/ddl.js'
+export * from './custom/resource.js'

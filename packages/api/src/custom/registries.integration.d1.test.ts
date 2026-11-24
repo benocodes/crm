@@ -48,7 +48,7 @@ describe('P3: no declarations, no change', () => {
 })
 
 describe('no module-level state', () => {
-  it('building registries leaves the storage layer\'s column inventory as it was', () => {
+  it("building registries leaves the storage layer's column inventory as it was", () => {
     const before = JSON.stringify(COLUMN_KINDS)
     createVibaseRegistry({ definitions: [projectsDefinition(), defineCustomObject('tickets__c', TICKETS as never)] })
     expect(JSON.stringify(COLUMN_KINDS)).toBe(before)
@@ -97,13 +97,23 @@ describe('two registries in one process serve only their own', () => {
   it('each serves its own object, with its own fields, and 404s the other', async () => {
     const p = await one.call(a1, 'user', projects.declaredScopes(), 'POST', '/api/v1/projects__c', { name: 'P' })
     expect(p.status).toBe(201)
-    const t = await two.call(a2, 'user', tickets.declaredScopes(), 'POST', '/api/v1/tickets__c', { subject: 'S', priority: 2 })
+    const t = await two.call(a2, 'user', tickets.declaredScopes(), 'POST', '/api/v1/tickets__c', {
+      subject: 'S',
+      priority: 2,
+    })
     expect(t.status).toBe(201)
     expect(await t.json()).toMatchObject({ subject: 'S', priority: 2 })
     expect((await one.call(a1, 'user', projects.declaredScopes(), 'GET', '/api/v1/tickets__c')).status).toBe(404)
     expect((await two.call(a2, 'user', tickets.declaredScopes(), 'GET', '/api/v1/projects__c')).status).toBe(404)
     // the field of the other registry's object is not a field here
-    expect((await one.call(a1, 'user', projects.declaredScopes(), 'POST', '/api/v1/projects__c', { name: 'P', subject: 's' })).status).toBe(400)
+    expect(
+      (
+        await one.call(a1, 'user', projects.declaredScopes(), 'POST', '/api/v1/projects__c', {
+          name: 'P',
+          subject: 's',
+        })
+      ).status,
+    ).toBe(400)
   })
   it('each registry lists only its own scopes', () => {
     expect(projects.declaredScopes().some((x) => x.startsWith('tickets__c:'))).toBe(false)

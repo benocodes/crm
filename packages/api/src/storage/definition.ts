@@ -174,8 +174,8 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
   readonly eventName: string
   readonly table: T
   /**
-   * [[CORE329]] P4, set only by `defineGrammarResource`: the column kinds of a list grammar whose table is NOT in the CRM schema (the control plane's `api_keys`). Absent on every CRM definition, whose kinds are `COLUMN_KINDS[table]`.
-   * Only the list parameters, sorts, filters and shapes read it; nothing generated for such a definition may run against the CRM database.
+   * The column kinds of a table that is NOT in `COLUMN_KINDS`. Absent on every built-in definition, whose kinds are `COLUMN_KINDS[table]`. Set by `defineGrammarResource` ([[CORE329]] P4: the control plane's `api_keys`; only the list
+   * parameters, sorts, filters and shapes read it, and nothing generated for it may run against the CRM database) and by `defineCustomObject` ([[CORE315]] D23: a custom object's table, which the generic CRUD does run).
    */
   readonly columnKinds?: Readonly<Record<string, ColumnKind>>
   /** The public record. Its keys are the projection; none may be a secret column. */
@@ -422,8 +422,8 @@ export const columnKindsOf = (def: { table: Table; columnKinds?: Readonly<Record
   def.columnKinds ?? (COLUMN_KINDS[def.table] as Readonly<Record<string, ColumnKind>>)
 
 /** Whether rows of the definition's table are soft-deleted: it has a `deleted_at` column (CORE40 P4). */
-export const softDeletes = (def: { table: Table }): boolean =>
-  'deleted_at' in (COLUMN_KINDS as Record<string, Record<string, unknown>>)[def.table]!
+export const softDeletes = (def: { table: Table; columnKinds?: Readonly<Record<string, ColumnKind>> }): boolean =>
+  'deleted_at' in columnKindsOf(def)
 
 /** The definition's table as a physical table: `definePreparedResource` rejected any other at creation. */
 export const physicalTable = (def: { table: Table }): PhysicalTable => def.table as PhysicalTable

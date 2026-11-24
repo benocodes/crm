@@ -10,7 +10,7 @@ import {
   serverOrigin,
   type Config,
 } from './config.js'
-import { deriveCommands } from './derive.js'
+import { deriveCommands, kebab } from './derive.js'
 import { discover } from './discovery.js'
 import { CliError, usage } from './errors.js'
 import { commandHelp, resourceHelp, topHelp } from './help.js'
@@ -136,7 +136,7 @@ async function main(argv: string[], deps: Deps): Promise<number> {
   const cacheDir = cacheDirPath(deps)
   let found = await discover(conn.server, deps, { cacheDir, refresh: g.refresh })
   const lookup = (cmds: Command[]) =>
-    cmds.find((c) => c.resource === words[0]!.replace(/_/g, '-') && c.action === (words[1] ?? '').replace(/_/g, '-'))
+    cmds.find((c) => c.resource === kebab(words[0]!) && c.action === kebab(words[1] ?? ''))
   let commands = deriveCommands(found.ops)
 
   if (words.length === 0) {
@@ -174,7 +174,7 @@ async function main(argv: string[], deps: Deps): Promise<number> {
     return tail(list, rest, credential, deps)
   }
   if (words.length === 1 || g.help) {
-    const resource = words[0]!.replace(/_/g, '-')
+    const resource = kebab(words[0]!)
     let of = commands.filter((c) => c.resource === resource)
     // A stale cache may predate the resource: refresh once before deciding it does not exist, so one word answers as on a fresh cache.
     if (words.length === 1 && of.length === 0 && !found.fresh) {
