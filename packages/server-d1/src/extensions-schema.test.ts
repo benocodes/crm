@@ -13,6 +13,12 @@ describe('vibase-extensions.schema.json', () => {
     expect(s.properties.version).toEqual({ type: 'number', const: 1 })
     expect(s.additionalProperties).toBe(false)
     expect(s.required).toEqual(expect.arrayContaining(['version', 'objects']))
-    expect(Object.keys(s.properties).sort()).toEqual(['$schema', 'objects', 'version'])
+    expect(Object.keys(s.properties).sort()).toEqual(['$schema', 'extend', 'objects', 'version'])
+  })
+  it('accepts the sample extend file structurally and names the four objects', () => {
+    const s = extensionsJsonSchema() as any
+    expect(s.required).not.toContain('extend')
+    expect(JSON.stringify(s.properties.extend)).toContain('contacts')
+    expect(JSON.stringify(s.properties.extend)).toContain('tasks')
   })
 })

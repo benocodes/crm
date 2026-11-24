@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { DeclarationError, parseExtensionsFile } from '../index.js'
+import { DeclarationError } from '../index.js'
 import { parseExtend } from './extend.js'
 
-// [[CORE555]] P1, P2: the `extend` section's validator. One case per rule; tests assert the rule code and path, not the sentence. The envelope still refuses `extend` (P7).
+// [[CORE555]] P1, P2: the `extend` section's validator. One case per rule; tests assert the rule code and path, not the sentence.
 const field = (f: Record<string, unknown>) => ({ contacts: { fields: { a__c: f } } })
 const refusal = (input: unknown, custom: string[] = []): DeclarationError => {
   try {
@@ -183,15 +183,4 @@ describe('refused by rule (matrix)', () => {
       const e = refusal(input)
       expect({ rule: e.rule, path: e.path }).toEqual({ rule, path })
     })
-})
-
-describe('dormant (P7)', () => {
-  it('the file envelope still refuses extend, with its own code', () => {
-    try {
-      parseExtensionsFile(JSON.stringify({ version: 1, objects: {}, extend: { contacts: { fields: {} } } }))
-      throw new Error('accepted')
-    } catch (e) {
-      expect((e as DeclarationError).rule).toBe('extend_later')
-    }
-  })
 })

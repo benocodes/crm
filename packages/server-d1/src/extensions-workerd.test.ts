@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { BASE, bundleWorker, startWorkerd, type Bundle, type Workerd } from '@vibase/auth/test'
-import { defineCustomObject, parseExtensionsFile } from '@vibase/api'
+import { applyExtensions, defineCustomObject, parseExtensionsFile } from '@vibase/api'
 import { createTableStatements } from '@vibase/api'
 import { openControlDb } from '@vibase/storage-d1'
 import { uuidv7 } from '@vibase/storage'
@@ -23,6 +23,20 @@ const WITH_OBJECT = `${JSON.stringify(
   null,
   2,
 )}\n`
+const WITH_EXTEND = `${JSON.stringify(
+  {
+    version: 1,
+    objects: {},
+    extend: {
+      contacts: {
+        fields: { u2c_tier__c: { kind: 'enum', values: ['standard', 'gold'], required: true, default: 'standard' } },
+      },
+    },
+  },
+  null,
+  2,
+)}\n`
+const INVALID_EXTEND = '{"version":1,"objects":{},"extend":{"contacts":{"fields":{"a__c":{"kind":"money"}}}}}\n'
 const EMPTY = '{"version":1,"objects":{}}\n'
 const INVALID = '{"version":1,"objects":{"projects__c":{"fields":{"x":{"kind":"money"}}}}}\n'
 const SCOPES = [
@@ -33,6 +47,8 @@ const SCOPES = [
   'webhooks:write',
   'schema:read',
   'companies:read',
+  'contacts:read',
+  'contacts:write',
   'events:read',
 ]
 
@@ -61,6 +77,7 @@ async function boot(text: string) {
     definitions = Object.entries(file.objects).map(([k, d]) => defineCustomObject(k, d))
     for (const [k, d] of Object.entries(file.objects))
       await w.d1.batch(createTableStatements(k, d).map((s) => w.d1.prepare(s)))
+    if (file.extend) expect((await applyExtensions(w.d1, {}, file.extend)).refused).toEqual([])
   } catch {
     // an invalid file has no definitions and no tables
   }
@@ -117,6 +134,53 @@ describe('the attached module has an object', () => {
     expect(await w.controlRows('select event_type from webhook_deliveries')).toEqual([
       { event_type: 'projects__c.created' },
     ])
+  })
+})
+
+describe('the attached module extends contacts (CORE561 D12, D28, P2, P5)', () => {
+  it('the entry hands extend to the composition: get and list carry the default, the filter answers, OpenAPI has the field on create and update', async () => {
+    const { w, call, health } = await boot(WITH_EXTEND)
+    // A contact that predates nothing: created through the API, so the required default is served.
+    const made = await call('POST', '/api/v1/contacts', { name: 'Ada' })
+    expect(made.status, JSON.stringify(made.body)).toBe(201)
+    expect((await call('GET', `/api/v1/contacts/${made.body.id}`)).body.u2c_tier__c).toBe('standard')
+    const filtered = await call('GET', '/api/v1/contacts?u2c_tier__c=standard')
+    expect(filtered.status, JSON.stringify(filtered.body)).toBe(200)
+    expect(filtered.body.data).toHaveLength(1)
+    expect((await call('GET', '/api/v1/contacts?u2c_tier__c=gold')).body.data).toHaveLength(0)
+    expect((await call('PATCH', `/api/v1/contacts/${made.body.id}`, { u2c_tier__c: 'gold' })).body.u2c_tier__c).toBe(
+      'gold',
+    )
+    const doc = (await call('GET', '/api/v1/openapi.json')).body
+    const bodyProps = (m: string) =>
+      Object.values(doc.paths as Record<string, any>).flatMap((p: any) =>
+        p[m]?.requestBody ? [p[m].requestBody.content['application/json'].schema] : [],
+      )
+    expect(JSON.stringify(doc.paths['/api/v1/contacts'].post.requestBody)).toContain('u2c_tier__c')
+    expect(JSON.stringify(doc.paths['/api/v1/contacts/{id}'].patch.requestBody)).toContain('u2c_tier__c')
+    void bodyProps
+    expect((await health()).extensions).toEqual({
+      digest: sha256(WITH_EXTEND),
+      objects: [],
+      fields: ['contacts.u2c_tier__c'],
+    })
+    expect(w.logs.join('\n')).not.toMatch(/extensions_invalid/)
+  })
+  it('an invalid extend fails closed: 503 on REST and /mcp, /health 200 with the error', async () => {
+    const { w, call, key, health } = await boot(INVALID_EXTEND)
+    const r = await call('GET', '/api/v1/contacts')
+    expect([r.status, r.body.error.code]).toEqual([503, 'extensions_invalid'])
+    const mcp = (await w.mf.dispatchFetch(`${BASE}/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    })) as unknown as Response
+    expect(mcp.status).toBe(503)
+    expect((await health()).extensions).toEqual({ digest: sha256(INVALID_EXTEND), error: 'extensions_invalid' })
+  })
+  it('an objects-only module reports no fields key (CORE561 group 5)', async () => {
+    const { health } = await boot(WITH_OBJECT)
+    expect(Object.keys((await health()).extensions).sort()).toEqual(['digest', 'objects'])
   })
 })
 

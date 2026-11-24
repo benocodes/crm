@@ -144,6 +144,16 @@ describe('the early answers with an attached module (P5)', () => {
     expect(want).toContain('milestones__c:request_approval')
     expect([...declaredScopesWith(TWO)!]).toEqual(want)
   })
+  it('an extend-only module adds no scope (CORE561 P5): the early answer is the static list, equal to no file', () => {
+    const text = '{"version":1,"objects":{},"extend":{"contacts":{"fields":{"u2c_tier__c":{"kind":"text"}}}}}'
+    expect(declaredScopesWith(text)).toEqual(DECLARED_SCOPES)
+    expect(declaredScopesWith(text)).toEqual(declaredScopesWith(undefined))
+    const req2 = new Request('https://api.test/mcp', { method: 'POST', headers: { origin: ORIGIN } })
+    const withNone = earlyAnswer(req2, env())!
+    const withExtend = earlyAnswer(req2, env(), text)!
+    expect(withExtend.status).toBe(withNone.status)
+    expect(withExtend.headers.get('www-authenticate')).toBe(withNone.headers.get('www-authenticate'))
+  })
   it('no objects, or the default module, is the static list; an unreadable module is undefined', () => {
     expect(declaredScopesWith('{"version":1,"objects":{}}\n')).toEqual(DECLARED_SCOPES)
     expect(declaredScopesWith(undefined)).toEqual(DECLARED_SCOPES)
