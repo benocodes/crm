@@ -113,12 +113,14 @@ const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.
  */
 function planAgentUpdate(env: PreparedEnv, input: { id: string; body: unknown }): PreparedOperation<AgentRecord> {
   const values = prepareUpdate(agents, env.actor, input.body)
-  // [[CORE315]] D24: a full scope list is checked against the declared scopes (an owner holds every one) before the generic update's hook sorts it.
-  if (Array.isArray(values.scopes))
-    normalizeAgentScopes(values.scopes as string[], SCOPE_POLICY, env.scopes.toStrings())
   const hasAdd = 'add_scopes' in values
   const hasRemove = 'remove_scopes' in values
-  if (!hasAdd && !hasRemove) return updateOperation(agents, env, input.id, input.body) as PreparedOperation<AgentRecord>
+  if (!hasAdd && !hasRemove) {
+    // [[CORE315]] D24: a full scope list is checked against the declared scopes (an owner holds every one) before the generic update's hook sorts it.
+    if (Array.isArray(values.scopes))
+      normalizeAgentScopes(values.scopes as string[], SCOPE_POLICY, env.scopes.toStrings())
+    return updateOperation(agents, env, input.id, input.body) as PreparedOperation<AgentRecord>
+  }
   if ('scopes' in values) {
     const named = ['add_scopes', 'remove_scopes'].filter((f) => f in values).join(' and ')
     throw new ApiError(
