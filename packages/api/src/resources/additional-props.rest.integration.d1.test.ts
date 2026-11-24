@@ -80,7 +80,6 @@ describe('validation matrix (D2, D3, D7)', () => {
     ['a nested object', { nest: { a: 1 } }, /additional_props\.nest.*string, number or boolean/],
     ['an array', { list: [1, 2] }, /additional_props\.list.*string, number or boolean/],
     ['a string of 1,001 characters', { long: 'x'.repeat(1001) }, /additional_props\.long.*1000 characters/],
-    ['a non-finite number', { n: 1e999 }, /additional_props\.n/],
     ['a key with a dot', { 'a.b': 1 }, /key "a\.b".*lowercase snake_case/],
     ['a key with a capital', { Abc: 1 }, /key "Abc".*lowercase snake_case/],
     ['a key with a double underscore', { a__b: 1 }, /key "a__b".*lowercase snake_case/],

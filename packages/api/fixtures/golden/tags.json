@@ -79,6 +79,7 @@
             "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
             "name": "Acme",
             "domain": null,
+            "additional_props": {},
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:02:00.000Z",
             "updated_at": "2026-10-22T09:02:00.000Z"
@@ -99,7 +100,8 @@
                 "created_at": "2026-10-22T09:02:00.000Z",
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:02:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "additional_props": {}
               }
             }
           ]
@@ -118,6 +120,7 @@
             "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
             "name": "Untagged",
             "domain": null,
+            "additional_props": {},
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:03:00.000Z",
             "updated_at": "2026-10-22T09:03:00.000Z"
@@ -138,7 +141,8 @@
                 "created_at": "2026-10-22T09:03:00.000Z",
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:03:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "additional_props": {}
               }
             }
           ]
@@ -250,6 +254,7 @@
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
                 "name": "Acme",
                 "domain": null,
+                "additional_props": {},
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "created_at": "2026-10-22T09:02:00.000Z",
                 "updated_at": "2026-10-22T09:02:00.000Z"

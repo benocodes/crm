@@ -29,6 +29,7 @@ import type { PreparedEnv, PreparedResource } from '../storage/definition.js'
 import { associations } from '../associations/definition.js'
 import { operationOf } from './program.js'
 import { touches } from './cascades.js'
+import { fillBag } from '../storage/additional-props.js'
 
 export type ContactReference = {
   /** The prepared definition of the referencing table: its record is the event's `before`/`after`. */
@@ -361,9 +362,15 @@ export function mergeOperation(
       // Fill the survivor's empty fields from the source; never overwrite.
       const fill: Record<string, unknown> = {}
       for (const f of Object.keys(contacts.update!.shape)) {
+        if (f === 'additional_props') continue
         const key = f as 'name' | 'company_id'
         if (survivor[key] === null && source[key] !== null) fill[f] = source[key]
       }
+      // [[CORE318]] D6: the bag fills per key in the same single update (survivor keys kept, source keys in key order, a key that would break the
+      // limits stays on the source); the merge never fails on the bag, and nothing is written when no key fills.
+      const filledBag = fillBag(survivor.additional_props, source.additional_props)
+      if (Object.keys(filledBag).length !== Object.keys(survivor.additional_props).length)
+        fill.additional_props = JSON.stringify(filledBag)
       const contactColumns = columnsOf(contacts)
       const guard = (id: string, stamp: unknown) => [
         sql<SqlBool>`${sql.ref('contacts.id')} = ${id}`,

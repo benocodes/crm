@@ -2563,6 +2563,19 @@
                     "values": null,
                     "exposed": true,
                     "references": null
+                  },
+                  {
+                    "name": "additional_props",
+                    "type": "TEXT",
+                    "kind": "json",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": "'{}'",
+                    "label": "Additional props",
+                    "description": "Extra facts no typed field holds: a flat object of strings, numbers and booleans, {} when empty. Written as a merge patch (a null value removes a key).",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
                   }
                 ],
                 "derived": [],
@@ -3589,6 +3602,19 @@
                       "table": "contacts",
                       "column": "id"
                     }
+                  },
+                  {
+                    "name": "additional_props",
+                    "type": "TEXT",
+                    "kind": "json",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": "'{}'",
+                    "label": "Additional props",
+                    "description": "Extra facts no typed field holds: a flat object of strings, numbers and booleans, {} when empty. Written as a merge patch (a null value removes a key).",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
                   }
                 ],
                 "derived": [
@@ -4053,6 +4079,19 @@
                     "description": "When the row was deleted (soft delete); null while the row is live.",
                     "values": null,
                     "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "additional_props",
+                    "type": "TEXT",
+                    "kind": "json",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": "'{}'",
+                    "label": "Additional props",
+                    "description": "Extra facts no typed field holds: a flat object of strings, numbers and booleans, {} when empty. Written as a merge patch (a null value removes a key).",
+                    "values": null,
+                    "exposed": true,
                     "references": null
                   }
                 ],
@@ -8041,6 +8080,19 @@
                     "description": "When the row was deleted (soft delete); null while the row is live.",
                     "values": null,
                     "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "additional_props",
+                    "type": "TEXT",
+                    "kind": "json",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": "'{}'",
+                    "label": "Additional props",
+                    "description": "Extra facts no typed field holds: a flat object of strings, numbers and booleans, {} when empty. Written as a merge patch (a null value removes a key).",
+                    "values": null,
+                    "exposed": true,
                     "references": null
                   }
                 ],

@@ -47,7 +47,6 @@ const all = async <T = Record<string, unknown>>(sqlText: string, ...binds: unkno
       .all()
   ).results ?? []) as T[]
 
-const base = [ORG, USER, AT, AT]
 const insertRow = (table: (typeof TABLES)[number], rowId: string, extraCols = '', extraVals: unknown[] = []) => {
   const sqls = {
     contacts: `INSERT INTO contacts (id, organization_id, created_by, created_at, updated_at, name${extraCols}) VALUES (?, ?, ?, ?, ?, 'n'${extraVals.map(() => ', ?').join('')})`,

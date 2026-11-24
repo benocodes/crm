@@ -36,6 +36,7 @@ import {
 } from './definition.js'
 import { compileCondition, type Condition } from './column-filters.js'
 import { projectRecord } from './projection.js'
+import { applyBagPatch, type Bag, type BagPatch } from './additional-props.js'
 import { canonicalId, prepareCreate, prepareListQuery, prepareUpdate } from './prepare.js'
 import { encodeCursor, type SortRequest } from '../resources/sort-cursor.js'
 import {
@@ -118,7 +119,12 @@ export function toRecord<R extends { id: string }>(def: PreparedResource<Prepare
 
 /** The columns a write may store: a field that is not a column of the table is a hook input only (CORE40 P5). */
 const columnsOnly = (def: PreparedResource, values: Record<string, unknown>): Record<string, unknown> =>
-  Object.fromEntries(Object.entries(values).filter(([k]) => k in kindsOf(def)))
+  Object.fromEntries(
+    Object.entries(values)
+      .filter(([k]) => k in kindsOf(def))
+      // A json column is written as JSON text on both paths ([[CORE318]]: the D1 runtime passes a plain object through unencoded).
+      .map(([k, v]) => [k, kindsOf(def)[k] === 'json' && v !== null && typeof v !== 'string' ? JSON.stringify(v) : v]),
+  )
 
 const live = (def: PreparedResource, env: PreparedEnv, id?: string) => [
   sql<SqlBool>`${ref(def, 'organization_id')} = ${env.organizationId}`,
@@ -433,7 +439,7 @@ function boundValue(qc: QueryContext, kind: ColumnKind | undefined, value: unkno
   if (value === null || value === undefined) return bind(qc, kind, null)
   if (kind === 'string_array') return bind(qc, kind, value as readonly string[])
   if (kind === 'boolean') return bind(qc, kind, value === true)
-  if (kind === 'json') return bind(qc, kind, JSON.stringify(value))
+  if (kind === 'json') return bind(qc, kind, typeof value === 'string' ? value : JSON.stringify(value))
   if (kind === 'integer') {
     if (typeof value !== 'number') throw new Error(`an integer column needs a number, got ${typeof value}`)
     return bind(qc, kind, value)
@@ -578,7 +584,19 @@ export function updateOperation<R extends { id: string }>(
       if (empty) return unit({ steps: [], events: [], decode: () => before })
       const merged = merge ? merge(before) : {}
       if (merged === null) return unit({ steps: [], events: [], decode: () => before })
-      const stored = { ...prepared, ...merged }
+      // [[CORE318]] D4: the bag patch merges onto the before row read here, the one whose stamp guards the UPDATE (so a race is 409, and a proposal
+      // approved later merges onto the record as it is at execution).
+      const patchOfBag = (prepared as Record<string, unknown>).additional_props as BagPatch | undefined
+      const bag =
+        patchOfBag === undefined
+          ? {}
+          : {
+              additional_props: applyBagPatch(
+                ((before as Record<string, unknown>).additional_props ?? {}) as Bag,
+                patchOfBag,
+              ),
+            }
+      const stored = { ...prepared, ...merged, ...bag }
       if (missingReference(found, referenceReads(def, qc, env, stored))) throw invalidReference()
       refuseConflicts(found, conflictsOf(qc))
       const computed =

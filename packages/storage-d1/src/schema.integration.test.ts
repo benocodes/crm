@@ -92,6 +92,7 @@ describe('the D1 schema slice of CORE35 (C6)', () => {
       created_at: true,
       updated_at: true,
       deleted_at: false,
+      additional_props: true, // [[CORE318]] D1/D14: D1 only; the parked Postgres table has no bag column
     })
   })
 
@@ -328,8 +329,14 @@ describe('the identity model slice (CORE36 C3)', () => {
       created_by: true,
       deleted_at: false,
     }
-    expect(await shape('companies')).toEqual({ ...common, name: true, domain: false })
-    expect(await shape('contacts')).toEqual({ ...common, name: false, company_id: false, merged_into_id: false })
+    expect(await shape('companies')).toEqual({ ...common, name: true, domain: false, additional_props: true })
+    expect(await shape('contacts')).toEqual({
+      ...common,
+      name: false,
+      company_id: false,
+      merged_into_id: false,
+      additional_props: true,
+    })
     expect(await shape('identities')).toEqual({ ...common, kind: true, value: true, contact_id: false, own: true })
   })
 

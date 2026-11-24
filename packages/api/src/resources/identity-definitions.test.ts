@@ -98,6 +98,6 @@ describe('identity definitions', () => {
     expect(() => parseInput(contacts.update!, { merged_into_id: uuid })).toThrow()
   })
   it('fill fields', () => {
-    expect(Object.keys(contacts.update!.shape)).toEqual(['name', 'company_id'])
+    expect(Object.keys(contacts.update!.shape)).toEqual(['name', 'company_id', 'additional_props'])
   })
 })

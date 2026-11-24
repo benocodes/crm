@@ -95,6 +95,7 @@ describe.each(['postgres', 'd1'] as const)(
       name: null,
       company_id: null,
       merged_into_id: null,
+      additional_props: '{}',
       created_by: USER,
       created_at: AT,
       updated_at: AT,

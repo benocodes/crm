@@ -3,6 +3,7 @@ import type { Actor } from '../auth/types.js'
 import { ApiError } from '../errors.js'
 import { parseInput, parseListQuery } from '../resources/define.js'
 import type { SortRequest } from '../resources/sort-cursor.js'
+import { applyBagPatch, type BagPatch } from './additional-props.js'
 import { columnKindsOf, type PreparedResource, type Values } from './definition.js'
 
 // Pure preparation of a write or a list query: validation, the agent-field check and normalization.
@@ -35,7 +36,11 @@ export function prepareCreate(def: PreparedResource, actor: Actor, input: unknow
   if (!def.create) throw new Error(`${def.name} has no create schema`)
   const parsed = parseInput(def.create, input)
   checkAgentFields(def, actor, parsed)
-  return normalize(def, parsed)
+  const values = normalize(def, parsed)
+  // [[CORE318]] D4: on create the bag patch applies to an empty bag, so a key given null is simply absent.
+  if (values.additional_props !== undefined)
+    values.additional_props = applyBagPatch({}, values.additional_props as BagPatch)
+  return values
 }
 
 /** [[CORE130]] D3, D9: a create-only field in an update body is refused by name, before the (strict) update schema sees it. */
