@@ -153,6 +153,40 @@ describe('allowed changes over data', () => {
     expect(r.refused).toEqual([])
     expect(r.indexed.map((i) => i.index)).toEqual(['idx_projects__c_budget_unique'])
   })
+  it('additions to an existing table, applied, leave nothing to plan on a second run; a column added later keeps its kind', async () => {
+    const o = projects()
+    const f = o.projects__c!.fields
+    f.note = { kind: 'text' }
+    f.tier = { kind: 'text', required: true, default: 'std' }
+    f.deal = { kind: 'reference', target: 'deals' }
+    f.budget = { kind: 'integer', unique: true }
+    f.when = { kind: 'timestamp' }
+    f.flag = { kind: 'boolean', default: false }
+    f.size = { kind: 'enum', values: ['s', 'm'] }
+    const first = await applyExtensions(d1, o)
+    expect(first.refused).toEqual([])
+    const before = await schema()
+    expect(await applyExtensions(d1, o)).toEqual({
+      created: [],
+      added: [],
+      indexed: [],
+      archived: [],
+      refused: [],
+      statements: 0,
+    })
+    expect(await schema()).toBe(before)
+    // each added column still reads back as the kind it was added as
+    for (const [name, to] of [
+      ['note', { kind: 'enum', values: ['a'] }],
+      ['when', { kind: 'text' }],
+      ['size', { kind: 'text' }],
+      ['flag', { kind: 'integer', default: 0 }],
+    ] as const) {
+      const changed = projects()
+      Object.assign(changed.projects__c!.fields, o.projects__c!.fields, { [name]: to })
+      expect(rules((await applyExtensions(d1, changed)).refused), name).toContain(`kind_changed:projects__c.${name}`)
+    }
+  })
   it('a new sibling object', async () => {
     const o = { ...projects(), notes__c: { fields: { body: { kind: 'text' as const } } } }
     const r = await applyExtensions(d1, o)

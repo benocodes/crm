@@ -1,6 +1,6 @@
 import type { D1Like } from '@vibase/storage-d1'
 import type { FieldDeclaration, FieldKind, ObjectDeclaration } from './declaration.js'
-import { columnDefinition, createTableStatements } from './ddl.js'
+import { columnDefinition, createTableStatements, ident, literal } from './ddl.js'
 
 // Apply ([[CORE315]] D11, D31, D32; [[CORE542]]): makes a D1 database's `__c` tables match the extensions file. Three parts (P1): `readLiveSchema` turns a D1 binding into a plain snapshot, `planApply` is a pure function from
 // (declarations, snapshot) to the plan, and `applyExtensions` runs the plan: the violation reads first, then the DDL as one batch, and nothing at all when anything is refused (P2). The live schema is the only state (P3):
@@ -71,10 +71,6 @@ export interface ApplyReport {
   /** How many DDL statements ran (0 when anything was refused). */
   statements: number
 }
-
-const q = (name: string): string => `"${name.replaceAll('"', '""')}"`
-const literal = (v: string | number | boolean): string =>
-  typeof v === 'string' ? `'${v.replaceAll("'", "''")}'` : typeof v === 'boolean' ? (v ? '1' : '0') : String(v)
 
 /** The SQL a reader runs (a remote reader runs the same text): the custom tables, then per table its columns and its indexes. */
 export const LIVE_TABLES_SQL = `select name, sql from sqlite_master where type = 'table' and name like '%\\_\\_c' escape '\\' order by name`
@@ -165,7 +161,7 @@ function liveFields(key: string, table: LiveTable): Map<string, LiveField> {
   const out = new Map<string, LiveField>()
   for (const c of table.columns) {
     if (BOOKKEEPING.includes(c.name)) continue
-    const { kind, target } = liveKind(defs.get(c.name) ?? `${q(c.name)} ${c.type}`)
+    const { kind, target } = liveKind(defs.get(c.name) ?? `${ident(c.name)} ${c.type}`)
     out.set(c.name, {
       kind,
       ...(target !== undefined ? { target } : {}),
@@ -181,10 +177,10 @@ const INDEX_NAME = /^CREATE (?:UNIQUE )?INDEX IF NOT EXISTS "((?:[^"]|"")*)"/
 
 /** Rows a new unique index on `field` would refuse: groups of live rows holding one value. Existing column: its own values; a new column with a constant default: every live row holds the default. */
 function violationRead(key: string, field: string, f: FieldDeclaration, isNew: boolean): ViolationRead {
-  const t = q(key)
+  const t = ident(key)
   const sql = isNew
     ? `select ${literal(f.default!)} as value, group_concat(id) as ids from ${t} where deleted_at is null group by organization_id having count(*) > 1`
-    : `select ${q(field)} as value, group_concat(id) as ids from ${t} where deleted_at is null and ${q(field)} is not null group by organization_id, ${q(field)} having count(*) > 1`
+    : `select ${ident(field)} as value, group_concat(id) as ids from ${t} where deleted_at is null and ${ident(field)} is not null group by organization_id, ${ident(field)} having count(*) > 1`
   return { object: key, field, sql }
 }
 
@@ -219,7 +215,7 @@ export function planApply(objects: Record<string, ObjectDeclaration>, live: Live
           )
           continue
         }
-        adds.push(`ALTER TABLE ${q(key)} ADD COLUMN ${columnDefinition(name, f)}`)
+        adds.push(`ALTER TABLE ${ident(key)} ADD COLUMN ${columnDefinition(name, f)}`)
         plan.added.push({ object: key, field: name })
         added++
         if (f.unique === true && f.default !== undefined) plan.reads.push(violationRead(key, name, f, true))

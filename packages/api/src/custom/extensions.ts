@@ -27,7 +27,7 @@ export function extensionsJsonSchema(): Record<string, unknown> {
 
 /** Validates the file's text: size first, then JSON, the envelope, then each declaration (sibling targets across the file). Returns the normalised file or throws a `DeclarationError`. */
 export function parseExtensionsFile(text: string): ExtensionsFile {
-  if (Buffer.byteLength(text, 'utf8') > MAX_FILE_BYTES)
+  if (new TextEncoder().encode(text).length > MAX_FILE_BYTES)
     throw new DeclarationError('file_too_large', `the extensions file is at most ${MAX_FILE_BYTES} bytes`)
   let raw: unknown
   try {

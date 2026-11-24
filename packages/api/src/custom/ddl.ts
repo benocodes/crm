@@ -3,8 +3,8 @@
 // Nothing applies it in production in this cycle (T3, #542); tests run it against their own D1.
 import { TEXT_MAX, type FieldDeclaration, type ObjectDeclaration } from './declaration.js'
 
-const ident = (name: string): string => `"${name.replaceAll('"', '""')}"`
-const literal = (v: string | number | boolean): string =>
+export const ident = (name: string): string => `"${name.replaceAll('"', '""')}"`
+export const literal = (v: string | number | boolean): string =>
   typeof v === 'string' ? `'${v.replaceAll("'", "''")}'` : typeof v === 'boolean' ? (v ? '1' : '0') : String(v)
 
 const UUID_CHECK = (c: string) =>
