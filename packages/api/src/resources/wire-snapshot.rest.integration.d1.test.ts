@@ -46,7 +46,8 @@ function check(name: string, actual: unknown): void {
     mkdirSync(DIR, { recursive: true })
     const prior = existsSync(`${DIR}digests.json`) ? JSON.parse(readFileSync(`${DIR}digests.json`, 'utf-8')) : {}
     writeFileSync(`${DIR}digests.json`, `${JSON.stringify({ ...prior, ...seen }, null, 1)}\n`)
-  } else expect(seen[name], `${name} differs from main`).toBe(JSON.parse(readFileSync(`${DIR}digests.json`, 'utf-8'))[name])
+  } else
+    expect(seen[name], `${name} differs from main`).toBe(JSON.parse(readFileSync(`${DIR}digests.json`, 'utf-8'))[name])
 }
 
 describe('the documents', () => {
@@ -88,7 +89,12 @@ describe('schema.get and the refused inputs', () => {
   it('the error bodies of the fixed refusals, per resource', async () => {
     const pipeline = (await k.call(owner, 'POST', '/meta/v1/pipelines', { name: 'P' })).body.id
     const stage = (
-      await k.call(owner, 'POST', '/meta/v1/pipeline-stages', { pipeline_id: pipeline, name: 'Open', kind: 'open', position: 1 })
+      await k.call(owner, 'POST', '/meta/v1/pipeline-stages', {
+        pipeline_id: pipeline,
+        name: 'Open',
+        kind: 'open',
+        position: 1,
+      })
     ).body.id
     const base: Record<string, Record<string, unknown>> = {
       contacts: { name: 'N' },
@@ -100,7 +106,12 @@ describe('schema.get and the refused inputs', () => {
     const longName: Record<string, number> = { contacts: 501, companies: 501, deals: 201, tasks: 501 }
     const rows: Record<string, string> = {}
     for (const kind of Object.keys(base)) {
-      rows[kind] = (await k.call(owner, 'POST', `/api/v1/${kind}`, { ...base[kind], ...(kind === 'companies' ? { domain: 'a.example' } : {}) })).body.id
+      rows[kind] = (
+        await k.call(owner, 'POST', `/api/v1/${kind}`, {
+          ...base[kind],
+          ...(kind === 'companies' ? { domain: 'a.example' } : {}),
+        })
+      ).body.id
     }
     const cases: Record<string, Array<[string, Record<string, unknown>]>> = {}
     for (const kind of Object.keys(base)) {
