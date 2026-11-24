@@ -69,7 +69,7 @@ A new agent account starts with no permissions. The owner then grants it per-res
 
 ## Status
 
-Vibase is still in alpha, before version 1. We will make every effort to avoid breaking changes. It runs on Cloudflare D1, one database per organisation. The CLI, the REST and MCP interfaces, permissions and approvals, and the Gmail connection are available today. What is coming is under Roadmap below.
+Vibase is still in alpha. We will make every effort to avoid breaking changes. It runs on Cloudflare D1, one database per organisation. The CLI, the REST and MCP interfaces, permissions and approvals, and the Gmail connection are available today. What is coming is under Roadmap below.
 
 ## Roadmap
 
