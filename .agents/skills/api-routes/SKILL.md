@@ -984,6 +984,17 @@ interactive transaction, no `withContext` and no `executor` marker.
   resource record's zod `.describe()` (`src/resources/<name>.ts`) and an update operation's input zod each carry
   text that agents read. A cycle that changes what a field does updates all of them (`rg` the old text); [[CORE417]]
   updated only the catalog and took a review round to fix the other two.
+- **Contacts, companies, deals and tasks are declared once** (`packages/api/src/declarations/<table>.ts`, [[CORE554]]).
+  Their record, create and update schemas, column filters, sorts, update refusals, filter notes and `CATALOG` entries
+  are derived from the declaration (`declarations/builtin.ts`); edit the declaration, never the resource file's zod.
+  A field has two texts: `description` (the `schema.get` catalog) and `apiDescription` (the OpenAPI/MCP `.describe`),
+  because they differ on the wire today. Wire order is not field order: the list's sorts and option-carrying filters
+  come from the declaration's `sorts` and `filterOrder` lists, and a reorder is a wire change. Hand-written hooks
+  (delete overrides, custom filters, derived fields, `prepare`, the deal aggregate) stay in the resource file. A value
+  both a declaration and a hook need (an enum's values) is one exported const tuple beside the declaration
+  (`TASK_STATUSES`, `DEAL_STATUSES`), never a second literal. `drift.integration.d1.test.ts` holds each declaration
+  equal to the D1 migrations, and a test holds its derived kinds equal to `COLUMN_KINDS`. Every other built-in keeps
+  its hand-written definition.
 - **Concrete programs are `Program<T>` plan/build pairs** (`src/identity/program.ts`) with namespaced read
   keys (`resolve:`, `own:`, `merge:`), so [[CORE25]] can compose them later. `resolveProgram`,
   `ensureOwnProgram` and `mergeOperation` are the worked examples. **Composing one program into another**
