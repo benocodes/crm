@@ -30,6 +30,7 @@
               {
                 "name": "action_executions",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Action executions",
                 "description": "The durable run of an operation that talks to the outside world (an enqueued operation), created when a direct call or an approved action request authorises it. Vibase runs it with retries and reconciliation; the row holds its status, final arguments and outcome. Read through action_executions.list and .get, which show you the executions whose operation you may read.",
                 "associable": false,
@@ -572,6 +573,7 @@
               {
                 "name": "action_requests",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Action requests",
                 "description": "A proposed change awaiting review: a registered operation with its arguments, who proposed it and why. A person or agent with write on the target resource approves it (the operation then runs as the approver), rejects it, or the proposer withdraws it.",
                 "associable": false,
@@ -1184,6 +1186,7 @@
               {
                 "name": "agents",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Agents",
                 "description": "Software principals that read Vibase and propose actions, each with a fixed list of scopes and its own API keys.",
                 "associable": false,
@@ -1509,6 +1512,7 @@
               {
                 "name": "associations",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Associations",
                 "description": "Links between any two records of associable tables, stored once and undirected. Each end is a table name plus a record id (there is no foreign key; Vibase checks both ends exist).",
                 "associable": false,
@@ -1687,6 +1691,7 @@
               {
                 "name": "blocked_senders",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Blocked senders",
                 "description": "The workspace blocklist: addresses and domains whose mail no connection captures. Set by a workspace owner and applied to every connection together with each connection's own list; deleted entries stay as history.",
                 "associable": false,
@@ -1916,6 +1921,7 @@
               {
                 "name": "channel_connections",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Connections",
                 "description": "A mailbox connected to Vibase through its owner's Google account, under /meta/v1. Read it and disconnect it; connecting happens in the browser (connections.authorize). Syncing is read from last_synced_at and last_error_code.",
                 "associable": false,
@@ -2340,6 +2346,7 @@
               {
                 "name": "companies",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Companies",
                 "description": "An organisation the workspace deals with. Contacts point at their primary company; further links are associations.",
                 "associable": true,
@@ -2581,6 +2588,7 @@
               {
                 "name": "company_files",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Company files",
                 "description": "Links a file to a company.",
                 "associable": false,
@@ -2822,6 +2830,7 @@
               {
                 "name": "connection_blocked_senders",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Connection blocked senders",
                 "description": "A connection's own blocked addresses and domains, one row each; none by default. They are part of the connection record (blocked_senders), sorted by kind then value, and add to the workspace blocklist for this mailbox only.",
                 "associable": false,
@@ -2935,6 +2944,7 @@
               {
                 "name": "connection_capture_labels",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Connection capture labels",
                 "description": "The Gmail label ids a connection captures, one row each: INBOX and SENT by default, never none. They are part of the connection record (capture_labels), which embeds them sorted; a connection's settings rows stay with it when it is disconnected.",
                 "associable": false,
@@ -3035,6 +3045,7 @@
               {
                 "name": "contact_files",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Contact files",
                 "description": "Links a file to a contact.",
                 "associable": false,
@@ -3276,6 +3287,7 @@
               {
                 "name": "contacts",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Contacts",
                 "description": "A person the organisation deals with. Addresses live in identities.",
                 "associable": true,
@@ -3641,6 +3653,7 @@
               {
                 "name": "deals",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Deals",
                 "description": "A potential sale (also called an opportunity): a name, an optional amount and expected close date, an owner, sitting in one stage of one pipeline. Change the stage with deals.move_stage; link companies and contacts through associations.",
                 "associable": true,
@@ -4102,6 +4115,7 @@
               {
                 "name": "events",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Events",
                 "description": "The outbox: one row per change to a record, written in the same unit as the change. Append-only: a stored event is never changed. Hooks and the agent cursor read it; no operation lists it yet.",
                 "associable": false,
@@ -4267,6 +4281,7 @@
               {
                 "name": "files",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Files",
                 "description": "A stored file (an attachment or an upload). The bytes live in the object store; this row describes them.",
                 "associable": false,
@@ -4502,6 +4517,7 @@
               {
                 "name": "form_allowed_origins",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Form allowed origins",
                 "description": "The browser origins (scheme, host and port, no path) allowed to post to a form, one row each; none by default, which admits no browser origin. Carried in the form record as allowed_origins, replaced whole by forms.create and forms.update.",
                 "associable": false,
@@ -4602,6 +4618,7 @@
               {
                 "name": "form_tags",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Form tags",
                 "description": "The tags a form gives its submitters, one row each; none by default. A tag deleted later keeps its row and is no longer applied. Carried in the form record as tag_ids, replaced whole by forms.create and forms.update.",
                 "associable": false,
@@ -4713,6 +4730,7 @@
               {
                 "name": "forms",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Forms",
                 "description": "A website form the workspace accepts submissions from: its name, the public id a site embeds, whether it is enabled, which submitted field is the email, the phone and the contact's name, and the consent text shown beside it. Each form is also an agent (the row of agents with the same id) that every capture from the form is attributed to; it holds no scopes and no credential. Set up by a workspace owner, signed in; deleted forms stay as history and their public id is never reused.",
                 "associable": false,
@@ -5048,6 +5066,7 @@
               {
                 "name": "identities",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Identities",
                 "description": "An address (email or phone) that resolves to a contact's, to the organisation itself when own, or to nobody yet when unattached (captured but not given a contact).",
                 "associable": false,
@@ -5326,6 +5345,7 @@
               {
                 "name": "interaction_participants",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Interaction participants",
                 "description": "Who took part in an interaction, by identity and role.",
                 "associable": false,
@@ -5474,6 +5494,7 @@
               {
                 "name": "interactions",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Interactions",
                 "description": "Something that happened between the organisation and others, on a timeline. Today each interaction is a message or reaction.",
                 "associable": true,
@@ -5776,6 +5797,7 @@
               {
                 "name": "memberships",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Memberships",
                 "description": "Which users belong to the organisation, and with which role. Kept in step with the sign-in provider.",
                 "associable": false,
@@ -6001,6 +6023,7 @@
               {
                 "name": "message_attachments",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Message attachments",
                 "description": "The attachments of a message, in order, with the state of fetching each file.",
                 "associable": false,
@@ -6266,6 +6289,7 @@
               {
                 "name": "messages",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Messages",
                 "description": "One captured message (or reaction) in a thread. The body is not in the database: content_key points at stored content.",
                 "associable": false,
@@ -6634,6 +6658,7 @@
               {
                 "name": "notes",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Notes",
                 "description": "A Markdown note: research, context or a record of a conversation. A note belongs to nothing by itself; link it to other records through associations.",
                 "associable": true,
@@ -6853,6 +6878,7 @@
               {
                 "name": "organizations",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Organizations",
                 "description": "The organisation this workspace database belongs to. A D1 deployment holds exactly one.",
                 "associable": false,
@@ -6952,6 +6978,7 @@
               {
                 "name": "pipeline_stages",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Pipeline stages",
                 "description": "One step of a pipeline. Its kind says whether a deal in it is open, won or lost; its position orders the stages. Configuration under /meta/v1, covered by the pipelines scopes.",
                 "associable": false,
@@ -7235,6 +7262,7 @@
               {
                 "name": "pipelines",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Pipelines",
                 "description": "A named sales process of the organisation, configuration under /meta/v1. It holds ordered stages; deals sit in one of them.",
                 "associable": false,
@@ -7439,6 +7467,7 @@
               {
                 "name": "principals",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Principals",
                 "description": "Everyone and everything that can act and be recorded as an actor: users, agents and the system. Read through the users and agents resources; no operation lists principals directly.",
                 "associable": false,
@@ -7490,6 +7519,7 @@
               {
                 "name": "tags",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Tags",
                 "description": "A named list. Records join a list through associations; a tag holds no members itself.",
                 "associable": true,
@@ -7709,6 +7739,7 @@
               {
                 "name": "tasks",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Tasks",
                 "description": "Something to do, optionally assigned and with a due date. Completion is derived from status.",
                 "associable": true,
@@ -8044,6 +8075,7 @@
               {
                 "name": "threads",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Threads",
                 "description": "A conversation: the messages that belong together, on one channel.",
                 "associable": true,
@@ -8224,6 +8256,7 @@
               {
                 "name": "users",
                 "origin": "built_in",
+                "archived": false,
                 "label": "Users",
                 "description": "People who can sign in. Listed by the users operations (members:read); membership in the organisation is in memberships.",
                 "associable": false,

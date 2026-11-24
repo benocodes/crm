@@ -128,7 +128,9 @@ export const schemaTable = z.object({
   name: z.string(),
   origin: z
     .enum(['built_in', 'custom'])
-    .describe('custom for a table whose name ends __c (a custom object, declared or archived), built_in otherwise.'),
+    .describe(
+      'custom for the table of a custom object (declared, or archived when no declaration describes it), built_in otherwise.',
+    ),
   archived: z
     .boolean()
     .describe(
