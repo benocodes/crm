@@ -5,6 +5,8 @@ import { readMaybe, type ColumnKind, type Table } from '@vibase/storage'
 import type { Kysely } from 'kysely'
 import { ApiError } from '../errors.js'
 import type { AnyResource } from '../registry.js'
+import { additionalPropsInput, additionalPropsRecord } from '../storage/additional-props.js'
+import { withPropertyBag } from '../storage/bag-filter.js'
 import { withColumnFilters } from '../storage/column-filters.js'
 import type { Conflict, PreparedResource, ReferenceTarget } from '../storage/definition.js'
 import {
@@ -65,6 +67,7 @@ export function defineCustomObject(key: string, declaration: ObjectDeclaration):
     created_at: 'timestamp',
     updated_at: 'timestamp',
     deleted_at: 'timestamp',
+    additional_props: 'json',
     ...Object.fromEntries(names.map((n) => [n, KIND_OF[decl.fields[n]!.kind]])),
   }
 
@@ -74,26 +77,33 @@ export function defineCustomObject(key: string, declaration: ObjectDeclaration):
     created_by: z.uuid(),
     created_at: z.string(),
     updated_at: z.string(),
+    additional_props: additionalPropsRecord,
     ...Object.fromEntries(names.map((n) => [n, recordOf(decl.fields[n]!)])),
   })
 
   // Create: a required field with no default must be given; a field with a default takes it when absent; any other is optional and may be null.
-  const createShape = Object.fromEntries(
-    names.map((n) => {
-      const f = decl.fields[n]!
-      const value = inputOf(f)
-      if (f.default !== undefined) return [n, (f.required === true ? value : value.nullable()).default(f.default)]
-      return [n, f.required === true ? value : value.nullable().optional()]
-    }),
-  )
+  const createShape = {
+    ...Object.fromEntries(
+      names.map((n) => {
+        const f = decl.fields[n]!
+        const value = inputOf(f)
+        if (f.default !== undefined) return [n, (f.required === true ? value : value.nullable()).default(f.default)]
+        return [n, f.required === true ? value : value.nullable().optional()]
+      }),
+    ),
+    additional_props: additionalPropsInput.optional(),
+  }
   // Update: every field optional and no defaults, so a patch that does not name a field never resets it.
-  const updateShape = Object.fromEntries(
-    names.map((n) => {
-      const f = decl.fields[n]!
-      const value = inputOf(f)
-      return [n, (f.required === true ? value : value.nullable()).optional()]
-    }),
-  )
+  const updateShape = {
+    ...Object.fromEntries(
+      names.map((n) => {
+        const f = decl.fields[n]!
+        const value = inputOf(f)
+        return [n, (f.required === true ? value : value.nullable()).optional()]
+      }),
+    ),
+    additional_props: additionalPropsInput.optional(),
+  }
 
   // D21: a reference is checked by the generic reference hook (plan read, commit guard and approval all use it): live for a target that soft-deletes, existence only for principals (P3).
   const references = Object.fromEntries(
@@ -130,7 +140,8 @@ export function defineCustomObject(key: string, declaration: ObjectDeclaration):
     ...(uniques.length > 0 ? { conflicts: uniqueConflicts(key, uniques) } : {}),
   }
   // D33: every record field is a column filter of its kind (a reference as a uuid); the custom list declares no sort.
-  return withColumnFilters(def) as unknown as AnyResource
+  // [[CORE549]] D10: the bag filter, a custom filter named `additional_props`.
+  return withPropertyBag(withColumnFilters(def)) as unknown as AnyResource
 }
 
 /** The columns whose `eq` is not served by an index (P1): the bookkeeping columns but `id`, and every declared field that is neither a reference nor unique. */

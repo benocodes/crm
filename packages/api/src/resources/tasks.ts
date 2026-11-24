@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { codecs } from '@vibase/storage'
 import { deleteTaskOperation } from '../identity/cascades.js'
 import { additionalPropsInput, additionalPropsRecord, type Bag } from '../storage/additional-props.js'
+import { withPropertyBag } from '../storage/bag-filter.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
 import { withColumnFilters } from '../storage/column-filters.js'
@@ -64,7 +65,7 @@ const fields = {
 const create = z.strictObject(fields)
 const update = create.partial()
 
-export const tasks = withColumnFilters(
+const tasksBase = withColumnFilters(
   withColumnSorts(
     definePreparedResource({
       surface: 'api',
@@ -109,3 +110,6 @@ export const tasks = withColumnFilters(
     ['due_at', 'title'],
   ),
 )
+
+/** [[CORE549]] D10: the list takes the bag filter, `additional_props=<key>.<condition>`. */
+export const tasks = withPropertyBag(tasksBase)

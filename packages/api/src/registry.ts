@@ -12,6 +12,9 @@ import { aggregateAnswer, aggregateDescription, aggregateParams } from './storag
 import { SORTED_NEXT, sortedQueryFields } from './storage/sort-params.js'
 import {
   aggregateOperation,
+  PROPERTY_KEYS_LIMIT,
+  propertyKeysAnswer,
+  propertyKeysOperation,
   createOperation,
   deleteOperation,
   getOperation,
@@ -450,6 +453,24 @@ export function resourceOperations(
       request: { query: z.object({ ...aggregateParams(def), ...filterFields(def) }) },
       response: { status: 200, schema: aggregateAnswer },
       prepare: (env, input) => aggregateOperation(def, env, input.query),
+    })
+  }
+  // [[CORE549]] D11: `GET <list path>/property-keys` on every definition whose record has the bag, registered BEFORE `get` like `aggregate`.
+  if (actions.has('list') && 'additional_props' in (def.record as z.ZodObject).shape) {
+    ops.push({
+      ...base,
+      name: `${def.name}.property_keys`,
+      ...d1(false),
+      summary: `List the property bag keys in use on ${def.name}`,
+      description:
+        `The keys of additional_props held by live ${def.eventName} records, each with how many records hold it and the JSON types seen (boolean, number, string); never a value. ` +
+        `The most used ${PROPERTY_KEYS_LIMIT} keys, truncated: true when there are more. Reads every live record of the workspace.`,
+      method: 'get',
+      path: `${p}/property-keys`,
+      scope: { resource: s, action: readActionOf(def) },
+      request: { query: z.object({}) },
+      response: { status: 200, schema: propertyKeysAnswer },
+      prepare: (env) => propertyKeysOperation(def, env),
     })
   }
   if (actions.has('get')) {

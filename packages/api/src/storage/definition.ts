@@ -178,6 +178,8 @@ export type CustomFilter = Filter & {
   readonly where: (qc: QueryContext, value: unknown) => Expression<SqlBool>
   /** Scopes the caller needs on top of the list's own to use this filter ([[CORE129]] D12): checked before the query, `403 insufficient_scope` naming the first missing one. */
   readonly requires?: readonly Scope[]
+  /** [[CORE549]]: set when no index serves the filter: discovery reports it `indexed: false` with this reason. Absent: the filter is not measured (`indexed: null`). */
+  readonly cost?: string
 }
 
 /**

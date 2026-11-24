@@ -214,6 +214,7 @@ describe('deals tools (CORE130 D17)', () => {
     expect(named.filter((n) => n.startsWith('deals_'))).toEqual([
       'deals_list',
       'deals_aggregate',
+      'deals_property_keys',
       'deals_get',
       'deals_create',
       'deals_update',
