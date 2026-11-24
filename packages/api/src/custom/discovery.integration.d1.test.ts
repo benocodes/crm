@@ -7,7 +7,12 @@ import { ScopeSet } from '../scopes.js'
 import { describeColumnFilter, parseCondition, type ColumnFilterSpec } from '../storage/column-filters.js'
 import { FILTER_EXEMPT_LISTS, STATED_FILTER_COSTS } from '../storage/filter-costs.js'
 import { openActionKit, type ActionKit, type Actor } from '../test/action-kit.js'
-import { checkFilterContract, type FilterContractDef, type FilterContractInput } from '../test/filter-contract.js'
+import {
+  checkFilterContract,
+  indexedOn,
+  type FilterContractDef,
+  type FilterContractInput,
+} from '../test/filter-contract.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { PROJECTS_KEY, PROJECTS_REFS, createCustomTables, projectsRefsDefinition } from '../test/custom-objects.js'
 
@@ -106,11 +111,6 @@ describe('P1, D33: the registry filter contract on D1 agrees with every reported
     columnFilters: Record<string, ColumnFilterSpec>
     statedFilterCosts: Array<{ filter: string; reason: string }>
   }
-  const indexedOn = (details: readonly string[], table: string, column: string) =>
-    details.some((d) => {
-      const m = new RegExp(`^SEARCH ${table}(?: AS \\w+)? USING (?:COVERING )?INDEX \\S+ \\((.*)\\)$`).exec(d)
-      return m !== null && m[1]!.split(' AND ').some((term) => new RegExp(`^${column}[=<>]`).test(term))
-    })
   beforeAll(async () => {
     e = await openD1Engine()
     await createCustomTables(e.d1!, PROJECTS_KEY, PROJECTS_REFS)

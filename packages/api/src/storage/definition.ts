@@ -52,21 +52,26 @@ export type WriteMeta = { readonly op: 'create' | 'update'; readonly now: Date }
  * read (`400 invalid_reference`) and the commit-time guard use ONE predicate: `id = v`, plus `organization_id = the
  * unit's organisation` when the target table has that column, plus `deleted_at IS NULL` when `live`.
  */
-export type ReferenceTarget = {
-  readonly table:
-    | 'principals'
-    | 'companies'
-    | 'contacts'
-    | 'files'
-    | 'pipelines'
-    | 'pipeline_stages'
-    | 'deals'
-    | 'tasks'
-    | `${string}__c`
-  readonly live?: boolean
-  /** [[CORE541]] D21: the target is a custom object's table, which is not in `COLUMN_KINDS` and always has `organization_id` and `deleted_at`. */
-  readonly custom?: true
-}
+export type ReferenceTarget =
+  | {
+      readonly table:
+        | 'principals'
+        | 'companies'
+        | 'contacts'
+        | 'files'
+        | 'pipelines'
+        | 'pipeline_stages'
+        | 'deals'
+        | 'tasks'
+      readonly live?: boolean
+      readonly custom?: never
+    }
+  | {
+      /** [[CORE541]] D21: a custom object's table, which is not in `COLUMN_KINDS`, always has `organization_id` and `deleted_at`, and is always live. */
+      readonly table: `${string}__c`
+      readonly live: true
+      readonly custom: true
+    }
 
 /** A refusal decided from a plan read (a domain or an address already taken): the core runs `read`, then `refuse(row | null)`. */
 export interface Conflict {

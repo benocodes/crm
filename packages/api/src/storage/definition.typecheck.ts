@@ -225,6 +225,17 @@ definePreparedResource({
   references: { company_id: { table: 'notes' } },
 })
 
+// 4b. a custom target without `custom: true` (and not live) is not a reference target
+definePreparedResource({
+  surface: 'api',
+  name: 'contacts',
+  eventName: 'contact',
+  table: 'contacts',
+  record: contactsRecord,
+  // @ts-expect-error a __c table needs custom: true and live: true
+  references: { company_id: { table: 'projects__c' } },
+})
+
 // 5. a reference column that is not a column of the table
 definePreparedResource({
   surface: 'api',

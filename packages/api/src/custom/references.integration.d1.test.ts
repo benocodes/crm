@@ -194,7 +194,9 @@ describe('invariant 9: the guard at commit and at approval', () => {
         .run()
         .then(() => undefined),
     )
+    const updatedEvents = await eventCount(`${PROJECTS_KEY}.updated`)
     expect(code(await call('PATCH', `${PATH}/${existing}`, { task: t2.live }))).toEqual([409, 'conflict'])
+    expect(await eventCount(`${PROJECTS_KEY}.updated`)).toBe(updatedEvents)
     expect((await call('GET', `${PATH}/${existing}`)).body.task).toBeNull()
   })
   it('a proposal creating a record whose target is deleted before approval is 400 invalid_reference on approve, and nothing is written', async () => {

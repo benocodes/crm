@@ -146,7 +146,7 @@ export const selectRecord = (
 function referencePredicates(spec: ReferenceTarget, value: string, env: PreparedEnv): Expression<SqlBool>[] {
   // A custom object's table is not in COLUMN_KINDS; it always has both columns (CORE541 D21).
   const kinds = (
-    spec.custom ? { organization_id: 'uuid', deleted_at: 'timestamp' } : COLUMN_KINDS[spec.table as Table]
+    spec.custom ? { organization_id: 'uuid', deleted_at: 'timestamp' } : COLUMN_KINDS[spec.table]
   ) as Record<string, ColumnKind>
   const preds = [sql<SqlBool>`${sql.ref(`${spec.table}.id`)} = ${value}`]
   if ('organization_id' in kinds)

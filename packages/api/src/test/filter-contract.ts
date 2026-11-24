@@ -107,3 +107,12 @@ export function checkFilterContract(input: FilterContractInput): FilterContractV
       add('missing-exemption', name, undefined, `${name} is hand-written and not in the exemption list`)
   return out
 }
+
+/** Whether the plan searches `table` through an index whose constraints include `column`. */
+export function indexedOn(details: readonly string[], table: string, column: string): boolean {
+  for (const d of details) {
+    const m = new RegExp(`^SEARCH ${table}(?: AS \\w+)? USING (?:COVERING )?INDEX \\S+ \\((.*)\\)$`).exec(d)
+    if (m && m[1]!.split(' AND ').some((term) => new RegExp(`^${column}[=<>]`).test(term))) return true
+  }
+  return false
+}

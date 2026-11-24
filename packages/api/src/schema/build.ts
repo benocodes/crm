@@ -227,9 +227,7 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
         resource: def ? resourceOf(def, stated, statedFilters) : null,
         columns: rows.map((c) => {
           const field = declared?.fields[c.name]
-          const own = field
-            ? textOf({ ...(field.label ? { label: field.label } : {}), description: field.description ?? '' })
-            : textOf(text?.columns[c.name])
+          const own = field ? { label: field.label, description: field.description } : textOf(text?.columns[c.name])
           return {
             name: c.name,
             type: c.type,
@@ -239,7 +237,7 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
             default: c.dflt_value,
             label: own.label ?? defaultLabel(c.name),
             // The common bookkeeping text applies only to a table the catalog describes: an unknown table says nothing.
-            description: (own.description || undefined) ?? (text || declared ? (catalog.common[c.name] ?? null) : null),
+            description: own.description ?? (text || declared ? (catalog.common[c.name] ?? null) : null),
             values:
               field?.kind === 'enum'
                 ? (field.values ?? null)

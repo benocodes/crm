@@ -7,6 +7,7 @@ import { crudActions } from '../resources/define.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import {
   checkFilterContract,
+  indexedOn,
   type FilterContractDef,
   type FilterContractInput,
   type FilterContractList,
@@ -40,15 +41,6 @@ const defOf = (name: string) =>
     columnFilters: Record<string, ColumnFilterSpec & { collation?: string }>
     record: unknown
   }
-
-/** Whether the plan searches `table` through an index whose constraints include `column`. */
-export function indexedOn(details: readonly string[], table: string, column: string): boolean {
-  for (const d of details) {
-    const m = new RegExp(`^SEARCH ${table}(?: AS \\w+)? USING (?:COVERING )?INDEX \\S+ \\((.*)\\)$`).exec(d)
-    if (m && m[1]!.split(' AND ').some((term) => new RegExp(`^${column}[=<>]`).test(term))) return true
-  }
-  return false
-}
 
 async function nocaseColumns(): Promise<Set<string>> {
   const rows = (
