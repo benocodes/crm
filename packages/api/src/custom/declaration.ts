@@ -86,7 +86,7 @@ export const RESERVED_NAMES: readonly string[] = [
   'help',
 ]
 
-const NAME_SHAPE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/
+export const NAME_SHAPE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/
 
 function checkKey(key: string): void {
   const fail = (rule: string, message: string): never => {
@@ -233,6 +233,18 @@ export function parseObjectDeclaration(key: string, input: unknown, objects?: re
     ...(d.description !== undefined ? { description: d.description } : {}),
     fields,
   }
+}
+
+/** One field alone ([[CORE555]] P1): the same refusals as inside an object, thrown at `path`, returned normalised (kind first, `unique` only when true). Sibling targets are the caller's to check. */
+export function parseField(input: unknown, path: string): FieldDeclaration {
+  const parsed = fieldSchema.safeParse(input)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]!
+    const rule = issue.code === 'invalid_type' ? 'not_an_object' : ruleOf(issue, input)
+    throw new DeclarationError(rule, issue.message, [path, ...issue.path.map(String)].join('.'))
+  }
+  const { kind, unique, ...rest } = parsed.data
+  return { kind: kind as FieldKind, ...rest, ...(unique === true ? { unique: true } : {}) } as FieldDeclaration
 }
 
 /** Validates a map of declarations by key (P2: the file's envelope is `parseExtensionsFile` in `extensions.ts`, [[CORE542]]). Each key is unique by being a key of the map. */

@@ -342,6 +342,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
 - **A check inside a loop over returned records passes on an empty answer.** Assert what came back (the seeded ids,
   or a count) before looping over the records to check their fields: [[API516]]'s matrix checked `preview` was
   absent in every listed message and would have passed on an empty page (review round 1).
+  The same holds for a static scan over files (migrations, sources): "no file breaks the rule" passes when the
+  matcher stops matching. Assert the scan saw the known targets first ([[CORE555]] review: the D10 migration rule
+  now asserts it found the four `CREATE TABLE`s and the `organizations` cascade target).
 - **Append-only tables in an emptied-between-tests database.** A `BEFORE DELETE ... RAISE` trigger (`control_audit`,
   [[CORE245]]) makes a plain `DELETE FROM` fail. `clearD1` (`packages/storage-d1/src/test/index.ts`) drops exactly the
   `BEFORE DELETE` triggers, empties, and recreates them from their stored `sqlite_master.sql`, all in one batch, so the

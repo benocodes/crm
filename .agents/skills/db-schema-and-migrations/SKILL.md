@@ -399,6 +399,15 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   as SQL literals so a table name stays data), and the statements run with `d1 execute --remote --file`, which needs no
   prompt under `CI=1` with a closed stdin ([[CORE543]] 543.12, 543.19). `redeploy --extensions` plans before its
   question, runs the statements after the core migrations and before the deploy.
+- **Extension fields: apply also adds `<name>__c` columns to contacts, companies, deals and tasks** ([[CORE315]] D7,
+  D8, [[CORE555]]). The snapshot keeps the four apart from custom tables (`LiveSchema.builtins`, read by
+  `LIVE_BUILTINS_SQL`): a built-in must never read as a custom object, or apply would archive it. On a built-in, apply's
+  only DDL is `ADD COLUMN` of a `__c` column and `CREATE INDEX` on one; an undeclared `__c` column is archived and kept;
+  required with no default is a nullable column (the API enforces it). **A core migration of those four tables must be
+  additive** (D10): only their first `CREATE TABLE`, `ADD COLUMN`, `CREATE INDEX` and DML; no drop, rename or rebuild of
+  them or of a table they reference `ON DELETE CASCADE`; no `__c` name in any migration.
+  `packages/api/src/custom/migration-rule.test.ts` enforces it; a migration that truly needs a rebuild builds D10's
+  schema-aware rebuild helper first (not built yet, 555.9).
 - **`unit_assertion`** (in 0002) is machinery, not a resource: an always-empty table whose named CHECK
   `unit_assertion_holds` lets `assertStep` abort a D1 batch. The D1 runtime classifies that one constraint as
   drift, so never reuse the name.

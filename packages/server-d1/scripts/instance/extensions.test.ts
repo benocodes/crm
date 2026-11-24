@@ -33,6 +33,16 @@ describe('group 1: the remote reader equals readLiveSchema on the same database 
     expect(Object.keys(viaRows.tables).sort()).toEqual(['milestones__c', 'projects__c'])
     expect(viaRows.tables.projects__c!.columns.map((c) => c.name)).toContain('note')
   })
+  it('the four extensible built-ins are in the snapshot beside the __c tables, as the binding reads them (CORE555 P6)', async () => {
+    const db = new DatabaseSync(':memory:')
+    for (const t of ['contacts', 'companies', 'deals', 'tasks'])
+      db.exec(`create table ${t} (id text primary key, note__c text) strict`)
+    const viaRows = await readRemoteLiveSchema((sql) => db.prepare(sql).all() as unknown[])
+    expect(Object.keys(viaRows.builtins ?? {}).sort()).toEqual(['companies', 'contacts', 'deals', 'tasks'])
+    expect(viaRows.builtins!.contacts!.columns.map((c) => c.name)).toEqual(['id', 'note__c'])
+    expect(viaRows.tables).toEqual({})
+    expect(viaRows).toEqual(await readLiveSchema(sqliteD1(db)))
+  })
   it('a table name with a quote is read as data, never as SQL', async () => {
     const seen: string[] = []
     await readRemoteLiveSchema((sql) => {

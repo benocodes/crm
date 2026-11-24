@@ -6,7 +6,7 @@ import { tasksDeclaration } from '../declarations/tasks.js'
 
 // API63 D6, D16: the code-owned meaning of the built-in tables. Physical facts (types, nullability, keys) come from the database;
 // this module adds what the database cannot declare. A migration that adds a table or column adds its text here, in the same
-// change: the completeness test (schema.storage.integration.test.ts) fails otherwise. At runtime the database still wins: a
+// change (for contacts, companies, deals and tasks, in the table's declaration under `declarations/` instead, [[CORE554]]): the completeness test (schema.storage.integration.test.ts) fails otherwise. At runtime the database still wins: a
 // table or column missing here is listed without a description.
 
 /** A column's text: a bare string is the description; an object also overrides the default label. */
