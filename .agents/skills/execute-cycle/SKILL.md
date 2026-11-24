@@ -183,7 +183,9 @@ about a second; Biome's a11y rules fire only there: UI381 lost a gate round to `
 `biome-ignore` of `noNoninteractiveTabindex` with the reason. Biome turns its React rules on per package once `react`
 is in that package's `package.json`, so adding the dependency can surface errors in files the cycle never touched:
 UI446's 15 errors, first misreported as baseline. An error is baseline only if the same command on a `main`
-checkout shows it, never a run that already holds the branch's files); report the gate
+checkout shows it, never a run that already holds the branch's files. `pnpm lint` exits 0 on warnings, so compare its
+warning count with `main`'s and remove any warning you added: CORE541's unused import passed lint and the gate and
+cost a review round); report the gate
 as "not run: gate-tester". The orchestrator then spawns the gate-tester, which runs `scripts/gate.sh` and writes
 `GATE.md`; you are woken only if it is red, and that round is free (it does not count toward the reviewer-round
 cap). Outside a sprint, run the gate yourself, as below. Never report a test as passing without having run it.

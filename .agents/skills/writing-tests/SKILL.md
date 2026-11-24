@@ -17,7 +17,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   as an absence test never seen failing ([[CORE27]] review). A missing-module error is not a useful red:
   stub the module so the assertion itself fails. A stub that throws `not implemented` is the same non-red in
   disguise: every row fails on the throw, not on what it asserts; called at module scope (a definition built at
-  import), it fails the whole file at load ([[CORE315]]). Make the stub return a plausible wrong answer
+  import), it fails the whole file at load ([[CORE315]]). A fixture built at import by today's validator, which refuses
+  the input the cycle adds, fails the file at load the same way ([[CORE541]]): build it in `beforeAll` or behind a
+  function the tests call, so each test goes red on its own. Make the stub return a plausible wrong answer
   (exit 0, no runner calls) so each row's own assertion turns red ([[OPS487]]'s `runRedeploy` stub threw, and
   only the absence mutations showed its rows could fail). **Paste the red run into the cycle's RESULT.md when you
   make the red commit**, not only into the final report: a report can be lost with its agent, and
