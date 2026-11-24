@@ -197,6 +197,18 @@ describe('refusals and archive on built-ins (P4, P5)', () => {
       expect(r.statements).toBe(0)
       expect(await snapshot()).toBe(before)
     })
+  it('the kind_changed message names the live kind with the right article, "an enum" and "a text" ([[CORE561]] 561.20)', async () => {
+    await fresh()
+    expect(
+      (await applyExtensions(d1, {}, one({ e__c: { kind: 'enum', values: ['a'] }, t__c: { kind: 'text' } }))).refused,
+    ).toEqual([])
+    const r = await applyExtensions(d1, {}, one({ e__c: { kind: 'text' }, t__c: { kind: 'enum', values: ['a'] } }))
+    const messages = r.refused.filter((x) => x.rule === 'kind_changed').map((x) => x.message)
+    expect(messages).toEqual([
+      'contacts.e__c is an enum field and the file declares text: a kind never changes',
+      'contacts.t__c is a text field and the file declares enum: a kind never changes',
+    ])
+  })
   it('optional to required with the default kept is refused (not-null changes)', async () => {
     await fresh()
     await applyExtensions(d1, {}, one({ s__c: { kind: 'text', default: 'x' } }))

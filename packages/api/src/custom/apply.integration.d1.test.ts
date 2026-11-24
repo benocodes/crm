@@ -296,6 +296,14 @@ describe('refusals', () => {
       expect(await schema()).toBe(before)
     },
   )
+  it('the kind_changed message names the live kind with the right article ([[CORE561]] 561.20)', async () => {
+    await applyExtensions(d1, o({ e: E, t: T }))
+    const r = await applyExtensions(d1, o({ e: T, t: E }))
+    expect(r.refused.filter((x) => x.rule === 'kind_changed').map((x) => x.message)).toEqual([
+      'projects__c.e is an enum field and the file declares text: a kind never changes',
+      'projects__c.t is a text field and the file declares enum: a kind never changes',
+    ])
+  })
   it('the column cap counts archived columns and names the table', async () => {
     const many = (names: string[]) => o(Object.fromEntries(names.map((n) => [n, { kind: 'text' as const }])))
     const first = Array.from({ length: 89 }, (_, i) => `f${i}`)
