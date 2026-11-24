@@ -599,7 +599,9 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   The generic `listOperation` checks them in declaration order, before it builds the query, and answers `403
   insufficient_scope` naming the first missing scope. Never check them ad hoc in an override ([[CORE129]] D12a). An `EXISTS`
   over `associations` must match **both canonical sides** (the tag is `b` for companies, contacts and notes, `a` for tasks)
-  and only live edges. Prove each with its own absence mutation.
+  and only live edges. Prove each with its own absence mutation. A filter that cannot use an index states `cost` on the
+  custom filter (`CustomFilter.cost`), so discovery reports `indexed: false` with the reason ([[CORE549]] `additional_props`).
+  To compare JSON numbers on D1, read them with SQLite's `->` operator (the number's JSON text as stored), never a cast.
 - **Column filter grammar** ([[CORE199]] D2–D12, D18; deals by [[CORE200]], every generic list by [[CORE201]]; `src/storage/column-filters.ts`). A list
   opts in with `withColumnFilters(def, notes?)` (outermost wrapper, around `withColumnSorts`): every record column of a
   filterable kind (`uuid`, `text`, `integer`, `timestamp`, `boolean`; not `json`/`string_array`) except `organization_id`

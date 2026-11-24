@@ -276,7 +276,8 @@ baseline evidence. Keep RESULT/HANDOFF current before a planned handoff so the n
 
 `RESULT.md` in the cycle folder (write it with the Write tool, not a heredoc) holds:
 
-- **Decisions** (each already a row in the decisions log, with its `ref`);
+- **Decisions** (each already a row in the decisions log, with its `ref`). On a fix round, update RESULT.md's Decisions and
+  evidence lines to match the log: a review round that supersedes a decision leaves a stale line otherwise ([[CORE549]] retro);
 - **Deviations from the charter** (scope moved in or out, an obligation proven differently);
 - **Evidence**, keyed to the charter's obligations: red runs, absence mutations (raw), the gate's counts per
   suite written out in RESULT.md itself (the retro reads the folder, not the CYCLE REPORT);
