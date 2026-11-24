@@ -122,9 +122,10 @@ describe.each(['postgres', 'd1'] as const)(
       }).statements.length
 
     // [[CORE556]] D21: a catalog entry derived from a definition (an extension field on tasks, a custom object's field) keeps the unit's statement count independent of the data.
-    const set = createBuiltIns({ tasks: { c__c: { kind: 'reference', target: 'contacts' } } })
+    const set = createBuiltIns({ tasks: { contact__c: { kind: 'reference', target: 'contacts' } } })
     const projects = defineCustomObject('projects__c', { fields: { c: { kind: 'reference', target: 'contacts' } } })
-    const definitions = [set.companies, set.deals, set.tasks, projects]
+    // A custom object is a D1-only table: its entry is built on D1 alone.
+    const definitions = [set.companies, set.deals, set.tasks, ...(dialect === 'd1' ? [projects] : [])]
     const derivedCount = (n: number) => {
       const first = CONTACT_REFERENCES.length
       return compileOperation(
@@ -137,6 +138,12 @@ describe.each(['postgres', 'd1'] as const)(
             id: uuid(i + 500),
             organization_id: ORG,
             title: `t${i}`,
+            notes: null,
+            status: 'open',
+            due_at: null,
+            completed_at: null,
+            assignee_id: null,
+            additional_props: '{}',
             contact__c: SOURCE,
             created_by: USER,
             created_at: AT,
@@ -149,7 +156,7 @@ describe.each(['postgres', 'd1'] as const)(
     it('merge: the derived entries are in the catalog and compile to the same number of statements for 1 and 10 rows', () => {
       expect(contactReferencesOf(definitions).map((r) => `${r.table}.${r.column}`)).toEqual([
         'tasks.contact__c',
-        'projects__c.c',
+        ...(dialect === 'd1' ? ['projects__c.c'] : []),
       ])
       expect(derivedCount(1)).toBeGreaterThan(mergeCount(1))
       expect(derivedCount(10)).toBe(derivedCount(1))

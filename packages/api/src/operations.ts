@@ -98,7 +98,7 @@ export function createVibaseRegistry(
   for (const op of invitationOperations(options.invitations ?? null)) registry.register(op)
   for (const op of auditOperations(options.audit ?? null)) registry.register(op)
   registry.register(resetLinkOperation(options.members ?? null))
-  for (const op of identityOperations(b)) registry.register(op)
+  for (const op of identityOperations(b, options.definitions ?? [])) registry.register(op)
   for (const op of accountOperations()) registry.register(op)
   options.operations?.(registry)
   // [[CORE315]] D23: before the queue's operations, like every proposable one (the `operation` enum of `action_requests.create` lists what is registered by then).

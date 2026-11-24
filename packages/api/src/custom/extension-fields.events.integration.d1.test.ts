@@ -11,8 +11,8 @@ import {
   type Resource,
 } from '../test/extension-kit.js'
 
-// [[CORE559]] P2, P7 (D23): every event of the four tables carries the row's `__c` fields in its record, whichever path emits it: generic CRUD, `identities.resolve`, a delete cascade, `deals.move_stage`, merge's events. No system
-// path writes a `__c` column. (The form submission path is in extension-fields.forms.integration.d1.test.ts.)
+// [[CORE559]] P2, P7 (D23): every event of the four tables carries the row's `__c` fields in its record, whichever path emits it: generic CRUD, `identities.resolve`, a delete cascade, `deals.move_stage`, merge's events. Only merge's fill writes a `__c`
+// column of its own accord (D13). (The form submission path is in extension-fields.forms.integration.d1.test.ts.)
 const FIELDS = {
   note__c: { kind: 'text' },
   tier__c: { kind: 'enum', values: ['gold', 'silver'] },
@@ -114,7 +114,7 @@ describe('the hand-written paths', () => {
     expect(ev!.after).toMatchObject({ ...carried, stage_id: stage2 })
   })
 
-  it('contacts.merge: the fill and merged events carry the fields; merge writes no extension column', async () => {
+  it('contacts.merge: the fill and merged events carry the fields; the survivor takes the source values it lacks (D13)', async () => {
     const survivor = (
       await k.call(owner, 'POST', '/api/v1/contacts', { ...{ name: null }, note__c: null, seats__c: 1 })
     ).body
@@ -128,11 +128,23 @@ describe('the hand-written paths', () => {
     ).body
     const merged = await k.call(owner, 'POST', `/api/v1/contacts/${survivor.id}/merge`, { source_id: source.id })
     expect(merged.status, JSON.stringify(merged.body)).toBe(200)
-    // the core field filled, the extension fields were not (D13 is U3)
-    expect(merged.body).toMatchObject({ name: 'Source', note__c: null, tier__c: null, seats__c: 1 })
+    // the core field and the extension fields the survivor lacked are filled; its own seats__c stays and is reported
+    expect(merged.body).toMatchObject({
+      name: 'Source',
+      note__c: 'from source',
+      tier__c: 'gold',
+      seats__c: 1,
+      merge_conflicts: [{ field: 'seats__c', source_value: 2 }],
+    })
     const fill = (await k.events('contact.updated')).find((e) => e.resource_id === survivor.id)!
-    expect(fill.before).toMatchObject({ name: null, note__c: null, seats__c: 1, lvl__c: 'a' })
-    expect(fill.after).toMatchObject({ name: 'Source', note__c: null, seats__c: 1, lvl__c: 'a' })
+    expect(fill.before).toMatchObject({ name: null, note__c: null, tier__c: null, seats__c: 1, lvl__c: 'a' })
+    expect(fill.after).toMatchObject({
+      name: 'Source',
+      note__c: 'from source',
+      tier__c: 'gold',
+      seats__c: 1,
+      lvl__c: 'a',
+    })
     const [tomb] = await k.events('contact.merged')
     expect(tomb!.before).toMatchObject({ note__c: 'from source', tier__c: 'gold', seats__c: 2 })
     expect(tomb!.after).toMatchObject({
@@ -142,6 +154,6 @@ describe('the hand-written paths', () => {
       merged_into_id: survivor.id,
     })
     const row = (await k.rows('contacts')).find((x) => x.id === survivor.id)!
-    expect([row.note__c, row.tier__c, row.seats__c]).toEqual([null, null, 1])
+    expect([row.note__c, row.tier__c, row.seats__c]).toEqual(['from source', 'gold', 1])
   })
 })

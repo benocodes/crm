@@ -194,6 +194,9 @@ function liveKind(def: string): { kind: FieldKind; target?: string } {
   return /^"(?:[^"]|"")*"\s+INTEGER\b/i.test(bare) ? { kind: 'integer' } : { kind: 'enum' }
 }
 
+/** "a text", "an enum": the kind's article ([[CORE561]] 561.20). */
+const article = (kind: string): string => (/^[aeiou]/.test(kind) ? 'an' : 'a')
+
 function liveFields(key: string, table: LiveTable, include: (column: string) => boolean): Map<string, LiveField> {
   const defs = columnDefinitions(table.sql)
   const indexes = new Map(table.indexes.map((i) => [i.name, i.sql]))
@@ -276,7 +279,7 @@ export function planApply(
           'kind_changed',
           key,
           name,
-          `${at} is a ${lf.kind} field and the file declares ${f.kind}: a kind never changes`,
+          `${at} is ${article(lf.kind)} ${lf.kind} field and the file declares ${f.kind}: a kind never changes`,
         )
         continue
       }
@@ -376,7 +379,7 @@ function planBuiltins(
           'kind_changed',
           key,
           name,
-          `${at} is a ${lf.kind} field and the file declares ${f.kind}: a kind never changes`,
+          `${at} is ${article(lf.kind)} ${lf.kind} field and the file declares ${f.kind}: a kind never changes`,
         )
         continue
       }

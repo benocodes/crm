@@ -124,6 +124,15 @@ describe('against the D1 app', () => {
     expect(updated.name).toBe('Renamed')
   })
 
+  it('contacts merge prints the survivor with merge_conflicts ([[CORE556]] D13)', async () => {
+    const r = await session()
+    const survivor = JSON.parse((await ok(r, ['contacts', 'create', '--name', 'Keep'])).stdout)
+    const source = JSON.parse((await ok(r, ['contacts', 'create', '--name', 'Other'])).stdout)
+    const merged = JSON.parse((await ok(r, ['contacts', 'merge', survivor.id, '--source-id', source.id])).stdout)
+    expect(merged).toMatchObject({ id: survivor.id, name: 'Keep' })
+    expect(merged.merge_conflicts).toEqual([{ field: 'name', source_value: 'Other' }])
+  })
+
   it('the execution reads are commands derived from the registry: action-executions list answers an empty page when nothing is enqueued, and get of any id is 404 ([[AGT8]] D57)', async () => {
     const r = await session()
     expect(JSON.parse((await ok(r, ['action-executions', 'list'])).stdout)).toEqual({ data: [], next_cursor: null })

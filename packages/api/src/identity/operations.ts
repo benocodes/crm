@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TenantOperation } from '../registry.js'
+import type { AnyResource, TenantOperation } from '../registry.js'
 import { defaultBuiltIns, type BuiltIns } from '../resources/built-ins.js'
 import { identities } from '../resources/identities.js'
 import { mergeOperation } from './merge.js'
@@ -18,9 +18,23 @@ const resolveBody = z.strictObject({
     .max(100),
 })
 
-/** The identity commands on the prepared path ([[CORE36]]): same paths, scopes, schemas and statuses. */
-export function identityOperations(b: BuiltIns = defaultBuiltIns()): TenantOperation[] {
+/**
+ * The identity commands on the prepared path ([[CORE36]]): same paths, scopes, schemas and statuses. `definitions` are the custom objects of the deployment ([[CORE556]] P4): with the extended built-ins of `b`, they are the definitions whose
+ * fields may reference contacts, and `contacts.merge` re-points those references.
+ */
+export function identityOperations(
+  b: BuiltIns = defaultBuiltIns(),
+  definitions: readonly AnyResource[] = [],
+): TenantOperation[] {
   const { contacts } = b
+  const referencing = [b.companies, b.deals, b.tasks, ...definitions]
+  /** [[CORE556]] D13, 556.2: the survivor's record plus where its value won. */
+  const mergeResponse = (contacts.record as unknown as z.ZodObject).extend({
+    merge_conflicts: z.array(z.object({ field: z.string(), source_value: z.unknown() })).meta({
+      description:
+        "One entry per typed field, core or custom, where both contacts held a value and the values differ, in field order; the survivor kept its value. The source's values stay on the tombstone and in the contact.merged event. Empty when none.",
+    }),
+  })
   return [
     {
       kind: 'tenant',
@@ -69,9 +83,12 @@ export function identityOperations(b: BuiltIns = defaultBuiltIns()): TenantOpera
       },
       validation: 'adapter',
       request: { params: z.object({ id: z.uuid() }), body: z.strictObject({ source_id: z.uuid() }) },
-      response: { status: 200, schema: contacts.record },
+      response: { status: 200, schema: mergeResponse },
       prepare: (env, input) =>
-        mergeOperation(env, input.params.id as string, (input.body as { source_id: string }).source_id, { contacts }),
+        mergeOperation(env, input.params.id as string, (input.body as { source_id: string }).source_id, {
+          contacts,
+          definitions: referencing,
+        }),
     },
   ]
 }

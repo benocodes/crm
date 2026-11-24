@@ -81,6 +81,12 @@ export function parseExtend(input: unknown, customKeys: readonly string[] = []):
       if (base.length > NAME_MAX)
         fail('field_name_length', `a field name is at most ${NAME_MAX} characters before ${KEY_SUFFIX}`)
       const f = parseField(decl.fields[key], fat)
+      // [[CORE556]] P3: a contacts field that references contacts would be re-pointed by merge, restamping the survivor under the fill's stamp guard; an association carries a contact-to-contact link.
+      if (object === 'contacts' && f.kind === 'reference' && f.target === 'contacts')
+        fail(
+          'reference_contacts_self',
+          'a field of contacts cannot reference contacts: an association links two contacts',
+        )
       if (f.kind === 'reference' && f.target?.endsWith(KEY_SUFFIX) && !customKeys.includes(f.target))
         throw new DeclarationError('reference_target_undeclared', `${f.target} is not a declared custom object`, fat)
       fields[key] = f

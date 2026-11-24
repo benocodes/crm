@@ -25,7 +25,8 @@ import { actionRequests } from '../action-requests/definition.js'
 import { contacts as defaultContacts, type ContactRecord } from '../resources/contacts.js'
 import { identities } from '../resources/identities.js'
 import { afterOf, beforeRead, columnsOf, derivedProjection, selectRecord, toRecord } from '../storage/crud.js'
-import { columnKindsOf, type PreparedEnv, type PreparedResource } from '../storage/definition.js'
+import { columnKindsOf, type PreparedEnv, type PreparedResource, type ReferenceTarget } from '../storage/definition.js'
+import type { AnyResource } from '../registry.js'
 import { associations } from '../associations/definition.js'
 import { operationOf } from './program.js'
 import { touches } from './cascades.js'
@@ -87,13 +88,37 @@ export const CONTACT_NON_FK_EXEMPTIONS: readonly { table: string; column: string
   { table: 'events', column: 'resource_id' },
 ]
 
-/** Red-commit stub ([[CORE556]]): the entries derived from the composed definitions. */
-export const contactReferencesOf = (_definitions: readonly unknown[]): ContactReference[] => []
+/**
+ * The catalog entries the composed definitions add ([[CORE556]] P4, 556.5): every field of a custom object, and every extension (`__c`) field of a built-in, that references `contacts`. Each is live-only (a soft-deleted row is left alone), one set update and one
+ * `<event>.updated` set event rendered by the composed definition, and part of P7's commit-time assertion. The static entries above stay as they are: a built-in's own columns are never derived here.
+ */
+export function contactReferencesOf(definitions: readonly AnyResource[]): ContactReference[] {
+  const seen = new Set<string>()
+  const out: ContactReference[] = []
+  for (const def of definitions) {
+    const custom = String(def.table).endsWith('__c')
+    for (const [column, spec] of Object.entries(
+      (def.references ?? {}) as Record<string, ReferenceTarget | undefined>,
+    )) {
+      if (spec?.table !== 'contacts' || !(custom || column.endsWith('__c'))) continue
+      const key = `${def.table}.${column}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push({ def, table: def.table as PhysicalTable, column, liveOnly: true })
+    }
+  }
+  return out
+}
 
 /** FKs to contacts(id) that merge must NOT re-point: the tombstone pointer itself (D10). */
 export const CONTACT_REFERENCE_EXEMPTIONS: readonly { table: string; column: string }[] = [
   { table: 'contacts', column: 'merged_into_id' },
 ]
+
+/** One typed field (core or `__c`) where both contacts held a non-null value and the values differ ([[CORE556]] P2): the survivor kept its value, the source's stays on the tombstone and in the `contact.merged` event. */
+export type MergeConflict = { field: string; source_value: unknown }
+/** The survivor's record plus where its value won ([[CORE556]] D13, 556.2). */
+export type MergeResult = ContactRecord & { merge_conflicts: MergeConflict[] }
 
 /** The plan-read keys of a merge program (namespaced so it can share a unit with other programs). */
 export const mergeReadKeys = {
@@ -137,18 +162,23 @@ export function mergeOperation(
   env: PreparedEnv,
   survivorIdIn: string,
   sourceIdIn: string,
-  opts: { catalog?: readonly ContactReference[]; contacts?: typeof defaultContacts } = {},
-): PreparedOperation<ContactRecord> {
-  // [[CORE559]] P2: the composed contacts definition renders the records and events (the extension fields ride in them); the merge writes core columns only (D13 is U3).
+  opts: {
+    catalog?: readonly ContactReference[]
+    contacts?: typeof defaultContacts
+    /** [[CORE556]] P4: the composed definitions whose fields may reference contacts (the extended built-ins and the custom objects); their entries join the catalog. A caller that holds the composed set passes it, never a stand-in. */
+    definitions?: readonly AnyResource[]
+  } = {},
+): PreparedOperation<MergeResult> {
+  // [[CORE559]] P2: the composed contacts definition renders the records and events (the extension fields ride in them); [[CORE556]] D13: the fill covers its `__c` fields too.
   const contacts = opts.contacts ?? defaultContacts
   // z.uuid() accepts upper case; compare and sort on the canonical lower-case form.
   const survivorId = survivorIdIn.toLowerCase()
   const sourceId = sourceIdIn.toLowerCase()
   if (sourceId === survivorId) throw new ApiError(400, 'merge_into_self', 'a contact cannot be merged into itself')
   if (!UUID.test(survivorId) || !UUID.test(sourceId)) throw notFound()
-  const catalog = opts.catalog ?? CONTACT_REFERENCES
+  const catalog = [...(opts.catalog ?? CONTACT_REFERENCES), ...contactReferencesOf(opts.definitions ?? [])]
   const at = codecs.timestamp.write(env.now)
-  return operationOf<ContactRecord>('contacts.merge', {
+  return operationOf<MergeResult>('contacts.merge', {
     reads: (qc) => ({
       [mergeReadKeys.survivor]: beforeRead(contacts, qc, env, survivorId),
       [mergeReadKeys.source]: beforeRead(contacts, qc, env, sourceId),
@@ -170,7 +200,7 @@ export function mergeOperation(
           const referencing = (holder: string) => {
             let q = loose(qc)
               .selectFrom(entry.table)
-              .select(recordColumns(qc, entry.table, columnsOf(entry.def)))
+              .select(recordColumns(qc, entry.table, columnsOf(entry.def), '', columnKindsOf(entry.def)))
               .where(sql<SqlBool>`${sql.ref(`${entry.table}.${entry.column}`)} = ${holder}`)
               .where(sql<SqlBool>`${sql.ref(`${entry.table}.organization_id`)} = ${env.organizationId}`)
             if (entry.liveOnly) q = q.where(sql<SqlBool>`${sql.ref(`${entry.table}.deleted_at`)} is null`)
@@ -364,18 +394,6 @@ export function mergeOperation(
         events.push(...rec(moveEvents, 'association.updated'))
       }
 
-      // Fill the survivor's empty fields from the source; never overwrite.
-      const fill: Record<string, unknown> = {}
-      for (const f of Object.keys(contacts.update!.shape)) {
-        if (f === 'additional_props' || f.endsWith('__c')) continue
-        const key = f as 'name' | 'company_id'
-        if (survivor[key] === null && source[key] !== null) fill[f] = source[key]
-      }
-      // [[CORE318]] D6: the bag fills per key in the same single update (survivor keys kept, source keys in key order, a key that would break the
-      // limits stays on the source); the merge never fails on the bag, and nothing is written when no key fills.
-      const filledBag = fillBag(survivor.additional_props, source.additional_props)
-      if (Object.keys(filledBag).length !== Object.keys(survivor.additional_props).length)
-        fill.additional_props = JSON.stringify(filledBag)
       const contactColumns = columnsOf(contacts)
       const guard = (id: string, stamp: unknown) => [
         sql<SqlBool>`${sql.ref('contacts.id')} = ${id}`,
@@ -383,9 +401,35 @@ export function mergeOperation(
         sql<SqlBool>`${sql.ref('contacts.deleted_at')} is null`,
         sql<SqlBool>`${ts.exact(qc, 'contacts.updated_at')} = ${String(stamp)}`,
       ]
-      let fillEventId: string | null = null
-      if (Object.keys(fill).length > 0) {
-        fillEventId = env.newId()
+
+      // Fill the survivor's empty fields from the source; never overwrite. [[CORE556]] D13: the tombstone UPDATE runs first (below), so a unique `__c` value the source holds is free (the partial unique index covers live rows only) when the survivor takes it.
+      // Every typed field of the composed contacts definition, `__c` included; a reference value is copied as-is, as `company_id` is (556.7).
+      const fill: Record<string, unknown> = {}
+      const conflicts: MergeConflict[] = []
+      for (const f of Object.keys(contacts.update!.shape)) {
+        if (f === 'additional_props') continue
+        const mine = (survivor as Record<string, unknown>)[f]
+        const theirs = (source as Record<string, unknown>)[f]
+        if (mine === null && theirs !== null) fill[f] = theirs
+        // Both held a value and they differ: the survivor's stays and the result says so (a boolean `false` and an integer `0` are values).
+        else if (mine !== null && theirs !== null && mine !== undefined && theirs !== undefined && mine !== theirs)
+          conflicts.push({ field: f, source_value: theirs })
+      }
+      // [[CORE318]] D6: the bag fills per key in the same single update (survivor keys kept, source keys in key order, a key that would break the
+      // limits stays on the source); the merge never fails on the bag, and nothing is written when no key fills.
+      const filledBag = fillBag(survivor.additional_props, source.additional_props)
+      if (Object.keys(filledBag).length !== Object.keys(survivor.additional_props).length)
+        fill.additional_props = JSON.stringify(filledBag)
+      // The ids keep the events' order: the fill's, then the merged event's.
+      const fillEventId = Object.keys(fill).length > 0 ? env.newId() : null
+      const mergedEventId = env.newId()
+      // D13: the source is tombstoned before the survivor is filled; the events follow in the order they always had (the fill's, then the merged event).
+      let tomb = qc.db
+        .updateTable('contacts')
+        .set({ deleted_at: at, updated_at: at, merged_into_id: survivorId } as never)
+      for (const g of guard(sourceId, sourceStamp)) tomb = tomb.where(g)
+      steps.push(step(tomb, label('first-mutation'), { expect: 'affected' }))
+      if (fillEventId !== null) {
         let q = qc.db.updateTable('contacts').set({ ...fill, updated_at: at } as never)
         for (const g of guard(survivorId, survivorStamp)) q = q.where(g)
         steps.push(step(q, label('first-mutation'), { expect: 'affected' }))
@@ -408,13 +452,6 @@ export function mergeOperation(
         events.push({ id: fillEventId, type: 'contact.updated', resourceType: 'contact', resourceId: survivorId })
       }
 
-      // Tombstone the source.
-      const mergedEventId = env.newId()
-      let tomb = qc.db
-        .updateTable('contacts')
-        .set({ deleted_at: at, updated_at: at, merged_into_id: survivorId } as never)
-      for (const g of guard(sourceId, sourceStamp)) tomb = tomb.where(g)
-      steps.push(step(tomb, label('first-mutation'), { expect: 'affected' }))
       steps.push(
         step(
           eventStatement(qc, {
@@ -467,7 +504,7 @@ export function mergeOperation(
         events,
         decode: (rows) => {
           if (rows.length === 0) throw new UnitDriftError('contacts.merge')
-          return toRecord(contacts, rows[0]!)
+          return { ...toRecord(contacts, rows[0]!), merge_conflicts: conflicts }
         },
       })
     },

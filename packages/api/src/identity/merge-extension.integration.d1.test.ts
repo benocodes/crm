@@ -51,7 +51,7 @@ beforeEach(async () => {
   for (const t of ['companies', 'deals', 'tasks']) await k.d1.prepare(`update "${t}" set "contact__c" = null`).run()
   await k.d1.prepare(`update "contacts" set "co__c" = null`).run()
   await k.reset()
-  owner = k.owner
+  owner = k.as(k.owner, k.registry.declaredScopes())
 })
 
 const contact = async (body: Record<string, unknown>) => {
@@ -97,8 +97,8 @@ describe('D13: the fill and the conflicts, one case per field kind', () => {
   describe.each(KINDS)('%s', (field, values) => {
     it('survivor null and source set: the survivor takes the value, the event shows it, nothing is listed', async () => {
       const [, theirs] = await values()
-      const survivor = await contact({ name: 'S' })
-      const source = await contact({ name: 'R', [field]: theirs })
+      const survivor = await contact({ name: 'Same' })
+      const source = await contact({ name: 'Same', [field]: theirs })
       const res = await merge(survivor.id, source.id)
       expect(res.status, JSON.stringify(res.body)).toBe(200)
       expect(res.body[field]).toEqual(theirs)
@@ -109,8 +109,8 @@ describe('D13: the fill and the conflicts, one case per field kind', () => {
     })
     it('both set and different: the survivor keeps its value and the conflict names the source value', async () => {
       const [mine, theirs] = await values()
-      const survivor = await contact({ name: 'S', [field]: mine })
-      const source = await contact({ name: 'R', [field]: theirs })
+      const survivor = await contact({ name: 'Same', [field]: mine })
+      const source = await contact({ name: 'Same', [field]: theirs })
       const res = await merge(survivor.id, source.id)
       expect(res.status, JSON.stringify(res.body)).toBe(200)
       expect(res.body[field]).toEqual(mine)
@@ -120,8 +120,8 @@ describe('D13: the fill and the conflicts, one case per field kind', () => {
     })
     it('both set and equal: not a conflict', async () => {
       const [mine] = await values()
-      const survivor = await contact({ name: 'S', [field]: mine })
-      const source = await contact({ name: 'R', [field]: mine })
+      const survivor = await contact({ name: 'Same', [field]: mine })
+      const source = await contact({ name: 'Same', [field]: mine })
       const res = await merge(survivor.id, source.id)
       expect(res.body[field]).toEqual(mine)
       expect(res.body.merge_conflicts).toEqual([])
@@ -170,7 +170,7 @@ describe('D13, response contract', () => {
 })
 
 describe('D21: references to contacts, merge re-points them', () => {
-  type Kind = Resource | 'custom'
+  type Kind = Exclude<Resource, 'contacts'> | 'custom'
   const KINDS: Kind[] = ['companies', 'deals', 'tasks', 'custom']
   const make = async (kind: Kind, holder: string | null, note: string): Promise<string> => {
     if (kind === 'custom') {
@@ -188,7 +188,8 @@ describe('D21: references to contacts, merge re-points them', () => {
   }
   const table = (kind: Kind) => (kind === 'custom' ? PROJECTS : kind)
   const column = (kind: Kind) => (kind === 'custom' ? 'contact' : 'contact__c')
-  const eventType = (kind: Kind) => `${kind === 'custom' ? PROJECTS : kind.slice(0, -1)}.updated`
+  const eventType = (kind: Kind) =>
+    `${{ custom: PROJECTS, companies: 'company', deals: 'deal', tasks: 'task' }[kind]}.updated`
 
   describe.each(KINDS)('%s', (kind) => {
     it('the source live referencing rows point at the survivor; a deleted row and another contact`s rows are left alone; one event per moved row', async () => {
@@ -231,11 +232,12 @@ describe('D21: the live check of a reference to contacts', () => {
     ['custom', `/api/v1/${PROJECTS}`, (c) => ({ name: 'P', contact: c })],
   ]
   describe.each(WRITES)('a write on %s naming a contact', (kind, path, body) => {
-    const send = async (c: string) => {
+    const bodyOf = async (c: string) => {
       const b = body(c)
       if (kind === 'deals') Object.assign(b, await baseBody(k, owner, 'deals'), { contact__c: c })
-      return k.call(owner, 'POST', path, b)
+      return b
     }
+    const send = async (c: string) => k.call(owner, 'POST', path, await bodyOf(c))
     it('passes for a live contact; a deleted and a merged contact are 400 invalid_reference', async () => {
       const live = await contact({ name: 'L' })
       expect((await send(live.id)).status).toBe(201)
@@ -250,13 +252,14 @@ describe('D21: the live check of a reference to contacts', () => {
     })
     it('a contact deleted between the plan and the commit answers 409 conflict', async () => {
       const c = await contact({ name: 'Gone' })
+      const b = await bodyOf(c.id)
       k.beforeCommit(async () => {
         await k.d1
           .prepare('update "contacts" set deleted_at = ? where id = ?')
           .bind('2026-11-06T10:00:00.000Z', c.id)
           .run()
       })
-      expect(code(await send(c.id))).toEqual([409, 'conflict'])
+      expect(code(await k.call(owner, 'POST', path, b))).toEqual([409, 'conflict'])
     })
   })
 
@@ -339,4 +342,24 @@ describe('the catalog cannot drift from the database', () => {
       expect(await k.events('contact.merged')).toHaveLength(0)
     },
   )
+})
+
+describe('the rail executes a proposed merge with the same catalog', () => {
+  it('an approved contacts.merge proposal moves a declared reference and fills a __c field', async () => {
+    const proposer = await k.actor('proposer', 'agent', ['contacts:request_approval', 'action_requests:read'])
+    const survivor = await contact({ name: 'Same' })
+    const source = await contact({ name: 'Same', note__c: 'from source' })
+    const task = await k.call(owner, 'POST', '/api/v1/tasks', { title: 'T', contact__c: source.id })
+    const proposed = await k.call(proposer, 'POST', '/api/v1/action-requests', {
+      operation: 'contacts.merge',
+      arguments: { id: survivor.id, source_id: source.id },
+      reason: 'duplicate',
+    })
+    expect(proposed.status, JSON.stringify(proposed.body)).toBe(201)
+    const approved = await k.call(owner, 'POST', `/api/v1/action-requests/${proposed.body.id}/approve`)
+    expect(approved.status, JSON.stringify(approved.body)).toBe(200)
+    expect(approved.body.status).toBe('executed')
+    expect((await rowOf('tasks', task.body.id)).contact__c).toBe(survivor.id)
+    expect((await rowOf('contacts', survivor.id)).note__c).toBe('from source')
+  })
 })

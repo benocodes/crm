@@ -110,10 +110,10 @@ export function engineSuite(engineName: EngineName): void {
       ])
     })
 
-    it('returns the survivor equal to a fresh get', async () => {
+    it('returns the survivor equal to a fresh get, plus merge_conflicts: [] when nothing conflicted ([[CORE556]] D13)', async () => {
       const s = await k.contact({ name: 'S' })
       const r = await k.contact({})
-      expect(await merge(s.id, r.id)).toEqual(await k.get(contacts, s.id))
+      expect(await merge(s.id, r.id)).toEqual({ ...(await k.get(contacts, s.id)), merge_conflicts: [] })
     })
 
     it('refuses a self-merge (upper-cased id too) and writes nothing', async () => {
