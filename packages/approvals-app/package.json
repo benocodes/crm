@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "The approvals mini-app: a static page (Cloudflare Workers Static Assets, no server code) that lists pending action requests of one Vibase and approves or rejects them. Signs in with Clerk, calls Vibase's REST API from the browser.",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "build": "tsx scripts/build.ts",

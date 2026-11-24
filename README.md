@@ -13,4 +13,4 @@ Status: pre-code. The first cycles build the tenancy, schema and service layer.
 
 ## License
 
-[GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only).
+[MIT](LICENSE).

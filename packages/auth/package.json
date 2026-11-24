@@ -1,7 +1,7 @@
 {
   "name": "@vibase/auth",
   "private": true,
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "description": "Open tier (spec CORE243): the built-in auth provider, Better Auth composed for the D1 Worker.",
   "type": "module",
   "exports": {

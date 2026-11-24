@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Open tier (spec UI254): the vault's shared UI layer. The React, Tailwind and shadcn component layer (`./components`), its stylesheet and build helper; source-only. No root entry.",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "type": "module",
   "exports": {
     "./styles.css": "./src/styles.css",
