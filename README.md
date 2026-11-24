@@ -8,8 +8,8 @@ It is for small firms, and the consultants and IT teams who build for them, who 
 
 - **One place for every interaction.** Email and your CRM records sit together, so every agent and person works from the same history. Email is supported today; more channels are on the roadmap below.
 - **Agents act within the authority you grant.** For each resource an owner grants an agent `read`, `request_approval` or `write`. An agent can act directly or propose for approval, and every write is attributed to the agent or person who made it.
-- **Discoverable.** The schema uses real names, native types and declared foreign keys, so agents and people can query and understand it, and the instance itself lists every operation and what you may do with it.
-- **Build any interface on it, agentically.** Vibase is headless (REST, MCP and the CLI), so an agent can build dashboards, reports or whole apps on top of your data, a generative UI, instead of you adopting a fixed one.
+- **Discoverable.** The schema is made of typed tables with real names and declared foreign keys, so agents and people can query and understand it. The instance publishes a discovery document and OpenAPI descriptions that list its operations.
+- **Customizable.** It is headless (REST, MCP and the CLI), so you build the interface you want on top of it, agentically: dashboards, reports or whole apps, a generative UI. That works today. Shaping the data model to your business with custom objects and columns does not exist yet: it is coming (see Roadmap below).
 
 ## Documentation
 
