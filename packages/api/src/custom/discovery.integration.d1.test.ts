@@ -230,7 +230,7 @@ describe('D31, P2: schema.get', () => {
   })
 
   it('an undeclared __c table is archived: rows kept, resource null, not exposed, not served', async () => {
-    await k.d1.exec(`CREATE TABLE "old__c" (id TEXT PRIMARY KEY, organization_id TEXT, name TEXT) STRICT`)
+    await k.d1.prepare(`CREATE TABLE "old__c" (id TEXT PRIMARY KEY, organization_id TEXT, name TEXT) STRICT`).run()
     await k.d1
       .prepare(`INSERT INTO "old__c" (id, organization_id, name) VALUES (?, ?, 'kept')`)
       .bind('0190b2c4-0000-7000-8000-0000000000b1', k.organizationId)
@@ -240,20 +240,21 @@ describe('D31, P2: schema.get', () => {
     expect(t.columns.every((c: any) => c.exposed === false)).toBe(true)
     expect((await call('GET', '/api/v1/old__c')).status).toBe(404)
     expect((await k.d1.prepare(`SELECT name FROM "old__c"`).all()).results).toEqual([{ name: 'kept' }])
-    await k.d1.exec(`DROP TABLE "old__c"`)
+    await k.d1.prepare(`DROP TABLE "old__c"`).run()
   })
 
   it('a column of a declared table that the declaration lacks is not exposed', async () => {
-    await k.d1.exec(`ALTER TABLE "${PROJECTS_KEY}" ADD COLUMN legacy TEXT`)
+    await k.d1.prepare(`ALTER TABLE "${PROJECTS_KEY}" ADD COLUMN legacy TEXT`).run()
     const t = tableOf(await doc(), PROJECTS_KEY)
     expect(t.columns.find((c: any) => c.name === 'legacy')).toMatchObject({ exposed: false, kind: null })
     expect(t.columns.find((c: any) => c.name === 'name')).toMatchObject({ exposed: true })
     expect(t.resource.filters.map((f: any) => f.name)).not.toContain('legacy')
-    await k.d1.exec(`ALTER TABLE "${PROJECTS_KEY}" DROP COLUMN legacy`)
+    await k.d1.prepare(`ALTER TABLE "${PROJECTS_KEY}" DROP COLUMN legacy`).run()
   })
 
   it('every built-in entry equals the entry of a database with no custom object, apart from archived (false); the empty state lists no custom entry', async () => {
     const plain = await openActionKit()
+    await plain.reset()
     try {
       const strip = (d: any) =>
         JSON.stringify(

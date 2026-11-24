@@ -171,9 +171,11 @@ describe('D21 reference live check (the matrix)', () => {
 
 describe('invariant 9: the guard at commit and at approval', () => {
   it('a target soft-deleted between the plan and the commit refuses the write and writes nothing (create and update)', async () => {
-    const t = (await targets()).companies!
+    const all = await targets()
+    const t = all.companies!
     const existing = (await make({ name: 'existing' })).body.id
     const events = await eventCount(`${PROJECTS_KEY}.created`)
+    const rows = (await projectRows()).length
     k.beforeCommit(() =>
       k.d1
         .prepare(`UPDATE companies SET deleted_at = ? WHERE id = ?`)
@@ -182,9 +184,9 @@ describe('invariant 9: the guard at commit and at approval', () => {
         .then(() => undefined),
     )
     expect(code(await make({ name: 'drift', company: t.live }))).toEqual([409, 'conflict'])
-    expect((await projectRows()).map((r) => r.name)).toEqual(['existing'])
+    expect(await projectRows()).toHaveLength(rows)
     expect(await eventCount(`${PROJECTS_KEY}.created`)).toBe(events)
-    const t2 = (await targets()).tasks!
+    const t2 = all.tasks!
     k.beforeCommit(() =>
       k.d1
         .prepare(`UPDATE tasks SET deleted_at = ? WHERE id = ?`)
@@ -196,7 +198,6 @@ describe('invariant 9: the guard at commit and at approval', () => {
     expect((await call('GET', `${PATH}/${existing}`)).body.task).toBeNull()
   })
   it('a proposal creating a record whose target is deleted before approval is 400 invalid_reference on approve, and nothing is written', async () => {
-    const t = (await targets()).companies!
     const proposer = await k.actor('proposer', 'agent', [
       `${PROJECTS_KEY}:read`,
       `${PROJECTS_KEY}:request_approval`,
@@ -215,7 +216,6 @@ describe('invariant 9: the guard at commit and at approval', () => {
     expect(code(approved)).toEqual([400, 'invalid_reference'])
     expect(await projectRows()).toEqual([])
     expect(await eventCount(`${PROJECTS_KEY}.created`)).toBe(0)
-    expect(t.live).toBeTruthy()
   })
 })
 

@@ -221,8 +221,8 @@ definePreparedResource({
   eventName: 'contact',
   table: 'contacts',
   record: contactsRecord,
-  // @ts-expect-error 'deals' is not a table a reference can name
-  references: { company_id: { table: 'deals' } },
+  // @ts-expect-error 'notes' is not a table a reference can name
+  references: { company_id: { table: 'notes' } },
 })
 
 // 5. a reference column that is not a column of the table

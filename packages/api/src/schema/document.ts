@@ -126,7 +126,14 @@ export const schemaResource = z.object({
 
 export const schemaTable = z.object({
   name: z.string(),
-  origin: z.literal('built_in'),
+  origin: z
+    .enum(['built_in', 'custom'])
+    .describe('custom for a table whose name ends __c (a custom object, declared or archived), built_in otherwise.'),
+  archived: z
+    .boolean()
+    .describe(
+      'True for a custom table no declaration describes: its rows are kept, nothing is served for it, and its columns are not exposed. Always false for a built-in table.',
+    ),
   label: z.string(),
   description: z.string().nullable(),
   associable: z.boolean(),
