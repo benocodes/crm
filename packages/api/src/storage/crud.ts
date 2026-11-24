@@ -21,7 +21,6 @@ import {
   type Row,
   type Step,
   type StorageDatabase,
-  type Table,
 } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { formatScope } from '../scopes.js'
