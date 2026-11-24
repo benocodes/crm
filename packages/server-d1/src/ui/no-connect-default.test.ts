@@ -28,7 +28,7 @@ const DIR_ROOTS = [
   'packages/docs/src/content',
 ]
 const FILE_ROOTS = [
-  'packages/server-d1/README.md',
+  'packages/server-d1/DEVELOPMENT.md',
   'packages/server-d1/clerk-setup.md',
   'packages/server-d1/.dev.vars.example',
   'packages/server-d1/wrangler.jsonc',
@@ -36,7 +36,7 @@ const FILE_ROOTS = [
 /** Allowed files and how many `/connect` mentions each has. */
 const ALLOWED: Record<string, number> = {
   'packages/release/scripts/check.ts': 3,
-  'packages/server-d1/README.md': 2,
+  'packages/server-d1/DEVELOPMENT.md': 2,
   'packages/server-d1/clerk-setup.md': 1,
   'packages/server-d1/e2e/auth-pages.e2e.ts': 5,
   'packages/server-d1/e2e/oauth-pages.e2e.ts': 6,
@@ -103,7 +103,7 @@ describe("no source names '/connect' as a path outside the allow-list (UI476, UI
     expect(sources).toContain('packages/server-d1/src/static-serving.ts')
     for (const f of [
       'packages/server-d1/e2e/mcp-oauth.e2e.ts',
-      'packages/server-d1/README.md',
+      'packages/server-d1/DEVELOPMENT.md',
       'packages/server-d1/.dev.vars.example',
       'packages/docs/src/content/docs/getting-started/quickstart.md',
       'packages/release/templates/server-d1-README.md',
@@ -143,7 +143,7 @@ describe('no skill or AGENTS.md cites a deleted /connect artefact (UI479)', () =
 // [[UI479]] P4 (group 3): the docs name the new places, and only existing scripts.
 describe('the docs name /app/home and /app/agents (UI479, UI507)', () => {
   const read = (f: string) => readFileSync(join(REPO, f), 'utf8')
-  const readme = read('packages/server-d1/README.md')
+  const readme = read('packages/server-d1/DEVELOPMENT.md')
   it('the quickstart names the Agents page and no longer a /connect portal', () => {
     const q = read('packages/docs/src/content/docs/getting-started/quickstart.md')
     expect(q).toContain('/app/agents')
