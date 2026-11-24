@@ -21,7 +21,7 @@ Add your instance's MCP URL to a client that supports remote HTTP MCP servers:
 https://api.example.com/mcp
 ```
 
-For a Clerk-backed instance, use a client that supports the server's OAuth discovery and authorization flow. Complete consent in the browser, then have an owner grant the connected agent the scopes it needs. Connecting a client does not grant it CRM access automatically.
+Use a client that supports the server's OAuth discovery and authorization flow. Complete consent in the browser, then have an owner grant the connected agent the scopes it needs. Connecting a client does not grant it CRM access automatically.
 
 MCP connections act as agents. The backend checks their grants when tools run, just as it does for CLI and REST calls.
 

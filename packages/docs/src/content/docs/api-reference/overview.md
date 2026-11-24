@@ -21,7 +21,7 @@ curl https://api.example.com/api/v1/contacts \
   -H "Authorization: Bearer $VIBASE_ACCESS_TOKEN"
 ```
 
-Follow the [Clerk quickstart](/getting-started/quickstart/) to configure OAuth and device login. Authentication identifies the caller; [permissions](/concepts/permissions/) determine which operations it can perform.
+Follow the [quickstart](/getting-started/quickstart/) to sign in with OAuth device login. Authentication identifies the caller; [permissions](/concepts/permissions/) determine which operations it can perform.
 
 ## Match your deployment's version
 

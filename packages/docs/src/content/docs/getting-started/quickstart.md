@@ -22,7 +22,7 @@ npm i -g ./vibase-cli-<version>.tgz
 
 ## 2. Sign in
 
-Accept the invitation Clerk emails you, then run:
+Accept the invitation your instance's owner sends you (on a Clerk instance, the invitation Clerk emails you), then run:
 
 ```bash
 vibase login --server https://api.example.com
@@ -34,7 +34,7 @@ Open the URL the CLI prints, enter the code if prompted, and approve the device 
 vibase me get
 ```
 
-The result shows who you are and your role. If the role is missing, ask the owner to check your account's `vibase_role`, then sign in again to obtain a fresh session.
+The result shows who you are and your role. If the role is missing, ask the owner to check your invitation and role (on a Clerk instance, your account's `vibase_role`), then sign in again to obtain a fresh session.
 
 ## 3. First reads and writes
 
@@ -56,5 +56,5 @@ For a standalone automation with its own account, follow the [agent-account devi
 | Symptom | What to check |
 | --- | --- |
 | Device authorization is unavailable | The instance's owner must enable device login; see [running an instance](/deployment/self-hosting/). |
-| `403 organization_forbidden` | Your account has no recognized role: ask the owner to check the invitation. |
+| `403 organization_forbidden` | Your account has no recognized role: ask the owner to check the invitation (on Clerk, its `vibase_role`). |
 | `vibase: command not found` | The npm global bin directory is not on your `PATH`. |

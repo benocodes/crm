@@ -29,6 +29,6 @@ Read [permissions and approvals](/concepts/permissions/) before granting an agen
 
 ## Current scope
 
-The current version runs one workspace per deployment on Cloudflare D1, with Clerk for sign-in, OAuth consent, and device login. Support for other authentication providers is coming soon. Gmail is the current email integration; additional communication channels and custom objects are planned.
+The current version runs one workspace per deployment on Cloudflare D1, with sign-in, OAuth consent, and device login provided by Better Auth (built into the instance, the default for a new instance) or by Clerk, chosen at setup. Gmail is the current email integration; additional communication channels and custom objects are planned.
 
 Learn the [core concepts](/concepts/overview/), then [deploy your instance](/getting-started/quickstart/). The [API reference](/api-reference/overview/) is generated from the current operation registry. Your running instance also serves its own OpenAPI documents.

@@ -35,4 +35,4 @@ With email on, `invitations.create` sends the link to the invited address by def
 
 Email also turns on self-service password reset: `/app/sign-in` then shows "Forgot password?", which asks `POST /auth/request-password-reset` for a link and emails it (valid one hour, answered the same for every address, at most 5 requests per hour per client IP; a completed reset signs the person out everywhere). Owner-issued reset links stay returned links and are never emailed. With email off, `/app/sign-in` keeps telling people to ask an owner and the request is refused. Email applies to the built-in provider (`AUTH_PROVIDER=better-auth`) only.
 
-Node 22 or newer. Licence: AGPL-3.0-only.
+Node 22 or newer. Licence: MIT.

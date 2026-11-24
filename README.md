@@ -83,4 +83,4 @@ Contributor and agent guidance is in [AGENTS.md](https://github.com/benocodes/cr
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE).

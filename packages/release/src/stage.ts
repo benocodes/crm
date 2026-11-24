@@ -54,7 +54,7 @@ export function clientPackageJson(version: string): Record<string, unknown> {
     name: '@vibase/cli',
     version,
     description: 'The vibase command line: every operation of a vibase instance as a command.',
-    license: 'AGPL-3.0-only',
+    license: 'MIT',
     type: 'module',
     bin: { vibase: 'cli/vibase.js' },
     engines: ENGINES,
@@ -80,7 +80,7 @@ export function serverPackageJson(version: string, wrangler: string): Record<str
     version,
     description:
       'A prebuilt vibase Worker for Cloudflare D1, its migrations, workspace app and auth pages, and vibase-server: setup, status and upgrade of an instance.',
-    license: 'AGPL-3.0-only',
+    license: 'MIT',
     type: 'module',
     bin: { 'vibase-server': 'cli/server.js' },
     engines: ENGINES,

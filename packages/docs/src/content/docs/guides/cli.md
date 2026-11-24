@@ -12,7 +12,7 @@ pnpm vibase login --server https://api.example.com
 pnpm vibase me get
 ```
 
-The CLI prints a URL and a code. Open the URL in a browser and approve the device login. Your instance must have Clerk authentication and device login configured.
+The CLI prints a URL and a code. Open the URL in a browser and approve the device login. Your instance must have its authentication provider (Better Auth, built in, or Clerk) and device login configured.
 
 For API-key authentication, pass the key over stdin. With `VIBASE_API_KEY` supplied by your environment or secret manager:
 
@@ -37,16 +37,17 @@ Output is JSON, or one record per line for lists. Errors go to stderr. Exit code
 
 For an agent account using device login:
 
-1. Invite its email in your instance's Clerk application with public metadata `{"vibase_role":"agent"}`.
-2. Sign in using that account with `pnpm vibase --profile agent login --server https://api.example.com`.
-3. Use the agent ID printed at login to grant scopes from an owner session:
+1. As an owner, create an invitation with the agent role. The link is shown once; hand it to the agent over any channel.
+2. The agent opens the link in a browser and signs up with an email address to claim the invitation.
+3. The agent runs `pnpm vibase --profile agent login --server https://api.example.com`. Device login needs no human approval.
+4. Use the agent ID printed at login to grant scopes from an owner session:
 
 ```bash
 pnpm vibase agents update <agent-id> \
   --data '{"scopes":["contacts:read","contacts:write"]}'
 ```
 
-New agent accounts start without scopes. An owner can add or remove individual grants:
+New agent accounts start without scopes (permissions) until an owner grants them. On a Clerk instance, invite the agent in your Clerk application with public metadata `{"vibase_role":"agent"}` instead of creating an invitation. An owner can add or remove individual grants:
 
 ```bash
 pnpm vibase agents update <agent-id> \
