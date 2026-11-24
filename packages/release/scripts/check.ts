@@ -37,6 +37,7 @@ import { verifySums } from '../src/pack.js'
 import { readReleaseVersion } from '../src/version.js'
 import { APP_RUN_WORKER_FIRST } from '../../server-d1/src/app/paths.js'
 import { withGeneratedConfig } from '../../server-d1/scripts/instance/config.js'
+import { EMPTY_EXTENSIONS } from '../../server-d1/scripts/instance/extensions.js'
 import { deployArgs } from '../../server-d1/scripts/instance/upgrade.js'
 import { wranglerEnv } from './build.js'
 
@@ -236,11 +237,11 @@ export async function checkRelease(
     // `upgrade` builds (plus `--dry-run`, which makes no network call) against a config generated from a sample settings file; the settings' vars must survive `--var`.
     // [[OPS487]]: `redeploy` is listed beside `upgrade` (no `--rollback`: `serverHelpProblems` above judged both lines), and refuses at the same missing settings file.
     if (
-      !/vibase-server redeploy --env <name> \[--dry-run\]/.test(help) ||
+      !/vibase-server redeploy --env <name> \[--dry-run\] \[--yes\] \[--extensions <path>\]/.test(help) ||
       /upgrade --env <name> \[--dry-run\] \[--rollback\]/.test(help)
     )
       throw new ReleaseRefusal(
-        'the installed `vibase-server --help` does not list `redeploy [--dry-run]` and `upgrade [--dry-run]` without `--rollback`',
+        'the installed `vibase-server --help` does not list `redeploy [--dry-run] [--yes] [--extensions <path>]` and `upgrade [--dry-run]` without `--rollback`',
       )
     const noSettingsRedeploy = spawnSync(serverBin, ['redeploy', '--env', 'check'], {
       cwd: install,
@@ -392,6 +393,8 @@ export async function checkRelease(
           path: join(workerDir, 'worker.js'),
           contents: readFileSync(join(workerDir, 'worker.js'), 'utf8'),
         },
+        // [[CORE543]] P7: the extensions module a deploy stages beside the Worker, as a Text module under the exact name the built Worker imports (the empty declaration `redeploy` attaches with no file).
+        { type: 'Text', path: join(workerDir, 'vibase-extensions.json'), contents: EMPTY_EXTENSIONS },
       ],
       modulesRoot: workerDir,
       compatibilityDate: manifest.compatibility_date,
@@ -423,7 +426,8 @@ export async function checkRelease(
         health.status === 'ok' &&
         health.version === manifest.version &&
         health.commit === manifest.commit &&
-        health.migrations?.status === 'current'
+        health.migrations?.status === 'current' &&
+        health.extensions === null
       if (!ok)
         throw new ReleaseRefusal(
           `/health from the installed Worker is wrong (${res.status}): ${JSON.stringify(health)}`,

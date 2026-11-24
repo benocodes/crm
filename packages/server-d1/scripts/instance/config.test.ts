@@ -101,7 +101,8 @@ describe('D11 temp directory', () => {
     })
     expect(r).toBe(42)
     const c = JSON.parse(seen)
-    expect(c.main).toBe(join(pkg.dir, 'worker', 'worker.js'))
+    // [[CORE543]] D27: the Worker is the package's, copied beside the extensions module in the temp directory.
+    expect(c.main).toBe(join(dir, 'worker.js'))
     expect(c.assets.directory).toBe(join(pkg.dir, 'assets'))
     expect(c.d1_databases[0].migrations_dir).toBe(join(pkg.dir, 'migrations'))
     expect(c.d1_databases[0].remote).toBe(true)

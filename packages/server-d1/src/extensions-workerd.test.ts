@@ -32,6 +32,8 @@ const SCOPES = [
   'webhooks:read',
   'webhooks:write',
   'schema:read',
+  'companies:read',
+  'events:read',
 ]
 
 let bundle: Bundle
@@ -126,7 +128,7 @@ describe('the attached module declares no objects', () => {
     expect((await call('GET', '/api/v1/companies')).status).toBe(200)
   })
   it('the checked-in default module is the empty one', () => {
-    expect(readFileSync(new URL(`./${MODULE}`, import.meta.url), 'utf8')).toBe(EMPTY)
+    expect(JSON.parse(readFileSync(new URL(`./${MODULE}`, import.meta.url), 'utf8'))).toEqual(JSON.parse(EMPTY))
   })
 })
 

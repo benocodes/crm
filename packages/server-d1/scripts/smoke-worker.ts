@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
+import { extensionsTextModule } from './extensions-text-plugin.js'
 import { Miniflare } from 'miniflare'
 import { createHash } from 'node:crypto'
 import {
@@ -131,6 +132,7 @@ try {
     outfile: bundle,
     // `nodejs_compat` ([[CORE243]] D2): `node:` imports stay external for workerd to resolve, as wrangler does.
     external: ['cloudflare:workers', 'node:*'],
+    plugins: [extensionsTextModule],
     logLevel: 'warning',
   })
   const bundleBytes = statSync(bundle).size

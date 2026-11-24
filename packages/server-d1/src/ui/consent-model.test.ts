@@ -76,7 +76,7 @@ describe('buildConsentModel', () => {
       ['request_approval', true],
       ['write', false],
     ])
-    expect(r.body).toBe('openid projects__c:read projects__c:request_approval milestones__c:read')
+    expect(r.body).toBe('openid projects__c:read projects__c:request_approval milestones__c:read ghosts:read')
   })
 
   it('a narrow named request: one area, one Read switch, on', () => {

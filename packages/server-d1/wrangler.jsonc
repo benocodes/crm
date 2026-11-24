@@ -10,6 +10,10 @@
   // `smoke:worker` lists the `node:` modules the bundle may import. Keep the date at or below the workerd that Miniflare and wrangler bundle.
   "compatibility_date": "2026-07-30",
   "compatibility_flags": ["nodejs_compat"],
+  // [[CORE315]] D27, [[CORE543]] P7: the extensions file is a Text module the Worker imports by its own name (`src/extensions-text.ts`). A bundled build hashes a module's file name unless told not to, and the instance tooling stages the file
+  // under exactly `vibase-extensions.json`; the release build and every repo build (`dev`, `deploy:remote`, `smoke:worker`) read these two keys, and the generated deploy config carries the rule itself.
+  "preserve_file_names": true,
+  "rules": [{ "type": "Text", "globs": ["**/vibase-extensions.json"], "fallthrough": true }],
   "d1_databases": [
     {
       "binding": "DB",

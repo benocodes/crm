@@ -10,6 +10,7 @@ import {
   runGate,
   sameVersionDifferentBuild,
 } from './gate.js'
+import { liveExtensionsLine } from './extensions.js'
 import { InstanceRefusal, isRefusal, type InstanceDeps } from './types.js'
 
 /** Exit codes: 0 the instance is at this release and `current`; 1 it is not (a plan or a note was printed); 2 refused. */
@@ -54,6 +55,7 @@ export async function runStatus(argv: string[], deps: InstanceDeps): Promise<num
       `instance: ${g.settings.env} at https://${g.settings.api_host} (worker ${g.settings.worker}, settings ${g.settingsPath})`,
     )
     deps.out(`live: version ${g.live.version}${g.live.commit ? `, commit ${g.live.commit}` : ''}`)
+    deps.out(liveExtensionsLine(g.live.extensions))
     for (const n of g.notes) deps.out(`note: ${n}`)
     for (const l of diffLines(g)) deps.out(l)
     const sameVersion = g.live.version === g.manifest.version

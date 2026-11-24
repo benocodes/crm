@@ -89,6 +89,7 @@ import {
 import { readDeployment } from './init-deployment.js'
 import { countCalls, countD1 } from './count-d1.js'
 import { serveStatic, type AssetsLike } from './static-serving.js'
+import { EXTENSIONS_INVALID, extensionsHealth, type AttachedExtensions } from './extensions-module.js'
 import { gmailTransport } from '@vibase/api'
 import {
   AUTH_SERVER_METADATA_PATH,
@@ -296,6 +297,11 @@ export function composeD1Worker(
      * any yet (the extensions file is attached by T4, #543): the Worker's entry builds none.
      */
     definitions?: readonly AnyResource[]
+    /**
+     * [[CORE543]] D28, D29: the attached extensions file as the entry read it. An invalid one answers every route but `/health` `503 extensions_invalid`; `/health` reports its digest either way. Its `definitions` are passed in
+     * `definitions` above (the entry owns that step, so this composition's many test callers do not change).
+     */
+    extensions?: AttachedExtensions
     transports?: TransportRegistry /** Node tests only: workerd's stream primitives are absent there. */
     streams?: StreamPrimitives
     clock?: () => Date
@@ -929,6 +935,8 @@ export function composeD1Worker(
             latest_applied: latestApplied,
             latest_expected: EXPECTED.at(-1) ?? null,
           },
+          // [[CORE543]] P1: null when no objects are declared, else the digest of the attached file's bytes and the object names; `{digest, error}` for a file this Worker could not load.
+          extensions: await extensionsHealth(deps.extensions),
         },
         200,
       )
@@ -951,6 +959,8 @@ export function composeD1Worker(
       try {
         const url = new URL(req.url)
         if (req.method === 'GET' && url.pathname === '/health') return await health()
+        // [[CORE315]] D28: an attached file this Worker cannot load fails every other route closed, before anything is served.
+        if (deps.extensions?.error) return json(EXTENSIONS_INVALID, 503)
         // [[UI510]] D5: the one static entry for `/`, `/app/*` and `/assets/*`: the app's pages exist for every provider (with Clerk's hosts in the policy on Clerk), the auth pages and `/assets/ui/` only for the built-in provider;
         // all of it answers before every gate.
         const staticAnswer = await serveStatic(req, {

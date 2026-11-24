@@ -1,7 +1,7 @@
 // [[CORE543]] groups 1, 2 and 4 at the command: `redeploy --extensions` and `upgrade` over the fake wrangler on a real SQLite (extensions-kit). Remote apply (D30, P2), the place and the staging (D26, D27, P3, P7),
 // and the digest guard matrix (D29, P1, P4).
 import { readFileSync, readdirSync } from 'node:fs'
-import { isAbsolute, join, relative } from 'node:path'
+import { isAbsolute, relative } from 'node:path'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { applyExtensions } from '../../../api/src/custom/apply.js'
 import { parseExtensionsFile } from '../../../api/src/custom/extensions.js'
@@ -92,7 +92,7 @@ describe('group 1: remote apply (D30, P2)', () => {
     for (const id of ['0190b2c4-0000-7000-8000-000000000001', '0190b2c4-0000-7000-8000-000000000002'])
       s.db
         .prepare(
-          `insert into projects__c (id, organization_id, created_by, created_at, updated_at, code) values (?, 'o', 'u', 'x', 'x', 'DUP')`,
+          `insert into projects__c (id, organization_id, created_by, created_at, updated_at, code) values (?, 'o', 'u', '2026-11-24T09:00:00.000Z', '2026-11-24T09:00:00.000Z', 'DUP')`,
         )
         .run(id)
     const withUnique = { version: 1, objects: { projects__c: { fields: { code: { kind: 'text', unique: true } } } } }

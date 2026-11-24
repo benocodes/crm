@@ -90,6 +90,14 @@ export function serverProblems(dir: string, version: string): string[] {
       migrations.has(f),
     [...SERVER_FIXED, ...SERVER_UI_ASSETS, ...SERVER_APP_ASSETS],
   )
+  // [[CORE543]] P7: a deploy stages the extensions file as a Text module `vibase-extensions.json` beside the Worker, so the built Worker must import exactly that name (a hashed name is wrangler's default for a bundled build).
+  const worker = existsSync(join(dir, 'worker', 'worker.js'))
+    ? readFileSync(join(dir, 'worker', 'worker.js'), 'utf8')
+    : null
+  if (worker !== null && !/(?:from|import)\s*["']\.\/vibase-extensions\.json["']/.test(worker))
+    out.push(
+      'worker/worker.js does not import "./vibase-extensions.json" by that exact name (the deploy stages the extensions file under it)',
+    )
   const pkg = readJson(join(dir, 'package.json'))
   if (!manifest) out.push('release.json is missing or unreadable')
   else {
