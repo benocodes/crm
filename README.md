@@ -6,9 +6,10 @@ Every interaction (email today, more channels over time) lands in one database a
 
 It is for small firms, and the consultants and IT teams who build for them, who want one shared record of every customer interaction that their own agents can work from, safely.
 
-- **One place for every interaction.** Email and the CRM records sit together, so every agent and person works from the same history.
-- **Agents act within the authority you grant.** For each resource an owner grants an agent `read`, `request_approval` or `write`. An agent with `write` can act directly, including sending email; one with `request_approval` can only propose, and a person or another authorised agent approves. Provider credentials stay in the instance.
-- **Discoverable.** The command line, the MCP tools and the OpenAPI documents all come from one registry of operations, so an agent can discover what exists and what it may do.
+- **One place for every interaction.** Email and your CRM records sit together, so every agent and person works from the same history. Email is supported today; more channels are on the roadmap below.
+- **Agents act within the authority you grant.** For each resource an owner grants an agent `read`, `request_approval` or `write`. An agent can act directly or propose for approval, and every write is attributed to the agent or person who made it.
+- **Discoverable.** The schema uses real names, native types and declared foreign keys, so agents and people can query and understand it, and the instance itself lists every operation and what you may do with it.
+- **Build any interface on it, agentically.** Vibase is headless (REST, MCP and the CLI), so an agent can build dashboards, reports or whole apps on top of your data, a generative UI, instead of you adopting a fixed one.
 
 ## Documentation
 
