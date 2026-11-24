@@ -2,8 +2,17 @@ import { sql } from 'kysely'
 import { z } from 'zod'
 import { codecs, readMaybe } from '@vibase/storage'
 import { ApiError } from '../errors.js'
+import {
+  createSchema,
+  filterNotes,
+  filterOptions,
+  recordSchema,
+  updateRefusals,
+  updateSchema,
+} from '../declarations/builtin.js'
+import { dealsDeclaration } from '../declarations/deals.js'
 import { deleteDealOperation } from '../identity/cascades.js'
-import { additionalPropsInput, additionalPropsRecord, type Bag } from '../storage/additional-props.js'
+import type { Bag } from '../storage/additional-props.js'
 import { withPropertyBag } from '../storage/bag-filter.js'
 import { definePreparedResource, type DerivedDecl, type CustomFilter } from '../storage/definition.js'
 import { withColumnFilters } from '../storage/column-filters.js'
@@ -32,48 +41,12 @@ export type DealRecord = {
 
 const STATUSES = ['open', 'won', 'lost'] as const
 
-const record = z.object({
-  id: z.uuid(),
-  organization_id: z.uuid(),
-  name: z.string(),
-  pipeline_id: z.uuid(),
-  stage_id: z.uuid(),
-  status: z.enum(STATUSES).optional().describe("The kind of the deal's stage: open, won or lost. Derived, read-only."),
-  amount_minor: z.number().int().nullable(),
-  currency: z.string().nullable(),
-  expected_close_date: z.string().nullable(),
-  owner_id: z.uuid().nullable(),
-  closed_at: z.string().nullable(),
-  additional_props: additionalPropsRecord,
-  created_by: z.uuid(),
-  created_at: z.string(),
-  updated_at: z.string(),
-})
-
+// [[CORE554]]: the record, create and update schemas, the filters and the sorts are derived from the declaration (`declarations/deals.ts`).
 // [[CORE130]] D7: integer minor units, an ISO 4217-shaped code (upper-cased on write), a calendar date; the amount needs a currency (judged
 // on the resulting row, below). `closed_at` is never input (D11), `pipeline_id` follows the stage (D9), `stage_id` changes through `deals.move_stage`.
-const fields = {
-  name: z.string().trim().min(1).max(200),
-  amount_minor: z
-    .number()
-    .int()
-    .min(0)
-    .max(Number.MAX_SAFE_INTEGER)
-    .nullable()
-    .optional()
-    .describe("Optional, in the currency's minor units (cents; for JPY the unit). Needs a currency."),
-  currency: z
-    .string()
-    .regex(/^[A-Za-z]{3}$/, 'currency must be a three letter ISO 4217 code')
-    .nullable()
-    .optional()
-    .describe('Optional ISO 4217 code such as USD; stored upper case.'),
-  expected_close_date: z.iso.date().nullable().optional().describe('Optional calendar date, YYYY-MM-DD.'),
-  owner_id: z.uuid().nullable().optional(),
-  additional_props: additionalPropsInput.optional(),
-}
-const create = z.strictObject({ ...fields, stage_id: z.uuid() })
-const update = z.strictObject(fields).partial()
+const record = recordSchema<DealRecord>(dealsDeclaration)
+const create = createSchema(dealsDeclaration)
+const update = updateSchema(dealsDeclaration)
 
 const needsCurrency = () =>
   new ApiError(400, 'validation_error', 'an amount needs a currency: send currency with amount_minor')
@@ -114,18 +87,8 @@ const dealsBase = withAggregate(
         derived: dealDerived,
         create,
         update,
-        createOnly: {
-          stage_id: 'use deals.move_stage to change the stage',
-          pipeline_id: 'a deal moves between stages of its pipeline with deals.move_stage',
-        },
-        // [[CORE199]] D6, D8: per-column options of the column filter grammar (`withColumnFilters`, below): each UUID operand is validated, and a currency operand is upper-cased as stored.
-        filters: {
-          pipeline_id: { schema: z.uuid() },
-          stage_id: { schema: z.uuid() },
-          owner_id: { schema: z.uuid() },
-          created_by: { schema: z.uuid() },
-          currency: { schema: z.string(), normalize: (v) => (v as string).toUpperCase() },
-        },
+        createOnly: updateRefusals(dealsDeclaration),
+        filters: filterOptions(dealsDeclaration),
         associable: true,
         // [[CORE130]] D14: a deal links to the records around it; deal-deal and deal-interaction links are refused (the 400 names this list).
         neighbours: ['companies', 'contacts', 'notes', 'tags', 'tasks', 'threads'],
@@ -178,12 +141,9 @@ const dealsBase = withAggregate(
           ]
         },
       }),
-      ['name'],
+      dealsDeclaration.sorts,
     ),
-    {
-      amount_minor:
-        'It compares the minor units of each deal in its own currency and does not need a currency filter: for one currency send amount_minor=gt.500000&currency=eq.USD.',
-    },
+    filterNotes(dealsDeclaration),
   ),
   {
     // [[CORE199]] D15: money fields of the aggregate, with the column that holds their currency: summing across currencies is refused.

@@ -1,7 +1,8 @@
-import { z } from 'zod'
 import { codecs } from '@vibase/storage'
+import { createSchema, filterOptions, recordSchema, updateSchema } from '../declarations/builtin.js'
+import { tasksDeclaration } from '../declarations/tasks.js'
 import { deleteTaskOperation } from '../identity/cascades.js'
-import { additionalPropsInput, additionalPropsRecord, type Bag } from '../storage/additional-props.js'
+import type { Bag } from '../storage/additional-props.js'
 import { withPropertyBag } from '../storage/bag-filter.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
@@ -39,31 +40,10 @@ export function taskCompletion(
   return {}
 }
 
-const record = z.object({
-  id: z.uuid(),
-  organization_id: z.uuid(),
-  title: z.string(),
-  notes: z.string().nullable(),
-  status: z.enum(['open', 'done']),
-  due_at: z.string().nullable(),
-  completed_at: z.string().nullable(),
-  assignee_id: z.uuid().nullable(),
-  additional_props: additionalPropsRecord,
-  created_by: z.uuid(),
-  created_at: z.string(),
-  updated_at: z.string(),
-})
-
-const fields = {
-  title: z.string().trim().min(1).max(500),
-  notes: z.string().max(10_000).nullable().optional(),
-  status: z.enum(['open', 'done']).optional(),
-  due_at: z.iso.datetime({ offset: true }).nullable().optional(),
-  assignee_id: z.uuid().nullable().optional(),
-  additional_props: additionalPropsInput.optional(),
-}
-const create = z.strictObject(fields)
-const update = create.partial()
+// [[CORE554]]: the record, create and update schemas, the filters and the sorts are derived from the declaration (`declarations/tasks.ts`).
+const record = recordSchema<TaskRecord>(tasksDeclaration)
+const create = createSchema(tasksDeclaration)
+const update = updateSchema(tasksDeclaration)
 
 const tasksBase = withColumnFilters(
   withColumnSorts(
@@ -78,10 +58,7 @@ const tasksBase = withColumnFilters(
       record,
       create,
       update,
-      filters: {
-        status: { schema: z.enum(['open', 'done']) },
-        assignee_id: { schema: z.uuid() },
-      },
+      filters: filterOptions(tasksDeclaration),
       references: { assignee_id: { table: 'principals' } },
       // Extension 1 (create only): there is no stored row yet, so the pure rule applies directly.
       prepare: ({ values, meta }) => {
@@ -107,7 +84,7 @@ const tasksBase = withColumnFilters(
         return {}
       },
     }),
-    ['due_at', 'title'],
+    tasksDeclaration.sorts,
   ),
 )
 

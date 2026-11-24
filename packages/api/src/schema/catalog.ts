@@ -1,3 +1,9 @@
+import { catalogText } from '../declarations/builtin.js'
+import { companiesDeclaration } from '../declarations/companies.js'
+import { contactsDeclaration } from '../declarations/contacts.js'
+import { dealsDeclaration } from '../declarations/deals.js'
+import { tasksDeclaration } from '../declarations/tasks.js'
+
 // API63 D6, D16: the code-owned meaning of the built-in tables. Physical facts (types, nullability, keys) come from the database;
 // this module adds what the database cannot declare. A migration that adds a table or column adds its text here, in the same
 // change: the completeness test (schema.storage.integration.test.ts) fails otherwise. At runtime the database still wins: a
@@ -92,46 +98,9 @@ export const CATALOG: Catalog = {
         after: 'The record after the change as JSON; null for a deletion.',
       },
     },
-    tasks: {
-      label: 'Tasks',
-      description: 'Something to do, optionally assigned and with a due date. Completion is derived from status.',
-      columns: {
-        title: 'What needs doing.',
-        notes: "The task's own description. Research and context belong in associated notes.",
-        status: 'open or done. Setting done stamps completed_at; setting open clears it.',
-        due_at: 'When the task is due.',
-        completed_at: 'When the task was marked done; null while open.',
-        assignee_id: 'The principal responsible for the task, if any.',
-      },
-    },
-    companies: {
-      label: 'Companies',
-      description:
-        'An organisation the workspace deals with. Contacts point at their primary company; further links are associations.',
-      columns: {
-        name: 'The company name.',
-        domain: 'Its web or email domain, lowercase; unique among live companies.',
-      },
-    },
-    contacts: {
-      label: 'Contacts',
-      description: 'A person the organisation deals with. Addresses live in identities.',
-      columns: {
-        name: 'The contact name; may be empty when only an address is known.',
-        company_id: {
-          label: 'Primary company',
-          description: "The contact's primary company; further affiliations are associations.",
-        },
-        merged_into_id:
-          'Set when this contact was merged into another; the row is then deleted and this points at the survivor.',
-      },
-      derived: {
-        last_contacted_at:
-          "When the latest outbound interaction with any of the contact's identities happened; null if none.",
-        last_interacted_at:
-          "When the latest interaction, in either direction, with any of the contact's identities happened; null if none.",
-      },
-    },
+    tasks: catalogText(tasksDeclaration),
+    companies: catalogText(companiesDeclaration),
+    contacts: catalogText(contactsDeclaration),
     identities: {
       label: 'Identities',
       description:
@@ -318,26 +287,7 @@ export const CATALOG: Catalog = {
           "The stage's place in the pipeline order, an integer from 0; stages are shown by ascending position, ties by id. Leave gaps (10, 20, 30) so a stage can be inserted between.",
       },
     },
-    deals: {
-      label: 'Deals',
-      description:
-        'A potential sale (also called an opportunity): a name, an optional amount and expected close date, an owner, sitting in one stage of one pipeline. Change the stage with deals.move_stage; link companies and contacts through associations.',
-      columns: {
-        name: 'The deal name, 1 to 200 characters; not unique.',
-        pipeline_id: "The deal's pipeline; always the pipeline of its stage.",
-        stage_id: "The deal's stage; set when the deal is created and changed only with deals.move_stage.",
-        amount_minor:
-          "The deal value in the currency's minor units (cents; for a currency without a minor unit such as JPY, the unit). Optional; needs a currency.",
-        currency: 'Optional ISO 4217 code such as USD, stored upper case. Required when an amount is set.',
-        expected_close_date: 'Optional calendar date (YYYY-MM-DD) the deal is expected to close.',
-        owner_id: 'Optional: the user or agent responsible for the deal.',
-        closed_at:
-          'When the deal last became won or lost; null while it is open. Set by Vibase when the deal enters a won or lost stage (also at creation), cleared when it is reopened.',
-      },
-      derived: {
-        status: "The kind of the deal's stage: open, won or lost. Derived, read-only; filter with ?status=.",
-      },
-    },
+    deals: catalogText(dealsDeclaration),
     channel_connections: {
       label: 'Connections',
       description:

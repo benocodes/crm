@@ -1,9 +1,10 @@
-import { z } from 'zod'
 import { readMaybe } from '@vibase/storage'
 import { ApiError } from '../errors.js'
+import { companiesDeclaration } from '../declarations/companies.js'
+import { createSchema, filterOptions, recordSchema, updateSchema } from '../declarations/builtin.js'
 import { deleteCompanyOperation } from '../identity/cascades.js'
 import { normalizeDomain } from '../identity/normalize.js'
-import { additionalPropsInput, additionalPropsRecord, type Bag } from '../storage/additional-props.js'
+import type { Bag } from '../storage/additional-props.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withPropertyBag } from '../storage/bag-filter.js'
 import { withColumnSorts } from '../storage/sorts.js'
@@ -21,24 +22,10 @@ export type CompanyRecord = {
   updated_at: string
 }
 
-const record = z.object({
-  id: z.uuid(),
-  organization_id: z.uuid(),
-  name: z.string(),
-  domain: z.string().nullable(),
-  additional_props: additionalPropsRecord,
-  created_by: z.uuid(),
-  created_at: z.string(),
-  updated_at: z.string(),
-})
-
-const fields = {
-  name: z.string().trim().min(1).max(500),
-  domain: z.string().max(253).nullable().optional(),
-  additional_props: additionalPropsInput.optional(),
-}
-const create = z.strictObject(fields)
-const update = create.partial()
+// [[CORE554]]: the record, create and update schemas, the filters and the sorts are derived from the declaration (`declarations/companies.ts`).
+const record = recordSchema<CompanyRecord>(companiesDeclaration)
+const create = createSchema(companiesDeclaration)
+const update = updateSchema(companiesDeclaration)
 
 /**
  * Companies on the prepared path ([[CORE36]]). The domain is normalised in preparation; a live company with that
@@ -57,7 +44,7 @@ const companiesBase = withColumnFilters(
       record,
       create,
       update,
-      filters: { domain: { schema: z.string().max(253), normalize: (v) => normalizeDomain(v as string) } },
+      filters: filterOptions(companiesDeclaration),
       prepare: ({ values }) => (typeof values.domain === 'string' ? { domain: normalizeDomain(values.domain) } : {}),
       conflicts: ({ qc, env, id, values }) => {
         const domain = values.domain
@@ -85,7 +72,7 @@ const companiesBase = withColumnFilters(
       },
       override: { delete: (env, id) => deleteCompanyOperation(env, id as string) },
     }),
-    ['name'],
+    companiesDeclaration.sorts,
   ),
 )
 
