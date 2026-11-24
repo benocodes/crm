@@ -1,6 +1,15 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { ActionKit, Actor } from '../test/action-kit.js'
-import { RESOURCES, EVENT_OF, baseBody, every, openExtendedKit, pathOf, type Resource } from '../test/extension-kit.js'
+import {
+  RESOURCES,
+  EVENT_OF,
+  baseBody,
+  every,
+  openExtendedKit,
+  pathOf,
+  resetKit,
+  type Resource,
+} from '../test/extension-kit.js'
 
 // [[CORE559]] P2, P7 (D23): every event of the four tables carries the row's `__c` fields in its record, whichever path emits it: generic CRUD, `identities.resolve`, a delete cascade, `deals.move_stage`, merge's events. No system
 // path writes a `__c` column. (The form submission path is in extension-fields.forms.integration.d1.test.ts.)
@@ -18,7 +27,7 @@ beforeAll(async () => {
 })
 afterAll(() => k.close())
 beforeEach(async () => {
-  await k.reset()
+  await resetKit(k)
   owner = k.owner
 })
 const carried = { note__c: 'n', tier__c: 'gold', lvl__c: 'b', vip__c: true, seats__c: 3 }
@@ -43,7 +52,9 @@ describe.each(RESOURCES)('generic CRUD of %s', (r: Resource) => {
 
 describe('the hand-written paths', () => {
   const resolve = (value: string, name?: string) =>
-    k.call(owner, 'POST', '/api/v1/identities/resolve', { identities: [{ kind: 'email', value, ...(name ? { name } : {}) }] })
+    k.call(owner, 'POST', '/api/v1/identities/resolve', {
+      identities: [{ kind: 'email', value, ...(name ? { name } : {}) }],
+    })
 
   it('identities.resolve: the contact it creates is in the response with the extension fields, and its event carries the stored default', async () => {
     const res = await resolve('new@x.test', 'New')
@@ -71,7 +82,8 @@ describe('the hand-written paths', () => {
   it('deleting a contact, a task and a deal: the before of the delete event carries the fields', async () => {
     const contact = (await k.call(owner, 'POST', '/api/v1/contacts', { name: 'Jo', ...carried })).body.id
     const task = (await k.call(owner, 'POST', '/api/v1/tasks', { title: 'T', ...carried })).body.id
-    const deal = (await k.call(owner, 'POST', '/api/v1/deals', { ...(await baseBody(k, owner, 'deals')), ...carried })).body.id
+    const deal = (await k.call(owner, 'POST', '/api/v1/deals', { ...(await baseBody(k, owner, 'deals')), ...carried }))
+      .body.id
     for (const [path, id] of [
       ['contacts', contact],
       ['tasks', task],
@@ -103,9 +115,16 @@ describe('the hand-written paths', () => {
   })
 
   it('contacts.merge: the fill and merged events carry the fields; merge writes no extension column', async () => {
-    const survivor = (await k.call(owner, 'POST', '/api/v1/contacts', { ...{ name: null }, note__c: null, seats__c: 1 })).body
+    const survivor = (
+      await k.call(owner, 'POST', '/api/v1/contacts', { ...{ name: null }, note__c: null, seats__c: 1 })
+    ).body
     const source = (
-      await k.call(owner, 'POST', '/api/v1/contacts', { name: 'Source', note__c: 'from source', tier__c: 'gold', seats__c: 2 })
+      await k.call(owner, 'POST', '/api/v1/contacts', {
+        name: 'Source',
+        note__c: 'from source',
+        tier__c: 'gold',
+        seats__c: 2,
+      })
     ).body
     const merged = await k.call(owner, 'POST', `/api/v1/contacts/${survivor.id}/merge`, { source_id: source.id })
     expect(merged.status, JSON.stringify(merged.body)).toBe(200)
@@ -116,7 +135,12 @@ describe('the hand-written paths', () => {
     expect(fill.after).toMatchObject({ name: 'Source', note__c: null, seats__c: 1, lvl__c: 'a' })
     const [tomb] = await k.events('contact.merged')
     expect(tomb!.before).toMatchObject({ note__c: 'from source', tier__c: 'gold', seats__c: 2 })
-    expect(tomb!.after).toMatchObject({ note__c: 'from source', tier__c: 'gold', seats__c: 2, merged_into_id: survivor.id })
+    expect(tomb!.after).toMatchObject({
+      note__c: 'from source',
+      tier__c: 'gold',
+      seats__c: 2,
+      merged_into_id: survivor.id,
+    })
     const row = (await k.rows('contacts')).find((x) => x.id === survivor.id)!
     expect([row.note__c, row.tier__c, row.seats__c]).toEqual([null, null, 1])
   })

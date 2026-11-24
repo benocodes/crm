@@ -19,6 +19,7 @@ import { CALLBACK_PATH } from '../connections/operations.js'
 import { GOOGLE_ENDPOINTS, type GoogleEndpoints } from '../connections/google.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { createVibaseRegistry } from '../operations.js'
+import type { ExtendDeclarations } from '../custom/extend.js'
 import type { AuditRuntime } from '../audit/port.js'
 import type { InvitationsRuntime } from '../invitations/port.js'
 import type { MembersRuntime } from '../members/port.js'
@@ -120,6 +121,8 @@ export interface AppOptions {
   extraOperations?: (registry: Registry) => void
   /** [[CORE315]] D23: the custom objects' definitions (`defineCustomObject`), registered in the registry this app builds. Ignored when `registry` is given. */
   definitions?: readonly AnyResource[]
+  /** [[CORE559]] P1: the validated `extend` of the extensions file, handed to the registry this app builds (see `createVibaseRegistry`). Ignored when `registry` is given. */
+  extend?: ExtendDeclarations
   /** The object store of operations with an object stage ([[CORE25]] D52). Absent: those operations answer `503 objects_unavailable`. */
   objects?: ObjectStore
 }
@@ -319,6 +322,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
     createVibaseRegistry({
       operations: options.extraOperations,
       ...(options.definitions ? { definitions: options.definitions } : {}),
+      ...(options.extend ? { extend: options.extend } : {}),
       ...(options.invitations ? { invitations: options.invitations } : {}),
       ...(options.members ? { members: options.members } : {}),
       ...(options.audit ? { audit: options.audit } : {}),

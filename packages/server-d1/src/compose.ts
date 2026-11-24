@@ -51,6 +51,7 @@ import {
   type R2BucketLike,
   type RateLimiter,
   type AnyResource,
+  type ExtendDeclarations,
   type Registry,
   type StreamPrimitives,
   type TransportRegistry,
@@ -298,6 +299,11 @@ export function composeD1Worker(
      */
     definitions?: readonly AnyResource[]
     /**
+     * [[CORE559]] P1: the validated `extend` of the extensions file ([[CORE555]]'s validator output), ONE dependency handed to every registry this composition builds, like `definitions`. Nothing in production passes one yet (the
+     * envelope refuses `extend` until [[CORE561]], which fills it from the attached file).
+     */
+    extend?: ExtendDeclarations
+    /**
      * [[CORE543]] D28, D29: the attached extensions file as the entry read it. An invalid one answers every route but `/health` `503 extensions_invalid`; `/health` reports its digest either way. Its `definitions` are passed in
      * `definitions` above (the entry owns that step, so this composition's many test callers do not change).
      */
@@ -426,7 +432,10 @@ export function composeD1Worker(
         : undefined,
     cliClientId,
     publishableKey,
-    declaredScopes: createVibaseRegistry({ definitions: deps.definitions }).declaredScopes(),
+    declaredScopes: createVibaseRegistry({
+      ...(deps.definitions ? { definitions: deps.definitions } : {}),
+      ...(deps.extend ? { extend: deps.extend } : {}),
+    }).declaredScopes(),
   }
 
   const nowMs = deps.nowMs ?? (() => Date.now())
@@ -638,6 +647,7 @@ export function composeD1Worker(
       executions: { transports: transportsFor(binding) },
       ...(deps.operations ? { extraOperations: deps.operations } : {}),
       ...(deps.definitions ? { definitions: deps.definitions } : {}),
+      ...(deps.extend ? { extend: deps.extend } : {}),
     })
 
   async function ensure(): Promise<App | undefined> {
@@ -752,6 +762,7 @@ export function composeD1Worker(
     railRegistry ??= createVibaseRegistry({
       ...(deps.operations ? { operations: deps.operations } : {}),
       ...(deps.definitions ? { definitions: deps.definitions } : {}),
+      ...(deps.extend ? { extend: deps.extend } : {}),
     })
     let failure: unknown
     try {
@@ -1066,6 +1077,7 @@ export function composeD1Worker(
           cold ??= createApp({
             storage: () => NO_UNITS,
             ...(deps.definitions ? { definitions: deps.definitions } : {}),
+            ...(deps.extend ? { extend: deps.extend } : {}),
           })
           return await cold.fetch(req)
         }

@@ -18,7 +18,7 @@ import {
 } from './declaration.js'
 
 /** D18: each field kind is read, bound and rendered as an existing storage kind (an enum is text). */
-const KIND_OF: Record<FieldDeclaration['kind'], ColumnKind> = {
+export const KIND_OF: Record<FieldDeclaration['kind'], ColumnKind> = {
   text: 'text',
   integer: 'integer',
   boolean: 'boolean',
@@ -28,7 +28,7 @@ const KIND_OF: Record<FieldDeclaration['kind'], ColumnKind> = {
 }
 
 /** The value a caller may write for a field (D18, D20): an enum accepts only its declared values here, and nowhere else, so a stored retired value still reads. */
-function inputOf(f: FieldDeclaration): z.ZodType {
+export function inputOf(f: FieldDeclaration): z.ZodType {
   switch (f.kind) {
     case 'text':
       return z.string().max(TEXT_MAX)
@@ -46,9 +46,9 @@ function inputOf(f: FieldDeclaration): z.ZodType {
 }
 
 /** What a stored value reads as: an enum is a plain string, so a value that was later removed from the declaration still parses. */
-function recordOf(f: FieldDeclaration): z.ZodType {
+export function recordOf(f: FieldDeclaration, notNull = f.required === true): z.ZodType {
   const base = f.kind === 'integer' ? z.number() : f.kind === 'boolean' ? z.boolean() : z.string()
-  return f.required === true ? base : base.nullable()
+  return notNull ? base : base.nullable()
 }
 
 /**
@@ -109,14 +109,7 @@ export function defineCustomObject(key: string, declaration: ObjectDeclaration):
   const references = Object.fromEntries(
     names.flatMap((n) => {
       const f = decl.fields[n]!
-      if (f.kind !== 'reference') return []
-      const target = f.target!
-      const spec: ReferenceTarget = target.endsWith(KEY_SUFFIX)
-        ? { table: target as `${string}__c`, live: true, custom: true }
-        : target === 'principals'
-          ? { table: 'principals' }
-          : { table: target as 'companies' | 'deals' | 'tasks', live: true }
-      return [[n, spec] as const]
+      return f.kind === 'reference' ? [[n, referenceSpec(f)] as const] : []
     }),
   )
   const uniques = names.filter((n) => decl.fields[n]!.unique === true)
@@ -144,6 +137,16 @@ export function defineCustomObject(key: string, declaration: ObjectDeclaration):
   return withPropertyBag(withColumnFilters(def)) as unknown as AnyResource
 }
 
+/** D21: what a reference field points at: a live row of the target (a principal needs only to exist, P3), or a custom object's. */
+export function referenceSpec(f: FieldDeclaration): ReferenceTarget {
+  const target = f.target!
+  return target.endsWith(KEY_SUFFIX)
+    ? { table: target as `${string}__c`, live: true, custom: true }
+    : target === 'principals'
+      ? { table: 'principals' }
+      : { table: target as 'companies' | 'deals' | 'tasks', live: true }
+}
+
 /** The columns whose `eq` is not served by an index (P1): the bookkeeping columns but `id`, and every declared field that is neither a reference nor unique. */
 function statedFilterCosts(plain: string[]): { filter: string; reason: string }[] {
   const reason =
@@ -152,7 +155,7 @@ function statedFilterCosts(plain: string[]): { filter: string; reason: string }[
 }
 
 /** D22: a live row of the same organisation holding the value refuses the write in the plan, naming it (`409 value_exists`); the partial unique index is the commit-time backstop (a race answers `409 conflict`, P4). */
-function uniqueConflicts(key: string, fields: string[]): NonNullable<PreparedResource['conflicts']> {
+export function uniqueConflicts(key: string, fields: string[]): NonNullable<PreparedResource['conflicts']> {
   return ({ qc, env, id, values }) =>
     fields.flatMap((field): Conflict[] => {
       const value = values[field]

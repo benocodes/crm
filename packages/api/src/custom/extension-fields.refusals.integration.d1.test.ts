@@ -1,6 +1,16 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { ActionKit, Actor } from '../test/action-kit.js'
-import { RESOURCES, RULES, baseBody, company, every, openExtendedKit, pathOf, type Resource } from '../test/extension-kit.js'
+import {
+  RESOURCES,
+  RULES,
+  baseBody,
+  company,
+  every,
+  openExtendedKit,
+  pathOf,
+  resetKit,
+  type Resource,
+} from '../test/extension-kit.js'
 
 // [[CORE559]] P3, P4 (D8's API half, D20, D21, D22): required fields, a reference's live check and a unique field's refusals on the four built-ins, the same as on a custom object.
 let k: ActionKit
@@ -10,7 +20,7 @@ beforeAll(async () => {
 })
 afterAll(() => k.close())
 beforeEach(async () => {
-  await k.reset()
+  await resetKit(k)
   owner = k.owner
 })
 const code = (r: { status: number; body: any }) => [r.status, r.body?.error?.code]
@@ -59,37 +69,43 @@ describe.each(RESOURCES)('%s', (r: Resource) => {
       expect((await create({ lvl__c: 'b' }, 2)).body.lvl__c).toBe('b')
       const nulled = await k.call(owner, 'PATCH', `${pathOf(r)}/${made.body.id}`, { lvl__c: null })
       expect(code(nulled)).toEqual([400, 'validation_error'])
-      const [{ notnull }] = (
-        (await k.d1.prepare(`select "notnull" from pragma_table_info('${r}') where name = 'lvl__c'`).all()).results ?? []
-      ) as Array<{ notnull: number }>
+      const [{ notnull }] = ((
+        await k.d1.prepare(`select "notnull" from pragma_table_info('${r}') where name = 'lvl__c'`).all()
+      ).results ?? []) as Array<{ notnull: number }>
       expect(notnull).toBe(1)
     })
   })
 
   describe('a reference (D21)', () => {
     it('refuses a deleted or foreign target with 400 invalid_reference, and a live one is stored', async () => {
-      const live = await company(k, owner, 'Live')
+      const live = await company(k, owner, 'Live', { req__c: 'x' })
       const ok = await create({ co__c: live })
       expect(ok.status, JSON.stringify(ok.body)).toBe(201)
       expect(ok.body.co__c).toBe(live)
-      const gone = await company(k, owner, 'Gone')
+      const gone = await company(k, owner, 'Gone', { req__c: 'x' })
       expect((await k.call(owner, 'DELETE', `/api/v1/companies/${gone}`)).status).toBe(204)
       expect(code(await create({ co__c: gone }, 2))).toEqual([400, 'invalid_reference'])
-      expect(code(await create({ co__c: '0190b2c4-0000-7000-8000-00000000dead' }, 3))).toEqual([400, 'invalid_reference'])
+      expect(code(await create({ co__c: '0190b2c4-0000-7000-8000-00000000dead' }, 3))).toEqual([
+        400,
+        'invalid_reference',
+      ])
       expect(code(await k.call(owner, 'PATCH', `${pathOf(r)}/${ok.body.id}`, { co__c: gone }))).toEqual([
         400,
         'invalid_reference',
       ])
     })
     it('a target deleted between the plan and the commit aborts the write as 409 conflict (drift)', async () => {
-      const target = await company(k, owner, 'Racing')
+      const target = await company(k, owner, 'Racing', { req__c: 'x' })
       const body = { ...(await baseBody(k, owner, r)), req__c: 'x', co__c: target }
       k.beforeCommit(async () => {
-        await k.d1.prepare(`update "companies" set deleted_at = '2026-11-06T10:00:00.000Z' where id = ?`).bind(target).run()
+        await k.d1
+          .prepare(`update "companies" set deleted_at = '2026-11-06T10:00:00.000Z' where id = ?`)
+          .bind(target)
+          .run()
       })
       const res = await k.call(owner, 'POST', pathOf(r), body)
       expect(code(res)).toEqual([409, 'conflict'])
-      expect((await k.rows(r, `"req__c" = 'x'`)).length).toBe(0)
+      expect((await k.rows(r, `"co__c" is not null`)).length).toBe(0)
     })
   })
 

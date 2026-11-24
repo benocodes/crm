@@ -194,7 +194,9 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
       // [[CORE541]] D31: a table named like a custom object is one; the declaration (when a definition carries it) supplies kinds, labels, descriptions and enum values, and an undeclared one is archived.
       const custom = name.endsWith(KEY_SUFFIX)
       const declared = def?.declaration
-      const tableKinds = custom && def ? ((def.columnKinds ?? {}) as Record<string, string>) : kinds[name]
+      // [[CORE559]] D23: a definition that carries its own column kinds (a custom object, or a built-in with extension fields) is read through them; every other table through the storage inventory.
+      const extended = def?.extensionFields
+      const tableKinds = (custom || extended) && def ? ((def.columnKinds ?? {}) as Record<string, string>) : kinds[name]
 
       // Foreign keys as declared: SQLite numbers them in reverse declaration order, so the highest id is the first declared.
       const fks = [...groupBy(fksOf.get(name) ?? [], (r) => String(r.id)).values()]
@@ -229,7 +231,7 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
         associable: def?.associable === true,
         resource: def ? resourceOf(def, stated, statedFilters) : null,
         columns: rows.map((c) => {
-          const field = declared?.fields[c.name]
+          const field = declared?.fields[c.name] ?? extended?.[c.name]
           const own = field ? { label: field.label, description: field.description } : textOf(text?.columns[c.name])
           return {
             name: c.name,

@@ -20,7 +20,7 @@ import {
   type Unit,
 } from '@vibase/storage'
 import type { ChannelName } from '../channels/port.js'
-import { cleanName, resolveProgram, type ResolveEntry } from '../identity/resolve.js'
+import { cleanName, resolveProgram, type ContactsDefinition, type ResolveEntry } from '../identity/resolve.js'
 import { normalizeIdentityValue } from '../identity/normalize.js'
 import { operationOf, type Program } from '../identity/program.js'
 import { eventSetStatement } from '../outbox.js'
@@ -155,7 +155,12 @@ const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 
  * concurrent writer makes the unit fail as drift (`409`) and a retry plans again. Messages are sorted by `(occurred_at,
  * external_id)` so an in-chunk parent precedes its reply (D16).
  */
-export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<CaptureResult> {
+export function recordMessages(
+  env: PreparedEnv,
+  input: CaptureInput,
+  /** [[CORE559]] P2: the contacts definition whose records and events the unit renders (the composed one of an `extend`); absent: the one with none. */
+  contacts?: ContactsDefinition,
+): Program<CaptureResult> {
   validate(input)
   const at = codecs.timestamp.write(env.now)
   const org = env.organizationId
@@ -201,6 +206,7 @@ export function recordMessages(env: PreparedEnv, input: CaptureInput): Program<C
     [...addresses.entries()].map(([k, entry]) =>
       policy === 'sent_and_received' ? entry : { ...entry, mayCreateContact: qualifies.has(k) },
     ),
+    contacts,
   )
   const storedShas = input.messages.flatMap((m) =>
     m.attachments.filter((a) => a.file !== null).map((a) => a.file!.sha256),

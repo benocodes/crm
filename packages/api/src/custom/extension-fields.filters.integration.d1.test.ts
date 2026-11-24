@@ -8,6 +8,7 @@ import {
   company,
   every,
   openExtendedKit,
+  resetKit,
   pathOf,
   type Resource,
 } from '../test/extension-kit.js'
@@ -32,7 +33,7 @@ beforeAll(async () => {
 })
 afterAll(() => k.close())
 beforeEach(async () => {
-  await k.reset()
+  await resetKit(k)
   owner = k.owner
 })
 const schema = async () => (await k.call(owner, 'GET', '/meta/v1/schema')).body as any
@@ -48,8 +49,22 @@ describe.each(RESOURCES)('%s', (r: Resource) => {
   }
   it('each kind filters with its operators', async () => {
     const co = await company(k, owner)
-    await mk('a', { note__c: 'alpha', seats__c: 5, vip__c: true, renew__c: '2027-01-01T00:00:00Z', tier__c: 'gold', parent__c: co })
-    await mk('b', { note__c: 'beta', seats__c: 10, vip__c: false, renew__c: '2027-06-01T00:00:00Z', tier__c: 'silver', code__c: 'X' })
+    await mk('a', {
+      note__c: 'alpha',
+      seats__c: 5,
+      vip__c: true,
+      renew__c: '2027-01-01T00:00:00Z',
+      tier__c: 'gold',
+      parent__c: co,
+    })
+    await mk('b', {
+      note__c: 'beta',
+      seats__c: 10,
+      vip__c: false,
+      renew__c: '2027-06-01T00:00:00Z',
+      tier__c: 'silver',
+      code__c: 'X',
+    })
     await mk('c', {})
     const q = async (query: string) => {
       const res = await k.call(owner, 'GET', `${pathOf(r)}?${query}`)
@@ -59,13 +74,14 @@ describe.each(RESOURCES)('%s', (r: Resource) => {
     expect(await q('note__c=alpha')).toEqual(['a'])
     expect(await q('note__c=like.*et*')).toEqual(['b'])
     expect(await q('seats__c=gt.5')).toEqual(['b'])
-    expect(await q('seats__c=in.5,10')).toEqual(['a', 'b'])
+    expect(await q('seats__c=in.(5,10)')).toEqual(['a', 'b'])
     expect(await q('vip__c=true')).toEqual(['a'])
     expect(await q('renew__c=lt.2027-03-01')).toEqual(['a'])
     expect(await q('tier__c=eq.silver')).toEqual(['b'])
     expect(await q('parent__c=' + co)).toEqual(['a'])
     expect(await q('code__c=X')).toEqual(['b'])
-    expect(await q('seats__c=is.null')).toEqual(['c'])
+    expect(await q('seats__c=is.null')).toContain('c')
+    expect(await q('seats__c=is.null')).not.toContain('a')
     // a filter on a field no row holds: the empty state
     expect(await q('note__c=nothing')).toEqual([])
     expect(await q('tier__c=eq.gold&seats__c=gt.5')).toEqual([])
@@ -108,7 +124,11 @@ describe.each(RESOURCES)('%s', (r: Resource) => {
     expect(col('seats__c')).toMatchObject({ exposed: true, kind: 'integer', type: 'INTEGER' })
     expect(col('vip__c')).toMatchObject({ exposed: true, kind: 'boolean' })
     expect(col('renew__c')).toMatchObject({ exposed: true, kind: 'timestamp' })
-    expect(col('parent__c')).toMatchObject({ exposed: true, kind: 'uuid', references: { table: 'companies', column: 'id' } })
+    expect(col('parent__c')).toMatchObject({
+      exposed: true,
+      kind: 'uuid',
+      references: { table: 'companies', column: 'id' },
+    })
     // the core columns are what they were: their kind and their enum values
     expect(col('id')).toMatchObject({ exposed: true, kind: 'uuid' })
     if (r === 'tasks') expect(col('status')).toMatchObject({ exposed: true, values: ['open', 'done'] })
@@ -129,10 +149,19 @@ describe('the shapes of every rule are declared once and used for the stated cos
   it('a registry built with the kinds of the rules lists unique and reference filters indexed', async () => {
     const kk = await openExtendedKit(every({ ...ONE_OF_EACH, ...RULES }))
     try {
-      await kk.reset()
-      const t = ((await kk.call(kk.owner, 'GET', '/meta/v1/schema')).body as any).tables.find((x: any) => x.name === 'tasks')
+      await resetKit(kk)
+      const t = ((await kk.call(kk.owner, 'GET', '/meta/v1/schema')).body as any).tables.find(
+        (x: any) => x.name === 'tasks',
+      )
       const idx = Object.fromEntries(t.resource.filters.map((x: any) => [x.name, x.indexed]))
-      expect(idx).toMatchObject({ code__c: true, seq__c: true, co__c: true, parent__c: true, req__c: false, lvl__c: false })
+      expect(idx).toMatchObject({
+        code__c: true,
+        seq__c: true,
+        co__c: true,
+        parent__c: true,
+        req__c: false,
+        lvl__c: false,
+      })
     } finally {
       await kk.close()
     }

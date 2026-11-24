@@ -50,7 +50,10 @@ describe('boolean columns in the dialect fragments', () => {
     const pg = queryContext('postgres')
     const a = sql`select ${recordJson(d1, 'identities', ['own'])}`.compile(d1.db).sql
     const b = sql`select ${recordJson(pg, 'identities', ['own'])}`.compile(pg.db).sql
-    expect(a).toMatch(/json\(iif\("identities"\."own", 'true', 'false'\)\)/)
+    // [[CORE559]]: a null stays null (an extension boolean is nullable), a stored 0/1 is a JSON boolean
+    expect(a).toMatch(
+      /json\(case when "identities"\."own" is null then 'null' else iif\("identities"\."own", 'true', 'false'\) end\)/,
+    )
     expect(b).toContain('jsonb_build_object')
     expect(b).not.toContain('iif(')
   })

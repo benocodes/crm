@@ -18,11 +18,11 @@ import { schemaOperations } from './schema/operations.js'
 import { eventOperations } from './events/operations.js'
 import { Registry, type AnyResource } from './registry.js'
 import { agents } from './resources/agents.js'
-import { companies } from './resources/companies.js'
+import { createBuiltIns, defaultBuiltIns } from './resources/built-ins.js'
+import type { ExtendDeclarations } from './custom/extend.js'
 import { companyFiles } from './resources/company-files.js'
 import { connections } from './resources/connections.js'
 import { contactFiles } from './resources/contact-files.js'
-import { contacts } from './resources/contacts.js'
 import { files } from './resources/files.js'
 import { identities } from './resources/identities.js'
 import { interactions } from './resources/interactions.js'
@@ -32,11 +32,9 @@ import { blockedSenders } from './resources/blocked-senders.js'
 import { forms } from './resources/forms.js'
 import { memberships } from './resources/memberships.js'
 import { notes } from './resources/notes.js'
-import { deals } from './resources/deals.js'
 import { pipelineStages } from './resources/pipeline-stages.js'
 import { pipelines } from './resources/pipelines.js'
 import { tags } from './resources/tags.js'
-import { tasks } from './resources/tasks.js'
 import { actionRequests } from './action-requests/definition.js'
 import { actionRequestOperations } from './action-requests/operations.js'
 import { actionExecutions, executionReadOperations } from './executions/definition.js'
@@ -59,23 +57,25 @@ export function createVibaseRegistry(
     members?: MembersRuntime | null /** [[CORE261]] P1, P5: the audit log's read port; absent or null: `audit.list` answers `501 provider_not_configured`. The registry has it all the same. */
     audit?: AuditRuntime | null /** [[CORE351]] P5: the control-plane store of the four `api_keys.*` operations; absent or null: they answer `501 provider_not_configured`. The registry has them all the same. */
     apiKeys?: ApiKeyStorePort | null /** [[CORE315]] D23: the custom objects' definitions (`defineCustomObject`), registered before the queue's so `action_requests.create` lists their writes. Absent or empty: the registry of every deployment without one. */
-    definitions?: readonly AnyResource[]
+    definitions?: readonly AnyResource[] /** [[CORE559]] P1: the validated `extend` of the extensions file ([[CORE555]]'s validator output): the four built-ins' definitions are built from their declaration plus this, once, and every operation that names one of their records uses the same. Absent or empty: the definitions of a deployment without one. */
+    extend?: ExtendDeclarations
   } = {},
 ): Registry {
+  const b = options.extend ? createBuiltIns(options.extend) : defaultBuiltIns()
   const registry = new Registry()
-    .registerResource(tasks)
-    .registerResource(companies)
-    .registerResource(contacts)
+    .registerResource(b.tasks)
+    .registerResource(b.companies)
+    .registerResource(b.contacts)
     .registerResource(identities)
     .registerResource(notes)
     .registerResource(tags)
-  registry.registerResource(pipelines).registerResource(pipelineStages).registerResource(deals)
+  registry.registerResource(pipelines).registerResource(pipelineStages).registerResource(b.deals)
   registry.registerResource(connections)
   registry.registerResource(blockedSenders)
   registry.registerResource(forms)
   registry.decorate('connections.delete', (op) => withWatchStop(op, options.connections ?? null))
   for (const op of connectionOperations(options.connections ?? null)) registry.register(op)
-  for (const op of dealOperations()) registry.register(op)
+  for (const op of dealOperations(b)) registry.register(op)
   registry
     .registerResource(threads)
     .registerResource(messages)
@@ -98,7 +98,7 @@ export function createVibaseRegistry(
   for (const op of invitationOperations(options.invitations ?? null)) registry.register(op)
   for (const op of auditOperations(options.audit ?? null)) registry.register(op)
   registry.register(resetLinkOperation(options.members ?? null))
-  for (const op of identityOperations()) registry.register(op)
+  for (const op of identityOperations(b)) registry.register(op)
   for (const op of accountOperations()) registry.register(op)
   options.operations?.(registry)
   // [[CORE315]] D23: before the queue's operations, like every proposable one (the `operation` enum of `action_requests.create` lists what is registered by then).

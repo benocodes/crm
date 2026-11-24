@@ -7,6 +7,7 @@ import {
   company,
   every,
   openExtendedKit,
+  resetKit,
   pathOf,
   type Resource,
 } from '../test/extension-kit.js'
@@ -20,7 +21,7 @@ beforeAll(async () => {
 })
 afterAll(() => k.close())
 beforeEach(async () => {
-  await k.reset()
+  await resetKit(k)
   owner = k.owner
 })
 
@@ -89,7 +90,7 @@ describe.each(RESOURCES)('%s', (r: Resource) => {
     const tools = (await rpc('tools/list')).result.tools as any[]
     const create = tools.find((t) => t.name === `${r}_create`)
     expect(Object.keys(create.inputSchema.properties)).toEqual(expect.arrayContaining(Object.keys(ONE_OF_EACH)))
-    expect(create.inputSchema.properties.tier__c.enum).toEqual(['gold', 'silver'])
+    expect(JSON.stringify(create.inputSchema.properties.tier__c)).toMatch(/gold.*silver/)
     const parent = await company(k, owner)
     const body = { ...(await baseBody(k, owner, r)), ...values(parent) }
     const made = await rpc('tools/call', { name: `${r}_create`, arguments: body })

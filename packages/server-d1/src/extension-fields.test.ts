@@ -13,7 +13,14 @@ let w: WorkerD1
 let key: string
 const BASE = 'https://w.test'
 const CRED = Buffer.from(Uint8Array.from({ length: 32 }, (_, i) => i + 1)).toString('base64')
-const FULL = ['contacts:read', 'contacts:write', 'tasks:read', 'tasks:write', 'contacts:request_approval', 'action_requests:read']
+const FULL = [
+  'contacts:read',
+  'contacts:write',
+  'tasks:read',
+  'tasks:write',
+  'contacts:request_approval',
+  'action_requests:read',
+]
 
 const worker = (extend?: ExtendDeclarations, seen: Registry[] = []) =>
   composeD1Worker(
@@ -30,7 +37,10 @@ const call = async (wk: ReturnType<typeof worker>, method: string, path: string,
   const res = await wk.fetch(
     new Request(BASE + path, {
       method,
-      headers: { authorization: `Bearer ${key}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: {
+        authorization: `Bearer ${key}`,
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     }),
   )
@@ -56,14 +66,18 @@ beforeEach(async () => {
 })
 
 const hasField = (r: Registry, op: string, field: string) =>
-  field in ((r.get(op) as unknown as { request: { body: { shape: Record<string, unknown> } } }).request.body.shape ?? {})
+  field in
+  ((r.get(op) as unknown as { request: { body: { shape: Record<string, unknown> } } }).request.body.shape ?? {})
 
 describe('the app serves the extension fields it was given', () => {
   it('REST: create, get, update and list carry them; an undeclared enum value is refused', async () => {
     const wk = worker(EXTEND)
     const made = await call(wk, 'POST', '/api/v1/contacts', { name: 'Jo', tier__c: 'gold', seats__c: 4 })
     expect(made.status, JSON.stringify(made.body)).toBe(201)
-    expect((await call(wk, 'GET', `/api/v1/contacts/${made.body.id}`)).body).toMatchObject({ tier__c: 'gold', seats__c: 4 })
+    expect((await call(wk, 'GET', `/api/v1/contacts/${made.body.id}`)).body).toMatchObject({
+      tier__c: 'gold',
+      seats__c: 4,
+    })
     expect((await call(wk, 'PATCH', `/api/v1/contacts/${made.body.id}`, { seats__c: 5 })).body.seats__c).toBe(5)
     expect((await call(wk, 'GET', '/api/v1/contacts')).body.data[0].tier__c).toBe('gold')
     expect((await call(wk, 'POST', '/api/v1/contacts', { name: 'x', tier__c: 'bronze' })).status).toBe(400)

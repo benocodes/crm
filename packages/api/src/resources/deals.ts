@@ -2,6 +2,7 @@ import { sql } from 'kysely'
 import { z } from 'zod'
 import { codecs, readMaybe } from '@vibase/storage'
 import { ApiError } from '../errors.js'
+import { extendDefinition, type ExtensionFields } from '../custom/extension-fields.js'
 import {
   createSchema,
   filterNotes,
@@ -18,6 +19,7 @@ import { definePreparedResource, type DerivedDecl, type CustomFilter } from '../
 import { withColumnFilters } from '../storage/column-filters.js'
 import { withAggregate } from '../storage/aggregate.js'
 import { withColumnSorts } from '../storage/sorts.js'
+import { defaultBuiltIns, type BuiltInLookup } from './built-ins.js'
 import { linkedToFilter, tagNameFilter } from './tag-filter.js'
 
 export type DealRecord = {
@@ -73,81 +75,88 @@ const statusFilter: CustomFilter = {
  * must be a live one of this organisation (the generic reference check, re-checked at commit). `stage_id` and `pipeline_id` are refused on update:
  * the stage changes through `deals.move_stage` (`deals/operations.ts`). `status` is derived from the stage and never in an event.
  */
-const dealsBase = withAggregate(
-  withColumnFilters(
-    withColumnSorts(
-      definePreparedResource({
-        surface: 'api',
-        name: 'deals',
-        eventName: 'deal',
-        table: 'deals',
-        record,
-        derived: dealDerived,
-        create,
-        update,
-        createOnly: updateRefusals(dealsDeclaration),
-        filters: filterOptions(dealsDeclaration),
-        associable: true,
-        // [[CORE130]] D14: a deal links to the records around it; deal-deal and deal-interaction links are refused (the 400 names this list).
-        neighbours: ['companies', 'contacts', 'notes', 'tags', 'tasks', 'threads'],
-        override: { delete: (env, id) => deleteDealOperation(env, id as string) },
-        customFilters: {
-          status: statusFilter,
-          tag_id: linkedToFilter('deals', 'tags', 'Only deals linked to this tag.'),
-          tag: tagNameFilter('deals'),
-          company_id: linkedToFilter('deals', 'companies', 'Only deals linked to this company (an association).'),
-          contact_id: linkedToFilter('deals', 'contacts', 'Only deals linked to this contact (an association).'),
-        },
-        references: { stage_id: { table: 'pipeline_stages', live: true }, owner_id: { table: 'principals' } },
-        prepare: ({ values, meta }) => {
-          // Pure parts of the amount rule; a patch that sets only one of the pair is judged against the stored row in `conflicts`.
-          if (meta.op === 'create' && values.amount_minor != null && values.currency == null) throw needsCurrency()
-          if (meta.op === 'update' && values.amount_minor != null && values.currency === null) throw needsCurrency()
-          return typeof values.currency === 'string' ? { currency: values.currency.toUpperCase() } : {}
-        },
-        createComputed: ({ env, values }) => ({
-          pipeline_id: sql<string>`(select "pipeline_stages"."pipeline_id" from "pipeline_stages" where "pipeline_stages"."id" = ${values.stage_id as string} and "pipeline_stages"."organization_id" = ${env.organizationId})`,
-          // D11: a new deal is closed at once when it starts in a won or lost stage.
-          closed_at: sql<
-            string | null
-          >`case when ${stageKind(values.stage_id as string, env.organizationId)} = 'open' then null else ${codecs.timestamp.write(env.now)} end`,
-        }),
-        conflicts: ({ qc, env, op, id, values }) => {
-          if (op !== 'update' || !id) return []
-          const touchesAmount = typeof values.amount_minor === 'number'
-          const clearsCurrency = values.currency === null && !('amount_minor' in values)
-          if (!touchesAmount && !clearsCurrency) return []
-          if (touchesAmount && typeof values.currency === 'string') return []
-          // The patch sets only the amount, or clears only the currency: the resulting row is the stored one plus the patch.
-          return [
-            {
-              read: readMaybe(
-                qc.db
-                  .selectFrom('deals')
-                  .select(['deals.amount_minor', 'deals.currency'])
-                  .where('deals.id', '=', id)
-                  .where('deals.organization_id', '=', env.organizationId)
-                  .where('deals.deleted_at', 'is', null),
-              ),
-              refuse: (row) => {
-                if (!row) return
-                const amount = 'amount_minor' in values ? values.amount_minor : row.amount_minor
-                const currency = 'currency' in values ? values.currency : row.currency
-                if (amount != null && currency == null) throw needsCurrency()
-              },
+export function defineDeals(ext: ExtensionFields | undefined, builtIns: () => BuiltInLookup) {
+  const dealsBase = withAggregate(
+    withColumnFilters(
+      withColumnSorts(
+        extendDefinition(
+          definePreparedResource({
+            surface: 'api',
+            name: 'deals',
+            eventName: 'deal',
+            table: 'deals',
+            record,
+            derived: dealDerived,
+            create,
+            update,
+            createOnly: updateRefusals(dealsDeclaration),
+            filters: filterOptions(dealsDeclaration),
+            associable: true,
+            // [[CORE130]] D14: a deal links to the records around it; deal-deal and deal-interaction links are refused (the 400 names this list).
+            neighbours: ['companies', 'contacts', 'notes', 'tags', 'tasks', 'threads'],
+            override: { delete: (env, id) => deleteDealOperation(env, id as string, builtIns()) },
+            customFilters: {
+              status: statusFilter,
+              tag_id: linkedToFilter('deals', 'tags', 'Only deals linked to this tag.'),
+              tag: tagNameFilter('deals'),
+              company_id: linkedToFilter('deals', 'companies', 'Only deals linked to this company (an association).'),
+              contact_id: linkedToFilter('deals', 'contacts', 'Only deals linked to this contact (an association).'),
             },
-          ]
-        },
-      }),
-      dealsDeclaration.sorts,
+            references: { stage_id: { table: 'pipeline_stages', live: true }, owner_id: { table: 'principals' } },
+            prepare: ({ values, meta }) => {
+              // Pure parts of the amount rule; a patch that sets only one of the pair is judged against the stored row in `conflicts`.
+              if (meta.op === 'create' && values.amount_minor != null && values.currency == null) throw needsCurrency()
+              if (meta.op === 'update' && values.amount_minor != null && values.currency === null) throw needsCurrency()
+              return typeof values.currency === 'string' ? { currency: values.currency.toUpperCase() } : {}
+            },
+            createComputed: ({ env, values }) => ({
+              pipeline_id: sql<string>`(select "pipeline_stages"."pipeline_id" from "pipeline_stages" where "pipeline_stages"."id" = ${values.stage_id as string} and "pipeline_stages"."organization_id" = ${env.organizationId})`,
+              // D11: a new deal is closed at once when it starts in a won or lost stage.
+              closed_at: sql<
+                string | null
+              >`case when ${stageKind(values.stage_id as string, env.organizationId)} = 'open' then null else ${codecs.timestamp.write(env.now)} end`,
+            }),
+            conflicts: ({ qc, env, op, id, values }) => {
+              if (op !== 'update' || !id) return []
+              const touchesAmount = typeof values.amount_minor === 'number'
+              const clearsCurrency = values.currency === null && !('amount_minor' in values)
+              if (!touchesAmount && !clearsCurrency) return []
+              if (touchesAmount && typeof values.currency === 'string') return []
+              // The patch sets only the amount, or clears only the currency: the resulting row is the stored one plus the patch.
+              return [
+                {
+                  read: readMaybe(
+                    qc.db
+                      .selectFrom('deals')
+                      .select(['deals.amount_minor', 'deals.currency'])
+                      .where('deals.id', '=', id)
+                      .where('deals.organization_id', '=', env.organizationId)
+                      .where('deals.deleted_at', 'is', null),
+                  ),
+                  refuse: (row) => {
+                    if (!row) return
+                    const amount = 'amount_minor' in values ? values.amount_minor : row.amount_minor
+                    const currency = 'currency' in values ? values.currency : row.currency
+                    if (amount != null && currency == null) throw needsCurrency()
+                  },
+                },
+              ]
+            },
+          }),
+          ext,
+        ),
+        dealsDeclaration.sorts,
+      ),
+      filterNotes(dealsDeclaration),
     ),
-    filterNotes(dealsDeclaration),
-  ),
-  {
-    // [[CORE199]] D15: money fields of the aggregate, with the column that holds their currency: summing across currencies is refused.
-    amount_minor: 'currency',
-  },
-)
+    {
+      // [[CORE199]] D15: money fields of the aggregate, with the column that holds their currency: summing across currencies is refused.
+      amount_minor: 'currency',
+    },
+  )
 
-/** [[CORE549]] D10: the list takes the bag filter, `additional_props=<key>.<condition>`. */
-export const deals = withPropertyBag(dealsBase)
+  /** [[CORE549]] D10: the list takes the bag filter, `additional_props=<key>.<condition>`. */
+  return withPropertyBag(dealsBase)
+}
+
+export const deals = defineDeals(undefined, defaultBuiltIns)

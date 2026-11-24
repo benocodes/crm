@@ -10,7 +10,12 @@ import { openActionKit, type ActionKit, type Actor } from './action-kit.js'
 export const RESOURCES = ['contacts', 'companies', 'deals', 'tasks'] as const
 export type Resource = (typeof RESOURCES)[number]
 /** The event type's resource name of each table. */
-export const EVENT_OF: Record<Resource, string> = { contacts: 'contact', companies: 'company', deals: 'deal', tasks: 'task' }
+export const EVENT_OF: Record<Resource, string> = {
+  contacts: 'contact',
+  companies: 'company',
+  deals: 'deal',
+  tasks: 'task',
+}
 
 /** One field of each kind. */
 export const ONE_OF_EACH: Record<string, FieldDeclaration> = {
@@ -60,7 +65,7 @@ export async function baseBody(k: ActionKit, owner: Actor, r: Resource, n = 1): 
     case 'tasks':
       return { title: `Task ${n}` }
     case 'deals': {
-      const p = await k.call(owner, 'POST', '/meta/v1/pipelines', { name: `P ${n}` })
+      const p = await k.call(owner, 'POST', '/meta/v1/pipelines', { name: `P ${n} ${crypto.randomUUID()}` })
       const s = await k.call(owner, 'POST', '/meta/v1/pipeline-stages', {
         pipeline_id: p.body.id,
         name: 'Open',
@@ -72,8 +77,28 @@ export async function baseBody(k: ActionKit, owner: Actor, r: Resource, n = 1): 
   }
 }
 
-export async function company(k: ActionKit, owner: Actor, name = 'Parent Co'): Promise<string> {
-  const r = await k.call(owner, 'POST', '/api/v1/companies', { name })
+export async function company(
+  k: ActionKit,
+  owner: Actor,
+  name = 'Parent Co',
+  extra: Record<string, unknown> = {},
+): Promise<string> {
+  const r = await k.call(owner, 'POST', '/api/v1/companies', { name, ...extra })
   if (r.status !== 201) throw new Error(JSON.stringify(r.body))
   return r.body.id as string
+}
+
+/**
+ * `reset` for a kit with extension columns: `clearD1` empties the tables in the order of the core foreign keys, which cannot know the references an extension adds (a task pointing at a company), so those columns are
+ * cleared first.
+ */
+export async function resetKit(k: ActionKit): Promise<void> {
+  for (const r of RESOURCES) {
+    const cols = ((
+      await k.d1.prepare(`select name from pragma_table_info('${r}') where name like '%\\_\\_c' escape '\\'`).all()
+    ).results ?? []) as Array<{ name: string }>
+    for (const c of cols)
+      if (/^(parent|co)__c$/.test(c.name)) await k.d1.prepare(`update "${r}" set "${c.name}" = null`).run()
+  }
+  await k.reset()
 }

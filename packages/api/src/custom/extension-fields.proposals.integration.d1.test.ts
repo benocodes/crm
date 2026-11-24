@@ -1,6 +1,15 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { ActionKit, Actor } from '../test/action-kit.js'
-import { RESOURCES, ONE_OF_EACH, baseBody, every, openExtendedKit, pathOf, type Resource } from '../test/extension-kit.js'
+import {
+  RESOURCES,
+  ONE_OF_EACH,
+  baseBody,
+  every,
+  openExtendedKit,
+  pathOf,
+  resetKit,
+  type Resource,
+} from '../test/extension-kit.js'
 
 // [[CORE559]] P1, P7: a proposal of create or update with extension fields is validated against the extended schema, and on approval executes through the registry and stores the value (and its event carries it).
 let k: ActionKit
@@ -11,7 +20,7 @@ beforeAll(async () => {
 })
 afterAll(() => k.close())
 beforeEach(async () => {
-  await k.reset()
+  await resetKit(k)
   owner = k.owner
   proposer = await k.actor('proposer', 'agent', [
     'contacts:request_approval',
@@ -35,7 +44,10 @@ describe.each(RESOURCES)('%s', (r: Resource) => {
     const approved = await k.call(owner, 'POST', `${AR}/${proposed.body.id}/approve`)
     expect(approved.status, JSON.stringify(approved.body)).toBe(200)
     expect(approved.body.status).toBe('executed')
-    expect((await k.call(owner, 'GET', `${pathOf(r)}/${made.body.id}`)).body).toMatchObject({ tier__c: 'gold', seats__c: 7 })
+    expect((await k.call(owner, 'GET', `${pathOf(r)}/${made.body.id}`)).body).toMatchObject({
+      tier__c: 'gold',
+      seats__c: 7,
+    })
     const ev = (await k.events()).filter((x) => x.resource_id === made.body.id && x.type.endsWith('.updated'))
     expect(ev[0]!.after).toMatchObject({ tier__c: 'gold', seats__c: 7 })
 
