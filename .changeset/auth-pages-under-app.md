@@ -1,5 +1,0 @@
----
-'@vibase/server-d1': minor
----
-
-The five auth pages move under `/app`: `/sign-in`, `/invite`, `/reset-password`, `/consent` and `/device` are now `/app/sign-in`, `/app/invite`, `/app/reset-password`, `/app/consent` and `/app/device`, and the old paths answer `404` (no alias, no redirect). Every link the vault builds names the new path: the invitation and password-reset links (`<base>/app/invite#token=...`, `<base>/app/reset-password#token=...`), Better Auth's login and consent pages, the `verification_uri` the CLI prints, Google sign-in's error return, and the approvals app's sign-in link. The Worker's `run_worker_first` is now exactly `/`, `/app`, `/app/*` and `/assets/*`: `wrangler.jsonc` and the release fixture carry the four entries, so an instance upgrades with `vibase-server upgrade`. After upgrading, an operator updates any bookmark, Clerk or provider setting and `CONNECT_RETURN_URL`-style return setting that names an old auth path, and redeploys the approvals app so its signed-out link goes to `<api>/app/sign-in`. Invitation and reset links already sent still name the old paths and stop working: issue new ones.
