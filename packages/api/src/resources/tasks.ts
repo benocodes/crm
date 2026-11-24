@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { codecs } from '@vibase/storage'
 import { deleteTaskOperation } from '../identity/cascades.js'
+import { additionalPropsInput, additionalPropsRecord, type Bag } from '../storage/additional-props.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
 import { withColumnFilters } from '../storage/column-filters.js'
@@ -15,6 +16,7 @@ export type TaskRecord = {
   due_at: string | null
   completed_at: string | null
   assignee_id: string | null
+  additional_props: Bag
   created_by: string
   created_at: string
   updated_at: string
@@ -45,6 +47,7 @@ const record = z.object({
   due_at: z.string().nullable(),
   completed_at: z.string().nullable(),
   assignee_id: z.uuid().nullable(),
+  additional_props: additionalPropsRecord,
   created_by: z.uuid(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -56,6 +59,7 @@ const fields = {
   status: z.enum(['open', 'done']).optional(),
   due_at: z.iso.datetime({ offset: true }).nullable().optional(),
   assignee_id: z.uuid().nullable().optional(),
+  additional_props: additionalPropsInput.optional(),
 }
 const create = z.strictObject(fields)
 const update = create.partial()

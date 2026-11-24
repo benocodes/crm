@@ -70,6 +70,7 @@ describe('migrations manifest (D5)', () => {
       '0023_forms.sql',
       '0024_form_channel.sql',
       '0025_capture_defaults.sql',
+      '0026_additional_props.sql',
     ])
   })
   it('catches one edited byte', () => {

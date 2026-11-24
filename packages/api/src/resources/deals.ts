@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { codecs, readMaybe } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { deleteDealOperation } from '../identity/cascades.js'
+import { additionalPropsInput, additionalPropsRecord, type Bag } from '../storage/additional-props.js'
 import { definePreparedResource, type DerivedDecl, type CustomFilter } from '../storage/definition.js'
 import { withColumnFilters } from '../storage/column-filters.js'
 import { withAggregate } from '../storage/aggregate.js'
@@ -22,6 +23,7 @@ export type DealRecord = {
   expected_close_date: string | null
   owner_id: string | null
   closed_at: string | null
+  additional_props: Bag
   created_by: string
   created_at: string
   updated_at: string
@@ -41,6 +43,7 @@ const record = z.object({
   expected_close_date: z.string().nullable(),
   owner_id: z.uuid().nullable(),
   closed_at: z.string().nullable(),
+  additional_props: additionalPropsRecord,
   created_by: z.uuid(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -66,6 +69,7 @@ const fields = {
     .describe('Optional ISO 4217 code such as USD; stored upper case.'),
   expected_close_date: z.iso.date().nullable().optional().describe('Optional calendar date, YYYY-MM-DD.'),
   owner_id: z.uuid().nullable().optional(),
+  additional_props: additionalPropsInput.optional(),
 }
 const create = z.strictObject({ ...fields, stage_id: z.uuid() })
 const update = z.strictObject(fields).partial()

@@ -856,6 +856,13 @@ interactive transaction, no `withContext` and no `executor` marker.
     (the runtime encodes a JS array) and `recordJson` renders it as `json(col)`, so an event's `after` holds a
     JSON array on both engines. Its column type is the decoded `string[]`, so a record typing it `z.string()`
     does not compile.
+  - **A `json` column on D1 is decoded on every path separately** ([[CORE318]], `additional_props`): the generic
+    write encodes the object as JSON text (`columnsOnly`), and the record read (`toRecord`), the event embed
+    (`json(col)` in `recordJson`) and any hook that reads the before row as data (the contact-merge fill) each
+    decode on their own. One missing decode leaves the other paths green, so prove each with its own absence
+    mutation (`knowledge/specs/033-CORE318-property-bag/RESULT.md`, M4a, M4b, M7). A `json` column is not a
+    filterable or sortable kind. A column added to the shared `Database` type with a database default is optional
+    on insert, so the parked Postgres insert sites compile with no Postgres migration.
 - **`TenantOperation.prepare` may be async** ([[CORE40]] P8): `run()` awaits it inside the try that
   maps errors. Use it only for work that cannot be a hook, such as hashing a minted secret.
   `PreparedEnv.randomBytes(n)` is the injected random source beside `now` and `newId()`

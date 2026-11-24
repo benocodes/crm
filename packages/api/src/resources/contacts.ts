@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { deleteContactOperation } from '../identity/cascades.js'
+import { additionalPropsInput, additionalPropsRecord, type Bag } from '../storage/additional-props.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
 import { withColumnFilters } from '../storage/column-filters.js'
@@ -12,6 +13,7 @@ export type ContactRecord = {
   name: string | null
   company_id: string | null
   merged_into_id: string | null
+  additional_props: Bag
   created_by: string
   created_at: string
   updated_at: string
@@ -26,6 +28,7 @@ const record = z.object({
   name: z.string().nullable(),
   company_id: z.uuid().nullable(),
   merged_into_id: z.uuid().nullable(),
+  additional_props: additionalPropsRecord,
   created_by: z.uuid(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -48,6 +51,7 @@ const record = z.object({
 const fields = {
   name: z.string().trim().min(1).max(500).nullable().optional(),
   company_id: z.uuid().nullable().optional(),
+  additional_props: additionalPropsInput.optional(),
 }
 const create = z.strictObject(fields)
 const update = create.partial()

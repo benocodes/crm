@@ -75,6 +75,9 @@
       },
       {
         "name": "0025_capture_defaults.sql"
+      },
+      {
+        "name": "0026_additional_props.sql"
       }
     ],
     "success": true,

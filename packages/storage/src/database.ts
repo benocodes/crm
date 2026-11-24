@@ -11,6 +11,11 @@ export type Timestamp = ColumnType<Date | string, string, string>
 export type NullableTimestamp = ColumnType<Date | string | null, string | null, string | null>
 /** JSON as read: an object (Postgres jsonb) or text (D1); written as JSON text. */
 export type JsonValue = ColumnType<unknown, string | null, string | null>
+/**
+ * [[CORE318]] D1: the property bag, as the DECODED flat object (`toRecord` decodes the D1 text) and written as JSON text. Optional on insert: the
+ * column defaults to `{}`, so a writer that names no bag, and the parked Postgres adapter's insert sites, still compile.
+ */
+export type AdditionalPropsColumn = ColumnType<Record<string, string | number | boolean>, string | undefined, string>
 /** A boolean as read: `boolean` (Postgres) or 0/1 (D1); written as a boolean (the D1 runtime encodes it 1/0). */
 export type BooleanColumn = ColumnType<boolean | number, boolean, boolean>
 /**
@@ -66,6 +71,7 @@ export interface TasksTable {
   assignee_id: string | null
   created_by: string
   deleted_at: NullableTimestamp
+  additional_props: AdditionalPropsColumn
 }
 export interface CompaniesTable {
   id: string
@@ -76,6 +82,7 @@ export interface CompaniesTable {
   deleted_at: NullableTimestamp
   name: string
   domain: string | null
+  additional_props: AdditionalPropsColumn
 }
 export interface ContactsTable {
   id: string
@@ -87,6 +94,7 @@ export interface ContactsTable {
   name: string | null
   company_id: string | null
   merged_into_id: string | null
+  additional_props: AdditionalPropsColumn
 }
 export interface IdentitiesTable {
   id: string
@@ -258,6 +266,7 @@ export interface DealsTable {
   closed_at: NullableTimestamp
   created_by: string
   deleted_at: NullableTimestamp
+  additional_props: AdditionalPropsColumn
 }
 /**
  * [[CHN5]] D3, D31: a grant to one Google account, owned by a user. D1 only. `account_id` is Google's `sub`; `granted_scopes` is a
@@ -627,6 +636,7 @@ export const COLUMN_KINDS = {
     assignee_id: 'uuid',
     created_by: 'uuid',
     deleted_at: 'timestamp',
+    additional_props: 'json',
   },
   companies: {
     id: 'uuid',
@@ -637,6 +647,7 @@ export const COLUMN_KINDS = {
     deleted_at: 'timestamp',
     name: 'text',
     domain: 'text',
+    additional_props: 'json',
   },
   contacts: {
     id: 'uuid',
@@ -648,6 +659,7 @@ export const COLUMN_KINDS = {
     name: 'text',
     company_id: 'uuid',
     merged_into_id: 'uuid',
+    additional_props: 'json',
   },
   identities: {
     id: 'uuid',
@@ -819,6 +831,7 @@ export const COLUMN_KINDS = {
     closed_at: 'timestamp',
     created_by: 'uuid',
     deleted_at: 'timestamp',
+    additional_props: 'json',
   },
   channel_connections: {
     id: 'uuid',

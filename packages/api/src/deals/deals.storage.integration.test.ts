@@ -237,6 +237,7 @@ describe('deal validation (D7, D9)', () => {
       created_by: e.userId,
     })
     expect(Object.keys(d).sort()).toEqual([
+      'additional_props',
       'amount_minor',
       'closed_at',
       'created_at',

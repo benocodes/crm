@@ -3,6 +3,7 @@ import { readMaybe } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { deleteCompanyOperation } from '../identity/cascades.js'
 import { normalizeDomain } from '../identity/normalize.js'
+import { additionalPropsInput, additionalPropsRecord, type Bag } from '../storage/additional-props.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
 import { withColumnFilters } from '../storage/column-filters.js'
@@ -13,6 +14,7 @@ export type CompanyRecord = {
   organization_id: string
   name: string
   domain: string | null
+  additional_props: Bag
   created_by: string
   created_at: string
   updated_at: string
@@ -23,6 +25,7 @@ const record = z.object({
   organization_id: z.uuid(),
   name: z.string(),
   domain: z.string().nullable(),
+  additional_props: additionalPropsRecord,
   created_by: z.uuid(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -31,6 +34,7 @@ const record = z.object({
 const fields = {
   name: z.string().trim().min(1).max(500),
   domain: z.string().max(253).nullable().optional(),
+  additional_props: additionalPropsInput.optional(),
 }
 const create = z.strictObject(fields)
 const update = create.partial()

@@ -262,6 +262,7 @@
             "expected_close_date": "2026-12-31",
             "owner_id": null,
             "closed_at": null,
+            "additional_props": {},
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:07:00.000Z",
             "updated_at": "2026-10-22T09:07:00.000Z"
@@ -288,6 +289,7 @@
                 "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
                 "amount_minor": 1250000,
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "additional_props": {},
                 "expected_close_date": "2026-12-31"
               }
             }
@@ -334,6 +336,7 @@
             "expected_close_date": "2026-12-31",
             "owner_id": null,
             "closed_at": null,
+            "additional_props": {},
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:07:00.000Z",
             "updated_at": "2026-10-22T09:09:00.000Z"
@@ -359,6 +362,7 @@
                 "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
                 "amount_minor": 1250000,
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "additional_props": {},
                 "expected_close_date": "2026-12-31"
               },
               "after": {
@@ -374,6 +378,7 @@
                 "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
                 "amount_minor": 1500000,
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "additional_props": {},
                 "expected_close_date": "2026-12-31"
               }
             }
@@ -417,6 +422,7 @@
             "expected_close_date": "2026-12-31",
             "owner_id": null,
             "closed_at": "2026-10-22T09:11:00.000Z",
+            "additional_props": {},
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:07:00.000Z",
             "updated_at": "2026-10-22T09:11:00.000Z"
@@ -442,6 +448,7 @@
                 "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
                 "amount_minor": 1500000,
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "additional_props": {},
                 "expected_close_date": "2026-12-31"
               },
               "after": {
@@ -457,6 +464,7 @@
                 "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
                 "amount_minor": 1500000,
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "additional_props": {},
                 "expected_close_date": "2026-12-31"
               }
             }
@@ -482,6 +490,7 @@
             "expected_close_date": "2026-12-31",
             "owner_id": null,
             "closed_at": "2026-10-22T09:11:00.000Z",
+            "additional_props": {},
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:07:00.000Z",
             "updated_at": "2026-10-22T09:11:00.000Z",
@@ -510,6 +519,7 @@
                 "expected_close_date": "2026-12-31",
                 "owner_id": null,
                 "closed_at": "2026-10-22T09:11:00.000Z",
+                "additional_props": {},
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "created_at": "2026-10-22T09:07:00.000Z",
                 "updated_at": "2026-10-22T09:11:00.000Z"
@@ -555,6 +565,7 @@
             "expected_close_date": "2026-12-31",
             "owner_id": null,
             "closed_at": null,
+            "additional_props": {},
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:07:00.000Z",
             "updated_at": "2026-10-22T09:15:00.000Z"
@@ -580,6 +591,7 @@
                 "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
                 "amount_minor": 1500000,
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "additional_props": {},
                 "expected_close_date": "2026-12-31"
               },
               "after": {
@@ -595,6 +607,7 @@
                 "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
                 "amount_minor": 1500000,
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "additional_props": {},
                 "expected_close_date": "2026-12-31"
               }
             }
@@ -621,6 +634,7 @@
                 "expected_close_date": "2026-12-31",
                 "owner_id": null,
                 "closed_at": null,
+                "additional_props": {},
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "created_at": "2026-10-22T09:07:00.000Z",
                 "updated_at": "2026-10-22T09:15:00.000Z"
@@ -687,6 +701,7 @@
                 "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
                 "amount_minor": 1500000,
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "additional_props": {},
                 "expected_close_date": "2026-12-31"
               },
               "after": null
@@ -905,6 +920,7 @@
             "expected_close_date": null,
             "owner_id": null,
             "closed_at": null,
+            "additional_props": {},
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:02:00.000Z",
             "updated_at": "2026-10-22T09:02:00.000Z"
@@ -931,6 +947,7 @@
                 "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
                 "amount_minor": null,
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "additional_props": {},
                 "expected_close_date": null
               }
             }
@@ -958,6 +975,7 @@
             "expected_close_date": null,
             "owner_id": null,
             "closed_at": null,
+            "additional_props": {},
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:03:00.000Z",
             "updated_at": "2026-10-22T09:03:00.000Z"
@@ -984,6 +1002,7 @@
                 "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
                 "amount_minor": null,
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "additional_props": {},
                 "expected_close_date": null
               }
             }
@@ -1003,6 +1022,7 @@
             "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
             "name": "Acme",
             "domain": null,
+            "additional_props": {},
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:04:00.000Z",
             "updated_at": "2026-10-22T09:04:00.000Z"
@@ -1023,7 +1043,8 @@
                 "created_at": "2026-10-22T09:04:00.000Z",
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "updated_at": "2026-10-22T09:04:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "additional_props": {}
               }
             }
           ]
@@ -1180,6 +1201,7 @@
                 "expected_close_date": null,
                 "owner_id": null,
                 "closed_at": null,
+                "additional_props": {},
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "created_at": "2026-10-22T09:02:00.000Z",
                 "updated_at": "2026-10-22T09:02:00.000Z"
@@ -1210,6 +1232,7 @@
                 "expected_close_date": null,
                 "owner_id": null,
                 "closed_at": null,
+                "additional_props": {},
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "created_at": "2026-10-22T09:02:00.000Z",
                 "updated_at": "2026-10-22T09:02:00.000Z"
@@ -1278,6 +1301,7 @@
             "expected_close_date": null,
             "owner_id": null,
             "closed_at": null,
+            "additional_props": {},
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:02:00.000Z",
             "updated_at": "2026-10-22T09:02:00.000Z",
@@ -1376,6 +1400,7 @@
                 "pipeline_id": "0190b2c4-0000-7000-8000-000001000001",
                 "amount_minor": null,
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "additional_props": {},
                 "expected_close_date": null
               },
               "after": null
