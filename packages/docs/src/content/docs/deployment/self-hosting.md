@@ -314,18 +314,24 @@ npx @vibase/server-d1@<version> redeploy --env mycompany
 
 It runs the same steps as upgrade (the migrations the instance lacks, control database first, then deploy, verify the version and commit on `/health`, smoke) and skips only the version and schema refusals. A database with nothing pending gets no migration command. If a failure happens after it began, run `status`, then redeploy again.
 
-### Attach an extensions file (custom objects)
+### Attach an extensions file (custom objects and extension fields)
 
-A custom object is declared in one JSON file (`version` 1, `objects` keyed by `<key>__c`, at most 256 KiB; the package ships its JSON Schema as `worker/vibase-extensions.schema.json`). A schema change always ships through a redeploy:
+A custom object is declared in one JSON file (`version` 1, `objects` keyed by `<key>__c`, and optionally `extend`, at most 256 KiB; the package ships its JSON Schema as `worker/vibase-extensions.schema.json`). A schema change always ships through a redeploy:
 
 ```bash
 npx @vibase/server-d1@<version> redeploy --env mycompany --extensions ./extensions.json --dry-run
 npx @vibase/server-d1@<version> redeploy --env mycompany --extensions ./extensions.json
 ```
 
+`extend` adds your own fields to the four built-in tables that take them: `extend.<object>.fields.<name>__c` for `contacts`, `companies`, `deals` or `tasks` (any other built-in is refused by name). A field is declared like a custom object's field (kind, `required`, `default`, `unique`, enum `values`, a reference to a company, deal, task, principal or a custom object of the same file). The Worker serves each field on create, update, get, list (as a filter), the MCP tools and the OpenAPI document; the plan lists it as `add: contacts.<name>__c` and its unique index as `index:`. A field removed from the file archives its column: the column stays, the field is no longer served, and nothing is dropped.
+
+```json
+{ "version": 1, "objects": {}, "extend": { "contacts": { "fields": { "tier__c": { "kind": "enum", "values": ["standard", "gold"], "required": true, "default": "standard" } } } } }
+```
+
 The file is validated before anything is read or written. The plan then lists what would be created, added, indexed and archived, with the statements, and a refusal (a changed kind or target, a field made required, a unique field that live rows already violate) exits 2 with nothing changed. A real run applies the file's tables to the database after the core migrations, uploads the Worker with the file attached and records the file's absolute path in the settings file, so a later `redeploy` or `upgrade` attaches the same file again. If the apply fails, the run exits 3 at the step `apply` and a rerun plans what is left.
 
-`/health` reports the attached file's SHA-256 digest and object names (`extensions`: `null` when no objects are declared), `status` prints it, and every redeploy or upgrade plan prints the live and the new digest. A run with no file is refused while the live Worker carries one, so a redeploy never drops the objects by accident: pass `--extensions <path>`, or a file with no objects (`{"version":1,"objects":{}}`) to drop them on purpose; the tables are kept and reported as archived, never deleted. A Worker that cannot load its file answers every route but `/health` with `503 extensions_invalid`.
+`/health` reports the attached file's SHA-256 digest and object names, and the extension fields as `fields` (sorted `<object>.<name>__c`, present only when the file extends; `extensions`: `null` when the file declares no objects and no extension fields), `status` prints it, and every redeploy or upgrade plan prints the live and the new digest. A run with no file is refused while the live Worker carries one, so a redeploy never drops the objects by accident: pass `--extensions <path>`, or a file with no objects and no extend (`{"version":1,"objects":{}}`) to drop them on purpose; the tables are kept and reported as archived, never deleted. A Worker that cannot load its file answers every route but `/health` with `503 extensions_invalid`.
 
 **Rollback does not undo migrations.** Redeploy from an older installed release deploys that release's Worker over the newer schema and never reverses a migration; it prints `note: rolling back code; the database schema is newer than this build and is not reversed`. Cloudflare's own `wrangler rollback` has the same limit. Roll back a Worker only to a version whose code works with the current schema. (`upgrade --rollback` no longer exists: use redeploy.)
 

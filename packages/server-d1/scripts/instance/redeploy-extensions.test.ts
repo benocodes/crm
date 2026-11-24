@@ -15,6 +15,7 @@ import {
   extWorld,
   healthOfModule,
   sha256,
+  sqliteD1,
   treeHash,
   type ExtSim,
   type HealthExt,
@@ -142,11 +143,16 @@ describe('group 2: the place and the staging (D26, D27, P3, P7)', () => {
     const w = extWorld(s, HEALTH)
     const before = readFileSync(w.settingsPath, 'utf8')
     const code = await runRedeploy(
-      ['--env', 'demo', '--extensions', extFile('bad.json', '{"version":1,"objects":{},"extend":{}}')],
+      [
+        '--env',
+        'demo',
+        '--extensions',
+        extFile('bad.json', '{"version":1,"objects":{},"extend":{"messages":{"fields":{}}}}'),
+      ],
       w.deps,
     )
     expect(code).toBe(2)
-    expect(w.err.join('\n')).toMatch(/extend_later/)
+    expect(w.err.join('\n')).toMatch(/object_closed at extend\.messages/)
     expect(w.wrangler).toEqual([])
     expect(w.fetchUrls).toEqual([])
     expect(readFileSync(w.settingsPath, 'utf8')).toBe(before)
@@ -224,19 +230,23 @@ describe('group 2: the place and the staging (D26, D27, P3, P7)', () => {
 
 describe('group 4: the digest guard matrix (D29, P1, P4)', () => {
   const A = digestOf(ext.a())
+  const E = digestOf(ext.x())
   const lives: [string, HealthExt][] = [
     ['no key', 'absent'],
     ['null', null],
     ['digest A', { digest: A, objects: ['milestones__c', 'projects__c'] }],
+    ['digest E', { digest: E, objects: [], fields: ['contacts.code__c', 'contacts.tier__c'] }],
     ['error', { digest: 'e'.repeat(64), error: 'extensions_invalid' }],
   ]
   const runs: [string, (() => unknown) | null][] = [
     ['no file', null],
     ['file A', ext.a],
     ['file B', ext.b],
+    ['file E', ext.x],
     ['a file with no objects', ext.empty],
   ]
-  const refuses = (live: string, run: string) => (live === 'digest A' || live === 'error') && run === 'no file'
+  const refuses = (live: string, run: string) =>
+    (live === 'digest A' || live === 'digest E' || live === 'error') && run === 'no file'
   for (const [liveName, live] of lives)
     for (const [runName, file] of runs)
       it(`redeploy: live ${liveName} x run ${runName}: ${refuses(liveName, runName) ? 'refused before any write' : 'proceeds and verifies'}`, async () => {
@@ -298,5 +308,143 @@ describe('group 4: the digest guard matrix (D29, P1, P4)', () => {
     const none = await go('redeploy', extSim({ after: other }), ['--yes'])
     expect(none.code).toBe(3)
     expect(none.w.err.join('\n')).toMatch(/verify/)
+  })
+})
+
+describe('group 3 (CORE561): remote apply of extend (P4, D30)', () => {
+  const COLS = (s: ExtSim, t = 'contacts') =>
+    (s.db.prepare(`select name from pragma_table_info('${t}')`).all() as { name: string }[]).map((c) => c.name)
+  const applyX = async (s: ExtSim, j: unknown = ext.x()) => {
+    const f = parseExtensionsFile(JSON.stringify(j))
+    return applyExtensions(sqliteD1(s.db), f.objects, f.extend)
+  }
+  it('extend alone: the columns and the unique index come after the migrations and before the deploy', async () => {
+    const s = extSim({ crm: ['0001_a.sql'] })
+    const { w, code } = await go('redeploy', s, ['--extensions', extFile('x.json', ext.x()), '--yes'])
+    expect(w.err).toEqual([])
+    expect(code).toBe(0)
+    expect(order(w)).toEqual(['migrate:DB', 'file', 'deploy'])
+    expect(COLS(s)).toEqual(expect.arrayContaining(['tier__c', 'code__c']))
+    const idx = s.db.prepare(`select name from sqlite_master where type='index' and tbl_name='contacts'`).all()
+    expect(JSON.stringify(idx)).toMatch(/code__c/)
+    expect(w.out.join('\n')).toMatch(
+      /add: contacts\.code__c, contacts\.tier__c|add: contacts\.tier__c, contacts\.code__c/,
+    )
+    expect(s.staged!.module).toBe(`${JSON.stringify(ext.x(), null, 2)}\n`)
+  })
+  it('objects and extend plan together in one apply', async () => {
+    const s = extSim()
+    const { code } = await go('redeploy', s, ['--extensions', extFile('ax.json', ext.ax()), '--yes'])
+    expect(code).toBe(0)
+    expect(s.fileRuns).toHaveLength(1)
+    expect(COLS(s)).toContain('tier__c')
+    expect((s.db.prepare(`select name from sqlite_master where name='projects__c'`).all() as unknown[]).length).toBe(1)
+  })
+  it('a kind change on an applied built-in field is exit 2, no write call, settings unrecorded', async () => {
+    const s = extSim({ crm: ['0001_a.sql'] })
+    await applyX(s)
+    const { w, code } = await go('redeploy', s, ['--extensions', extFile('k.json', ext.k()), '--yes'])
+    expect(code).toBe(2)
+    expect(w.err.join('\n')).toMatch(/kind_changed/)
+    expect(w.err.join('\n')).toMatch(/contacts\.tier__c/)
+    expect(writes(w)).toEqual([])
+    expect(settingsOf(w).extensions).toBeUndefined()
+  })
+  it('a unique violation in live contacts is exit 2, no write call', async () => {
+    const s = extSim({ crm: ['0001_a.sql'] })
+    await applyX(s, { version: 1, objects: {}, extend: { contacts: { fields: { code__c: { kind: 'text' } } } } })
+    for (const id of ['c1', 'c2'])
+      s.db.prepare(`insert into contacts (id, organization_id, name, code__c) values (?, 'o', 'n', 'DUP')`).run(id)
+    const { w, code } = await go('redeploy', s, ['--extensions', extFile('x.json', ext.x()), '--yes'])
+    expect(code).toBe(2)
+    expect(w.err.join('\n')).toMatch(/unique_violation/)
+    expect(w.err.join('\n')).toContain('DUP')
+    expect(writes(w)).toEqual([])
+  })
+  it('--dry-run writes nothing and prints the add: lines for built-in fields', async () => {
+    const s = extSim()
+    const { w, code } = await go('redeploy', s, ['--extensions', extFile('x.json', ext.x()), '--dry-run'])
+    expect(code).toBe(0)
+    expect(writes(w)).toEqual([])
+    expect(s.fileRuns).toEqual([])
+    expect(w.out.join('\n')).toMatch(/add: .*contacts\.tier__c/)
+    expect(w.out.join('\n')).toMatch(/index: .*code__c/)
+    expect(COLS(s)).not.toContain('tier__c')
+    expect(settingsOf(w).extensions).toBeUndefined()
+  })
+  it('a later run with no flag uses the recorded file and plans nothing', async () => {
+    const s = extSim()
+    const p = extFile('x.json', ext.x())
+    expect((await go('redeploy', s, ['--extensions', p, '--yes'])).code).toBe(0)
+    const s2 = extSim({ live: healthOfModule(readFileSync(p, 'utf8')) })
+    await applyX(s2)
+    const again = await go('redeploy', s2, ['--yes'], { settings: validSettings({ extensions: p }) })
+    expect(again.code).toBe(0)
+    expect(s2.fileRuns).toEqual([])
+    expect(again.w.out.join('\n')).toMatch(/add: none/)
+  })
+  it('a file without the field archives it: the column stays', async () => {
+    const s = extSim()
+    await applyX(s)
+    const live = healthOfModule(`${JSON.stringify(ext.x(), null, 2)}\n`)
+    const s2 = Object.assign(s, { live })
+    const { w, code } = await go('redeploy', s2, ['--extensions', extFile('e.json', ext.empty()), '--yes'])
+    expect(code).toBe(0)
+    expect(w.out.join('\n')).toMatch(/archived: .*contacts\.tier__c/)
+    expect(COLS(s)).toContain('tier__c')
+    expect(s.staged!.module).toBe(`${JSON.stringify(ext.empty(), null, 2)}\n`)
+  })
+})
+
+describe('group 4 (CORE561): the extend-only file is a file (P3)', () => {
+  const X = digestOf(ext.x())
+  const live = { digest: X, objects: [], fields: ['contacts.code__c', 'contacts.tier__c'] }
+  it('the guard refuses an extend-only live file with no run file, naming both fixes', async () => {
+    const { w, code } = await go('redeploy', extSim({ live }), ['--yes'])
+    expect(code).toBe(2)
+    expect(w.err.join('\n')).toContain('--extensions <path>')
+    expect(w.err.join('\n')).toContain('a file with no objects and no extend')
+    expect(w.err.join('\n')).toContain('contacts.tier__c')
+    expect(writes(w)).toEqual([])
+  })
+  it('an extend with no fields is the deliberate drop and passes the guard', async () => {
+    const { code } = await go('redeploy', extSim({ live }), [
+      '--extensions',
+      extFile('nf.json', ext.noFields()),
+      '--yes',
+    ])
+    expect(code).toBe(0)
+  })
+  it('upgrade refuses it with no recorded file; a recorded one passes', async () => {
+    const { w, code } = await go('upgrade', extSim({ live }), ['--yes'])
+    expect(code).toBe(2)
+    expect(w.err.join('\n')).toContain('redeploy --extensions')
+    const p = extFile('x.json', ext.x())
+    const s = extSim({ live })
+    await applyExtensions(sqliteD1(s.db), {}, parseExtensionsFile(JSON.stringify(ext.x())).extend)
+    expect((await go('upgrade', s, ['--yes'], { settings: validSettings({ extensions: p }) })).code).toBe(0)
+  })
+  it('status and the plan line name the fields', async () => {
+    const w = extWorld(extSim({ live }), HEALTH)
+    await runStatus(['--env', 'demo'], w.deps)
+    expect(w.out.join('\n')).toMatch(new RegExp(`extensions: ${X}.*contacts\\.tier__c`))
+    const r = await go('redeploy', extSim({ live }), ['--extensions', extFile('y.json', ext.y()), '--dry-run'])
+    const out = r.w.out.join('\n')
+    expect(out).toContain(X)
+    expect(out).toContain(digestOf(ext.y()))
+    expect(out).toMatch(/extensions: live .*contacts\.tier__c.* -> run .*contacts\.note__c/)
+  })
+  it('verify passes only the matching cell for an extend-only run', async () => {
+    const p = extFile('x.json', ext.x())
+    const cases: [HealthExt | undefined, number][] = [
+      [undefined, 0],
+      [null, 3],
+      [{ digest: 'f'.repeat(64), objects: [], fields: ['contacts.tier__c'] }, 3],
+      [{ digest: X, error: 'extensions_invalid' }, 3],
+    ]
+    for (const [after, want] of cases) {
+      const { code } = await go('redeploy', extSim(after === undefined ? {} : { after }), ['--extensions', p, '--yes'])
+      expect(code, JSON.stringify(after)).toBe(want)
+    }
   })
 })

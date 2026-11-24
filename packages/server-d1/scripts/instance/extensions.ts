@@ -12,6 +12,7 @@ import {
   type Refusal,
 } from '../../../api/src/custom/apply.js'
 import { DeclarationError, type ObjectDeclaration } from '../../../api/src/custom/declaration.js'
+import type { ExtendDeclarations } from '../../../api/src/custom/extend.js'
 import { literal } from '../../../api/src/custom/ddl.js'
 import { parseExtensionsFile } from '../../../api/src/custom/extensions.js'
 import { InstanceRefusal } from './types.js'
@@ -27,9 +28,14 @@ export interface ExtensionsRun {
   bytes: Buffer
   digest: string
   objects: Record<string, ObjectDeclaration>
+  /** The file's extension fields of the built-ins ([[CORE561]]); `{}` when it has none. */
+  extend: ExtendDeclarations
 }
-/** What a `/health` says of the attached file ([[CORE543]] P1): `null` none, `{digest, objects}` a file, `{digest, error}` a file the Worker could not load. */
-export type LiveExtensions = null | { digest: string; objects: string[] } | { digest: string; error: string }
+/** What a `/health` says of the attached file ([[CORE543]] P1, [[CORE561]] P2): `null` none, `{digest, objects, fields?}` a file, `{digest, error}` a file the Worker could not load. */
+export type LiveExtensions =
+  | null
+  | { digest: string; objects: string[]; fields?: string[] }
+  | { digest: string; error: string }
 
 export const sha256Hex = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex')
 
@@ -44,7 +50,7 @@ export function loadExtensionsFile(path: string): ExtensionsRun {
   }
   try {
     const file = parseExtensionsFile(bytes.toString('utf8'))
-    return { path: abs, bytes, digest: sha256Hex(bytes), objects: file.objects }
+    return { path: abs, bytes, digest: sha256Hex(bytes), objects: file.objects, extend: file.extend ?? {} }
   } catch (e) {
     if (e instanceof DeclarationError)
       throw new InstanceRefusal(`${abs}: ${e.rule}${e.path ? ` at ${e.path}` : ''}: ${e.message}`)
@@ -52,35 +58,60 @@ export function loadExtensionsFile(path: string): ExtensionsRun {
   }
 }
 
-/** The digest a run attaches: `null` when there is no file or it declares no objects (the Worker reports `null` for both, P1). */
-export const runDigest = (run: ExtensionsRun | null): string | null =>
-  run === null || Object.keys(run.objects).length === 0 ? null : run.digest
+/** The extension fields a run declares, sorted `<object>.<name>__c` (what the Worker reports as `fields`). */
+export const runFields = (run: ExtensionsRun): string[] =>
+  Object.entries(run.extend)
+    .flatMap(([object, declared]) => Object.keys(declared).map((name) => `${object}.${name}`))
+    .sort()
+/** True when the run is a file in the Worker's sense ([[CORE561]] P3): it declares an object or an extension field. The deliberate drop is a file with neither. */
+export const isFile = (run: ExtensionsRun | null): boolean =>
+  run !== null && (Object.keys(run.objects).length > 0 || runFields(run).length > 0)
+
+/** The digest a run attaches: `null` when there is no file or it declares no objects and no extension fields (the Worker reports `null` for both, P1, P2). */
+export const runDigest = (run: ExtensionsRun | null): string | null => (run !== null && isFile(run) ? run.digest : null)
 
 /** `/health.extensions` as the tooling reads it: no key (an older build) is none, an unreadable shape is none, an error marker is a file the Worker could not load (P1). */
 export function liveExtensionsOf(health: unknown): LiveExtensions {
   const e = (health as { extensions?: unknown } | null | undefined)?.extensions
   if (typeof e !== 'object' || e === null) return null
-  const { digest, objects, error } = e as { digest?: unknown; objects?: unknown; error?: unknown }
+  const { digest, objects, fields, error } = e as {
+    digest?: unknown
+    objects?: unknown
+    fields?: unknown
+    error?: unknown
+  }
   if (typeof digest !== 'string') return null
   if (typeof error === 'string') return { digest, error }
-  if (Array.isArray(objects)) return { digest, objects: objects.filter((o): o is string => typeof o === 'string') }
+  const strings = (v: unknown[]) => v.filter((o): o is string => typeof o === 'string')
+  if (Array.isArray(objects) || Array.isArray(fields))
+    return {
+      digest,
+      objects: Array.isArray(objects) ? strings(objects) : [],
+      ...(Array.isArray(fields) ? { fields: strings(fields) } : {}),
+    }
   return null
 }
 
 const names = (objects: string[]): string =>
   `${objects.length} object${objects.length === 1 ? '' : 's'}: ${objects.join(', ')}`
+/** What a file holds, in words: its objects, and its extension fields when it has any. */
+const holds = (objects: string[], fields: string[]): string =>
+  [
+    ...(objects.length > 0 || fields.length === 0 ? [names(objects)] : []),
+    ...(fields.length > 0 ? [`fields: ${fields.join(', ')}`] : []),
+  ].join('; ')
 const liveText = (live: LiveExtensions): string =>
   live === null
     ? 'none'
     : 'error' in live
       ? `${live.digest} (invalid: ${live.error})`
-      : `${live.digest} (${names(live.objects)})`
+      : `${live.digest} (${holds(live.objects, live.fields ?? [])})`
 const runText = (run: ExtensionsRun | null): string =>
   run === null
     ? 'none'
-    : Object.keys(run.objects).length === 0
-      ? `${run.digest} (no objects)`
-      : `${run.digest} (${names(Object.keys(run.objects))})`
+    : !isFile(run)
+      ? `${run.digest} (no objects, no extend fields)`
+      : `${run.digest} (${holds(Object.keys(run.objects), runFields(run))})`
 
 /** The line `status` prints. */
 export const liveExtensionsLine = (live: LiveExtensions): string => `extensions: ${liveText(live)}`
@@ -99,8 +130,8 @@ export function extensionsGuard(
   const what =
     'error' in live
       ? `an extensions file it could not load (digest ${live.digest})`
-      : `an extensions file (digest ${live.digest}, ${names(live.objects)})`
-  const drop = `a file with no objects (${EMPTY_EXTENSIONS.trim()}) drops it on purpose`
+      : `an extensions file (digest ${live.digest}, ${holds(live.objects, live.fields ?? [])})`
+  const drop = `a file with no objects and no extend (${EMPTY_EXTENSIONS.trim()}) drops it on purpose`
   return mode === 'redeploy'
     ? `the live Worker carries ${what} and this run has none: it would be dropped. Pass --extensions <path> to attach one (${drop}), or record one with an earlier redeploy --extensions`
     : `the live Worker carries ${what} and this instance records none: upgrade would drop it. Run vibase-server redeploy --extensions <path> --env ${env} to attach one and record it (${drop})`
@@ -129,8 +160,12 @@ export interface RemotePlan {
   refused: Refusal[]
 }
 /** The plan and the violation reads against the live schema, before any write (P2). */
-export async function planRemote(objects: Record<string, ObjectDeclaration>, readSql: SqlReader): Promise<RemotePlan> {
-  const plan = planApply(objects, await readRemoteLiveSchema(readSql))
+export async function planRemote(
+  objects: Record<string, ObjectDeclaration>,
+  extend: ExtendDeclarations,
+  readSql: SqlReader,
+): Promise<RemotePlan> {
+  const plan = planApply(objects, await readRemoteLiveSchema(readSql), extend)
   const refused = [...plan.refused]
   for (const r of plan.reads)
     refused.push(...violationRefusals(r, (await readSql(r.sql)) as { value: unknown; ids: unknown }[]))

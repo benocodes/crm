@@ -8,7 +8,7 @@ import {
   type FieldDeclaration,
 } from './declaration.js'
 
-// The `extend` section of the extensions file ([[CORE315]] D7, D8, D9; [[CORE555]] P1, P2): `extend.<object>.fields.<name>__c`, the declarations of fields added to a built-in table. Plain data, validated here; nothing serves it yet (the envelope refuses `extend` until [[CORE559]]).
+// The `extend` section of the extensions file ([[CORE315]] D7, D8, D9; [[CORE555]] P1, P2): `extend.<object>.fields.<name>__c`, the declarations of fields added to a built-in table. Plain data, validated here; the extensions file carries it as its `extend` key ([[CORE561]]).
 
 /** D7: the built-in tables that take extension fields. */
 export const EXTENSIBLE_OBJECTS = ['contacts', 'companies', 'deals', 'tasks'] as const

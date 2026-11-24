@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { extensionsJsonSchema } from '@vibase/api'
+import { extensionsFileSchema, extensionsJsonSchema } from '@vibase/api'
 
 // [[CORE542]] D26, P6: the published JSON Schema is generated from the validator and checked in; this keeps them equal.
 const FILE = new URL('../vibase-extensions.schema.json', import.meta.url)
@@ -13,6 +13,23 @@ describe('vibase-extensions.schema.json', () => {
     expect(s.properties.version).toEqual({ type: 'number', const: 1 })
     expect(s.additionalProperties).toBe(false)
     expect(s.required).toEqual(expect.arrayContaining(['version', 'objects']))
-    expect(Object.keys(s.properties).sort()).toEqual(['$schema', 'objects', 'version'])
+    expect(Object.keys(s.properties).sort()).toEqual(['$schema', 'extend', 'objects', 'version'])
+  })
+  it('validates the docs sample for real and limits extend to the four built-ins', () => {
+    const sample = {
+      version: 1,
+      objects: {},
+      extend: {
+        contacts: {
+          fields: { tier__c: { kind: 'enum', values: ['standard', 'gold'], required: true, default: 'standard' } },
+        },
+      },
+    }
+    expect(extensionsFileSchema.safeParse(sample).success).toBe(true)
+    expect(extensionsFileSchema.safeParse({ ...sample, extend: { messages: { fields: {} } } }).success).toBe(false)
+    const s = extensionsJsonSchema() as any
+    expect(s.required).not.toContain('extend')
+    expect(s.properties.extend.propertyNames.enum).toEqual(['contacts', 'companies', 'deals', 'tasks'])
+    expect(s.properties.extend.propertyNames.type).toBe('string')
   })
 })

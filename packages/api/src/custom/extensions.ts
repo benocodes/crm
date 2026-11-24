@@ -1,5 +1,12 @@
 import { z } from 'zod'
-import { DeclarationError, objectSchema, parseObjectDeclarations, type ObjectDeclaration } from './declaration.js'
+import {
+  DeclarationError,
+  fieldSchema,
+  objectSchema,
+  parseObjectDeclarations,
+  type ObjectDeclaration,
+} from './declaration.js'
+import { EXTENSIBLE_OBJECTS, parseExtend, type ExtendDeclarations } from './extend.js'
 
 // The extensions file ([[CORE315]] D5, D26; [[CORE542]]): one plain JSON file, `version` 1, `objects` keyed by `<key>__c`. Every refusal is a `DeclarationError` with a stable rule code and a path in the file.
 // The published JSON Schema is generated from the same zod schema; it is necessary, not sufficient (P6): the cross-field rules (sibling targets, `default` per kind, `unique` per kind) live in the declaration validator only.
@@ -11,13 +18,22 @@ export interface ExtensionsFile {
   version: 1
   $schema?: string
   objects: Record<string, ObjectDeclaration>
+  /** Extension fields of the built-ins ([[CORE561]]); absent when the file has no `extend` key. */
+  extend?: ExtendDeclarations
 }
 
-/** The envelope as zod sees it. `extend` is not a key of it: it is refused by name until U2, and the strict object refuses every other key. */
+/** `extend` as the published JSON Schema shows it: the four extensible built-ins, each `{ fields }` of field declarations. Necessary, not sufficient: `parseExtend` holds the name and reference rules. */
+const extendSchema = z.partialRecord(
+  z.enum(EXTENSIBLE_OBJECTS),
+  z.strictObject({ fields: z.record(z.string(), fieldSchema) }),
+)
+
+/** The envelope as zod sees it; the strict object refuses every other key. */
 export const extensionsFileSchema = z.strictObject({
   $schema: z.string().optional(),
   version: z.literal(1),
   objects: z.record(z.string(), objectSchema),
+  extend: extendSchema.optional(),
 })
 
 /** The JSON Schema of the file (checked in to `@vibase/server-d1` as `vibase-extensions.schema.json`, and shipped beside the Worker). */
@@ -38,10 +54,8 @@ export function parseExtensionsFile(text: string): ExtensionsFile {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw))
     throw new DeclarationError('not_an_object', 'the extensions file is a JSON object')
   const top = raw as Record<string, unknown>
-  if ('extend' in top)
-    throw new DeclarationError('extend_later', 'extension fields arrive in a later release', 'extend')
   for (const k of Object.keys(top))
-    if (k !== '$schema' && k !== 'version' && k !== 'objects')
+    if (k !== '$schema' && k !== 'version' && k !== 'objects' && k !== 'extend')
       throw new DeclarationError('unknown_key', `"${k}" is not a key of the extensions file`, k)
   if (top.version !== 1) throw new DeclarationError('version_invalid', 'version is 1', 'version')
   if (top.$schema !== undefined && typeof top.$schema !== 'string')
@@ -50,12 +64,9 @@ export function parseExtensionsFile(text: string): ExtensionsFile {
   const objects = top.objects
   if (typeof objects !== 'object' || objects === null || Array.isArray(objects))
     throw new DeclarationError('not_an_object', 'objects is a map from key to declaration', 'objects')
+  let declared: Record<string, ObjectDeclaration>
   try {
-    return {
-      version: 1,
-      ...(top.$schema !== undefined ? { $schema: top.$schema as string } : {}),
-      objects: parseObjectDeclarations(objects),
-    }
+    declared = parseObjectDeclarations(objects)
   } catch (e) {
     if (e instanceof DeclarationError)
       throw new DeclarationError(
@@ -64,5 +75,13 @@ export function parseExtensionsFile(text: string): ExtensionsFile {
         e.path === '' ? 'objects' : `objects.${e.path}`,
       )
     throw e
+  }
+  // [[CORE561]] D5, D26: `extend` is validated after the objects, with the file's own object keys as the custom targets a reference may name. Its refusals carry their own `extend.` paths.
+  const extend = 'extend' in top ? parseExtend(top.extend, Object.keys(declared)) : undefined
+  return {
+    version: 1,
+    ...(top.$schema !== undefined ? { $schema: top.$schema as string } : {}),
+    objects: declared,
+    ...(extend !== undefined ? { extend } : {}),
   }
 }

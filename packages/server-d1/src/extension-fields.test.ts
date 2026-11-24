@@ -7,8 +7,7 @@ import { readDeployment } from './init-deployment.js'
 import { applyExtensions, type ExtendDeclarations, type Registry } from '@vibase/api'
 import { bootstrapD1, NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
-// [[CORE559]] P1: the Worker's composition takes the validated `extend` as ONE dependency and hands it to every registry it builds (the app's and the rail's); with it the app serves the extension fields. Dormant: the entry
-// passes none (CORE561 fills it from the attached file).
+// [[CORE559]] P1: the Worker's composition takes the validated `extend` as ONE dependency and hands it to every registry it builds (the app's and the rail's); with it the app serves the extension fields. The entry passes the attached file's `extend` ([[CORE561]]); these tests pass it directly.
 const EXTEND: ExtendDeclarations = {
   contacts: { tier__c: { kind: 'enum', values: ['gold', 'silver'] }, seats__c: { kind: 'integer' } },
   tasks: { tier__c: { kind: 'enum', values: ['gold', 'silver'] } },

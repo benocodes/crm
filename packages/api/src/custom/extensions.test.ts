@@ -66,10 +66,67 @@ describe('the envelope', () => {
     const e = refused(file({ objects: { projects: { fields: {} } } }))
     expect([e.rule, e.path]).toEqual(['key_suffix', 'objects.projects'])
   })
-  it('refuses extend by name', () => {
-    const e = refused(file({ extend: { contacts: { fields: {} } } }))
-    expect([e.rule, e.path]).toEqual(['extend_later', 'extend'])
-    expect(e.message).toContain('extension fields arrive in a later release')
+  it('accepts extend: parsed with the file, objects kept (P1, D5, D26)', () => {
+    const f = parseExtensionsFile(
+      file({
+        extend: {
+          contacts: { fields: { tier__c: { kind: 'enum', values: ['a', 'b'], required: true, default: 'a' } } },
+        },
+      }),
+    )
+    expect(Object.keys(f.objects)).toEqual(['projects__c'])
+    expect(f.extend).toEqual({
+      contacts: { tier__c: { kind: 'enum', values: ['a', 'b'], required: true, default: 'a' } },
+    })
+  })
+  it('a file without extend has no extend key', () => {
+    expect('extend' in parseExtensionsFile(file())).toBe(false)
+  })
+  it('accepts an extend-only file and an extend reference to the file own custom object', () => {
+    const f = parseExtensionsFile(
+      file({ extend: { deals: { fields: { project__c: { kind: 'reference', target: 'projects__c' } } } } }),
+    )
+    expect(f.extend?.deals?.project__c?.kind).toBe('reference')
+    expect(
+      parseExtensionsFile(JSON.stringify({ version: 1, objects: {}, extend: { tasks: { fields: {} } } })).extend,
+    ).toEqual({
+      tasks: {},
+    })
+  })
+  it.each([
+    ['a closed built-in', { messages: { fields: {} } }, 'object_closed', 'extend.messages'],
+    ['an unknown object', { widgets: { fields: {} } }, 'object_unknown', 'extend.widgets'],
+    [
+      'a field without the suffix',
+      { contacts: { fields: { tier: { kind: 'text' } } } },
+      'field_key_suffix',
+      'extend.contacts.fields.tier',
+    ],
+    [
+      'an unknown kind',
+      { contacts: { fields: { a__c: { kind: 'money' } } } },
+      'unknown_kind',
+      'extend.contacts.fields.a__c',
+    ],
+    [
+      'a reference to contacts',
+      { deals: { fields: { a__c: { kind: 'reference', target: 'contacts' } } } },
+      'reference_contacts_later',
+      'extend.deals.fields.a__c',
+    ],
+    [
+      'a reference to a custom object not in the file',
+      { deals: { fields: { a__c: { kind: 'reference', target: 'other__c' } } } },
+      'reference_target_undeclared',
+      'extend.deals.fields.a__c',
+    ],
+  ])('refuses extend: %s -> %s at %s', (_n, extend, rule, path) => {
+    const e = refused(file({ extend }))
+    expect([e.rule, e.path]).toEqual([rule, path])
+  })
+  it('refuses a non-object extend', () => {
+    const e = refused(file({ extend: [] }))
+    expect([e.rule, e.path]).toEqual(['not_an_object', 'extend'])
   })
   it('refuses any other top-level key by name', () => {
     const e = refused(file({ hooks: [] }))

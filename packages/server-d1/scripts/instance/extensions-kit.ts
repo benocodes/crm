@@ -61,7 +61,11 @@ export function treeHash(dir: string): string {
 export const sha256 = (b: Uint8Array | string): string => createHash('sha256').update(b).digest('hex')
 
 /** What `/health.extensions` shows: the shapes of [[CORE543]] P1, plus `'absent'` for an older build (no key). */
-export type HealthExt = 'absent' | null | { digest: string; objects: string[] } | { digest: string; error: string }
+export type HealthExt =
+  | 'absent'
+  | null
+  | { digest: string; objects: string[]; fields?: string[] }
+  | { digest: string; error: string }
 
 export interface ExtSim {
   db: DatabaseSync
@@ -91,7 +95,9 @@ export const extSim = (over: Partial<ExtSim> = {}): ExtSim => {
   const db = new DatabaseSync(':memory:')
   // The core tables a reference may target exist in a deployed database; foreign keys stay off here (a row is inserted with made-up owners), D1's own enforcement is `@vibase/api`'s suites'.
   db.exec('pragma foreign_keys = off')
-  db.exec(`create table companies (id text primary key, organization_id text) strict`)
+  // The four built-ins that take extension fields ([[CORE561]]): the apply reads their live columns, so each exists with the bookkeeping columns the extension fields are added beside.
+  for (const t of ['contacts', 'companies', 'deals', 'tasks'])
+    db.exec(`create table ${t} (id text primary key, organization_id text, name text, deleted_at text) strict`)
   db.exec(`create table principals (id text primary key, organization_id text) strict`)
   return {
     db,
@@ -178,9 +184,16 @@ export function healthOfModule(text: string | null): HealthExt {
   if (text === null) return null
   const digest = sha256(text)
   try {
-    const o = JSON.parse(text) as { objects?: Record<string, unknown> }
+    const o = JSON.parse(text) as {
+      objects?: Record<string, unknown>
+      extend?: Record<string, { fields?: Record<string, unknown> }>
+    }
     const names = Object.keys(o.objects ?? {}).sort()
-    return names.length === 0 ? null : { digest, objects: names }
+    const fields = Object.entries(o.extend ?? {})
+      .flatMap(([object, d]) => Object.keys(d.fields ?? {}).map((f) => `${object}.${f}`))
+      .sort()
+    if (names.length === 0 && fields.length === 0) return null
+    return { digest, objects: names, ...(fields.length > 0 ? { fields } : {}) }
   } catch {
     return { digest, error: 'extensions_invalid' }
   }
@@ -260,4 +273,31 @@ export const ext = {
     }
   },
   empty: () => ({ version: 1, objects: {} }),
+  /** [[CORE561]]: extension fields on contacts only: an enum with a required default, and a unique text. */
+  x: () => ({
+    version: 1,
+    objects: {},
+    extend: {
+      contacts: {
+        fields: {
+          tier__c: { kind: 'enum', values: ['standard', 'gold'], required: true, default: 'standard' },
+          code__c: { kind: 'text', unique: true },
+        },
+      },
+    },
+  }),
+  /** X plus a nullable field. */
+  y: () => {
+    const x = ext.x()
+    return { ...x, extend: { contacts: { fields: { ...x.extend.contacts.fields, note__c: { kind: 'text' } } } } }
+  },
+  /** `tier__c` as an integer: a kind change against X. */
+  k: () => {
+    const x = ext.x()
+    return { ...x, extend: { contacts: { fields: { ...x.extend.contacts.fields, tier__c: { kind: 'integer' } } } } }
+  },
+  /** Objects and extend together. */
+  ax: () => ({ ...ext.a(), extend: ext.x().extend }),
+  /** An extend section with no fields: no file at all in the sense of the deliberate drop. */
+  noFields: () => ({ version: 1, objects: {}, extend: { contacts: { fields: {} } } }),
 }
