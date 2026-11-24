@@ -104,7 +104,7 @@ const refuse = (ctx: z.RefinementCtx, rule: string, message: string, path: (stri
   ctx.addIssue({ code: 'custom', message, params: { rule }, path })
 
 /** One field (D18, P1). The structure is zod's; each rule that has a name is a refinement, in the order a person would fix them. */
-const fieldSchema = z
+export const fieldSchema = z
   .strictObject({
     // `unknown` so a wrong kind is refused by name (`unknown_kind`) rather than as a type error; the published JSON Schema lists the kinds through its metadata.
     kind: z

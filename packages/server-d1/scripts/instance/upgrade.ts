@@ -181,7 +181,7 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
       remote = await withGeneratedConfigAsync(
         { packageDir: deps.packageDir, settings, tmpRoot: deps.tmpRoot },
         (configPath) =>
-          planRemote(extensionsRun!.objects, (sql) => {
+          planRemote(extensionsRun!.objects, extensionsRun!.extend, (sql) => {
             const r = deps.runWrangler(
               ['d1', 'execute', 'DB', '--remote', '--json', '--command', sql, '-c', configPath],
               { cwd: dirname(configPath), env: childEnv(deps, g.secrets) },

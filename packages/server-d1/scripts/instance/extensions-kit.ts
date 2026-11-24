@@ -97,7 +97,7 @@ export const extSim = (over: Partial<ExtSim> = {}): ExtSim => {
   db.exec('pragma foreign_keys = off')
   // The four built-ins that take extension fields ([[CORE561]]): the apply reads their live columns, so each exists with the bookkeeping columns the extension fields are added beside.
   for (const t of ['contacts', 'companies', 'deals', 'tasks'])
-    db.exec(`create table ${t} (id text primary key, organization_id text, name text) strict`)
+    db.exec(`create table ${t} (id text primary key, organization_id text, name text, deleted_at text) strict`)
   db.exec(`create table principals (id text primary key, organization_id text) strict`)
   return {
     db,

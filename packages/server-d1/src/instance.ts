@@ -9,7 +9,7 @@ import { extensionsText } from './extensions-text.js'
 let worker: ReturnType<typeof composeD1Worker> | undefined
 
 // [[CORE304]] D4: the composition is handed `cloudflare:workers`' request-scoped `waitUntil` (the self-service reset send is scheduled with it). It is injected here, in the Worker-only entry module, so `compose.ts` stays Node-testable.
-// [[CORE315]] D12, D28: the file is parsed once with the validator the tooling used; its definitions reach every registry the composition builds, and a file that cannot be loaded fails every route but `/health` closed.
+// [[CORE315]] D12, D28: the file is parsed once with the validator the tooling used; its definitions and extension fields reach every registry the composition builds, and a file that cannot be loaded fails every route but `/health` closed.
 export const workerFor = (env: D1WorkerEnv): ReturnType<typeof composeD1Worker> => {
   if (worker) return worker
   const extensions = readExtensions(extensionsText)
@@ -21,5 +21,7 @@ export const workerFor = (env: D1WorkerEnv): ReturnType<typeof composeD1Worker> 
     waitUntil,
     extensions,
     ...(extensions.definitions.length > 0 ? { definitions: extensions.definitions } : {}),
+    // [[CORE561]] D12: the file's `extend`, the one switch for every registry, the rail, mail sync and form ingress.
+    ...(extensions.extend ? { extend: extensions.extend } : {}),
   }))
 }

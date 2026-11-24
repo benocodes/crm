@@ -300,8 +300,8 @@ export function composeD1Worker(
      */
     definitions?: readonly AnyResource[]
     /**
-     * [[CORE559]] P1: the validated `extend` of the extensions file ([[CORE555]]'s validator output), ONE dependency handed to every registry this composition builds, like `definitions`. Nothing in production passes one yet (the
-     * envelope refuses `extend` until [[CORE561]], which fills it from the attached file).
+     * [[CORE559]] P1: the validated `extend` of the extensions file ([[CORE555]]'s validator output), ONE dependency handed to every registry this composition builds, like `definitions`. The Worker's entry passes the attached
+     * file's `extend` ([[CORE561]]); a composition with none serves the built-ins as before.
      */
     extend?: ExtendDeclarations
     /**
@@ -686,10 +686,10 @@ export function composeD1Worker(
     return { binding: d1Binding(db, link), organizationId: link.organizationId }
   }
 
-  /** Re-resolved by every Workflow step ([[CHN5]] D11): nothing here is ever returned from a step. Throws (retryably) when the deployment cannot sync. */
-  /** [[CORE559]] P2: built once from the deployment's `extend`; handed to the mail-sync runtime and the form ingress context so their contact events carry the extension fields. */
+  /** [[CORE559]] P2: the built-ins composed with the deployment's `extend` (undefined when it has none), created once per composition; the mail-sync runtime and the form ingress context receive it so their contact events carry the extension fields. */
   const builtIns = deps.extend ? createBuiltIns(deps.extend) : undefined
 
+  /** Re-resolved by every Workflow step ([[CHN5]] D11): nothing here is ever returned from a step. Throws (retryably) when the deployment cannot sync. */
   async function mailSyncRuntime(googleFetch: typeof fetch | undefined): Promise<MailSyncRuntime> {
     if (!gmail.config) throw new Error('Gmail is not configured on this deployment')
     if (!env.MAIL_SYNC) throw new Error('the MAIL_SYNC Workflow binding is missing')

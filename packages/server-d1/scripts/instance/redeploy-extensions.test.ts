@@ -436,13 +436,15 @@ describe('group 4 (CORE561): the extend-only file is a file (P3)', () => {
   })
   it('verify passes only the matching cell for an extend-only run', async () => {
     const p = extFile('x.json', ext.x())
-    for (const after of [
-      null,
-      { digest: X, objects: [] },
-      { digest: 'f'.repeat(64), objects: [], fields: ['contacts.tier__c'] },
-    ] as HealthExt[]) {
-      const { code } = await go('redeploy', extSim({ after }), ['--extensions', p, '--yes'])
-      expect(code, JSON.stringify(after)).toBe(after && 'digest' in after && after.digest === X ? 0 : 3)
+    const cases: [HealthExt | undefined, number][] = [
+      [undefined, 0],
+      [null, 3],
+      [{ digest: 'f'.repeat(64), objects: [], fields: ['contacts.tier__c'] }, 3],
+      [{ digest: X, error: 'extensions_invalid' }, 3],
+    ]
+    for (const [after, want] of cases) {
+      const { code } = await go('redeploy', extSim(after === undefined ? {} : { after }), ['--extensions', p, '--yes'])
+      expect(code, JSON.stringify(after)).toBe(want)
     }
   })
 })
