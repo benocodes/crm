@@ -83,12 +83,16 @@ describe('the envelope', () => {
     expect([e.rule, e.path]).toEqual(['reserved_name', 'objects.projects__c.fields.id'])
   })
   it('refuses a reference to an undeclared sibling', () => {
-    const e = refused(file({ objects: { projects__c: { fields: { c: { kind: 'reference', target: 'clients__c' } } } } }))
+    const e = refused(
+      file({ objects: { projects__c: { fields: { c: { kind: 'reference', target: 'clients__c' } } } } }),
+    )
     expect([e.rule, e.path]).toEqual(['reference_target_undeclared', 'objects.projects__c.fields.c'])
   })
   it('refuses an object of 91 fields and accepts 90', () => {
     const fields = (n: number) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`f${i}`, { kind: 'text' }]))
-    expect(parseExtensionsFile(file({ objects: { projects__c: { fields: fields(90) } } })).objects.projects__c).toBeDefined()
+    expect(
+      parseExtensionsFile(file({ objects: { projects__c: { fields: fields(90) } } })).objects.projects__c,
+    ).toBeDefined()
     const e = refused(file({ objects: { projects__c: { fields: fields(91) } } }))
     expect(e.rule).toBe('too_many_fields')
     expect(e.path).toBe('objects.projects__c.fields')

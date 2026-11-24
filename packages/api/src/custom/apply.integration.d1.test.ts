@@ -29,18 +29,27 @@ const all = async <T = Record<string, any>>(sqlText: string, ...binds: unknown[]
       .all()
   ).results ?? []) as T[]
 beforeEach(async () => {
-  const tables = await all<{ name: string }>(`select name from sqlite_master where type = 'table' and name like '%\\_\\_c' escape '\\'`)
+  const tables = await all<{ name: string }>(
+    `select name from sqlite_master where type = 'table' and name like '%\\_\\_c' escape '\\'`,
+  )
   if (tables.length > 0) await d1.batch(tables.map((t) => d1.prepare(`drop table "${t.name}"`)))
 })
 /** The whole custom schema as text: tables, columns' definitions and indexes, in a fixed order. */
 const schema = async () =>
-  JSON.stringify(await all(`select type, name, tbl_name, sql from sqlite_master where tbl_name like '%\\_\\_c' escape '\\' order by type, name`))
-const columns = async (t: string) => (await all<{ name: string }>(`select name from pragma_table_info(?)`, t)).map((c) => c.name)
+  JSON.stringify(
+    await all(
+      `select type, name, tbl_name, sql from sqlite_master where tbl_name like '%\\_\\_c' escape '\\' order by type, name`,
+    ),
+  )
+const columns = async (t: string) =>
+  (await all<{ name: string }>(`select name from pragma_table_info(?)`, t)).map((c) => c.name)
 const insert = (table: string, n: number, over: Record<string, unknown> = {}) => {
   const r = { id: id(n), organization_id: ORG, created_by: USER, created_at: AT, updated_at: AT, ...over }
   const cols = Object.keys(r)
   return d1
-    .prepare(`insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`)
+    .prepare(
+      `insert into "${table}" (${cols.map((c) => `"${c}"`).join(', ')}) values (${cols.map(() => '?').join(', ')})`,
+    )
     .bind(...Object.values(r))
     .run()
 }
@@ -89,7 +98,9 @@ describe('apply from empty, and idempotence', () => {
     expect(by.idx_projects__c_company_id).toMatchObject({ unique: 0, partial: 0 })
     expect(by.idx_projects__c_client_id).toBeDefined()
     expect(by.idx_projects__c_organization_id_id).toBeDefined()
-    expect((await all(`select name from pragma_index_list('clients__c') where name = 'idx_clients__c_project_id'`)).length).toBe(1)
+    expect(
+      (await all(`select name from pragma_index_list('clients__c') where name = 'idx_clients__c_project_id'`)).length,
+    ).toBe(1)
   })
   it('a second run plans and executes nothing and leaves the schema byte-equal', async () => {
     await applyExtensions(d1, projects())
@@ -99,7 +110,14 @@ describe('apply from empty, and idempotence', () => {
     expect(await schema()).toBe(before)
   })
   it('a file with no objects on a database with no custom table plans nothing', async () => {
-    expect(await applyExtensions(d1, {})).toEqual({ created: [], added: [], indexed: [], archived: [], refused: [], statements: 0 })
+    expect(await applyExtensions(d1, {})).toEqual({
+      created: [],
+      added: [],
+      indexed: [],
+      archived: [],
+      refused: [],
+      statements: 0,
+    })
     expect(await schema()).toBe('[]')
   })
 })
@@ -117,13 +135,18 @@ describe('allowed changes over data', () => {
     expect(r.refused).toEqual([])
     expect(r.added.map((a) => a.field).sort()).toEqual(['note', 'tier'])
     const rows = await all(`select note, tier from projects__c order by id`)
-    expect(rows).toEqual([{ note: null, tier: 'std' }, { note: null, tier: 'std' }])
+    expect(rows).toEqual([
+      { note: null, tier: 'std' },
+      { note: null, tier: 'std' },
+    ])
   })
   it('a new reference field gets its index', async () => {
     const r = await applyExtensions(d1, with_('deal', { kind: 'reference', target: 'deals' }))
     expect(r.refused).toEqual([])
     expect(r.indexed.map((i) => i.index)).toContain('idx_projects__c_deal_id')
-    expect((await all(`select name from pragma_index_list('projects__c') where name = 'idx_projects__c_deal_id'`)).length).toBe(1)
+    expect(
+      (await all(`select name from pragma_index_list('projects__c') where name = 'idx_projects__c_deal_id'`)).length,
+    ).toBe(1)
   })
   it('unique added to an existing field over clean data', async () => {
     const r = await applyExtensions(d1, with_('budget', { kind: 'integer', unique: true }))
@@ -152,7 +175,9 @@ describe('allowed changes over data', () => {
     await insert('notes__c', 3, { body: 'keep me' })
     const r = await applyExtensions(d1, without('budget'))
     expect(r.refused).toEqual([])
-    expect(r.archived).toEqual(expect.arrayContaining([{ object: 'projects__c', field: 'budget' }, { object: 'notes__c' }]))
+    expect(r.archived).toEqual(
+      expect.arrayContaining([{ object: 'projects__c', field: 'budget' }, { object: 'notes__c' }]),
+    )
     expect(await columns('projects__c')).toContain('budget')
     expect((await all(`select name from projects__c order by id`)).map((x) => x.name)).toEqual(['A', 'B'])
     expect(await all(`select body from notes__c`)).toEqual([{ body: 'keep me' }])
@@ -162,9 +187,18 @@ describe('allowed changes over data', () => {
 })
 
 describe('refusals', () => {
-  type Case = [name: string, rule: string, field: string, base: () => Record<string, ObjectDeclaration>, next: () => Record<string, ObjectDeclaration>]
+  type Case = [
+    name: string,
+    rule: string,
+    field: string,
+    base: () => Record<string, ObjectDeclaration>,
+    next: () => Record<string, ObjectDeclaration>,
+  ]
   const o = (fields: ObjectDeclaration['fields']): Record<string, ObjectDeclaration> => ({ projects__c: { fields } })
-  const pair = (from: ObjectDeclaration['fields'][string], to: ObjectDeclaration['fields'][string]): [() => Record<string, ObjectDeclaration>, () => Record<string, ObjectDeclaration>] => [
+  const pair = (
+    from: ObjectDeclaration['fields'][string],
+    to: ObjectDeclaration['fields'][string],
+  ): [() => Record<string, ObjectDeclaration>, () => Record<string, ObjectDeclaration>] => [
     () => o({ f: from }),
     () => o({ f: to }),
   ]
@@ -189,26 +223,45 @@ describe('refusals', () => {
     ['reference target changed', 'target_changed', 'f', ...pair(R, { kind: 'reference', target: 'deals' })],
     ['required to optional', 'required_to_optional', 'f', ...pair({ kind: 'text', required: true }, T)],
     ['optional to required', 'optional_to_required', 'f', ...pair(T, { kind: 'text', required: true })],
-    ['optional to required with a default', 'optional_to_required', 'f', ...pair(T, { kind: 'text', required: true, default: 'x' })],
-    ['default changed', 'default_changed', 'f', ...pair({ kind: 'text', default: 'a' }, { kind: 'text', default: 'b' })],
+    [
+      'optional to required with a default',
+      'optional_to_required',
+      'f',
+      ...pair({ kind: 'text', default: 'x' }, { kind: 'text', required: true, default: 'x' }),
+    ],
+    [
+      'default changed',
+      'default_changed',
+      'f',
+      ...pair({ kind: 'text', default: 'a' }, { kind: 'text', default: 'b' }),
+    ],
     ['default added', 'default_changed', 'f', ...pair(T, { kind: 'text', default: 'a' })],
     ['default removed', 'default_changed', 'f', ...pair({ kind: 'integer', default: 1 }, I)],
     ['unique removed', 'unique_removed', 'f', ...pair({ kind: 'text', unique: true }, T)],
-    ['new required field with no default', 'required_without_default', 'g', () => o({ f: T }), () => o({ f: T, g: { kind: 'text', required: true } })],
+    [
+      'new required field with no default',
+      'required_without_default',
+      'g',
+      () => o({ f: T }),
+      () => o({ f: T, g: { kind: 'text', required: true } }),
+    ],
   ]
-  it.each(cases)('%s is refused as %s naming the object and field, with no statement run', async (_n, rule, field, base, next) => {
-    await applyExtensions(d1, base())
-    const before = await schema()
-    // an unrelated allowed change rides along: it must not run either (P2)
-    const wanted = next()
-    wanted.projects__c!.fields.extra_ok = { kind: 'text' }
-    wanted.other__c = { fields: { x: { kind: 'text' } } }
-    const r = await applyExtensions(d1, wanted)
-    expect(rules(r.refused)).toEqual([`${rule}:projects__c.${field}`])
-    expect(r.statements).toBe(0)
-    expect(r.created).toEqual([])
-    expect(await schema()).toBe(before)
-  })
+  it.each(cases)(
+    '%s is refused as %s naming the object and field, with no statement run',
+    async (_n, rule, field, base, next) => {
+      await applyExtensions(d1, base())
+      const before = await schema()
+      // an unrelated allowed change rides along: it must not run either (P2)
+      const wanted = next()
+      wanted.projects__c!.fields.extra_ok = { kind: 'text' }
+      wanted.other__c = { fields: { x: { kind: 'text' } } }
+      const r = await applyExtensions(d1, wanted)
+      expect(rules(r.refused)).toEqual([`${rule}:projects__c.${field}`])
+      expect(r.statements).toBe(0)
+      expect(r.created).toEqual([])
+      expect(await schema()).toBe(before)
+    },
+  )
   it('the column cap counts archived columns and names the table', async () => {
     const many = (names: string[]) => o(Object.fromEntries(names.map((n) => [n, { kind: 'text' as const }])))
     const first = Array.from({ length: 90 }, (_, i) => `f${i}`)
@@ -229,7 +282,9 @@ describe('violating data', () => {
     await applyExtensions(d1, o2())
   })
   const o2 = (): Record<string, ObjectDeclaration> => ({ projects__c: { fields: { name: { kind: 'text' } } } })
-  const withUnique = (): Record<string, ObjectDeclaration> => ({ projects__c: { fields: { name: { kind: 'text', unique: true } } } })
+  const withUnique = (): Record<string, ObjectDeclaration> => ({
+    projects__c: { fields: { name: { kind: 'text', unique: true } } },
+  })
   it('unique added over duplicate live values is refused naming the value and the ids, no statement run', async () => {
     await insert('projects__c', 1, { name: 'dup' })
     await insert('projects__c', 2, { name: 'dup' })
@@ -256,7 +311,9 @@ describe('violating data', () => {
   })
   it('a new required + unique field with a default over two live rows is refused; over one row accepted', async () => {
     const wanted = (): Record<string, ObjectDeclaration> => ({
-      projects__c: { fields: { name: { kind: 'text' }, slug: { kind: 'text', required: true, unique: true, default: 'x' } } },
+      projects__c: {
+        fields: { name: { kind: 'text' }, slug: { kind: 'text', required: true, unique: true, default: 'x' } },
+      },
     })
     await insert('projects__c', 1, { name: 'a' })
     await insert('projects__c', 2, { name: 'b' })

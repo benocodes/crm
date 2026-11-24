@@ -18,6 +18,7 @@ const SERVER_FIXED = [
   'package.json',
   'release.json',
   'worker/worker.js',
+  'worker/vibase-extensions.schema.json',
   'wrangler.base.jsonc',
 ]
 /** [[UI246]] D2, [[UI504]] D3: the auth pages the Worker serves from `assets/assets/ui/` (the binding directory is `assets/`, the files sit at their URL path `/assets/ui/…` inside it); a package without one would answer its pages with a 404, so each is required. */
