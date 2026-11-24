@@ -152,13 +152,8 @@ describe('the attached module extends contacts (CORE561 D12, D28, P2, P5)', () =
       'gold',
     )
     const doc = (await call('GET', '/api/v1/openapi.json')).body
-    const bodyProps = (m: string) =>
-      Object.values(doc.paths as Record<string, any>).flatMap((p: any) =>
-        p[m]?.requestBody ? [p[m].requestBody.content['application/json'].schema] : [],
-      )
     expect(JSON.stringify(doc.paths['/api/v1/contacts'].post.requestBody)).toContain('u2c_tier__c')
     expect(JSON.stringify(doc.paths['/api/v1/contacts/{id}'].patch.requestBody)).toContain('u2c_tier__c')
-    void bodyProps
     expect((await health()).extensions).toEqual({
       digest: sha256(WITH_EXTEND),
       objects: [],
