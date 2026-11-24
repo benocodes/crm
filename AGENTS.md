@@ -255,8 +255,9 @@ These are the commands of everyday work. The rest live in the skill that uses th
   `e2e:mcp-oauth`, `e2e:approvals-app`; none is in the gate): `writing-tests` §7, "Scripts".
 
 Two rules hold wherever those commands are run. Agents run a remote command only against an environment that
-is theirs ("Environments"). Agents never push a release tag, publish the draft GitHub Release, run
-`changeset publish` (or `changeset version` outside a scratch copy) or merge the Version Packages PR.
+is theirs ("Environments"). Agents push a release tag only when the user says so (user ruling, 2026-11-24); they
+never publish the draft GitHub Release, run `changeset publish` (or `changeset version` outside a scratch copy)
+or merge the Version Packages PR.
 
 The `db:*` scripts are the contract the skills assume; they arrive with the first CORE cycle.
 
