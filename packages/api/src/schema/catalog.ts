@@ -102,8 +102,6 @@ export const CATALOG: Catalog = {
         due_at: 'When the task is due.',
         completed_at: 'When the task was marked done; null while open.',
         assignee_id: 'The principal responsible for the task, if any.',
-        additional_props:
-          'Extra facts no typed field holds: a flat object of strings, numbers and booleans, {} when empty. Written as a merge patch (a null value removes a key).',
       },
     },
     companies: {
@@ -113,8 +111,6 @@ export const CATALOG: Catalog = {
       columns: {
         name: 'The company name.',
         domain: 'Its web or email domain, lowercase; unique among live companies.',
-        additional_props:
-          'Extra facts no typed field holds: a flat object of strings, numbers and booleans, {} when empty. Written as a merge patch (a null value removes a key).',
       },
     },
     contacts: {
@@ -128,8 +124,6 @@ export const CATALOG: Catalog = {
         },
         merged_into_id:
           'Set when this contact was merged into another; the row is then deleted and this points at the survivor.',
-        additional_props:
-          'Extra facts no typed field holds: a flat object of strings, numbers and booleans, {} when empty. Written as a merge patch (a null value removes a key).',
       },
       derived: {
         last_contacted_at:
@@ -339,8 +333,6 @@ export const CATALOG: Catalog = {
         owner_id: 'Optional: the user or agent responsible for the deal.',
         closed_at:
           'When the deal last became won or lost; null while it is open. Set by Vibase when the deal enters a won or lost stage (also at creation), cleared when it is reopened.',
-        additional_props:
-          'Extra facts no typed field holds: a flat object of strings, numbers and booleans, {} when empty. Written as a merge patch (a null value removes a key).',
       },
       derived: {
         status: "The kind of the deal's stage: open, won or lost. Derived, read-only; filter with ?status=.",

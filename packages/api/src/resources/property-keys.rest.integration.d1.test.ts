@@ -102,7 +102,7 @@ describe('the answer (P5)', () => {
     expect(exact.truncated).toBe(false)
   })
 
-  it('counts only the caller organisation and answers 403 without the read scope', async () => {
+  it('answers 403 without the read scope', async () => {
     await make('a', { city: 'x' })
     const none = await k.actor('none', 'agent', ['companies:read'])
     const r = await k.call(none, 'GET', PATH)

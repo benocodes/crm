@@ -104,6 +104,29 @@ describe('the filter matrix on contacts (D10, P1 to P3)', () => {
   })
 })
 
+describe('a stored number matches by its JSON text as stored (P1, 549.18)', () => {
+  it('0.30000000000000004 matches its own literal and not 0.3; 1.5e-7 matches eq.1.5e-7; a merge-patched number still matches', async () => {
+    const mk = async (name: string, additional_props: Record<string, unknown>) => {
+      const r = await k.call(writer, 'POST', '/api/v1/contacts', { name, additional_props })
+      expect(r.status, JSON.stringify(r.body)).toBe(201)
+      return r.body
+    }
+    await mk('sum', { x: 0.30000000000000004 })
+    await mk('small', { x: 1.5e-7 })
+    const patched = await mk('patched', { x: 1 })
+    expect(
+      (
+        await k.call(writer, 'PATCH', `/api/v1/contacts/${patched.id}`, {
+          additional_props: { x: 0.30000000000000004 },
+        })
+      ).status,
+    ).toBe(200)
+    expect(await listNames('/api/v1/contacts', 'x.eq.0.30000000000000004')).toEqual(['patched', 'sum'])
+    expect(await listNames('/api/v1/contacts', 'x.eq.0.3')).toEqual([])
+    expect(await listNames('/api/v1/contacts', 'x.eq.1.5e-7')).toEqual(['small'])
+  })
+})
+
 describe('every other object with a bag takes the filter (D10)', () => {
   it('companies, deals and tasks: one eq case each', async () => {
     const p = (await k.call(k.owner, 'POST', '/meta/v1/pipelines', { name: 'P' })).body.id

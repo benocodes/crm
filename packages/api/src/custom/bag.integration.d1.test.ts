@@ -193,10 +193,9 @@ describe('served: the record, its events, the filter, property_keys and schema.g
 
   it('property_keys counts live records, answers 403 without read, and its tool name is valid at the longest key', async () => {
     await make('a', { city: 'x', n: 1 })
-    const b = await make('b', { city: 'y' })
+    await make('b', { city: 'y' })
     const c = await make('c', { gone: 1 })
     await call('DELETE', `${PATH}/${c.id}`)
-    void b
     const r = await json(await call('GET', `${PATH}/property-keys`, undefined, [`${PROJECTS_KEY}:read`]))
     expect(r.status, JSON.stringify(r.body)).toBe(200)
     expect(r.body).toEqual({
@@ -214,9 +213,9 @@ describe('served: the record, its events, the filter, property_keys and schema.g
     const longest = `${'a'.repeat(40)}__c`
     expect(longest).toHaveLength(43)
     expect(toolName(`${longest}.property_keys`)).toMatch(/^[a-zA-Z0-9_-]{1,64}$/)
-    // empty table
-    const none = await json(await call('GET', `${PATH}?limit=1`))
-    expect(none.status).toBe(200)
+    // an empty table
+    for (const x of (await json(await call('GET', PATH))).body.data) await call('DELETE', `${PATH}/${x.id}`)
+    expect((await json(await call('GET', `${PATH}/property-keys`))).body).toEqual({ data: [], truncated: false })
   })
 
   it('schema.get: the bag column is exposed with a description of the rules; the filter is unindexed', async () => {

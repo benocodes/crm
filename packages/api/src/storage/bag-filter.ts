@@ -36,9 +36,9 @@ export function parseBagFilter(raw: string): BagCondition {
   throw refuse(`${c.not ? 'not.' : ''}${c.op} is not available on a bag key (available: ${AVAILABLE})`)
 }
 
-/** The stored value as the text P1 compares: a string as it is, a number or boolean as its compact JSON literal, null when the key is absent. */
+/** The stored value as the text P1 compares: a string as it is, a number as its JSON text as stored (SQLite's -> operator, not a cast, which re-renders a real), a boolean as its word, null when the key is absent. */
 const literalOf = (column: Expression<unknown>, path: string) =>
-  sql`(case json_type(${column}, ${path}) when 'text' then json_extract(${column}, ${path}) when 'integer' then cast(json_extract(${column}, ${path}) as text) when 'real' then cast(json_extract(${column}, ${path}) as text) when 'true' then 'true' when 'false' then 'false' end)`
+  sql`(case json_type(${column}, ${path}) when 'text' then json_extract(${column}, ${path}) when 'integer' then ${column} -> ${path} when 'real' then ${column} -> ${path} when 'true' then 'true' when 'false' then 'false' end)`
 
 export function bagPredicate(table: string, c: BagCondition): Expression<SqlBool> {
   const column = sql.ref(`${table}.additional_props`)
