@@ -181,15 +181,16 @@ export function appliedPrev(qc: QueryContext): Expression<SqlBool> {
 
 /**
  * The record of a stored row as JSON text/jsonb, built in SQL from the stored columns so that an event's
- * `after` is the stored row, not a recomputation (timestamps in the public ISO form).
+ * `after` is the stored row, not a recomputation (timestamps in the public ISO form). `columnKinds` is the definition's own kinds for a table that is not in `COLUMN_KINDS` (a custom object, [[CORE315]] D23).
  */
 export function recordJson(
   qc: QueryContext,
   table: PhysicalTable,
   columns: readonly string[],
   embeds: Readonly<Record<string, EmbedSpec>> = {},
+  columnKinds?: Readonly<Record<string, ColumnKind>>,
 ): RawBuilder<string> {
-  const kinds = COLUMN_KINDS[table] as Record<string, ColumnKind>
+  const kinds = columnKinds ?? (COLUMN_KINDS[table] as Record<string, ColumnKind>)
   const pairs = columns.map((c) => {
     const ref = `${table}.${c}`
     const value =
@@ -211,14 +212,15 @@ export function recordJson(
     : sql<string>`json_object(${sql.join(pairs)})`
 }
 
-/** Selects a record's columns with timestamps rendered as public ISO text (same on both engines); `prefix` aliases them for a joined record. */
+/** Selects a record's columns with timestamps rendered as public ISO text (same on both engines); `prefix` aliases them for a joined record; `columnKinds` as for `recordJson`. */
 export function recordColumns(
   qc: QueryContext,
   table: PhysicalTable,
   columns: readonly string[],
   prefix = '',
+  columnKinds?: Readonly<Record<string, ColumnKind>>,
 ): AliasedExpression<unknown, string>[] {
-  const kinds = COLUMN_KINDS[table] as Record<string, ColumnKind>
+  const kinds = columnKinds ?? (COLUMN_KINDS[table] as Record<string, ColumnKind>)
   return columns.map((c) => {
     const ref = `${table}.${c}`
     return (kinds[c] === 'timestamp' ? ts.iso(qc, ref) : sql<unknown>`${refOf(ref)}`).as(`${prefix}${c}`)

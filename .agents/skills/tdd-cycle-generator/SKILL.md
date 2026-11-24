@@ -428,6 +428,14 @@ that names "list" should say "both list decodes". Charter riders that guess at a
 calls in one run (+61 code / +499 test lines, 19 files). The gate passed first time, and review approved round 1 with
 no findings. The budget holds. The matrix and its per-path mutations were most of the cost, which is about 8 test
 lines per production line.
+**CORE315** (`knowledge/specs/020-CORE315-object-definitions/RETRO.md`): 6 groups (1 matrix), 8 decisions + 3 planner rules
+(at the limit), no migration or E2E, but three sweep riders (every `COLUMN_KINDS` reader, every scope-policy reader, every
+registry builder) and 12 absence mutations over three packages: ~400k / 137+ calls initial, two review rounds, one gate-fix.
+About 1.7x CORE200's cost for the same counts. A sweep rider ("every reader of X", found by a grep) is real work: at the
+limit on decisions, two or more sweeps mean split (here, scopes by rule could have been its own cycle). Two charter premises
+were wrong (a proposable `d1Only` write, which `api-routes` forbids; a mutation assuming the rail executes approved
+proposals): before naming an absence mutation, trace the code path that carries the behaviour, or name the behaviour
+and let the coder choose the mutation.
 
 ### Step 3: Resolve identities
 

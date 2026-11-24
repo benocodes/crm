@@ -1,4 +1,5 @@
 import {
+  type AnyResource,
   INVITATION_TTL_MS,
   bootstrap,
   bootstrapWorkspace,
@@ -69,6 +70,8 @@ type BootstrapD1Env = {
   randomBytes?: (n: number) => Uint8Array
   /** The control-plane database ([[CORE259]] D7), when the local environment has one: its marker is written after the CRM deployment row. Required by every caller since [[CORE326]] P6 (the local `bootstrap` script refuses an environment with none). */
   control?: ControlDb
+  /** [[CORE315]] D23: the custom objects' definitions, so the key's scopes may name theirs. Absent: none (nothing in production passes any yet). */
+  definitions?: readonly AnyResource[]
 }
 
 /**
@@ -220,7 +223,13 @@ export async function bootstrapD1(
     const w = await bootstrapWorkspace(
       d1Binding(d1, link),
       { organizationName: opts.organizationName, agentName: opts.agentName, scopes: opts.scopes },
-      { now, newId, randomBytes: env.randomBytes, keyStore: env.control ? apiKeyStore(env.control) : undefined },
+      {
+        now,
+        newId,
+        randomBytes: env.randomBytes,
+        keyStore: env.control ? apiKeyStore(env.control) : undefined,
+        definitions: env.definitions,
+      },
     )
     return {
       organizationId: w.organizationId,
@@ -243,7 +252,13 @@ export async function bootstrapD1(
       authProvider: link.authProvider,
       authSubject: opts.authSubject,
     },
-    { now, newId, randomBytes: env.randomBytes, keyStore: env.control ? apiKeyStore(env.control) : undefined },
+    {
+      now,
+      newId,
+      randomBytes: env.randomBytes,
+      keyStore: env.control ? apiKeyStore(env.control) : undefined,
+      definitions: env.definitions,
+    },
   )
   return {
     organizationId: r.organizationId,

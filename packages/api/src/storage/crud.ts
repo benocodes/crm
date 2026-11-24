@@ -26,6 +26,7 @@ import { ApiError } from '../errors.js'
 import { formatScope } from '../scopes.js'
 import { eventStatement } from '../outbox.js'
 import {
+  columnKindsOf,
   physicalTable,
   softDeletes,
   type Conflict,
@@ -67,6 +68,7 @@ export const afterOf = (def: PreparedResource) => ({
   table: physicalTable(def),
   columns: columnsOf(def),
   embeds: embedsOf(def),
+  kinds: columnKindsOf(def) as Record<string, ColumnKind>,
 })
 /** The parent column reference a derived expression correlates on: `parent('id')` is `<table>.id`. */
 const parentOf = (def: PreparedResource) => (column: string) => sql.ref(`${def.table}.${column}`)
@@ -81,12 +83,11 @@ export const derivedProjection = (def: PreparedResource, qc: QueryContext, env: 
   visibleDerived(def, env).map(([field, d]) => sql`${d.expression(qc, parentOf(def))}`.as(field))
 /** A record select's projection: the columns (timestamps as ISO text), each embed aliased to its field, and the derived fields the caller may see. */
 const projection = (def: PreparedResource, qc: QueryContext, env?: PreparedEnv) => [
-  ...recordColumns(qc, physicalTable(def), columnsOf(def)),
+  ...recordColumns(qc, physicalTable(def), columnsOf(def), '', columnKindsOf(def)),
   ...Object.entries(embedsOf(def)).map(([field, spec]) => embedJson(qc, physicalTable(def), spec, 'select').as(field)),
   ...(env ? derivedProjection(def, qc, env) : []),
 ]
-const kindsOf = (def: PreparedResource): Record<string, ColumnKind> =>
-  COLUMN_KINDS[physicalTable(def)] as Record<string, ColumnKind>
+const kindsOf = (def: PreparedResource): Record<string, ColumnKind> => columnKindsOf(def) as Record<string, ColumnKind>
 const ref = (def: PreparedResource, column: string) => sql.ref(`${def.table}.${column}`)
 const notFound = (def: PreparedResource) => new ApiError(404, 'not_found', `${def.eventName} not found`)
 const invalidReference = () => new ApiError(400, 'invalid_reference', 'a referenced record does not exist')

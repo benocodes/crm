@@ -26,6 +26,7 @@ import { webhooksConfigNotice, type WebhooksRuntime } from '../webhooks/config.j
 import type { ObjectStore } from '../objects/store.js'
 import {
   validateOperationInput,
+  type AnyResource,
   type BinaryBody,
   type Operation,
   type OperationInput,
@@ -117,6 +118,8 @@ export interface AppOptions {
   apiKeys?: ApiKeyControlRuntime | null
   /** Extra operations registered before the queue's (Node tests; see `createVibaseRegistry`). Ignored when `registry` is given. */
   extraOperations?: (registry: Registry) => void
+  /** [[CORE315]] D23: the custom objects' definitions (`defineCustomObject`), registered in the registry this app builds. Ignored when `registry` is given. */
+  definitions?: readonly AnyResource[]
   /** The object store of operations with an object stage ([[CORE25]] D52). Absent: those operations answer `503 objects_unavailable`. */
   objects?: ObjectStore
 }
@@ -315,6 +318,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
     options.registry ??
     createVibaseRegistry({
       operations: options.extraOperations,
+      ...(options.definitions ? { definitions: options.definitions } : {}),
       ...(options.invitations ? { invitations: options.invitations } : {}),
       ...(options.members ? { members: options.members } : {}),
       ...(options.audit ? { audit: options.audit } : {}),

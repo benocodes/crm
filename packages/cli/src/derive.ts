@@ -106,7 +106,8 @@ export function mergeDocuments(docs: { source: 'api' | 'meta'; doc: unknown }[])
   return [...out.values()]
 }
 
-const kebab = (s: string) => s.replace(/_/g, '-')
+/** A name as a command word or a flag: `_` becomes `-`, except in a `__c` name (a custom object or field), which is never translated ([[CORE315]] D25). */
+export const kebab = (s: string) => (s.endsWith('__c') ? s : s.replace(/_/g, '-'))
 
 function flagType(schema: JsonSchema): { type: FlagType; enum?: string[] } {
   const typeOf = (s: Obj): string | undefined => {

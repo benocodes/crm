@@ -4,6 +4,7 @@ import {
   bind,
   jsonRows,
   recordJson,
+  type ColumnKind,
   type EmbedSpec,
   type PhysicalTable,
   type QueryContext,
@@ -17,6 +18,8 @@ export type EventAfter = {
   table: PhysicalTable
   columns: readonly string[]
   embeds?: Readonly<Record<string, EmbedSpec>>
+  /** The definition's own column kinds, for a table that is not in `COLUMN_KINDS` (a custom object, [[CORE315]] D23). Absent: the CRM's. */
+  kinds?: Readonly<Record<string, ColumnKind>>
 }
 
 /**
@@ -55,7 +58,7 @@ export function eventStatement(
   ]
   const select = e.after
     ? L.selectFrom(e.after.table)
-        .select(values(recordJson(qc, e.after.table, e.after.columns, e.after.embeds)))
+        .select(values(recordJson(qc, e.after.table, e.after.columns, e.after.embeds, e.after.kinds)))
         .where(sql<SqlBool>`${sql.ref(`${e.after.table}.id`)} = ${e.resourceId}`)
         .where(appliedPrev(qc))
     : L.selectNoFrom(values(bind(qc, 'json', null))).where(appliedPrev(qc))
@@ -105,7 +108,9 @@ export function eventSetStatement(
     { event_id: 'uuid', resource_id: 'uuid', before: 'json' },
     e.rows.map((r) => ({ event_id: r.eventId, resource_id: r.resourceId, before: r.before })),
   )
-  const after = e.after ? recordJson(qc, e.after.table, e.after.columns, e.after.embeds) : bind(qc, 'json', null)
+  const after = e.after
+    ? recordJson(qc, e.after.table, e.after.columns, e.after.embeds, e.after.kinds)
+    : bind(qc, 'json', null)
   const join = e.after
     ? sql`join ${sql.table(e.after.table)} on ${sql.ref(`${e.after.table}.id`)} = ${sql.ref('r.resource_id')}`
     : sql``

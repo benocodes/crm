@@ -216,6 +216,8 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   make both keys nullable, each with its own composite FK; add an exactly-one CHECK (`(a IS NULL) <> (b IS NULL)`, named
   `<table>_one_source`); give each key its own plain unique index. NULLs never conflict, so each insert names its own
   key's index as the `ON CONFLICT` target. Every read filters on the caller's own column, never on `coalesce(a, b)`.
+- **D1 refuses `pragma_table_info` in a join** (`pragma_table_list` joined to `pragma_table_info(name)`); query it
+  once per table ([[CORE315]] `custom/table.integration.d1.test.ts`).
 - **A D1 `INTEGER PRIMARY KEY` needs an explicit `NOT NULL`.** It is the rowid, but `pragma_table_info` reports
   `notnull = 0` without it, so `schema.get` publishes the key as `nullable: true`. `INTEGER PRIMARY KEY AUTOINCREMENT
   NOT NULL` still auto-assigns. `AUTOINCREMENT` creates `sqlite_sequence` (hidden from `schema.get`), which clearing the

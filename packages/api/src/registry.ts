@@ -374,8 +374,10 @@ export function resourceOperations(
     surface: def.surface,
     validation: 'handler' as const,
     tags: [def.name],
-    ...(def.d1Only ? { d1Only: true } : {}),
   }
+  // [[CORE315]] D19: `d1Only` marks the reads, which answer `501 not_implemented` on another engine. A proposable write may not carry it (an approved request executes inline on whatever storage it is approved on, `register` below), and
+  // a custom object's writes are proposable: they are D1-only by the table, which no other engine has. Every definition that was `d1Only` before is not proposable, so nothing changes for them.
+  const d1 = (proposable: boolean) => (def.d1Only && !proposable ? { d1Only: true as const } : {})
   const notProposable = (): ProposalDecl => ({ eligible: false, reason: def.notProposable ?? 'not proposable' })
   const targeted = (): ProposalDecl =>
     def.notProposable !== undefined
@@ -404,6 +406,7 @@ export function resourceOperations(
     ops.push({
       ...base,
       name: `${def.name}.list`,
+      ...d1(false),
       ...(def.descriptions?.list !== undefined ? { description: def.descriptions.list } : {}),
       summary: `List ${def.name}`,
       method: 'get',
@@ -438,6 +441,7 @@ export function resourceOperations(
     ops.push({
       ...base,
       name: `${def.name}.aggregate`,
+      ...d1(false),
       summary: `Count ${def.name}, and sum, average or take the minimum or maximum of their fields`,
       description: aggregateDescription(def),
       method: 'get',
@@ -452,6 +456,7 @@ export function resourceOperations(
     ops.push({
       ...base,
       name: `${def.name}.get`,
+      ...d1(false),
       ...(def.descriptions?.get !== undefined ? { description: def.descriptions.get } : {}),
       summary: `Get a ${def.eventName}`,
       method: 'get',
@@ -472,6 +477,7 @@ export function resourceOperations(
     ops.push({
       ...base,
       name: `${def.name}.create`,
+      ...d1(def.notProposable === undefined),
       ...(def.descriptions?.create !== undefined ? { description: def.descriptions.create } : {}),
       summary: `Create a ${def.eventName}`,
       method: 'post',
@@ -490,6 +496,7 @@ export function resourceOperations(
     ops.push({
       ...base,
       name: `${def.name}.update`,
+      ...d1(def.notProposable === undefined),
       ...(def.descriptions?.update !== undefined ? { description: def.descriptions.update } : {}),
       summary: `Update a ${def.eventName}`,
       method: 'patch',
@@ -510,6 +517,7 @@ export function resourceOperations(
     ops.push({
       ...base,
       name: `${def.name}.delete`,
+      ...d1(def.notProposable === undefined),
       ...(def.descriptions?.delete !== undefined ? { description: def.descriptions.delete } : {}),
       summary: `Delete a ${def.eventName}`,
       method: 'delete',

@@ -76,6 +76,17 @@ export const SCOPE_POLICY: ScopePolicy = {
   'audit:read': { member: false, agentGrantable: true },
 }
 
+/**
+ * [[CORE315]] D24: a custom object's three scopes, `<key>__c:read|write|request_approval`, are classified by this RULE, not by rows of `SCOPE_POLICY` (a deployment's objects cannot be rows in the vault's code): members hold them, they are
+ * agent-grantable, and they are in the default grant of a newly registered client, like the business records they are (principle 8). The rule applies to a scope the registry declares; a stored agent grant does not gain them (an owner adds them).
+ */
+const CUSTOM_SCOPE = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*__c:(?:read|write|request_approval)$/
+export const isCustomScope = (scope: string): boolean => CUSTOM_SCOPE.test(scope)
+const CUSTOM_RULE = { member: true, agentGrantable: true } as const
+/** The classification of a scope: its `policy` row, else the custom-object rule, else none (fail closed). */
+const classify = (scope: string, policy: ScopePolicy): { member: boolean; agentGrantable: boolean } | undefined =>
+  Object.hasOwn(policy, scope) ? policy[scope] : isCustomScope(scope) ? CUSTOM_RULE : undefined
+
 export { SCOPE_DESCRIPTIONS } from './scope-descriptions.js'
 import { NOT_DEFAULT_GRANT } from './scope-areas.js'
 
@@ -84,13 +95,13 @@ export function scopesForRole(role: Role, declared: readonly string[], policy: S
   // [[AGT8]] D31: closed under write => request_approval, whatever the policy rows say.
   if (role === 'owner') return ScopeSet.closed(declared, declared)
   return ScopeSet.closed(
-    declared.filter((s) => policy[s]?.member === true),
+    declared.filter((s) => classify(s, policy)?.member === true),
     declared,
   )
 }
 
 export function isAgentGrantable(scope: string, policy: ScopePolicy = SCOPE_POLICY): boolean {
-  return policy[scope]?.agentGrantable === true
+  return classify(scope, policy)?.agentGrantable === true
 }
 
 export function grantableScopes(declared: readonly string[], policy: ScopePolicy = SCOPE_POLICY): string[] {
