@@ -54,6 +54,8 @@ The commands are discovered from the instance you log in to, so `vibase --help` 
 
 Vibase supports Better Auth (built into the instance) and Clerk for sign-in. You choose one when you set up the instance.
 
+On the Cloudflare Workers Free plan (10 ms CPU limit), Better Auth may exceed the limit on cold starts and password sign-in; its cost has not been measured. Clerk does not do Better Auth's work (building the instance, hashing passwords), so it is the safer choice on Free. Workers Paid is the safe plan for Better Auth. Details: https://docs.vibase.ai/deployment/self-hosting/.
+
 ## How agents connect
 
 An agent is its own account with its own audit trail. There are three ways to connect one:
