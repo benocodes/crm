@@ -16,7 +16,8 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   (N failed, and why) in the completion report's `Red runs` line. A file never seen failing is the same gap
   as an absence test never seen failing ([[CORE27]] review). A missing-module error is not a useful red:
   stub the module so the assertion itself fails. A stub that throws `not implemented` is the same non-red in
-  disguise: every row fails on the throw, not on what it asserts. Make the stub return a plausible wrong answer
+  disguise: every row fails on the throw, not on what it asserts; called at module scope (a definition built at
+  import), it fails the whole file at load ([[CORE315]]). Make the stub return a plausible wrong answer
   (exit 0, no runner calls) so each row's own assertion turns red ([[OPS487]]'s `runRedeploy` stub threw, and
   only the absence mutations showed its rows could fail). **Paste the red run into the cycle's RESULT.md when you
   make the red commit**, not only into the final report: a report can be lost with its agent, and
@@ -460,7 +461,9 @@ One program, two engines: the same assertions run on Postgres and D1.
     The OpenAPI record schemas are in no golden either. A record-schema change (a field made optional) regenerates
     `schema.json` only if the schema document itself changes ([[API514]]).
     Before claiming "golden unchanged",
-    check for such derived values. Until #323 is fixed, `golden:check` fails on a clean `main` (committed fixtures are
+    check for such derived values. To prove a change leaves the default registry identical, hash its derived surfaces
+    (both OpenAPI documents, the MCP tool list, declared scopes, operation and event-type names) in a throwaway test
+    before the first change and again at the end, and quote both hashes in RESULT.md ([[CORE315]] P3). Until #323 is fixed, `golden:check` fails on a clean `main` (committed fixtures are
     Biome-formatted, the generator's output is not): judge drift by `golden:generate`, then `pnpm format`, then
     `git diff -- packages/api/fixtures/golden`, and say so in RESULT.md (CORE347).
   - A **dormant general mechanism** (kept with no production caller, e.g. the per-type `owner` predicate in the

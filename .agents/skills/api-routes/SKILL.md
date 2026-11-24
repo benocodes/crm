@@ -49,7 +49,11 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `parseListQuery`); `src/storage/{definition,prepare,crud}.ts` (the prepared core); `src/resources/*.ts` (definitions).
 - **Registry and HTTP** ([[CORE15]]):
   - `src/registry.ts` (`Registry`, `resourceOperations`, `toolName`);
-  - `src/operations.ts` (`createVibaseRegistry`, where new resources and operations are added);
+  - `src/operations.ts` (`createVibaseRegistry`, where new resources and operations are added). Its options, such as
+    `definitions` (custom objects, [[CORE315]] D23), must reach **every** builder: the app's, the rail's, the
+    declared-scopes and cold registries in `server-d1/src/compose.ts`, the bootstraps and `desiredScopes` (find them with
+    `git grep -n "createVibaseRegistry(" packages ':!*.test.ts'`); a missing one fails only on its own path. Proposable
+    definitions register before the queue's operations, or `action_requests.create` does not list them;
   - `src/rest/{app,errors,openapi}.ts` (`createApp`, `renderError`);
   - `src/auth/{types,api-keys,middleware}.ts`;
   - `src/bootstrap.ts` (`bootstrapOperation`, `bootstrap(storage, opts, env?)`: one internal unit, no events). The
@@ -413,7 +417,11 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     app (`/health`, a webhook receiver) gets `c.var.storage`, no auth, and no OpenAPI entry.
   - **`d1Only`** on a resource definition or a hand-written operation ([[CHN140]], [[CHN5]] D63): `executeOperation`
     answers `501 not_implemented` on a non-D1 binding after the scope checks, before any unit. Use it for any table
-    the Postgres adapter does not have, instead of a check in each handler; test it with `coldStorage()`.
+    the Postgres adapter does not have, instead of a check in each handler; test it with `coldStorage()`. A proposable
+    write cannot be `d1Only` (`Registry.register` refuses it): a proposable D1-only resource marks only list and get,
+    and its writes are D1-only by their table ([[CORE315]] 315.43). Which registry runs what: an approved inline proposal
+    executes on the **app's** registry; the rail's registry is what the cron tick reads (webhook dispatch's event types,
+    agents' scopes), so prove that a resource reaches the rail through the tick, not through a proposal ([[CORE315]] 315.48).
   - **`humanOnly: '<reason>'`** on a resource definition ([[CHN410]] 410.7, 410.13; `requireHuman` in `src/registry.ts`):
     every generated write (create, update, delete) refuses a non-user actor with `403 user_required` first in `prepare`,
     after the scope check and before body validation or any read, whatever scopes the agent holds. Use it instead of an
