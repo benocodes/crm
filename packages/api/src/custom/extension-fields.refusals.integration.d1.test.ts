@@ -139,7 +139,7 @@ describe.each(RESOURCES)('%s', (r: Resource) => {
       })
       const res = await k.call(owner, 'POST', pathOf(r), body)
       expect(res.status).toBe(409)
-      expect(['conflict', 'value_exists']).toContain(res.body.error.code)
+      expect(res.body.error.code).toBe('conflict')
       expect((await k.rows(r, `"code__c" = 'RACE'`)).length).toBe(1)
     })
   })
