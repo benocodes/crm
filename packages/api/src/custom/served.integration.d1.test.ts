@@ -190,6 +190,19 @@ describe('associations and the feed', () => {
     expect((await call(a, 'GET', `${PATH}/${p.id}`, undefined, ['projects__c:write'], 'agent')).status).toBe(403)
     expect((await call(a, 'GET', PATH, undefined, ['tasks:read'], 'agent')).status).toBe(403)
     expect((await call(a, 'POST', PATH, { name: 'x' }, [`${PROJECTS_KEY}:read`], 'agent')).status).toBe(403)
+    const company = (await json(await call(a, 'POST', '/api/v1/companies', { name: 'Acme' }))).body
+    const refused = await json(
+      await call(
+        a,
+        'POST',
+        '/api/v1/associations',
+        { a_type: 'companies', a_id: company.id, b_type: PROJECTS_KEY, b_id: p.id },
+        ['companies:read', 'associations:write'],
+        'agent',
+      ),
+    )
+    expect(refused.status).toBe(403)
+    expect(refused.body.error.code).toBe('insufficient_scope')
   })
 
   it('events.list shows the object events to a holder of its read scope and hides them from an agent without it', async () => {
