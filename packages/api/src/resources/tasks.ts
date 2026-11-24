@@ -1,4 +1,5 @@
 import { codecs } from '@vibase/storage'
+import { extendDefinition, type ExtensionFields } from '../custom/extension-fields.js'
 import { createSchema, filterOptions, recordSchema, updateSchema } from '../declarations/builtin.js'
 import { tasksDeclaration } from '../declarations/tasks.js'
 import { deleteTaskOperation } from '../identity/cascades.js'
@@ -7,6 +8,7 @@ import { withPropertyBag } from '../storage/bag-filter.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
 import { withColumnFilters } from '../storage/column-filters.js'
+import { defaultBuiltIns, type BuiltInLookup } from './built-ins.js'
 import { tagIdFilter, tagNameFilter } from './tag-filter.js'
 
 export type TaskRecord = {
@@ -45,48 +47,56 @@ const record = recordSchema<TaskRecord>(tasksDeclaration)
 const create = createSchema(tasksDeclaration)
 const update = updateSchema(tasksDeclaration)
 
-const tasksBase = withColumnFilters(
-  withColumnSorts(
-    definePreparedResource({
-      surface: 'api',
-      name: 'tasks',
-      eventName: 'task',
-      table: 'tasks',
-      associable: true,
-      customFilters: { tag_id: tagIdFilter('tasks'), tag: tagNameFilter('tasks') },
-      override: { delete: (env, id) => deleteTaskOperation(env, id as string) },
-      record,
-      create,
-      update,
-      filters: filterOptions(tasksDeclaration),
-      references: { assignee_id: { table: 'principals' } },
-      // Extension 1 (create only): there is no stored row yet, so the pure rule applies directly.
-      prepare: ({ values, meta }) => {
-        if (meta.op !== 'create') return {}
-        const c = taskCompletion(values, null, meta.now)
-        return 'completed_at' in c
-          ? { completed_at: c.completed_at ? codecs.timestamp.write(c.completed_at) : null }
-          : {}
-      },
-      // Extension 2 (update): the completion CASE over the STORED status, evaluated at commit.
-      computed: ({ eb, values, now }) => {
-        if (values.status === 'done') {
-          return {
-            completed_at: eb
-              .case()
-              .when('tasks.status', '=', 'done')
-              .then(eb.ref('tasks.completed_at'))
-              .else(codecs.timestamp.write(now))
-              .end(),
-          }
-        }
-        if (values.status === 'open') return { completed_at: null }
-        return {}
-      },
-    }),
-    tasksDeclaration.sorts,
-  ),
-)
+/** [[CORE559]]: `ext` is the tasks' `extend` entry; `builtIns` the set this definition belongs to (its delete cascade reads it when it runs). */
+export function defineTasks(ext: ExtensionFields | undefined, builtIns: () => BuiltInLookup) {
+  const tasksBase = withColumnFilters(
+    withColumnSorts(
+      extendDefinition(
+        definePreparedResource({
+          surface: 'api',
+          name: 'tasks',
+          eventName: 'task',
+          table: 'tasks',
+          associable: true,
+          customFilters: { tag_id: tagIdFilter('tasks'), tag: tagNameFilter('tasks') },
+          override: { delete: (env, id) => deleteTaskOperation(env, id as string, builtIns()) },
+          record,
+          create,
+          update,
+          filters: filterOptions(tasksDeclaration),
+          references: { assignee_id: { table: 'principals' } },
+          // Extension 1 (create only): there is no stored row yet, so the pure rule applies directly.
+          prepare: ({ values, meta }) => {
+            if (meta.op !== 'create') return {}
+            const c = taskCompletion(values, null, meta.now)
+            return 'completed_at' in c
+              ? { completed_at: c.completed_at ? codecs.timestamp.write(c.completed_at) : null }
+              : {}
+          },
+          // Extension 2 (update): the completion CASE over the STORED status, evaluated at commit.
+          computed: ({ eb, values, now }) => {
+            if (values.status === 'done') {
+              return {
+                completed_at: eb
+                  .case()
+                  .when('tasks.status', '=', 'done')
+                  .then(eb.ref('tasks.completed_at'))
+                  .else(codecs.timestamp.write(now))
+                  .end(),
+              }
+            }
+            if (values.status === 'open') return { completed_at: null }
+            return {}
+          },
+        }),
+        ext,
+      ),
+      tasksDeclaration.sorts,
+    ),
+  )
 
-/** [[CORE549]] D10: the list takes the bag filter, `additional_props=<key>.<condition>`. */
-export const tasks = withPropertyBag(tasksBase)
+  /** [[CORE549]] D10: the list takes the bag filter, `additional_props=<key>.<condition>`. */
+  return withPropertyBag(tasksBase)
+}
+
+export const tasks = defineTasks(undefined, defaultBuiltIns)

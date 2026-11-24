@@ -51,6 +51,8 @@ import {
   type R2BucketLike,
   type RateLimiter,
   type AnyResource,
+  type ExtendDeclarations,
+  createBuiltIns,
   type Registry,
   type StreamPrimitives,
   type TransportRegistry,
@@ -298,6 +300,11 @@ export function composeD1Worker(
      */
     definitions?: readonly AnyResource[]
     /**
+     * [[CORE559]] P1: the validated `extend` of the extensions file ([[CORE555]]'s validator output), ONE dependency handed to every registry this composition builds, like `definitions`. Nothing in production passes one yet (the
+     * envelope refuses `extend` until [[CORE561]], which fills it from the attached file).
+     */
+    extend?: ExtendDeclarations
+    /**
      * [[CORE543]] D28, D29: the attached extensions file as the entry read it. An invalid one answers every route but `/health` `503 extensions_invalid`; `/health` reports its digest either way. Its `definitions` are passed in
      * `definitions` above (the entry owns that step, so this composition's many test callers do not change).
      */
@@ -426,7 +433,10 @@ export function composeD1Worker(
         : undefined,
     cliClientId,
     publishableKey,
-    declaredScopes: createVibaseRegistry({ definitions: deps.definitions }).declaredScopes(),
+    declaredScopes: createVibaseRegistry({
+      ...(deps.definitions ? { definitions: deps.definitions } : {}),
+      ...(deps.extend ? { extend: deps.extend } : {}),
+    }).declaredScopes(),
   }
 
   const nowMs = deps.nowMs ?? (() => Date.now())
@@ -638,6 +648,7 @@ export function composeD1Worker(
       executions: { transports: transportsFor(binding) },
       ...(deps.operations ? { extraOperations: deps.operations } : {}),
       ...(deps.definitions ? { definitions: deps.definitions } : {}),
+      ...(deps.extend ? { extend: deps.extend } : {}),
     })
 
   async function ensure(): Promise<App | undefined> {
@@ -676,6 +687,9 @@ export function composeD1Worker(
   }
 
   /** Re-resolved by every Workflow step ([[CHN5]] D11): nothing here is ever returned from a step. Throws (retryably) when the deployment cannot sync. */
+  /** [[CORE559]] P2: built once from the deployment's `extend`; handed to the mail-sync runtime and the form ingress context so their contact events carry the extension fields. */
+  const builtIns = deps.extend ? createBuiltIns(deps.extend) : undefined
+
   async function mailSyncRuntime(googleFetch: typeof fetch | undefined): Promise<MailSyncRuntime> {
     if (!gmail.config) throw new Error('Gmail is not configured on this deployment')
     if (!env.MAIL_SYNC) throw new Error('the MAIL_SYNC Workflow binding is missing')
@@ -692,6 +706,7 @@ export function composeD1Worker(
         clock,
         newId,
         randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
+        ...(builtIns ? { builtIns } : {}),
         config: {
           clientId: c.clientId,
           clientSecret: c.clientSecret,
@@ -752,6 +767,7 @@ export function composeD1Worker(
     railRegistry ??= createVibaseRegistry({
       ...(deps.operations ? { operations: deps.operations } : {}),
       ...(deps.definitions ? { definitions: deps.definitions } : {}),
+      ...(deps.extend ? { extend: deps.extend } : {}),
     })
     let failure: unknown
     try {
@@ -1038,6 +1054,7 @@ export function composeD1Worker(
                 clock,
                 newId,
                 randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
+                ...(builtIns ? { builtIns } : {}),
               },
               turnstile: siteverifyVerifier({
                 secret: typeof env.TURNSTILE_SECRET_KEY === 'string' ? env.TURNSTILE_SECRET_KEY : undefined,
@@ -1066,6 +1083,7 @@ export function composeD1Worker(
           cold ??= createApp({
             storage: () => NO_UNITS,
             ...(deps.definitions ? { definitions: deps.definitions } : {}),
+            ...(deps.extend ? { extend: deps.extend } : {}),
           })
           return await cold.fetch(req)
         }

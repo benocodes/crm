@@ -21,17 +21,15 @@ import {
 } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { eventSetStatement, eventStatement } from '../outbox.js'
-import { companies } from '../resources/companies.js'
+import { defaultBuiltIns, type BuiltInLookup } from '../resources/built-ins.js'
 import { companyFiles } from '../resources/company-files.js'
 import { contactFiles } from '../resources/contact-files.js'
-import { contacts } from '../resources/contacts.js'
 import { identities } from '../resources/identities.js'
 import { notes } from '../resources/notes.js'
 import { deals } from '../resources/deals.js'
 import { pipelineStages } from '../resources/pipeline-stages.js'
 import { pipelines } from '../resources/pipelines.js'
 import { tags } from '../resources/tags.js'
-import { tasks } from '../resources/tasks.js'
 import { associations } from '../associations/definition.js'
 import { afterOf, beforeRead, receipt, selectRecord, toRecord } from '../storage/crud.js'
 import type { PreparedEnv, PreparedResource } from '../storage/definition.js'
@@ -297,13 +295,20 @@ function refuseHold(h: CascadeHold, found: Found, parent: { name?: unknown }): v
   )
 }
 
-/** `companies.delete`: soft-deletes the company, unlinks its live contacts (`company_id = null`, one `contact.updated` each) then soft-deletes its file links (`company_file.deleted`), each in id order. */
-export function deleteCompanyOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
+/**
+ * `companies.delete`: soft-deletes the company, unlinks its live contacts (`company_id = null`, one `contact.updated` each) then soft-deletes its file links (`company_file.deleted`), each in id order. The delete operations of the four
+ * built-ins take the set whose definitions render their events ([[CORE559]] P2): the definitions' own overrides pass theirs; the default is the set with no `extend`.
+ */
+export function deleteCompanyOperation(
+  env: PreparedEnv,
+  id: string,
+  b: BuiltInLookup = defaultBuiltIns(),
+): PreparedOperation<void> {
   return cascadeDelete(
     {
-      parent: companies,
+      parent: b.companies,
       children: [
-        { child: contacts, column: 'company_id', kind: 'unlink' },
+        { child: b.contacts, column: 'company_id', kind: 'unlink' },
         { child: companyFiles, column: 'company_id', kind: 'tombstone' },
       ],
     },
@@ -313,10 +318,14 @@ export function deleteCompanyOperation(env: PreparedEnv, id: string): PreparedOp
 }
 
 /** `contacts.delete`: soft-deletes the contact, tombstones its live identities (`identity.deleted`) then its file links (`contact_file.deleted`), each in id order. */
-export function deleteContactOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
+export function deleteContactOperation(
+  env: PreparedEnv,
+  id: string,
+  b: BuiltInLookup = defaultBuiltIns(),
+): PreparedOperation<void> {
   return cascadeDelete(
     {
-      parent: contacts,
+      parent: b.contacts,
       children: [
         { child: identities, column: 'contact_id', kind: 'tombstone' },
         { child: contactFiles, column: 'contact_id', kind: 'tombstone' },
@@ -328,13 +337,21 @@ export function deleteContactOperation(env: PreparedEnv, id: string): PreparedOp
 }
 
 /** `tasks.delete`: soft-deletes the task and its live edges (`association.deleted` each, in id order). */
-export function deleteTaskOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
-  return cascadeDelete({ parent: tasks, children: [] }, env, id)
+export function deleteTaskOperation(
+  env: PreparedEnv,
+  id: string,
+  b: BuiltInLookup = defaultBuiltIns(),
+): PreparedOperation<void> {
+  return cascadeDelete({ parent: b.tasks, children: [] }, env, id)
 }
 
 /** `deals.delete`: soft-deletes the deal and its live edges (`association.deleted` each, in id order). The parent is read without derived fields, so `status` never reaches `deal.deleted` ([[CORE130]] D8). */
-export function deleteDealOperation(env: PreparedEnv, id: string): PreparedOperation<void> {
-  return cascadeDelete({ parent: deals, children: [] }, env, id)
+export function deleteDealOperation(
+  env: PreparedEnv,
+  id: string,
+  b: BuiltInLookup = defaultBuiltIns(),
+): PreparedOperation<void> {
+  return cascadeDelete({ parent: b.deals, children: [] }, env, id)
 }
 
 /** `notes.delete`: soft-deletes the note and its live edges (`association.deleted` each, in id order). */

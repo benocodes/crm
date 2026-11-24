@@ -1,4 +1,5 @@
 // Capture pages ([[CHN5]] cycle 3, [[CHN149]]): what one Workflow step will do. Plain async functions, Node-safe, returning plain data.
+import type { BuiltIns } from '../../resources/built-ins.js'
 import { sql, type SqlBool } from 'kysely'
 import {
   UnitDriftError,
@@ -55,6 +56,8 @@ export interface GmailSyncDeps {
   gmailBaseUrl?: string
   /** Test seam: builds the client over the page's access-token function. Default `HttpGmailClient`. */
   clientFor?: (accessToken: () => Promise<string>) => GmailClient
+  /** [[CORE559]] P2: the deployment's composed built-ins, put on the capture pipeline's context. Absent: the set with no `extend`. */
+  builtIns?: BuiltIns
 }
 
 /** `retry_after_seconds` is Google's `Retry-After` when it sent one, else null (the run's backoff then grows, [[CHN5]] D84). */
@@ -426,6 +429,7 @@ async function capture(
     newId: deps.newId,
     randomBytes: deps.randomBytes,
     attachmentMaxBytes: deps.config.attachmentMaxBytes,
+    ...(deps.builtIns ? { builtIns: deps.builtIns } : {}),
   }
   const conn: GmailConnection = { id: c.connectionId, mailbox: c.state.mailbox }
   const result = await captureMessages(ctx, new GmailChannel(c.client, channelOpts), conn, fresh, {

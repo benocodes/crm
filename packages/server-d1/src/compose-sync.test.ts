@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { execute, uuidv7 } from '@vibase/storage'
-import { ScopeSet } from '@vibase/api'
+import { ScopeSet, applyExtensions, type ExtendDeclarations } from '@vibase/api'
 import { fakeR2Bucket } from '@vibase/api/test/objects'
 import { FAKE_GOOGLE_ORIGIN, FakeGoogle } from '@vibase/api/test/google'
 import { FakeGmail } from '@vibase/api/test/gmail'
@@ -170,6 +170,35 @@ describe('the composed run (runMailSync)', () => {
     const out = await worker.runMailSync({ payload: { connection_id: id } }, shim.step)
     expect(out).toEqual({ end: 'complete', passes: 1 })
     expect((await w.d1.prepare('select count(*) as n from message_sources').first())!.n).toBe(2)
+  })
+  // [[CORE559]] P2: the mail-sync pipeline's context carries the composed set, so a captured sender's contact.created carries the extension fields.
+  it('with an extend, the contact a sync creates has its extension field in contact.created; with none it is the core record', async () => {
+    const EXTEND: ExtendDeclarations = {
+      contacts: { lvl__c: { kind: 'enum', values: ['a', 'b'], required: true, default: 'a' } },
+    }
+    expect((await applyExtensions(w.d1, {}, EXTEND)).refused).toEqual([])
+    const afters = async (extend?: ExtendDeclarations) => {
+      await w.reset()
+      await w.d1.prepare('drop table if exists d1_migrations').run()
+      const t = await boot()
+      const id = await seed(t, google.issueRefreshToken())
+      await w.d1.prepare(`update channel_connections set contact_creation = 'sent_and_received'`).run()
+      const worker = composeD1Worker(env({ BODIES: fakeR2Bucket() }), {
+        fetch: fake(new FakeGmail([msg('c1')])),
+        streams: nodeStreams(),
+        ...(extend ? { extend } : {}),
+      })
+      await worker.runMailSync({ payload: { connection_id: id } }, makeWorkerdStepShim().step)
+      return (
+        (await w.d1.prepare(`select after from events where type = 'contact.created'`).all()).results as Array<{
+          after: string
+        }>
+      ).map((r) => JSON.parse(r.after))
+    }
+    const withExtend = await afters(EXTEND)
+    expect(withExtend.length).toBeGreaterThan(0)
+    for (const a of withExtend) expect(a).toMatchObject({ lvl__c: 'a' })
+    for (const a of await afters()) expect(a).not.toHaveProperty('lvl__c')
   })
   it('throws retryably while the database is behind, and writes nothing', async () => {
     const t = await boot()

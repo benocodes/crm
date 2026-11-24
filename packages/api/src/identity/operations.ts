@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { TenantOperation } from '../registry.js'
-import { contacts } from '../resources/contacts.js'
+import { defaultBuiltIns, type BuiltIns } from '../resources/built-ins.js'
 import { identities } from '../resources/identities.js'
 import { mergeOperation } from './merge.js'
 import { resolveOperation } from './resolve.js'
@@ -19,7 +19,8 @@ const resolveBody = z.strictObject({
 })
 
 /** The identity commands on the prepared path ([[CORE36]]): same paths, scopes, schemas and statuses. */
-export function identityOperations(): TenantOperation[] {
+export function identityOperations(b: BuiltIns = defaultBuiltIns()): TenantOperation[] {
+  const { contacts } = b
   return [
     {
       kind: 'tenant',
@@ -42,7 +43,7 @@ export function identityOperations(): TenantOperation[] {
         }),
       },
       prepare: (env, input) => {
-        const op = resolveOperation(env, (input.body as z.infer<typeof resolveBody>).identities)
+        const op = resolveOperation(env, (input.body as z.infer<typeof resolveBody>).identities, contacts)
         // The response wraps the results as { data }; the unit is built once.
         return {
           ...op,
@@ -70,7 +71,7 @@ export function identityOperations(): TenantOperation[] {
       request: { params: z.object({ id: z.uuid() }), body: z.strictObject({ source_id: z.uuid() }) },
       response: { status: 200, schema: contacts.record },
       prepare: (env, input) =>
-        mergeOperation(env, input.params.id as string, (input.body as { source_id: string }).source_id),
+        mergeOperation(env, input.params.id as string, (input.body as { source_id: string }).source_id, { contacts }),
     },
   ]
 }

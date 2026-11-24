@@ -31,11 +31,12 @@ import { operationOf } from '../identity/program.js'
 import { eventSetStatement } from '../outbox.js'
 import type { ChannelPort } from '../channels/port.js'
 import type { ObjectStore } from '../objects/store.js'
-import { contacts, type ContactRecord } from '../resources/contacts.js'
+import { defaultBuiltIns, type BuiltIns } from '../resources/built-ins.js'
+import type { ContactRecord } from '../resources/contacts.js'
 import { ScopeSet } from '../scopes.js'
 import { associations } from '../associations/definition.js'
 import { afterOf, columnsOf, toRecord } from '../storage/crud.js'
-import type { PreparedEnv } from '../storage/definition.js'
+import { columnKindsOf, type PreparedEnv } from '../storage/definition.js'
 import { recordMessages, type CaptureMessage, type CaptureResult } from '../messaging/capture.js'
 import { messageBodyKey, messageContentPrefix, messageOriginalKey } from '../messaging/r2-keys.js'
 import { storeMessageContent } from '../messaging/store-content.js'
@@ -54,6 +55,8 @@ export interface FormSubmissionContext {
   clock: () => Date
   newId: () => string
   randomBytes: (n: number) => Uint8Array
+  /** [[CORE559]] P2: the four built-ins' definitions of the deployment (the composed set of its `extend`), so the contact events carry the extension fields. Absent: the set with no `extend`. */
+  builtIns?: BuiltIns
 }
 
 export interface FormCaptureResult {
@@ -124,7 +127,6 @@ export async function formSubmitterBlocked(
 
 // ---- the program: recordMessages plus the contact additions (D14, P3) --------------------------------------
 
-const contactColumns = columnsOf(contacts)
 const C = 'c_'
 const READ = { contact: 'form:contact', links: 'form:links' } as const
 
@@ -139,19 +141,31 @@ function formUnitProgram(
   form: FormIngress,
   submitter: FormSubmitter,
   message: CaptureMessage,
+  contacts: BuiltIns['contacts'],
 ): Program<CaptureResult> {
-  const capture = recordMessages(env, {
-    source: { kind: 'form', id: form.form_id },
-    channel: 'form',
-    messages: [message],
-  })
+  const contactColumns = columnsOf(contacts)
+  const contactKinds = columnKindsOf(contacts)
+  const contactRow = (row: Record<string, unknown>): Record<string, unknown> => {
+    const out: Record<string, unknown> = {}
+    for (const c of contactColumns) out[c] = row[`${C}${c}`]
+    return out
+  }
+  const capture = recordMessages(
+    env,
+    {
+      source: { kind: 'form', id: form.form_id },
+      channel: 'form',
+      messages: [message],
+    },
+    contacts,
+  )
   const org = env.organizationId
   const actor = env.actor.id
   const at = codecs.timestamp.write(env.now)
   return {
     reads(qc): Readonly<Record<string, Read>> {
       const contact = sql`
-        select "identities"."own" as "own", "identities"."contact_id" as "contact_id", ${sql.join(recordColumns(qc, 'contacts', contactColumns, C))}
+        select "identities"."own" as "own", "identities"."contact_id" as "contact_id", ${sql.join(recordColumns(qc, 'contacts', contactColumns, C, contactKinds))}
         from "identities"
         left join "contacts" on "contacts"."id" = "identities"."contact_id" and "contacts"."organization_id" = "identities"."organization_id"
           and "contacts"."deleted_at" is null and "contacts"."merged_into_id" is null
@@ -208,7 +222,7 @@ function formUnitProgram(
               actorId: actor,
               type: 'contact.updated',
               resourceType: 'contact',
-              after: { table: 'contacts', columns: contactColumns },
+              after: { table: 'contacts', columns: contactColumns, kinds: contactKinds },
               rows: [{ eventId: fillEvent, resourceId: fill.id, before: fill as unknown as Record<string, unknown> }],
             }),
           ),
@@ -259,12 +273,6 @@ function formUnitProgram(
       return unit({ steps, events, decode: base.decode })
     },
   }
-}
-
-const contactRow = (row: Record<string, unknown>): Record<string, unknown> => {
-  const out: Record<string, unknown> = {}
-  for (const c of contactColumns) out[c] = row[`${C}${c}`]
-  return out
 }
 
 // ---- the capture (D18) -------------------------------------------------------------------------------------
@@ -343,7 +351,10 @@ export async function captureFormSubmission(
         const out = await execute(
           ctx.binding,
           identity,
-          operationOf('forms.capture_submission', formUnitProgram(makeEnv(), input.form, submitter, message)),
+          operationOf(
+            'forms.capture_submission',
+            formUnitProgram(makeEnv(), input.form, submitter, message, (ctx.builtIns ?? defaultBuiltIns()).contacts),
+          ),
         )
         const c = out.value.captured[0]
         if (!c) throw new Error('the form capture unit recorded no message')

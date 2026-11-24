@@ -197,7 +197,7 @@ export function recordJson(
       kinds[c] === 'timestamp'
         ? ts.iso(qc, ref)
         : kinds[c] === 'boolean' && qc.dialect === 'd1'
-          ? sql`json(iif(${refOf(ref)}, 'true', 'false'))` // D1 stores 0/1; an event's `after` carries a JSON boolean on both engines
+          ? sql`json(case when ${refOf(ref)} is null then 'null' else iif(${refOf(ref)}, 'true', 'false') end)` // D1 stores 0/1; an event's `after` carries a JSON boolean on both engines, and a null stays null ([[CORE559]]: an extension boolean is nullable)
           : kinds[c] === 'string_array' && qc.dialect === 'd1'
             ? sql`json(${refOf(ref)})` // D1 stores a JSON array as text; an event's `after` carries a JSON array on both engines
             : kinds[c] === 'json' && qc.dialect === 'd1'

@@ -12,7 +12,7 @@ import {
 } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
-import { deals, type DealRecord } from '../resources/deals.js'
+import { deals as defaultDeals, type DealRecord } from '../resources/deals.js'
 import { afterOf, beforeRead, receipt, resultStep, toRecord } from '../storage/crud.js'
 import type { PreparedEnv } from '../storage/definition.js'
 import { canonicalId } from '../storage/prepare.js'
@@ -27,7 +27,12 @@ import { canonicalId } from '../storage/prepare.js'
  * `closed_at` (D11), by the target kind: open -> null; won or lost -> unchanged when the deal is already in a stage of that kind (read from the stored row
  * in the update itself, where the right-hand side still sees the old `stage_id`), else the unit's clock.
  */
-export function moveStageOperation(env: PreparedEnv, rawId: string, rawStageId: string): PreparedOperation<DealRecord> {
+export function moveStageOperation(
+  env: PreparedEnv,
+  rawId: string,
+  rawStageId: string,
+  deals: typeof defaultDeals = defaultDeals,
+): PreparedOperation<DealRecord> {
   const id = canonicalId(deals, rawId)
   const stageId = rawStageId.toLowerCase()
   const eventId = env.newId()

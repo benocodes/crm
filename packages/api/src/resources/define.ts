@@ -24,7 +24,14 @@ export const readActionOf = (def: Named): 'read' | 'read_metadata' => def.readAc
 /** The REST path of a resource: `_` becomes `-`, except in a custom object's `__c` name, which is never translated ([[CORE315]] D25). */
 export const resourcePath = (def: Named): string =>
   '/' + (def.name.endsWith('__c') ? def.name : def.name.replaceAll('_', '-'))
-const issues = (e: z.ZodError) => e.issues.map((i) => i.message).join('; ')
+/**
+ * A validation failure as one sentence. An issue on an extension field ([[CORE559]] P3: a `<name>__c` key of a built-in) names it, so a caller learns which field was missing or null; every other issue is its message alone, as it
+ * always was (the core fields' error bodies are pinned by `fixtures/wire-core554`).
+ */
+const issues = (e: z.ZodError) =>
+  e.issues
+    .map((i) => (String(i.path[0] ?? '').endsWith('__c') ? `${i.path.join('.')}: ${i.message}` : i.message))
+    .join('; ')
 
 /** Parses `input` with a schema, turning a zod failure into `validation_error`. */
 export function parseInput(schema: z.ZodType, input: unknown): Record<string, unknown> {

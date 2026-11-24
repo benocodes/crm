@@ -24,7 +24,7 @@ import type { AggregateSpec } from './aggregate.js'
 import type { Scope, ScopeSet } from '../scopes.js'
 import type { SortKind } from '../resources/sort-cursor.js'
 import type { ObjectStore } from '../objects/store.js'
-import type { ObjectDeclaration } from '../custom/declaration.js'
+import type { FieldDeclaration, ObjectDeclaration } from '../custom/declaration.js'
 
 /**
  * The tables a definition may name at the type level. A table without a physical D1/Postgres counterpart in
@@ -273,6 +273,11 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
    */
   readonly declaration?: ObjectDeclaration
   readonly statedFilterCosts?: readonly { readonly filter: string; readonly reason: string }[]
+  /**
+   * [[CORE559]] D1: set only on a built-in that carries extension fields (`extendDefinition`): the declarations of its `<name>__c` columns (kind, label, description, enum values), for `schema.get`. The definition then carries its own
+   * `columnKinds` (core plus extension), so no generic path reads `COLUMN_KINDS` for it.
+   */
+  readonly extensionFields?: Readonly<Record<string, FieldDeclaration>>
   /**
    * [[CORE130]] D3, D9: fields accepted on create and refused on update (`400 validation_error`), each with the sentence that says where
    * to change it instead (empty: none). Checked before the update schema, so the answer names the field, not "unrecognized key".

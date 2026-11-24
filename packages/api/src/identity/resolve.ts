@@ -23,10 +23,10 @@ import {
 } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { eventSetStatement, eventStatement } from '../outbox.js'
-import { contacts, type ContactRecord } from '../resources/contacts.js'
+import { contacts as defaultContacts, type ContactRecord } from '../resources/contacts.js'
 import { identities, type IdentityRecord } from '../resources/identities.js'
 import { columnsOf, selectRecord, toRecord } from '../storage/crud.js'
-import type { PreparedEnv } from '../storage/definition.js'
+import { columnKindsOf, type PreparedEnv } from '../storage/definition.js'
 import { normalizeIdentityValue, type IdentityKind } from './normalize.js'
 import { operationOf, type Program } from './program.js'
 
@@ -52,22 +52,23 @@ export function cleanName(name: string | undefined): string | undefined {
 }
 
 const identityColumns = columnsOf(identities)
-const contactColumns = columnsOf(contacts)
 const eventExists = (eventId: string) => sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${eventId})`
 
 /** An identity row with its contact (columns prefixed `c_`; all null when the identity has no contact). */
-function splitRow(row: Row): { identity: IdentityRecord; contact: ContactRecord | null } {
+function splitRow(contacts: ContactsDefinition, row: Row): { identity: IdentityRecord; contact: ContactRecord | null } {
   const contact: Record<string, unknown> = {}
-  for (const c of contactColumns) contact[c] = row[`${C}${c}`]
+  for (const c of columnsOf(contacts)) contact[c] = row[`${C}${c}`]
   return {
     identity: toRecord(identities, row),
     contact: contact.id === null || contact.id === undefined ? null : toRecord(contacts, contact as Row),
   }
 }
-const joinedColumns = (qc: QueryContext) => [
+const joinedColumns = (qc: QueryContext, contacts: ContactsDefinition) => [
   ...recordColumns(qc, 'identities', identityColumns),
-  ...recordColumns(qc, 'contacts', contactColumns, C),
+  ...recordColumns(qc, 'contacts', columnsOf(contacts), C, columnKindsOf(contacts)),
 ]
+/** The contacts definition the program renders its records and events from: the composed one of an `extend` ([[CORE559]] P2), by default the one with none. */
+export type ContactsDefinition = typeof defaultContacts
 
 /**
  * `identities.resolve` as a plan/build pair ([[CORE36]] C6, D15). Every entry is normalised first (errors carry the
@@ -77,7 +78,12 @@ const joinedColumns = (qc: QueryContext) => [
  * becomes an unattached identity, and a known unattached identity is promoted to a new contact when an entry may. The response is in input order; `created` is true only on the first occurrence of
  * a new address; an existing contact is never renamed. Zero orphans because the unit is atomic (P4), not because of a lock.
  */
-export function resolveProgram(env: PreparedEnv, entries: readonly ResolveEntry[]): Program<ResolveResult[]> {
+export function resolveProgram(
+  env: PreparedEnv,
+  entries: readonly ResolveEntry[],
+  contacts: ContactsDefinition = defaultContacts,
+): Program<ResolveResult[]> {
+  const contactColumns = columnsOf(contacts)
   const normalized = entries.map((e, i) => {
     try {
       return { ...e, value: normalizeIdentityValue(e.kind, e.value) }
@@ -97,7 +103,7 @@ export function resolveProgram(env: PreparedEnv, entries: readonly ResolveEntry[
       )
       const values = [...new Set(normalized.map((e) => e.value))]
       const known = sql`
-        select ${sql.join(joinedColumns(qc))} from "identities"
+        select ${sql.join(joinedColumns(qc, contacts))} from "identities"
         left join "contacts" on "contacts"."id" = "identities"."contact_id" and "contacts"."organization_id" = "identities"."organization_id"
         where "identities"."organization_id" = ${env.organizationId} and "identities"."deleted_at" is null and ${memberOf(qc, 'identities', 'value', values)}`.compile(
         qc.db,
@@ -108,7 +114,7 @@ export function resolveProgram(env: PreparedEnv, entries: readonly ResolveEntry[
       if (normalized.length === 0) return unit({ steps: [], events: [], decode: () => [] })
       const known = new Map<string, { identity: IdentityRecord; contact: ContactRecord | null }>()
       for (const row of found.all(KNOWN)) {
-        const r = splitRow(row)
+        const r = splitRow(contacts, row)
         known.set(key(r.identity), r)
       }
       // One decision per distinct address (408.15): it may have a contact if any entry may; the contact takes the name of
@@ -269,7 +275,7 @@ export function resolveProgram(env: PreparedEnv, entries: readonly ResolveEntry[
               actorId: actor,
               type: 'contact.created',
               resourceType: 'contact',
-              after: { table: 'contacts', columns: contactColumns },
+              after: { table: 'contacts', columns: contactColumns, kinds: columnKindsOf(contacts) },
               rows: [
                 ...withContact.map((f) => ({ eventId: f.contactEvent, resourceId: f.contactId!, before: null })),
                 ...promoted.map((p) => ({ eventId: p.contactEvent, resourceId: p.contactId, before: null })),
@@ -309,7 +315,7 @@ export function resolveProgram(env: PreparedEnv, entries: readonly ResolveEntry[
       steps.push(
         ...eventSteps,
         step(
-          sql`select ${sql.join(joinedColumns(qc))} from ${resultSet}
+          sql`select ${sql.join(joinedColumns(qc, contacts))} from ${resultSet}
             join "identities" on "identities"."id" = ${sql.ref('r.id')}
             left join "contacts" on "contacts"."id" = "identities"."contact_id" and "contacts"."organization_id" = "identities"."organization_id"
             order by ${sql.ref('r.ord')}`.compile(qc.db),
@@ -348,7 +354,7 @@ export function resolveProgram(env: PreparedEnv, entries: readonly ResolveEntry[
         decode: (rows) => {
           const created = new Map<string, { identity: IdentityRecord; contact: ContactRecord | null }>()
           for (const row of rows) {
-            const r = splitRow(row)
+            const r = splitRow(contacts, row)
             created.set(key(r.identity), r)
           }
           return finish(created)
@@ -361,8 +367,9 @@ export function resolveProgram(env: PreparedEnv, entries: readonly ResolveEntry[
 export function resolveOperation(
   env: PreparedEnv,
   entries: readonly ResolveEntry[],
+  contacts: ContactsDefinition = defaultContacts,
 ): PreparedOperation<ResolveResult[]> {
-  return operationOf('identities.resolve', resolveProgram(env, entries))
+  return operationOf('identities.resolve', resolveProgram(env, entries, contacts))
 }
 
 /**

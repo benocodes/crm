@@ -1,12 +1,14 @@
 import { z } from 'zod'
 import type { TenantOperation } from '../registry.js'
-import { deals } from '../resources/deals.js'
+import type { BuiltIns } from '../resources/built-ins.js'
+import { defaultBuiltIns } from '../resources/built-ins.js'
 import { moveStageOperation } from './move-stage.js'
 
 const moveBody = z.strictObject({ stage_id: z.uuid() })
 
 /** The deal commands ([[CORE130]] D10): everything else on deals is the generic CRUD of its definition. */
-export function dealOperations(): TenantOperation[] {
+export function dealOperations(b: BuiltIns = defaultBuiltIns()): TenantOperation[] {
+  const { deals } = b
   return [
     {
       kind: 'tenant',
@@ -24,7 +26,7 @@ export function dealOperations(): TenantOperation[] {
       request: { params: z.object({ id: z.uuid() }), body: moveBody },
       response: { status: 200, schema: deals.record },
       prepare: (env, input) =>
-        moveStageOperation(env, input.params.id as string, (input.body as z.infer<typeof moveBody>).stage_id),
+        moveStageOperation(env, input.params.id as string, (input.body as z.infer<typeof moveBody>).stage_id, deals),
     },
   ]
 }

@@ -22,10 +22,10 @@ import { ApiError } from '../errors.js'
 import { eventSetStatement, eventStatement } from '../outbox.js'
 import { contactFiles } from '../resources/contact-files.js'
 import { actionRequests } from '../action-requests/definition.js'
-import { contacts, type ContactRecord } from '../resources/contacts.js'
+import { contacts as defaultContacts, type ContactRecord } from '../resources/contacts.js'
 import { identities } from '../resources/identities.js'
 import { afterOf, beforeRead, columnsOf, derivedProjection, selectRecord, toRecord } from '../storage/crud.js'
-import type { PreparedEnv, PreparedResource } from '../storage/definition.js'
+import { columnKindsOf, type PreparedEnv, type PreparedResource } from '../storage/definition.js'
 import { associations } from '../associations/definition.js'
 import { operationOf } from './program.js'
 import { touches } from './cascades.js'
@@ -134,8 +134,10 @@ export function mergeOperation(
   env: PreparedEnv,
   survivorIdIn: string,
   sourceIdIn: string,
-  opts: { catalog?: readonly ContactReference[] } = {},
+  opts: { catalog?: readonly ContactReference[]; contacts?: typeof defaultContacts } = {},
 ): PreparedOperation<ContactRecord> {
+  // [[CORE559]] P2: the composed contacts definition renders the records and events (the extension fields ride in them); the merge writes core columns only (D13 is U3).
+  const contacts = opts.contacts ?? defaultContacts
   // z.uuid() accepts upper case; compare and sort on the canonical lower-case form.
   const survivorId = survivorIdIn.toLowerCase()
   const sourceId = sourceIdIn.toLowerCase()
@@ -362,7 +364,7 @@ export function mergeOperation(
       // Fill the survivor's empty fields from the source; never overwrite.
       const fill: Record<string, unknown> = {}
       for (const f of Object.keys(contacts.update!.shape)) {
-        if (f === 'additional_props') continue
+        if (f === 'additional_props' || f.endsWith('__c')) continue
         const key = f as 'name' | 'company_id'
         if (survivor[key] === null && source[key] !== null) fill[f] = source[key]
       }
@@ -395,7 +397,7 @@ export function mergeOperation(
               resourceType: 'contact',
               resourceId: survivorId,
               before: survivor,
-              after: { table: 'contacts', columns: contactColumns },
+              after: { table: 'contacts', columns: contactColumns, kinds: columnKindsOf(contacts) },
             }),
             label('first-event'),
           ),
@@ -421,7 +423,7 @@ export function mergeOperation(
             resourceType: 'contact',
             resourceId: sourceId,
             before: source,
-            after: { table: 'contacts', columns: contactColumns },
+            after: { table: 'contacts', columns: contactColumns, kinds: columnKindsOf(contacts) },
           }),
           label('first-event'),
         ),
@@ -447,7 +449,10 @@ export function mergeOperation(
         step(
           qc.db
             .selectFrom('contacts')
-            .select([...recordColumns(qc, 'contacts', contactColumns), ...derivedProjection(contacts, qc, env)])
+            .select([
+              ...recordColumns(qc, 'contacts', contactColumns, '', columnKindsOf(contacts)),
+              ...derivedProjection(contacts, qc, env),
+            ])
             .where(sql<SqlBool>`${sql.ref('contacts.id')} = ${survivorId}`)
             .where(sql<SqlBool>`${sql.ref('contacts.organization_id')} = ${env.organizationId}`)
             .where(eventExists(mergedEventId)),
