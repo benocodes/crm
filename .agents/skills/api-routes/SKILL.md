@@ -625,11 +625,18 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
     record field to a generic resource adds a column filter, so it usually adds a stated entry. Reuse the reason constants
     (`COLUMN`, `MAIL`, `SMALL`, `EXECUTION`) and helpers (`kept`, `behind`, `partial`); a reason that names an index is a
     claim about the catalog, so check it against every index of the table, partial ones included, before writing it: the
-    contract does not check reason text yet (#205), and [[CORE201]] spent two review rounds on false ones.
+    contract does not check reason text yet (#205), and [[CORE201]] spent two review rounds on false ones. An index meant
+    to make `eq` on a column cheap at the default order (`ORDER BY id`) is `(organization_id, <col>, id)`: without
+    `ANALYZE`, SQLite plans `(organization_id, <col>)` through `(organization_id, id)` instead (the `kept` case), while a
+    partial unique `(organization_id, <col>)` index is searched ([[CORE541]] 541.3).
   - **Discovery** ([[CORE199]] D11): `schema.get`'s `resource.filters` is `[{ name, custom, kind, operators, indexed,
     description }]`, column filters in record field order, then custom filters in declaration order (`custom: true`,
     `kind: null`, `operators: []`, `indexed: null`). `indexed` = not in `STATED_FILTER_COSTS` (a `BuildInput` option,
-    default the checked-in list). Exempt lists have no `resource` object. A new filter regenerates `schema.json`.
+    default the checked-in list), or for a custom object not in its definition's `statedFilterCosts` (derived by
+    `defineCustomObject`: indexed exactly for reference and unique fields, [[CORE315]] D33). Every table entry carries
+    `origin: "built_in" | "custom"` (custom iff the name ends `__c`) and `archived` (true only for a `__c` table with no
+    declaration: `resource: null`, rows kept; [[CORE315]] D31). Exempt lists have no `resource` object. A new filter or
+    table-entry field regenerates `schema.json`.
 - **Aggregation over a filtered list** ([[CORE199]] D13–D16, D19; [[CORE202]]; `src/storage/aggregate.ts`,
   `aggregateOperation` in `src/storage/crud.ts`). A list opts in with `withAggregate(def, money?)`, the outermost wrapper
   around `withColumnFilters` (deals: `{ amount_minor: 'currency' }`); the registry then adds `<name>.aggregate` at
@@ -868,7 +875,10 @@ interactive transaction, no `withContext` and no `executor` marker.
   `updated_at`, `deleted_at` and its events' `created_at` from its one injected `now`. Postgres has no
   `set_updated_at` trigger any more (migration 006), so a writer that does not set `updated_at` leaves it
   unchanged. Never write `now()` in a program.
-- **`references: { col: { table, live? } }`** (principals, companies, contacts). The plan read
+- **`references: { col: { table, live? } }`** (principals, companies, contacts; custom objects' reference fields,
+  [[CORE315]] D21). `ReferenceTarget` is a discriminated union: a built-in table, whose kinds `referencePredicates`
+  reads from `COLUMN_KINDS`, or ``{ table: `${string}__c`, custom: true }``, which always has `organization_id` and
+  `deleted_at`; never let a `__c` name reach the built-in arm ([[CORE541]] review). The plan read
   (`400 invalid_reference`) and the commit guard use one predicate: id, plus `organization_id` when the
   target has it, plus `deleted_at IS NULL` when `live`. A create becomes `INSERT … SELECT … WHERE EXISTS`, an
   update gets an extra `WHERE EXISTS`; on D1 a vanished reference makes the write a no-op and the gated event

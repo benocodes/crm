@@ -3,8 +3,12 @@ import { z } from 'zod'
 // The declaration of a custom object ([[CORE315]] D6, D9, D18, D19): plain data, validated here, refused with the broken rule named.
 // A broken declaration throws `DeclarationError`: `rule` is a stable code (what a test and a tool read), `path` says where, the message says it in a sentence.
 
-/** The closed list of field kinds (D18). `reference` joins in a later release (P1) and is refused by name until then. */
-export const FIELD_KINDS = ['text', 'integer', 'boolean', 'timestamp', 'enum'] as const
+/** The closed list of field kinds (D18). */
+export const FIELD_KINDS = ['text', 'integer', 'boolean', 'timestamp', 'enum', 'reference'] as const
+/** The built-in tables a reference may target ([[CORE315]] D21, [[CORE541]]); `contacts` waits for the merge catalog (U3), and a custom object is any declared `__c` key. */
+export const REFERENCE_TARGETS = ['companies', 'deals', 'tasks', 'principals'] as const
+/** The field kinds that may be `unique` (D22). */
+export const UNIQUE_KINDS: readonly string[] = ['text', 'integer']
 export type FieldKind = (typeof FIELD_KINDS)[number]
 export type FieldDefault = string | number | boolean
 
@@ -18,6 +22,10 @@ export interface FieldDeclaration {
   default?: FieldDefault
   /** An enum's values: the only ones create and update accept (D20). */
   values?: string[]
+  /** D22: at most one live row holds a value (text and integer only; null never collides). */
+  unique?: boolean
+  /** A reference's target (D21): a built-in table in `REFERENCE_TARGETS` or a custom object's key. */
+  target?: string
 }
 export interface ObjectDeclaration {
   label?: string
@@ -106,13 +114,26 @@ const fieldSchema = z
     target: z.string().optional(),
   })
   .superRefine((f, ctx) => {
-    if (f.kind === 'reference') return refuse(ctx, 'reference_later', 'the reference kind arrives in a later release')
     if (typeof f.kind !== 'string' || !(FIELD_KINDS as readonly string[]).includes(f.kind))
       return refuse(ctx, 'unknown_kind', `kind is one of ${FIELD_KINDS.join(', ')}`)
     const kind = f.kind as FieldKind
-    if (f.unique === true) return refuse(ctx, 'unique_later', 'unique fields arrive in a later release')
-    if (f.target !== undefined)
-      return refuse(ctx, 'unknown_property', '"target" belongs to the reference kind, which arrives in a later release')
+    if (f.unique === true && !UNIQUE_KINDS.includes(kind))
+      return refuse(ctx, 'unique_kind', `unique is for text and integer fields, not ${kind}`)
+    if (kind === 'reference') {
+      if (f.target === undefined) return refuse(ctx, 'reference_target_missing', 'a reference names its target')
+      if (f.target === 'contacts')
+        return refuse(ctx, 'reference_contacts_later', 'references to contacts arrive in a later release')
+      const known =
+        (REFERENCE_TARGETS as readonly string[]).includes(f.target) ||
+        (f.target.endsWith(KEY_SUFFIX) && NAME_SHAPE.test(f.target.slice(0, -KEY_SUFFIX.length)))
+      if (!known)
+        return refuse(
+          ctx,
+          'reference_target_unknown',
+          `a reference targets ${REFERENCE_TARGETS.join(', ')} or a custom object (<key>${KEY_SUFFIX})`,
+        )
+      if (f.default !== undefined) return refuse(ctx, 'default_on_reference', 'a reference has no default')
+    } else if (f.target !== undefined) return refuse(ctx, 'unknown_property', '"target" belongs to the reference kind')
     if (kind !== 'enum') {
       if (f.values !== undefined) return refuse(ctx, 'values_not_enum', 'values belong to an enum field')
     } else {
@@ -173,7 +194,7 @@ function ruleOf(issue: z.core.$ZodIssue, input: unknown): string {
 }
 
 /** Validates one object's declaration under `key` ([[CORE315]] D6, D9, D18, D19, P1): returns it normalised, or throws a `DeclarationError` naming the rule. */
-export function parseObjectDeclaration(key: string, input: unknown): ObjectDeclaration {
+export function parseObjectDeclaration(key: string, input: unknown, objects?: readonly string[]): ObjectDeclaration {
   checkKey(key)
   const parsed = objectSchema.safeParse(input)
   if (!parsed.success) {
@@ -183,9 +204,22 @@ export function parseObjectDeclaration(key: string, input: unknown): ObjectDecla
   const d = parsed.data
   const fields: Record<string, FieldDeclaration> = {}
   for (const [name, f] of Object.entries(d.fields)) {
-    const { kind, unique: _unique, target: _target, ...rest } = f
-    fields[name] = { kind: kind as FieldKind, ...rest } as FieldDeclaration
+    const { kind, unique, ...rest } = f
+    fields[name] = {
+      kind: kind as FieldKind,
+      ...rest,
+      ...(unique === true ? { unique: true } : {}),
+    } as FieldDeclaration
   }
+  // A reference to a custom object names a declared one: only a caller that holds the whole set can say (the set validator); one object alone accepts any well-formed key.
+  if (objects !== undefined)
+    for (const [name, f] of Object.entries(fields))
+      if (f.target?.endsWith(KEY_SUFFIX) && !objects.includes(f.target))
+        throw new DeclarationError(
+          'reference_target_undeclared',
+          `${f.target} is not a declared custom object`,
+          `${key}.fields.${name}`,
+        )
   return {
     ...(d.label !== undefined ? { label: d.label } : {}),
     ...(d.description !== undefined ? { description: d.description } : {}),
@@ -198,6 +232,7 @@ export function parseObjectDeclarations(input: unknown): Record<string, ObjectDe
   if (typeof input !== 'object' || input === null || Array.isArray(input))
     throw new DeclarationError('not_an_object', 'the objects are a map from key to declaration')
   const out: Record<string, ObjectDeclaration> = {}
-  for (const [key, declaration] of Object.entries(input)) out[key] = parseObjectDeclaration(key, declaration)
+  const keys = Object.keys(input)
+  for (const [key, declaration] of Object.entries(input)) out[key] = parseObjectDeclaration(key, declaration, keys)
   return out
 }

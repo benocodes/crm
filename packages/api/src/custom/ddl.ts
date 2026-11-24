@@ -16,6 +16,7 @@ function column(name: string, f: FieldDeclaration): string {
   const c = ident(name)
   const parts = [c]
   parts.push(f.kind === 'integer' || f.kind === 'boolean' ? 'INTEGER' : 'TEXT')
+  if (f.kind === 'reference') parts.push(`REFERENCES ${ident(f.target!)} ("id")`)
   if (f.required === true) parts.push('NOT NULL')
   if (f.default !== undefined) parts.push(`DEFAULT ${literal(f.default)}`)
   if (f.kind === 'text') parts.push(`CHECK (${c} IS NULL OR length(${c}) <= ${TEXT_MAX})`)
@@ -24,7 +25,7 @@ function column(name: string, f: FieldDeclaration): string {
   return parts.join(' ')
 }
 
-/** The statements that create the table and its index, in order. */
+/** The statements that create the table and its indexes, in order ([[CORE541]] P1): a reference gets `(organization_id, field, id)`, a unique field only the partial unique index over its live non-null rows. */
 export function createTableStatements(key: string, declaration: ObjectDeclaration): string[] {
   const t = ident(key)
   const columns = [
@@ -39,5 +40,15 @@ export function createTableStatements(key: string, declaration: ObjectDeclaratio
   return [
     `CREATE TABLE IF NOT EXISTS ${t} (\n  ${columns.join(',\n  ')}\n) STRICT`,
     `CREATE INDEX IF NOT EXISTS ${ident(`idx_${key}_organization_id_id`)} ON ${t} ("organization_id", "id")`,
+    ...Object.entries(declaration.fields).flatMap(([name, f]) => {
+      const c = ident(name)
+      if (f.kind === 'reference')
+        return [`CREATE INDEX IF NOT EXISTS ${ident(`idx_${key}_${name}_id`)} ON ${t} ("organization_id", ${c}, "id")`]
+      if (f.unique === true)
+        return [
+          `CREATE UNIQUE INDEX IF NOT EXISTS ${ident(`idx_${key}_${name}_unique`)} ON ${t} ("organization_id", ${c}) WHERE "deleted_at" IS NULL AND ${c} IS NOT NULL`,
+        ]
+      return []
+    }),
   ]
 }

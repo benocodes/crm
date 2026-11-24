@@ -129,10 +129,54 @@ describe('a field (D18)', () => {
     expect(rule('projects__c', ok({ x: { kind: 'text', default: 'a'.repeat(10_001) } }))).toBe('default_invalid')
     expect(rule('projects__c', ok({ x: { kind: 'enum', values: ['a'], default: 'b' } }))).toBe('default_invalid')
   })
-  it('refuses the reference kind and unique, by name, until a later release (P1)', () => {
-    expect(rule('projects__c', ok({ x: { kind: 'reference', target: 'companies' } }))).toBe('reference_later')
-    expect(rule('projects__c', ok({ x: { kind: 'text', unique: true } }))).toBe('unique_later')
-    expect(rule('projects__c', ok({ x: { kind: 'integer', unique: true } }))).toBe('unique_later')
+  it('accepts a reference to each allowed target, a sibling and itself, and unique on text and integer ([[CORE541]] D21, D22)', () => {
+    for (const target of ['companies', 'deals', 'tasks', 'principals', 'projects__c', 'tickets__c'])
+      expect(
+        parseObjectDeclarations({
+          projects__c: ok({ x: { kind: 'reference', target } }),
+          tickets__c: ok(),
+        }).projects__c!.fields.x,
+        target,
+      ).toMatchObject({ kind: 'reference', target })
+    const parsed = parseObjectDeclaration(
+      'projects__c',
+      ok({
+        a: { kind: 'text', unique: true },
+        b: { kind: 'integer', unique: true },
+        c: { kind: 'text', unique: false },
+      }),
+    )
+    expect(parsed.fields.a).toMatchObject({ kind: 'text', unique: true })
+    expect(parsed.fields.b).toMatchObject({ kind: 'integer', unique: true })
+  })
+  it('refuses a reference to contacts by name, an unknown table, a missing target and an undeclared custom target', () => {
+    const r = (target?: string) => ({ x: { kind: 'reference', ...(target === undefined ? {} : { target }) } })
+    expect(rule('projects__c', ok(r('contacts')))).toBe('reference_contacts_later')
+    expect(rule('projects__c', ok(r('notes')))).toBe('reference_target_unknown')
+    expect(rule('projects__c', ok(r('events')))).toBe('reference_target_unknown')
+    expect(rule('projects__c', ok(r()))).toBe('reference_target_missing')
+    expect(() => parseObjectDeclarations({ projects__c: ok(r('tickets__c')) })).toThrowError(DeclarationError)
+    try {
+      parseObjectDeclarations({ projects__c: ok(r('tickets__c')) })
+    } catch (err) {
+      expect((err as DeclarationError).rule).toBe('reference_target_undeclared')
+      expect((err as DeclarationError).path).toBe('projects__c.fields.x')
+    }
+  })
+  it('refuses a target off a reference, and a default, values or unique on one', () => {
+    expect(rule('projects__c', ok({ x: { kind: 'text', target: 'companies' } }))).toBe('unknown_property')
+    expect(rule('projects__c', ok({ x: { kind: 'reference', target: 'companies', default: 'a' } }))).toBe(
+      'default_on_reference',
+    )
+    expect(rule('projects__c', ok({ x: { kind: 'reference', target: 'companies', values: ['a'] } }))).toBe(
+      'values_not_enum',
+    )
+    expect(rule('projects__c', ok({ x: { kind: 'reference', target: 'companies', unique: true } }))).toBe('unique_kind')
+  })
+  it.each(['boolean', 'timestamp', 'enum'])('refuses unique on %s', (kind) => {
+    expect(rule('projects__c', ok({ x: { kind, ...(kind === 'enum' ? { values: ['a'] } : {}), unique: true } }))).toBe(
+      'unique_kind',
+    )
   })
   it('refuses a key it does not know and a body that is not an object', () => {
     expect(rule('projects__c', ok({ x: { kind: 'text', colour: 'red' } }))).toBe('unknown_property')

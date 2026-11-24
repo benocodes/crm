@@ -143,7 +143,10 @@ export const selectRecord = (
 
 /** The ONE predicate of a reference (D4), used by the plan read and the commit guard alike. */
 function referencePredicates(spec: ReferenceTarget, value: string, env: PreparedEnv): Expression<SqlBool>[] {
-  const kinds = COLUMN_KINDS[spec.table] as Record<string, ColumnKind>
+  // A custom object's table is not in COLUMN_KINDS; it always has both columns (CORE541 D21).
+  const kinds = (
+    spec.custom ? { organization_id: 'uuid', deleted_at: 'timestamp' } : COLUMN_KINDS[spec.table]
+  ) as Record<string, ColumnKind>
   const preds = [sql<SqlBool>`${sql.ref(`${spec.table}.id`)} = ${value}`]
   if ('organization_id' in kinds)
     preds.push(sql<SqlBool>`${sql.ref(`${spec.table}.organization_id`)} = ${env.organizationId}`)

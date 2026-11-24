@@ -9,6 +9,7 @@ import { STATED_FILTER_COSTS } from '../storage/filter-costs.js'
 import { crudActions, readActionOf, resourcePath, scopeResourceOf } from '../resources/define.js'
 import { AUTH_TABLE_PREFIX, CATALOG, HIDDEN_TABLES, defaultLabel, type Catalog } from './catalog.js'
 import type { SchemaDocument } from './document.js'
+import { KEY_SUFFIX } from '../custom/declaration.js'
 
 // API63 D10-D14: a pure builder. The rows are what `pragma_table_info` / `pragma_foreign_key_list` return for each table;
 // the definitions and the catalog add the meaning. No database, no clock.
@@ -99,7 +100,9 @@ function filtersOf(def: AnyResource, statedFilters: ReadonlySet<string>) {
     custom: false,
     kind: spec.kind as string | null,
     operators: [...operatorsFor(spec.kind, spec.nullable)] as string[],
-    indexed: !statedFilters.has(`${def.name}\u0000${name}`) as boolean | null,
+    indexed: !(
+      statedFilters.has(`${def.name}\u0000${name}`) || def.statedFilterCosts?.some((c) => c.filter === name) === true
+    ) as boolean | null,
     description: describeColumnFilter(name, spec),
   }))
   const custom = Object.entries(def.customFilters ?? {}).map(([name, f]) => ({
@@ -185,6 +188,10 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
       const text = catalog.tables[name]
       const def = byTable.get(name)
       const exposedFields = def ? (def.record.shape as Record<string, unknown>) : {}
+      // [[CORE541]] D31: a table named like a custom object is one; the declaration (when a definition carries it) supplies kinds, labels, descriptions and enum values, and an undeclared one is archived.
+      const custom = name.endsWith(KEY_SUFFIX)
+      const declared = def?.declaration
+      const tableKinds = custom && def ? ((def.columnKinds ?? {}) as Record<string, string>) : kinds[name]
 
       // Foreign keys as declared: SQLite numbers them in reverse declaration order, so the highest id is the first declared.
       const fks = [...groupBy(fksOf.get(name) ?? [], (r) => String(r.id)).values()]
@@ -212,24 +219,31 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
 
       return {
         name,
-        origin: 'built_in' as const,
-        label: text?.label ?? defaultLabel(name),
-        description: text?.description ?? null,
+        origin: (custom ? 'custom' : 'built_in') as 'custom' | 'built_in',
+        archived: custom && !def,
+        label: text?.label ?? declared?.label ?? defaultLabel(name),
+        description: text?.description ?? declared?.description ?? null,
         associable: def?.associable === true,
         resource: def ? resourceOf(def, stated, statedFilters) : null,
         columns: rows.map((c) => {
-          const own = textOf(text?.columns[c.name])
+          const field = declared?.fields[c.name]
+          const own = field ? { label: field.label, description: field.description } : textOf(text?.columns[c.name])
           return {
             name: c.name,
             type: c.type,
-            kind: kinds[name]?.[c.name] ?? null,
+            kind: tableKinds?.[c.name] ?? null,
             nullable: c.notnull === 0,
             primary_key: c.pk > 0,
             default: c.dflt_value,
             label: own.label ?? defaultLabel(c.name),
             // The common bookkeeping text applies only to a table the catalog describes: an unknown table says nothing.
-            description: own.description ?? (text ? (catalog.common[c.name] ?? null) : null),
-            values: def ? enumValues(exposedFields[c.name]) : null,
+            description: own.description ?? (text || declared ? (catalog.common[c.name] ?? null) : null),
+            values:
+              field?.kind === 'enum'
+                ? (field.values ?? null)
+                : def && !declared
+                  ? enumValues(exposedFields[c.name])
+                  : null,
             exposed: def ? c.name in exposedFields : false,
             references: referenceOf.get(c.name) ?? null,
           }

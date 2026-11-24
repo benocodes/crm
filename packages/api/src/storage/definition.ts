@@ -24,6 +24,7 @@ import type { AggregateSpec } from './aggregate.js'
 import type { Scope, ScopeSet } from '../scopes.js'
 import type { SortKind } from '../resources/sort-cursor.js'
 import type { ObjectStore } from '../objects/store.js'
+import type { ObjectDeclaration } from '../custom/declaration.js'
 
 /**
  * The tables a definition may name at the type level. A table without a physical D1/Postgres counterpart in
@@ -51,10 +52,26 @@ export type WriteMeta = { readonly op: 'create' | 'update'; readonly now: Date }
  * read (`400 invalid_reference`) and the commit-time guard use ONE predicate: `id = v`, plus `organization_id = the
  * unit's organisation` when the target table has that column, plus `deleted_at IS NULL` when `live`.
  */
-export type ReferenceTarget = {
-  readonly table: 'principals' | 'companies' | 'contacts' | 'files' | 'pipelines' | 'pipeline_stages'
-  readonly live?: boolean
-}
+export type ReferenceTarget =
+  | {
+      readonly table:
+        | 'principals'
+        | 'companies'
+        | 'contacts'
+        | 'files'
+        | 'pipelines'
+        | 'pipeline_stages'
+        | 'deals'
+        | 'tasks'
+      readonly live?: boolean
+      readonly custom?: never
+    }
+  | {
+      /** [[CORE541]] D21: a custom object's table, which is not in `COLUMN_KINDS`, always has `organization_id` and `deleted_at`, and is always live. */
+      readonly table: `${string}__c`
+      readonly live: true
+      readonly custom: true
+    }
 
 /** A refusal decided from a plan read (a domain or an address already taken): the core runs `read`, then `refuse(row | null)`. */
 export interface Conflict {
@@ -248,6 +265,12 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
   readonly sortKinds?: Readonly<Record<string, SortKind>>
   /** Columns that must reference a visible row of a portable table (checked after existence, re-checked at commit). */
   readonly references?: { readonly [K in ColumnOf<T>]?: ReferenceTarget }
+  /**
+   * [[CORE541]] D33: set only by `defineCustomObject`: the declaration the definition was built from (labels, descriptions, enum values and field kinds for `schema.get`), and the column filters whose `eq` is not served by an
+   * index, each with its reason (a custom table's index shapes are fixed by P1, so the cost is derived from the declaration, not stated in `filter-costs.ts`).
+   */
+  readonly declaration?: ObjectDeclaration
+  readonly statedFilterCosts?: readonly { readonly filter: string; readonly reason: string }[]
   /**
    * [[CORE130]] D3, D9: fields accepted on create and refused on update (`400 validation_error`), each with the sentence that says where
    * to change it instead (empty: none). Checked before the update schema, so the answer names the field, not "unrecognized key".
