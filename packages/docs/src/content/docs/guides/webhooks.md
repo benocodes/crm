@@ -118,4 +118,4 @@ The two can be the same agent or different ones. Keeping them apart means the ke
 - Webhook secrets are sealed with `CREDENTIALS_KEY` (base64 of 32 random bytes). Without it, creating or rotating answers `501 webhooks_not_configured`.
 - `WEBHOOK_ALLOW_INSECURE_URLS=true` allows `http://` and loopback targets. Use it for local development only.
 - Each minute's run has a work budget. `CRON_TICK_BUDGET` raises it from the default of 50 to as much as 1000 when you have many subscriptions and your plan allows the extra calls.
-- On a remote environment, run the database migrations before deploying a Worker that includes webhooks, and run `setup:remote` so the Clerk scope mirror knows the new `webhooks:*` and `events:read` scopes.
+- On a remote environment, run the database migrations before deploying a Worker that includes webhooks, and run `setup:remote` so the Clerk scope mirror (Clerk instances only) knows the new `webhooks:*` and `events:read` scopes.
