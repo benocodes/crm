@@ -180,6 +180,7 @@ describe('document shape (D10, D11)', () => {
     expect(Object.keys(table(doc, 'contacts'))).toEqual([
       'name',
       'origin',
+      'archived',
       'label',
       'description',
       'associable',

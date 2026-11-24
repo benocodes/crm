@@ -23,3 +23,21 @@ export const projectsDefinition = () => defineCustomObject(PROJECTS_KEY, PROJECT
 export async function createCustomTables(d1: D1Like, key = PROJECTS_KEY, declaration = PROJECTS): Promise<void> {
   await d1.batch(createTableStatements(key, declaration).map((s) => d1.prepare(s)))
 }
+
+/**
+ * [[CORE541]]: the same object with a reference to each allowed target (principals, companies, deals, tasks and itself) and two unique fields. `projects__c` again, in the suites that need references: each suite has its own D1.
+ */
+export const PROJECTS_REFS: ObjectDeclaration = {
+  ...PROJECTS,
+  fields: {
+    ...PROJECTS.fields,
+    owner: { kind: 'reference', target: 'principals' },
+    company: { kind: 'reference', target: 'companies' },
+    deal: { kind: 'reference', target: 'deals' },
+    task: { kind: 'reference', target: 'tasks' },
+    parent: { kind: 'reference', target: PROJECTS_KEY },
+    code: { kind: 'text', unique: true },
+    seq: { kind: 'integer', unique: true },
+  },
+}
+export const projectsRefsDefinition = () => defineCustomObject(PROJECTS_KEY, PROJECTS_REFS)
