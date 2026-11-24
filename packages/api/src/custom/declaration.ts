@@ -52,6 +52,8 @@ export const TEXT_MAX = 10_000
 export const NAME_MAX = 40
 /** The suffix every custom object key carries (D9). */
 export const KEY_SUFFIX = '__c'
+/** [[CORE542]] P5: D1 allows 100 columns per table; six are bookkeeping, one is `additional_props` ([[CORE318]]), and the rest is headroom for archived columns. */
+export const FIELDS_MAX = 90
 const LABEL_MAX = 200
 const DESCRIPTION_MAX = 2_000
 const ENUM_VALUE_MAX = 100
@@ -104,7 +106,11 @@ const refuse = (ctx: z.RefinementCtx, rule: string, message: string, path: (stri
 /** One field (D18, P1). The structure is zod's; each rule that has a name is a refinement, in the order a person would fix them. */
 const fieldSchema = z
   .strictObject({
-    kind: z.unknown().optional(),
+    // `unknown` so a wrong kind is refused by name (`unknown_kind`) rather than as a type error; the published JSON Schema lists the kinds through its metadata.
+    kind: z
+      .unknown()
+      .meta({ enum: [...FIELD_KINDS] })
+      .optional(),
     label: z.string().max(LABEL_MAX).optional(),
     description: z.string().max(DESCRIPTION_MAX).optional(),
     required: z.boolean().optional(),
@@ -161,6 +167,8 @@ const fieldSchema = z
 
 /** The fields of an object: each name is checked (D9, D19) before its declaration. */
 const fieldsSchema = z.record(z.string(), fieldSchema).superRefine((fields, ctx) => {
+  if (Object.keys(fields).length > FIELDS_MAX)
+    refuse(ctx, 'too_many_fields', `an object declares at most ${FIELDS_MAX} fields`)
   for (const name of Object.keys(fields)) {
     const at = [name]
     if (name.includes('__')) refuse(ctx, 'field_name_double_underscore', 'a field name has no double underscore', at)

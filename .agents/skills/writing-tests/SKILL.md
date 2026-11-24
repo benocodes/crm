@@ -401,6 +401,12 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   `packages/server-d1/scripts/instance/status.test.ts`).
 - **A rule that compares against stored state gets a test for "no stored state"**: a guard that is silent
   when there is no row to compare is where it leaks ([[CORE29]]).
+- **An idempotence test re-runs after a first run that altered existing state, not only from empty.** A second run
+  over freshly created tables reads back exactly what the first run wrote; a second run after `ADD COLUMN` reads a
+  catalog the first run reshaped (SQLite appends the added column's text to the table's `sqlite_master.sql`), and
+  that is where a parser of live state misreads and re-plans. CORE542's review round 1 added "additions to an existing
+  table, then re-apply plans nothing" and "a kind change on an added column is still refused"
+  (`packages/api/src/custom/apply.integration.d1.test.ts`).
 - **A pinned behaviour is a spec decision.** Tests assert the contract the spec writes down (statuses,
   codes, messages, event order). Where a spec keeps a rule, the shipped code is a reference for reading it,
   never an oracle to compare against: there is no legacy-oracle fixture ([[CORE36]] D12, no backward

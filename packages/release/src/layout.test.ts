@@ -187,7 +187,13 @@ describe('D8 (2), (3), (4), (9): the server package', () => {
     }
   })
   it('a missing worker, base config or release.json is refused by name', () => {
-    for (const f of ['worker/worker.js', 'wrangler.base.jsonc', 'release.json', 'cli/server.js']) {
+    for (const f of [
+      'worker/worker.js',
+      'worker/vibase-extensions.schema.json',
+      'wrangler.base.jsonc',
+      'release.json',
+      'cli/server.js',
+    ]) {
       const { dir, s } = server()
       unlinkSync(join(dir, f))
       expect(() => assertServerLayout(dir, s.version), f).toThrow(new RegExp(f.replace(/[.]/g, '\\.')))

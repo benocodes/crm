@@ -3,8 +3,8 @@
 // Nothing applies it in production in this cycle (T3, #542); tests run it against their own D1.
 import { TEXT_MAX, type FieldDeclaration, type ObjectDeclaration } from './declaration.js'
 
-const ident = (name: string): string => `"${name.replaceAll('"', '""')}"`
-const literal = (v: string | number | boolean): string =>
+export const ident = (name: string): string => `"${name.replaceAll('"', '""')}"`
+export const literal = (v: string | number | boolean): string =>
   typeof v === 'string' ? `'${v.replaceAll("'", "''")}'` : typeof v === 'boolean' ? (v ? '1' : '0') : String(v)
 
 const UUID_CHECK = (c: string) =>
@@ -12,7 +12,7 @@ const UUID_CHECK = (c: string) =>
 const TIMESTAMP_CHECK = (c: string) => `coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', ${c}) = ${c}, 0)`
 
 /** One declared column: its type, nullability, default and the CHECK its kind holds (D18). Enum values are never a CHECK (D20). */
-function column(name: string, f: FieldDeclaration): string {
+export function columnDefinition(name: string, f: FieldDeclaration): string {
   const c = ident(name)
   const parts = [c]
   parts.push(f.kind === 'integer' || f.kind === 'boolean' ? 'INTEGER' : 'TEXT')
@@ -35,7 +35,7 @@ export function createTableStatements(key: string, declaration: ObjectDeclaratio
     `${ident('created_at')} TEXT NOT NULL CHECK (${TIMESTAMP_CHECK(ident('created_at'))})`,
     `${ident('updated_at')} TEXT NOT NULL CHECK (${TIMESTAMP_CHECK(ident('updated_at'))})`,
     `${ident('deleted_at')} TEXT CHECK (${ident('deleted_at')} IS NULL OR ${TIMESTAMP_CHECK(ident('deleted_at'))})`,
-    ...Object.entries(declaration.fields).map(([name, f]) => column(name, f)),
+    ...Object.entries(declaration.fields).map(([name, f]) => columnDefinition(name, f)),
   ]
   return [
     `CREATE TABLE IF NOT EXISTS ${t} (\n  ${columns.join(',\n  ')}\n) STRICT`,
