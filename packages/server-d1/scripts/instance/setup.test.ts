@@ -658,3 +658,16 @@ describe('the instance entry', () => {
     expect(err.join('')).toContain(join(xdg, 'vibase', 'instances', 'demo.env'))
   })
 })
+
+describe('CORE543 D27: setup attaches the default extensions module', () => {
+  it('the deploy call finds worker.js and an empty vibase-extensions.json beside the generated config, and the package is untouched', async () => {
+    const s = world({ sim: FRESH_SIM })
+    expect(await run(s)).toBe(0)
+    const deploy = s.w.wrangler.find((c) => c.args[0] === 'deploy')!
+    expect(deploy.staged!.files).toEqual(expect.arrayContaining(['worker.js', 'vibase-extensions.json']))
+    expect(deploy.staged!.module).toBe('{"version":1,"objects":{}}\n')
+    expect(JSON.parse(deploy.configText!).rules).toEqual([
+      expect.objectContaining({ type: 'Text', globs: expect.arrayContaining(['vibase-extensions.json']) }),
+    ])
+  })
+})

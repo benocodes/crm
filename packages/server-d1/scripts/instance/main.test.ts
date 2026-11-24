@@ -32,7 +32,7 @@ describe('instance entry', () => {
     expect(redeploy).toMatch(/Advanced/)
     expect(redeploy).toMatch(/`upgrade` is the normal, guarded path/)
     expect(redeploy).toContain(
-      'vibase-server redeploy --env <name> [--dry-run] [--yes] [--settings <path>] [--secrets-file <path>]',
+      'vibase-server redeploy --env <name> [--dry-run] [--yes] [--extensions <path>] [--settings <path>] [--secrets-file <path>]',
     )
   })
   it('refuses an unknown command with exit 2', async () => {

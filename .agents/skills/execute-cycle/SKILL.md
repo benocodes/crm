@@ -53,6 +53,10 @@ branch then carries no code, so there is no gate to run ([[DX422]] D2).
   prints the planner's spec and plan decisions for this cycle, and the parent spec's and sibling cycles' rows.
   They bind you as the spec does: don't decide again what a row settles, and a row you think is wrong is a
   `blocked` (or, for an earlier coder's row, a new row with `--supersedes <ref>`), never a silent deviation.
+- **Every item under "In this cycle" is scope, "Carried" one-liners included** (a stale comment, a measurement): do
+  it, or record a row saying why not. A skipped one with no row costs a review round ([[CORE543]] 543.29).
+- **Adding a module to the Worker's import graph** (a `Text` or data module): grep `packages/*/scripts` and test
+  harnesses for every esbuild bundle of `worker.ts` and run `smoke:worker` before review ([[CORE543]]: five bundlers).
 - Read the modules the cycle changes or calls, their tests, and the shared test helpers and seeds. Reuse
   helpers; find the seam to test at. Don't call a helper you haven't opened.
 - **When the cycle migrates existing behaviour, the old code is the reference** for "matches today's

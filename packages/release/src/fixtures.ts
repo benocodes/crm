@@ -27,7 +27,11 @@ export function sources(): Omit<StageInput, 'outDir'> & { root: string } {
   mkdirSync(join(root, 'control-migrations'), { recursive: true })
   writeFileSync(join(root, 'vibase.js'), '#!/usr/bin/env node\nconsole.log(1)\n')
   writeFileSync(join(root, 'server.js'), '#!/usr/bin/env node\nconsole.log(2)\n')
-  writeFileSync(join(root, 'worker.js'), 'export default {}\n')
+  // [[CORE543]] P7: the built Worker imports the extensions module by this exact name (a deploy attaches it as a Text module).
+  writeFileSync(
+    join(root, 'worker.js'),
+    'import extensions from "./vibase-extensions.json";\nexport default { extensions }\n',
+  )
   // [[CORE542]] D26: the extensions file's JSON Schema, shipped beside the Worker.
   writeFileSync(join(root, 'vibase-extensions.schema.json'), '{"type":"object"}\n')
   // [[UI246]] D2: the auth pages' build output (`ui/` of the assets directory): index, bundle and stylesheet.

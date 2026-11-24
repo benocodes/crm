@@ -1,11 +1,12 @@
+import { readFileSync } from 'node:fs'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createVibaseRegistry } from '@vibase/api'
+import { createVibaseRegistry, defineCustomObject, parseExtensionsFile } from '@vibase/api'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { MIGRATIONS } from '@vibase/storage-d1'
 import { uuidv7 } from '@vibase/storage'
 import type { D1WorkerEnv } from './compose.js'
 import { DECLARED_SCOPES } from './declared-scopes.js'
-import { earlyAnswer } from './early.js'
+import { declaredScopesWith, earlyAnswer } from './early.js'
 import { AUTH_BASE, AUTH_SECRET } from './test/auth-kit.js'
 import { bootstrapD1, composeD1Worker, NOW, openWorkerD1, type WorkerD1 } from './test/kit.js'
 
@@ -121,5 +122,70 @@ describe('what is not answered early', () => {
     ['a malformed CORS list', { CORS_ALLOWED_ORIGINS: 'not-an-origin' }],
   ] as const)('%s: the full path decides', (_n, over) => {
     expect(earlyAnswer(req('/mcp', MCP_INIT), env(over as Partial<D1WorkerEnv>))).toBeUndefined()
+  })
+})
+
+// [[CORE543]] P5 (group 5): the early answers list the custom scopes of the attached module, derived by `JSON.parse` and a name check, with no validator.
+const TWO = JSON.stringify({
+  version: 1,
+  objects: {
+    projects__c: { label: 'Projects', fields: { name: { kind: 'text', required: true } } },
+    milestones__c: { fields: { project: { kind: 'reference', target: 'projects__c' } } },
+  },
+})
+const twoDefinitions = () =>
+  Object.entries(parseExtensionsFile(TWO).objects).map(([key, decl]) => defineCustomObject(key, decl))
+const scopesOf = (header: string | null) => (/scope="([^"]*)"/.exec(header ?? '')?.[1] ?? '').split(' ').sort()
+
+describe('the early answers with an attached module (P5)', () => {
+  it('the derived list equals the registry built with the same definitions (the drift test, extended)', () => {
+    const want = createVibaseRegistry({ definitions: twoDefinitions() }).declaredScopes()
+    expect(want).toContain('projects__c:read')
+    expect(want).toContain('milestones__c:request_approval')
+    expect([...declaredScopesWith(TWO)!]).toEqual(want)
+  })
+  it('no objects, or the default module, is the static list; an unreadable module is undefined', () => {
+    expect(declaredScopesWith('{"version":1,"objects":{}}\n')).toEqual(DECLARED_SCOPES)
+    expect(declaredScopesWith(undefined)).toEqual(DECLARED_SCOPES)
+    for (const bad of [
+      '{nope',
+      '[]',
+      '{"version":1}',
+      '{"objects":{"Projects":{}}}',
+      '{"objects":{"a__c":1,"b":{}}}',
+      '{"objects":[]}',
+    ])
+      expect(declaredScopesWith(bad), bad).toBeUndefined()
+  })
+  it('the unauthenticated /mcp challenge, the authorization-server metadata and both protected-resource documents are the composition’s own, custom scopes included', async () => {
+    const wk = () => composeD1Worker(env(), { definitions: twoDefinitions() })
+    for (const [path, init] of [
+      ['/mcp', MCP_INIT],
+      ['/.well-known/oauth-protected-resource', {}],
+      ['/.well-known/oauth-protected-resource/mcp', {}],
+      ['/.well-known/oauth-authorization-server/auth', {}],
+    ] as const) {
+      const early = earlyAnswer(req(path, init), env(), TWO)
+      expect(early, path).toBeDefined()
+      await same(early!, await wk().fetch(req(path, init)))
+    }
+    const challenge = earlyAnswer(req('/mcp', MCP_INIT), env(), TWO)!.headers.get('www-authenticate')
+    expect(scopesOf(challenge)).toContain('projects__c:read')
+    const doc = (await earlyAnswer(req('/.well-known/oauth-protected-resource', {}), env(), TWO)!.json()) as {
+      scopes_supported: string[]
+    }
+    expect(doc.scopes_supported).toContain('milestones__c:write')
+  })
+  it('a module the light check cannot read sends the request the full way', () => {
+    expect(earlyAnswer(req('/mcp', MCP_INIT), env(), '{nope')).toBeUndefined()
+    expect(earlyAnswer(req('/.well-known/oauth-protected-resource', {}), env(), '{"objects":{"x":1}}')).toBeUndefined()
+  })
+  it('early.ts imports no validator and no composition', () => {
+    const src = readFileSync(new URL('./early.ts', import.meta.url), 'utf8')
+    const imports = [...src.matchAll(/^import[^;]*?from\s+'([^']+)'/gms)].map((m) => m[1])
+    expect(imports.sort()).toEqual(
+      ['./declared-scopes.js', '@vibase/api/discovery', '@vibase/auth/static-metadata'].sort(),
+    )
+    expect(src).not.toMatch(/zod|parseExtensionsFile|parseObjectDeclaration/)
   })
 })

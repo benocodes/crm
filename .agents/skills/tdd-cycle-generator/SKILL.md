@@ -436,6 +436,13 @@ limit on decisions, two or more sweeps mean split (here, scopes by rule could ha
 were wrong (a proposable `d1Only` write, which `api-routes` forbids; a mutation assuming the rail executes approved
 proposals): before naming an absence mutation, trace the code path that carries the behaviour, or name the behaviour
 and let the coder choose the mutation.
+**CORE543** (`knowledge/specs/020-CORE543-redeploy-extensions/RETRO.md`): 5 groups (1 matrix), 6 decisions + 8 planner
+rules, no migration, 1 remote E2E part, riders listed. It cost 366k / 137 calls initial plus two small resumes (+895 /
++754 lines, 48 files), just past 543.1's ~350k line. The unnamed sweep was every bundler of the Worker (auth harness,
+`smoke:worker`, three e2e scripts): a new module in the Worker's import graph is a sweep rider ("every bundler of
+`worker.ts`", found by grepping `esbuild`/`build(`) and goes in the Size line. The one review finding was a cosmetic
+carried item skipped without a row: every line under "In this cycle", "Carried" included, is scope; the coder does it
+or records why not.
 
 ### Step 3: Resolve identities
 

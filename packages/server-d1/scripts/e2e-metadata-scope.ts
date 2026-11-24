@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
+import { extensionsTextModule } from './extensions-text-plugin.js'
 import { Miniflare } from 'miniflare'
 import { execute, uuidv7 } from '@vibase/storage'
 import { d1Binding, MIGRATIONS, openControlDb, type D1Like } from '@vibase/storage-d1'
@@ -54,6 +55,7 @@ try {
     target: 'es2022',
     outfile: vibaseBundle,
     external: ['cloudflare:workers', 'cloudflare:workflows', 'node:*'],
+    plugins: [extensionsTextModule],
     logLevel: 'warning',
   })
   console.log(`bundle: vibase ${statSync(vibaseBundle).size} bytes`)

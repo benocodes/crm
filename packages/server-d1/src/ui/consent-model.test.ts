@@ -53,6 +53,32 @@ describe('buildConsentModel', () => {
     )
   })
 
+  it('[[CORE543]] P6: every <key>__c scope sits in the one custom area, its switches shaped like any area, after the catalogue and before Other', () => {
+    const r = shape([
+      'openid',
+      'projects__c:read',
+      'projects__c:request_approval',
+      'projects__c:write',
+      'milestones__c:read',
+      'ghosts:read',
+    ])
+    expect(r.areas).toEqual(['custom', 'other'])
+    const custom = r.m.areas.find((a) => a.key === 'custom')!
+    expect(custom.name).toBe('Custom records')
+    expect(custom.requested).toEqual([
+      'projects__c:read',
+      'projects__c:request_approval',
+      'projects__c:write',
+      'milestones__c:read',
+    ])
+    expect(r.switches('custom')).toEqual([
+      ['read', true],
+      ['request_approval', true],
+      ['write', false],
+    ])
+    expect(r.body).toBe('openid projects__c:read projects__c:request_approval milestones__c:read ghosts:read')
+  })
+
   it('a narrow named request: one area, one Read switch, on', () => {
     const r = shape(['openid', 'contacts:read'])
     expect(r.areas).toEqual(['crm'])

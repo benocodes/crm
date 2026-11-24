@@ -20,7 +20,8 @@ export interface Bundle {
 
 export const NODE_IMPORT = /(?:from\s*|import\s*\(\s*|import\s+|require\s*\(\s*)["'](node:[^"']+)["']/g
 
-export async function bundleWorker(entry: string): Promise<Bundle> {
+/** `external`: more specifiers the bundle leaves as imports (a Text module the Worker imports by name, [[CORE543]] P7); the runtime gets it from `startWorkerd`'s `textModules`. */
+export async function bundleWorker(entry: string, opts: { external?: string[] } = {}): Promise<Bundle> {
   const dir = mkdtempSync(join(tmpdir(), 'vb-auth-bundle-'))
   const path = join(dir, 'worker.mjs')
   await build({
@@ -31,7 +32,18 @@ export async function bundleWorker(entry: string): Promise<Bundle> {
     platform: 'browser',
     conditions: ['workerd', 'worker', 'browser'],
     target: 'es2022',
-    external: ['cloudflare:workers', 'node:*'],
+    external: ['cloudflare:workers', 'node:*', ...(opts.external ?? [])],
+    // A deploy attaches `vibase-extensions.json` as a Text module ([[CORE543]] P7); esbuild would parse it as JSON, so the one file of that name is inlined as text (the checked-in default), unless `external` leaves it to `textModules`.
+    plugins: [
+      {
+        name: 'extensions-text-module',
+        setup: (b) =>
+          b.onLoad({ filter: /[\\/]vibase-extensions\.json$/ }, (a) => ({
+            contents: readFileSync(a.path, 'utf8'),
+            loader: 'text',
+          })),
+      },
+    ],
     logLevel: 'warning',
   })
   const text = readFileSync(path, 'utf8')
@@ -86,6 +98,8 @@ export async function startWorkerd(o: {
   paired?: boolean
   /** The outbound service ([[CORE294]] D9): what answers every request the Worker makes to the network (a fake Google). Default: any outbound request throws. */
   outbound?: (req: Request) => Response | Promise<Response>
+  /** Text modules beside the bundle, by the name the bundle imports ([[CORE543]]): what a deploy attaches with a `Text` rule. */
+  textModules?: Record<string, string>
   /** More Miniflare options ([[CHN432]]): `ratelimits`, `r2Buckets`. Spread over the harness's own options: a key given here replaces the harness's (`bindings`, `d1Databases`, ...), it does not merge with it. */
   extra?: Partial<MiniflareOptions>
 }): Promise<Workerd> {
@@ -95,7 +109,14 @@ export async function startWorkerd(o: {
   const options: MiniflareOptions = {
     port: 0,
     // Explicit modules: Better Auth's Kysely adapter has `import(variable)` (for `node:sqlite`) that Miniflare's own module scan refuses; wrangler and workerd are fine with it.
-    modules: [{ type: 'ESModule', path: o.bundle.path, contents: readFileSync(o.bundle.path, 'utf8') }],
+    modules: [
+      { type: 'ESModule', path: o.bundle.path, contents: readFileSync(o.bundle.path, 'utf8') },
+      ...Object.entries(o.textModules ?? {}).map(([name, contents]) => ({
+        type: 'Text' as const,
+        path: join(o.bundle.dir, name),
+        contents,
+      })),
+    ],
     modulesRoot: o.bundle.dir,
     compatibilityDate: '2026-07-30',
     compatibilityFlags: o.flags ?? ['nodejs_compat'],

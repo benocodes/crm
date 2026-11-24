@@ -26,13 +26,14 @@ function problems(areas: readonly ScopeArea[]): string[] {
 }
 
 describe('scope areas (UI449 D1, D2)', () => {
-  it('the five areas and their resources are the spec’s', () => {
+  it('the six areas and their resources are the spec’s (custom holds no fixed resource: it is a name rule, CORE543 P6)', () => {
     expect(SCOPE_AREAS.map((a) => [a.key, [...a.resources]])).toEqual([
       ['crm', ['contacts', 'companies', 'deals', 'pipelines', 'tasks', 'notes', 'tags', 'associations']],
       ['messages', ['interactions', 'messages', 'files', 'connections', 'blocked_senders', 'forms']],
       ['activity', ['events', 'action_requests']],
       ['integrations', ['webhooks', 'schema']],
       ['admin', ['members', 'agents', 'invitations', 'audit']],
+      ['custom', []],
     ])
   })
 
@@ -48,6 +49,23 @@ describe('scope areas (UI449 D1, D2)', () => {
     expect(problems(add)).not.toEqual([])
     const twice = SCOPE_AREAS.map((a) => (a.key === 'activity' ? { ...a, resources: [...a.resources, 'tasks'] } : a))
     expect(problems(twice)).not.toEqual([])
+  })
+
+  it('every <key>__c scope of a declared set that includes custom objects is in the custom area (CORE543 P6)', () => {
+    const withCustom = [...declared, 'projects__c:read', 'projects__c:write', 'projects__c:request_approval']
+    expect(withCustom.filter((s) => areaOfScope(s) === 'custom')).toEqual([
+      'projects__c:read',
+      'projects__c:write',
+      'projects__c:request_approval',
+    ])
+    for (const s of withCustom) expect(areaOfScope(s), s).not.toBeNull()
+    expect(areaOfScope('milestones__c:read_metadata')).toBe('custom')
+    // The name rule needs the suffix: a plain unknown resource, or a stray double underscore, is in no area.
+    expect(areaOfScope('projects_c:read')).toBeNull()
+    expect(areaOfScope('projects__x:read')).toBeNull()
+    const custom = SCOPE_AREAS.find((a) => a.key === 'custom')!
+    expect(custom.name).toBe('Custom records')
+    expect(custom.sentence.trim()).not.toBe('')
   })
 
   it('areaOfScope looks a scope up by its resource; a name in no area or unparseable is none', () => {

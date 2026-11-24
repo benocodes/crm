@@ -337,7 +337,9 @@ describe('D13 pinning and the installed package', () => {
     const { w } = await run(sim())
     const deploy = w.wrangler.find((c) => c.args[0] === 'deploy')!
     const cfg = JSON.parse(deploy.configText!) as Record<string, any>
-    expect(cfg.main.startsWith(`${w.pkg.dir}/`)).toBe(true)
+    // [[CORE543]] D27: the Worker is a copy in the temp directory, beside the extensions module; the package's own files are never touched.
+    expect(cfg.main.startsWith(`${w.tmpRoot}/`)).toBe(true)
+    expect(cfg.main.endsWith('/worker.js')).toBe(true)
     expect(cfg.assets.directory.startsWith(`${w.pkg.dir}/`)).toBe(true)
     expect(cfg.d1_databases[0].migrations_dir.startsWith(`${w.pkg.dir}/`)).toBe(true)
     expect(cfg.d1_databases[0].remote).toBe(true)

@@ -77,15 +77,11 @@ export const LIVE_TABLES_SQL = `select name, sql from sqlite_master where type =
 export const LIVE_COLUMNS_SQL = `select name, type, "notnull", dflt_value from pragma_table_info(?)`
 export const LIVE_INDEXES_SQL = `select name, sql from sqlite_master where type = 'index' and tbl_name = ? and sql is not null order by name`
 
-/** Reads the live custom schema from a D1 binding (D1 refuses `pragma_table_info` in a join, so each table is read on its own). */
-export async function readLiveSchema(d1: D1Like): Promise<LiveSchema> {
-  const rows = async <T>(sql: string, ...binds: unknown[]): Promise<T[]> =>
-    ((
-      await d1
-        .prepare(sql)
-        .bind(...binds)
-        .all()
-    ).results ?? []) as T[]
+/** A reader of rows: the one thing a snapshot needs from a database. The binds are positional (`?`); a transport with no binds (wrangler's `--command`) inlines them. */
+export type RowReader = <T>(sql: string, ...binds: unknown[]) => Promise<T[]> | T[]
+
+/** Builds the snapshot from any row reader (D30): the D1 binding's, or a `wrangler d1 execute --remote --json` call's. D1 refuses `pragma_table_info` in a join, so each table is read on its own. */
+export async function liveSchemaFrom(rows: RowReader): Promise<LiveSchema> {
   const tables: Record<string, LiveTable> = {}
   for (const t of await rows<{ name: string; sql: string }>(LIVE_TABLES_SQL)) {
     const columns = await rows<{ name: string; type: string; notnull: number; dflt_value: string | null }>(
@@ -99,6 +95,33 @@ export async function readLiveSchema(d1: D1Like): Promise<LiveSchema> {
     }
   }
   return { tables }
+}
+
+/** Reads the live custom schema from a D1 binding. */
+export const readLiveSchema = (d1: D1Like): Promise<LiveSchema> =>
+  liveSchemaFrom(
+    async <T>(sql: string, ...binds: unknown[]) =>
+      ((
+        await d1
+          .prepare(sql)
+          .bind(...binds)
+          .all()
+      ).results ?? []) as T[],
+  )
+
+/** The refusals a violation read's groups make (D22): one per value that more than one live row holds. Shared by the binding's apply and a remote apply. */
+export function violationRefusals(r: ViolationRead, groups: { value: unknown; ids: unknown }[]): Refusal[] {
+  return groups.map((g) => {
+    const ids = String(g.ids).split(',').sort()
+    return {
+      rule: 'unique_violation',
+      object: r.object,
+      field: r.field,
+      value: g.value,
+      ids,
+      message: `${r.object}.${r.field} cannot be unique: ${JSON.stringify(g.value)} is held by ${ids.length} live rows (${ids.join(', ')})`,
+    }
+  })
 }
 
 /** The column definitions of a `CREATE TABLE` text, by column name: the text between the outer parentheses, split at top-level commas (quotes and nested parentheses respected). */
@@ -287,20 +310,10 @@ export function planApply(objects: Record<string, ObjectDeclaration>, live: Live
 export async function applyExtensions(d1: D1Like, objects: Record<string, ObjectDeclaration>): Promise<ApplyReport> {
   const plan = planApply(objects, await readLiveSchema(d1))
   const refused = [...plan.refused]
-  for (const r of plan.reads) {
-    const groups = ((await d1.prepare(r.sql).all()).results ?? []) as { value: unknown; ids: string }[]
-    for (const g of groups) {
-      const ids = String(g.ids).split(',').sort()
-      refused.push({
-        rule: 'unique_violation',
-        object: r.object,
-        field: r.field,
-        value: g.value,
-        ids,
-        message: `${r.object}.${r.field} cannot be unique: ${JSON.stringify(g.value)} is held by ${ids.length} live rows (${ids.join(', ')})`,
-      })
-    }
-  }
+  for (const r of plan.reads)
+    refused.push(
+      ...violationRefusals(r, ((await d1.prepare(r.sql).all()).results ?? []) as { value: unknown; ids: unknown }[]),
+    )
   if (refused.length > 0)
     return { created: [], added: [], indexed: [], archived: plan.archived, refused, statements: 0 }
   if (plan.statements.length > 0) await d1.batch(plan.statements.map((s) => d1.prepare(s)))

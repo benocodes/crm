@@ -1,10 +1,11 @@
 // The generated wrangler config ([[OPS210]] D11, [[OPS231]]): the release's base config plus the settings file, written per run into a fresh temp
 // directory and deleted afterwards. It holds no secret. `resolveTarget`'s refusals ([[OPS4]] C4) apply to it before it is written.
-import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse } from 'jsonc-parser'
 import { RemoteRefusal, resolveTarget } from '../remote.js'
 import { isWorkersDevHost } from '../setup/host.js'
+import { EMPTY_EXTENSIONS, EXTENSIONS_MODULE } from './extensions.js'
 import type { InstanceSettings } from './types.js'
 
 export interface InstalledPaths {
@@ -58,6 +59,8 @@ export function generateConfig(
     workflows: [{ binding: workflow.binding, name: settings.workflow.name, class_name: workflow.class_name }],
     triggers: { crons: settings.crons ?? top.triggers?.crons ?? [] },
     vars: settings.vars,
+    // [[CORE315]] D27: the extensions file is a Text module staged beside the Worker; `--no-bundle` attaches it by this rule.
+    rules: [{ type: 'Text', globs: [EXTENSIONS_MODULE], fallthrough: true }],
   }
 }
 
@@ -67,23 +70,33 @@ interface ConfigOptions {
   tmpRoot: string
   /** `setup` ([[OPS232]]): the config of the calls that exist before the database does (`d1 list`, `d1 create`, `r2 bucket ...`) may carry the placeholder id; the worker name is still checked. */
   resourcesOnly?: boolean
+  /** The bytes of the extensions module the deploy attaches ([[CORE543]] D27); absent, the empty declaration. Staged beside the Worker in the temp directory, never into the package. */
+  extensions?: Uint8Array
 }
 
 function writeConfig(o: ConfigOptions): { dir: string; path: string } {
   const base = parse(readFileSync(join(o.packageDir, 'wrangler.base.jsonc'), 'utf8')) as Record<string, any>
-  const config = generateConfig(base, o.settings, {
-    worker: join(o.packageDir, 'worker', 'worker.js'),
-    assets: join(o.packageDir, 'assets'),
-    migrations: join(o.packageDir, 'migrations'),
-    controlMigrations: join(o.packageDir, 'control-migrations'),
-  })
-  if (o.resourcesOnly) {
-    if (config.name === 'vb') throw new RemoteRefusal(`unknown env ${o.settings.env}`)
-  } else resolveTarget(config, o.settings.env)
   const dir = mkdtempSync(join(o.tmpRoot, 'vibase-instance-'))
-  const path = join(dir, 'wrangler.jsonc')
-  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 })
-  return { dir, path }
+  try {
+    // [[CORE543]] D27: the package's `worker.js` is copied beside the module, because wrangler attaches a Text module from the directory of the Worker and the package's own files are never modified.
+    copyFileSync(join(o.packageDir, 'worker', 'worker.js'), join(dir, 'worker.js'))
+    writeFileSync(join(dir, EXTENSIONS_MODULE), o.extensions ?? EMPTY_EXTENSIONS)
+    const config = generateConfig(base, o.settings, {
+      worker: join(dir, 'worker.js'),
+      assets: join(o.packageDir, 'assets'),
+      migrations: join(o.packageDir, 'migrations'),
+      controlMigrations: join(o.packageDir, 'control-migrations'),
+    })
+    if (o.resourcesOnly) {
+      if (config.name === 'vb') throw new RemoteRefusal(`unknown env ${o.settings.env}`)
+    } else resolveTarget(config, o.settings.env)
+    const path = join(dir, 'wrangler.jsonc')
+    writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 })
+    return { dir, path }
+  } catch (e) {
+    rmSync(dir, { recursive: true, force: true })
+    throw e
+  }
 }
 
 /** Writes the generated config into a fresh temp directory, runs `fn` with its path, and deletes the directory afterwards, on success and on failure. */
