@@ -1,6 +1,15 @@
 // Test support for the instance commands: a real staged release package on disk, settings and secrets files with real modes, a fake fetch and a
 // fake wrangler runner that record every call. Nothing here reaches a network or a Cloudflare account.
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { sources } from '../../../release/src/fixtures.js'
@@ -122,6 +131,8 @@ export interface WranglerCall {
   /** The generated config as it was on disk during the call. */
   configText: string | null
   configPath: string | null
+  /** [[CORE543]] D27: what the generated config's directory held during the call: the file names, and the extensions module's text. */
+  staged: { files: string[]; module: string | null } | null
 }
 export interface World {
   deps: InstanceDeps
@@ -204,6 +215,15 @@ export function makeWorld(o: WorldOptions = {}): World {
         input: opts.input,
         configPath,
         configText: configPath && existsSync(configPath) ? readFileSync(configPath, 'utf8') : null,
+        staged:
+          configPath && existsSync(configPath)
+            ? {
+                files: readdirSync(join(configPath, '..')).sort(),
+                module: existsSync(join(configPath, '..', 'vibase-extensions.json'))
+                  ? readFileSync(join(configPath, '..', 'vibase-extensions.json'), 'utf8')
+                  : null,
+              }
+            : null,
       })
       // The default answer: each database's tracker current (the control database is required in every auth mode, [[CORE326]], so the default settings record one).
       const current = (a: string[]): RunResult => ({

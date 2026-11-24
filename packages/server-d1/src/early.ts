@@ -49,7 +49,12 @@ function originsOf(value: unknown): string[] | undefined {
 const json = (body: unknown, status: number, headers: Record<string, string> = {}): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } })
 
-export function earlyAnswer(req: Request, env: EarlyEnv): Response | undefined {
+/** STUB (red commit): the declared scopes with the attached module's custom scopes ([[CORE543]] P5); `undefined` when the module cannot be read by the light check. */
+export function declaredScopesWith(_text: string | undefined): readonly string[] | undefined {
+  throw new Error('not implemented')
+}
+
+export function earlyAnswer(req: Request, env: EarlyEnv, _extensionsText?: string): Response | undefined {
   if (typeof env.AUTH_PROVIDER !== 'string' || env.AUTH_PROVIDER.trim() !== 'better-auth') return undefined
   const baseUrl = baseUrlOf(env.PUBLIC_BASE_URL)
   if (baseUrl === undefined) return undefined
