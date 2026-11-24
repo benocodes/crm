@@ -379,6 +379,18 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   status is `unknown` and nothing is gated. Tests that need `current`, `behind` or `ahead` create it with
   `createMigrationTracker` and fill it with `recordMigrations`/`forgetMigrations` (`@vibase/storage-d1/test`).
   `clearD1` must never delete from it.
+- **Custom object tables (`__c`) are not migrations: apply makes them match the extensions file** ([[CORE315]] D11,
+  [[CORE542]]), with the live schema as the only state (no definition rows). `packages/api/src/custom/apply.ts` is three
+  parts: `readLiveSchema` (a D1 binding to a plain JSON snapshot: `sqlite_master` rows, then `pragma_table_info` per
+  table, since D1 refuses the pragma in a join), the pure `planApply(objects, live)`, and `applyExtensions` (violation
+  reads first, then one batch; a refused plan runs nothing). A field's kind is read from its column's definition text,
+  since kinds share storage types: each kind's DDL from `createTableStatements` carries its own mark (a length CHECK =
+  text, `strftime(` CHECK = timestamp, `IN (0, 1)` = boolean, `REFERENCES` = reference, bare TEXT = enum, bare INTEGER =
+  integer), and string literals are blanked before matching so a default cannot pose as a mark. **A change to a kind's
+  DDL in `ddl.ts` changes what apply reads back**: keep the mark distinct and run `apply.integration.d1.test.ts`.
+  SQLite cannot alter a column's default or drop a column an index names, so apply refuses a default change and a
+  `unique` removal by name (spec D32); D1 caps a table at 100 columns (apply refuses past it; the validator caps an
+  object at 90 fields).
 - **`unit_assertion`** (in 0002) is machinery, not a resource: an always-empty table whose named CHECK
   `unit_assertion_holds` lets `assertStep` abort a D1 batch. The D1 runtime classifies that one constraint as
   drift, so never reuse the name.
