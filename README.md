@@ -4,9 +4,9 @@
 
 Every interaction (email today, more channels over time) lands in one database alongside your contacts, companies, notes, tasks and deals. The agents you bring read it and act on it through a command line, a remote MCP server or a REST API, and you decide what each agent may do. Vibase has no app of its own: it is the durable system of record that your agents, scripts and custom front ends share.
 
-It is for small firms, and the consultants and IT teams who build for them, who want their customer data in their own Cloudflare account and their own agents on top of it.
+It is for small firms, and the consultants and IT teams who build for them, who want one shared record of every customer interaction that their own agents can work from, safely.
 
-- **You own the instance.** Each organisation deploys its own instance in its own Cloudflare account: the API, the data and the sign-in.
+- **One place for every interaction.** Email and the CRM records sit together, so every agent and person works from the same history.
 - **Agents act within the authority you grant.** For each resource an owner grants an agent `read`, `request_approval` or `write`. An agent with `write` can act directly, including sending email; one with `request_approval` can only propose, and a person or another authorised agent approves. Provider credentials stay in the instance.
 - **Discoverable.** The command line, the MCP tools and the OpenAPI documents all come from one registry of operations, so an agent can discover what exists and what it may do.
 
@@ -24,9 +24,13 @@ npm install -g @vibase/server-d1
 vibase --version
 ```
 
+## Runs on Cloudflare
+
+Cloudflare is the deployment target. Vibase deploys as a Cloudflare Worker with a D1 database, one instance per organisation, and also uses R2 (message bodies), Workflows (mail sync) and scheduled triggers. You run your own instance. The quickstart needs a Cloudflare account and a wrangler login; account details are handled during setup.
+
 ## Quickstart
 
-Stand up an instance (needs a Cloudflare account). The `init` command belongs to `vibase-server`, the program `@vibase/server-d1` installs, not to `vibase`. With no flags it asks for the instance name, API host, owner email and the sign-in and email providers, writes a settings file and a secrets file outside the package, and prints the command to run next:
+Stand up an instance. The `init` command belongs to `vibase-server`, the program `@vibase/server-d1` installs, not to `vibase`. With no flags it asks for the instance name, API host, owner email and the sign-in and email providers, writes a settings file and a secrets file outside the package, and prints the command to run next:
 
 ```bash
 vibase-server init
