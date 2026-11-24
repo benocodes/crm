@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -186,15 +186,18 @@ describe('D3/D6 published package.json', () => {
     expect(cp.version).toBe(sp.version)
     expect(manifest.name).toBe('@vibase/server-d1')
   })
-  it('the README templates exist: the client names @vibase/cli and no wrangler, the server names the npx form', () => {
+  it('the client README is the root README.md (no template); the server template names the npx form and docs.vibase.ai', () => {
     const t = new URL('../templates/', import.meta.url).pathname
-    const client = readFileSync(join(t, 'cli-README.md'), 'utf8')
+    expect(existsSync(join(t, 'cli-README.md'))).toBe(false)
+    const root = readFileSync(new URL('../../../README.md', import.meta.url), 'utf8')
     const server = readFileSync(join(t, 'server-d1-README.md'), 'utf8')
-    expect(client).toMatch(/@vibase\/cli/)
-    expect(client).not.toMatch(/wrangler/i)
-    expect(client).not.toMatch(/vibase instance/)
-    expect(server).toMatch(/npx @vibase\/server-d1@<version> (setup|status)/)
+    expect(root).toMatch(/@vibase\/cli/)
+    expect(root).toContain('https://docs.vibase.ai')
+    expect(root).toContain('[MIT](LICENSE)')
+    expect(root).not.toMatch(/\]\((?!https?:\/\/|LICENSE\))/)
+    expect(server).toMatch(/vibase-server (setup|status)/)
     expect(server).toMatch(/vibase-server/)
+    expect(server).toContain('https://docs.vibase.ai')
   })
   it('readWranglerVersion refuses a range', () => {
     const d = mkdtempSync(join(tmpdir(), 'ops210-w-'))

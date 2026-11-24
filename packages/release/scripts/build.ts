@@ -86,7 +86,7 @@ export async function buildRelease(
       controlMigrationsDir,
       baseConfigText: sourceConfig,
       license: readFileSync(join(REPO, 'LICENSE'), 'utf8'),
-      clientReadme: readFileSync(join(PKG, 'templates', 'cli-README.md'), 'utf8'),
+      clientReadme: readFileSync(join(REPO, 'README.md'), 'utf8'),
       serverReadme: readFileSync(join(PKG, 'templates', 'server-d1-README.md'), 'utf8'),
       migrations: MIGRATIONS,
       controlMigrations: CONTROL_MIGRATIONS,

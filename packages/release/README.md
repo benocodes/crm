@@ -4,7 +4,7 @@ The product release ([[OPS210]]): the one product version (the fixed changesets 
 
 - `pnpm release:build [--allow-dirty]` writes `dist/vibase-cli-<version>.tgz` (`@vibase/cli`), `dist/vibase-server-d1-<version>.tgz` (`@vibase/server-d1`) and one `dist/SHA256SUMS`. Nothing is published.
 - `pnpm release:check [<cli tarball> <server tarball>]` verifies, scans and installs each tarball into its own empty directory and runs it.
-- `templates/` holds the two published `README.md`s; the two published `package.json`s are generated in `src/stage.ts`. Workspace names stay `@vibase/*`.
+- the root `README.md` is the published `@vibase/cli` README (staged by `release:build`, never copied into `packages/cli`) and `templates/server-d1-README.md` is the `@vibase/server-d1` one; the two published `package.json`s are generated in `src/stage.ts`. Workspace names stay `@vibase/*`.
 
 ## Releasing (maintainers; [[OPS210]] D19, D24, D25)
 
