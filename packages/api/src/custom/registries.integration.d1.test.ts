@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import type { z } from 'zod'
 import { COLUMN_KINDS } from '@vibase/storage'
 import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
@@ -44,6 +45,19 @@ describe('P3: no declarations, no change', () => {
     )
     const scopes = custom.declaredScopes().filter((x) => !plain.declaredScopes().includes(x))
     expect(scopes).toEqual([`${PROJECTS_KEY}:read`, `${PROJECTS_KEY}:request_approval`, `${PROJECTS_KEY}:write`])
+  })
+})
+
+describe("the queue lists the definitions' writes (registered before it)", () => {
+  it('the operation enum of action_requests.create names every write of the object and nothing of it is missing', () => {
+    const operationsOf = (registry: ReturnType<typeof createVibaseRegistry>) => {
+      const op = registry.get('action_requests.create') as unknown as { request: { body: z.ZodObject } }
+      return (op.request.body.shape.operation as z.ZodEnum).options as string[]
+    }
+    expect(operationsOf(createVibaseRegistry({ definitions: [projectsDefinition()] }))).toEqual(
+      expect.arrayContaining([`${PROJECTS_KEY}.create`, `${PROJECTS_KEY}.update`, `${PROJECTS_KEY}.delete`]),
+    )
+    expect(operationsOf(createVibaseRegistry()).some((n) => n.startsWith(PROJECTS_KEY))).toBe(false)
   })
 })
 
