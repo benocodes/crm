@@ -28,6 +28,8 @@ export function sources(): Omit<StageInput, 'outDir'> & { root: string } {
   writeFileSync(join(root, 'vibase.js'), '#!/usr/bin/env node\nconsole.log(1)\n')
   writeFileSync(join(root, 'server.js'), '#!/usr/bin/env node\nconsole.log(2)\n')
   writeFileSync(join(root, 'worker.js'), 'export default {}\n')
+  // [[CORE542]] D26: the extensions file's JSON Schema, shipped beside the Worker.
+  writeFileSync(join(root, 'vibase-extensions.schema.json'), '{"type":"object"}\n')
   // [[UI246]] D2: the auth pages' build output (`ui/` of the assets directory): index, bundle and stylesheet.
   mkdirSync(join(root, 'ui-assets'), { recursive: true })
   writeFileSync(join(root, 'ui-assets', 'index.html'), '<html></html>')
@@ -59,6 +61,7 @@ export function sources(): Omit<StageInput, 'outDir'> & { root: string } {
     cliJs: join(root, 'vibase.js'),
     serverJs: join(root, 'server.js'),
     workerEntry: join(root, 'worker.js'),
+    extensionsSchema: join(root, 'vibase-extensions.schema.json'),
     assetsUiDir: join(root, 'ui-assets'),
     assetsAppDir: join(root, 'app-assets'),
     migrationsDir: join(root, 'migrations'),
