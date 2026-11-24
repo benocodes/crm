@@ -22,7 +22,6 @@ export function breaks(sql: string, created: Set<string> = new Set(), cascading:
   for (const s of statements(sql)) {
     if (/__c\b/.test(s)) out.push(`names a __c identifier: ${s.slice(0, 60)}`)
     for (const t of EXTENSIBLE) {
-      const at = new RegExp(words(t), 'i')
       if (new RegExp(`^DROP TABLE (?:IF EXISTS )?(?:\\w+\\.)?${words(t)}`, 'i').test(s)) out.push(`drops ${t}`)
       if (new RegExp(`^ALTER TABLE ${words(t)} RENAME TO`, 'i').test(s)) out.push(`renames ${t}`)
       if (new RegExp(`^ALTER TABLE ${words(t)} RENAME COLUMN`, 'i').test(s)) out.push(`renames a column of ${t}`)
@@ -38,7 +37,6 @@ export function breaks(sql: string, created: Set<string> = new Set(), cascading:
         !/RENAME|DROP COLUMN/i.test(s)
       )
         out.push(`alters ${t} by something other than ADD COLUMN`)
-      void at
     }
     // D10's verified note: a table the four reference with ON DELETE CASCADE may not be dropped or renamed (SQLite would cascade or break the key).
     const create = /^CREATE TABLE (?:IF NOT EXISTS )?"?(\w+)"?/i.exec(s)
@@ -69,6 +67,9 @@ describe('D10: core migrations leave the extensible tables additive (P8)', () =>
       if (b.length > 0) found[f.slice(0, 4)] = b
     }
     expect(Object.keys(found)).toEqual(Object.keys(KNOWN))
+    // Not vacuous: the scan really saw the four tables created and the cascading targets they reference.
+    expect([...created].sort()).toEqual(['companies', 'contacts', 'deals', 'tasks'])
+    expect(cascading.has('organizations')).toBe(true)
   })
   const scratch: [string, string, string][] = [
     [

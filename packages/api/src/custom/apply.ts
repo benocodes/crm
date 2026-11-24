@@ -48,7 +48,7 @@ export interface LiveSchema {
   builtins?: Record<string, LiveTable>
 }
 export interface Refusal {
-  /** A stable code: `kind_changed`, `target_changed`, `required_to_optional`, `optional_to_required`, `required_without_default`, `default_changed`, `unique_removed`, `column_cap`, `unique_violation`. */
+  /** A stable code: `kind_changed`, `target_changed`, `required_to_optional`, `optional_to_required`, `required_without_default`, `default_changed`, `unique_removed`, `column_cap`, `unique_violation`, `table_missing`. */
   rule: string
   object: string
   field?: string
