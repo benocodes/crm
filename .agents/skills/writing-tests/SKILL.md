@@ -35,6 +35,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   fixture field turned 14 red). **A vendored copy of a dependency's function** keeps a parity test against the
   original in Node, proven by swapping in a near-miss implementation ([[CORE69]]: `mdast-util-to-string` for
   `toPlainText`, 7 parity tests red).
+- **A constant that both the code and the test derive from gives a vacuous mutation.** Mutating it moves both sides together
+  and stays green ([[CORE549]] M6). Mutate the function that uses the constant (drop one mention), or assert against a
+  literal in one place, so only one side moves.
 - **Some sites have no observable absence mutation, and the reason is the construction.** A site that applies a rule
   can be one whose only consumer reads something the rule never produces. [[API518]]'s scope closure at dispatch
   eligibility fed only an `events:read` check, and the closure never adds `events:read`. Removing that closure
