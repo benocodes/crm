@@ -181,7 +181,7 @@ const fieldsSchema = z.record(z.string(), fieldSchema).superRefine((fields, ctx)
   }
 })
 
-/** The declaration of one object. Its JSON Schema is `z.toJSONSchema(objectSchema)` when the extensions file publishes one (a later cycle's). */
+/** The declaration of one object. Its JSON Schema is part of the one `z.toJSONSchema` of the extensions file, published as `vibase-extensions.schema.json` ([[CORE542]]). */
 export const objectSchema = z.strictObject({
   label: z.string().max(LABEL_MAX).optional(),
   description: z.string().max(DESCRIPTION_MAX).optional(),
@@ -235,7 +235,7 @@ export function parseObjectDeclaration(key: string, input: unknown, objects?: re
   }
 }
 
-/** Validates a map of declarations by key (P2: the file's envelope is a later cycle's). Each key is unique by being a key of the map. */
+/** Validates a map of declarations by key (P2: the file's envelope is `parseExtensionsFile` in `extensions.ts`, [[CORE542]]). Each key is unique by being a key of the map. */
 export function parseObjectDeclarations(input: unknown): Record<string, ObjectDeclaration> {
   if (typeof input !== 'object' || input === null || Array.isArray(input))
     throw new DeclarationError('not_an_object', 'the objects are a map from key to declaration')
