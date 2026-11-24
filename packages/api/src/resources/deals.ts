@@ -10,7 +10,7 @@ import {
   updateRefusals,
   updateSchema,
 } from '../declarations/builtin.js'
-import { dealsDeclaration } from '../declarations/deals.js'
+import { DEAL_STATUSES, dealsDeclaration } from '../declarations/deals.js'
 import { deleteDealOperation } from '../identity/cascades.js'
 import type { Bag } from '../storage/additional-props.js'
 import { withPropertyBag } from '../storage/bag-filter.js'
@@ -39,8 +39,6 @@ export type DealRecord = {
   updated_at: string
 }
 
-const STATUSES = ['open', 'won', 'lost'] as const
-
 // [[CORE554]]: the record, create and update schemas, the filters and the sorts are derived from the declaration (`declarations/deals.ts`).
 // [[CORE130]] D7: integer minor units, an ISO 4217-shaped code (upper-cased on write), a calendar date; the amount needs a currency (judged
 // on the resulting row, below). `closed_at` is never input (D11), `pipeline_id` follows the stage (D9), `stage_id` changes through `deals.move_stage`.
@@ -64,7 +62,7 @@ const dealDerived = {
 } as const satisfies Record<string, DerivedDecl<'text'>>
 
 const statusFilter: CustomFilter = {
-  schema: z.enum(STATUSES).describe('Only deals whose stage is of this kind: open, won or lost.'),
+  schema: z.enum(DEAL_STATUSES).describe('Only deals whose stage is of this kind: open, won or lost.'),
   where: (_qc, value) =>
     sql<boolean>`exists (select 1 from "pipeline_stages" where "pipeline_stages"."id" = ${sql.ref('deals.stage_id')} and "pipeline_stages"."organization_id" = ${sql.ref('deals.organization_id')} and "pipeline_stages"."kind" = ${value as string})`,
 }

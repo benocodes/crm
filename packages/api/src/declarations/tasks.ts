@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { BOOKKEEPING_FIELDS, IDENTITY_FIELDS, type BuiltInDeclaration } from './builtin.js'
 
+/** The statuses of a task: the field's values and the status filter's operand. */
+export const TASK_STATUSES = ['open', 'done'] as const
+
 /** Tasks ([[CORE554]]): something to do. The completion rule (`completed_at` follows `status`) stays code in `resources/tasks.ts`. */
 export const tasksDeclaration = {
   table: 'tasks',
@@ -24,9 +27,9 @@ export const tasksDeclaration = {
     },
     status: {
       kind: 'enum',
-      values: ['open', 'done'],
+      values: [...TASK_STATUSES],
       description: 'open or done. Setting done stamps completed_at; setting open clears it.',
-      filter: { schema: z.enum(['open', 'done']) },
+      filter: { schema: z.enum(TASK_STATUSES) },
     },
     due_at: { kind: 'timestamp', nullable: true, description: 'When the task is due.' },
     completed_at: {

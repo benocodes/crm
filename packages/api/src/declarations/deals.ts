@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { BOOKKEEPING_FIELDS, IDENTITY_FIELDS, type BuiltInDeclaration } from './builtin.js'
 
+/** The kinds of a deal's stage: the derived `status` field's values and the status filter's operand. */
+export const DEAL_STATUSES = ['open', 'won', 'lost'] as const
+
 /**
  * Deals ([[CORE554]], [[CORE130]]): a potential sale in one stage of one pipeline. `pipeline_id` follows the stage and `closed_at` follows the stage
  * kind, both set by `resources/deals.ts`; `stage_id` is create-only (it changes through `deals.move_stage`).
@@ -39,7 +42,7 @@ export const dealsDeclaration = {
     },
     status: {
       kind: 'enum',
-      values: ['open', 'won', 'lost'],
+      values: [...DEAL_STATUSES],
       derived: true,
       description: "The kind of the deal's stage: open, won or lost. Derived, read-only; filter with ?status=.",
       apiDescription: "The kind of the deal's stage: open, won or lost. Derived, read-only.",

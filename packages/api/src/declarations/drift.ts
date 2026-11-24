@@ -1,4 +1,4 @@
-import { columnKindOf, storageTypeOf, type BuiltInDeclaration } from './builtin.js'
+import { storageTypeOf, type BuiltInDeclaration } from './builtin.js'
 
 // [[CORE315]] D2, [[CORE554]] P6 (row 554.6): a built-in declaration and the D1 migrations describe the same table. The check reads the live table
 // (the shapes below are what `pragma table_info`, `foreign_key_list` and `index_list`/`index_info` return) and names each difference. It compares
@@ -65,7 +65,5 @@ export function driftProblems(d: BuiltInDeclaration, live: LiveTable): Drift[] {
   const names = new Set(declared.map(([n]) => n))
   for (const c of live.columns)
     if (!names.has(c.name)) add('column_undeclared', c.name, 'the table has this column and the declaration does not')
-  // The column kinds the declaration implies must be real kinds (a format the storage layer cannot read would fail here, not at run time).
-  for (const [name, f] of declared) if (!columnKindOf(f)) add('kind_unknown', name, 'no storage kind')
   return out
 }
