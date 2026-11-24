@@ -412,6 +412,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   never an oracle to compare against: there is no legacy-oracle fixture ([[CORE36]] D12, no backward
   compatibility). Where the spec is silent and a cycle pins existing behaviour, record that as a decision
   ([[CORE35]] D22).
+- **A rule JSON cannot carry is proven on the validator, not over REST.** A value no JSON body can hold intact (a
+  non-finite number: `1e999` parses to `Infinity` and re-serialises as `null`) never reaches the handler as itself, so
+  a REST matrix row for it tests the `null` rule instead. Prove it with a unit test on the shared zod schema and say so
+  in RESULT.md ([[CORE318]], `packages/api/src/storage/additional-props.test.ts`).
 
 ## 2. Type-level tests
 

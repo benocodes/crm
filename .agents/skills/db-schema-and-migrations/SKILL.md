@@ -372,7 +372,11 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   A new file also goes into the recorded wrangler output `packages/server-d1/scripts/fixtures/d1-execute-migrations.json`
   (read by `packages/server-d1/scripts/status-remote.test.ts`, which a coder running only the affected suites never
   runs: CHN406 missed it and lost a gate round). Before committing a migration, grep the repo for the previous
-  migration's file name (`grep -rn '00NN_' packages`): every hit is a pin to update.
+  migration's file name (`grep -rn '00NN_' packages`): every hit is a pin to update. A new column on an
+  existing table also breaks record-shape pins outside the affected files ([[CORE318]] found five: storage-d1
+  `schema.integration` column lists, the deals record key list, identity-definitions fill fields, the merge
+  programs fixture row, the status fixture): grep for a distinctive existing column of the table and update every
+  list that enumerates its columns before the gate finds them.
   Tests that count migrations derive the count from the manifest (`EXPECTED.length`, `EXPECTED.slice(0, -1)`),
   never a literal, so the next migration does not break them ([[CORE62]]).
 - **`d1_migrations` is wrangler's table, never the vault's.** The local harness doesn't create it, so its

@@ -443,6 +443,11 @@ rules, no migration, 1 remote E2E part, riders listed. It cost 366k / 137 calls 
 `worker.ts`", found by grepping `esbuild`/`build(`) and goes in the Size line. The one review finding was a cosmetic
 carried item skipped without a row: every line under "In this cycle", "Carried" included, is scope; the coder does it
 or records why not.
+**CORE318** (`knowledge/specs/033-CORE318-property-bag/RETRO.md`): 6 groups (1 matrix), 8 decisions, 1 migration, no E2E,
+at the limit on three lines, with goldens and "record-shape pins found by the suites going red" named as riders. It cost
+218k / 93 calls in one run (+181 / +892 lines), gate green first time, review approved round 0. The budget holds at its
+limit when no line hides a sweep; a field added to existing registry-derived surfaces is cheap. Naming the pin rider up
+front kept the five pinned record shapes from becoming a gate round.
 
 ### Step 3: Resolve identities
 
