@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "scripts": {
     "openapi:generate": "tsx scripts/generate-openapi.ts",
     "dev": "pnpm openapi:generate && astro dev",

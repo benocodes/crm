@@ -2,7 +2,7 @@
   "name": "@vibase/storage-postgres",
   "private": true,
   "description": "Enterprise tier (spec CORE35 D14): the multi-tenant Postgres runtime. Open packages never import this one.",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
