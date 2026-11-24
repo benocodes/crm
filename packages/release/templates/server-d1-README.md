@@ -7,14 +7,15 @@ A prebuilt vibase Worker for Cloudflare D1: the Worker bundle, the workspace app
 Documentation: https://docs.vibase.ai.
 
 ```bash
-npx @vibase/server-d1@<version> init --env <name> --api-host <host> --owner-email <email>
-npx @vibase/server-d1@<version> setup --env <name> [--dry-run]
-npx @vibase/server-d1@<version> status --env <name>
-npx @vibase/server-d1@<version> upgrade --env <name> [--dry-run]
-npx @vibase/server-d1@<version> redeploy --env <name> [--dry-run]
+npm install -g @vibase/server-d1@<version>
+vibase-server init
+vibase-server setup --env <name> [--dry-run]
+vibase-server status --env <name>
+vibase-server upgrade --env <name> [--dry-run]
+vibase-server redeploy --env <name> [--dry-run]
 ```
 
-Or install it, then run `vibase-server <command>`. The package that runs is the version that deploys: upgrading a server is running a newer pinned version (`upgrade` moves forward by version and stops, naming `redeploy`, when the instance runs the same version from a different build). `redeploy` puts this package's build on the instance whatever is live: a new build of the same version, the same build again, or an older package as a rollback. It refuses no version or schema, applies only the migrations the instance lacks and never reverses one, so a rollback runs older code on the newer schema (it prints one line saying so). Until the package is on the registry, use the release's tarball by file: `npx --package ./vibase-server-d1-<version>.tgz vibase-server <command>`.
+`init` with no flags asks for the instance name, API host, owner email and providers (or take them as flags). To run without installing, use `npx @vibase/server-d1@<version> <command>`. The package that runs is the version that deploys: upgrading a server is running a newer pinned version (`upgrade` moves forward by version and stops, naming `redeploy`, when the instance runs the same version from a different build). `redeploy` puts this package's build on the instance whatever is live: a new build of the same version, the same build again, or an older package as a rollback. It refuses no version or schema, applies only the migrations the instance lacks and never reverses one, so a rollback runs older code on the newer schema (it prints one line saying so). Until the package is on the registry, use the release's tarball by file: `npx --package ./vibase-server-d1-<version>.tgz vibase-server <command>`.
 
 The settings and secrets of an instance are files outside the package: `$XDG_CONFIG_HOME/vibase/instances/<env>.json` and `<env>.env` (mode 600, with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`). A new instance starts with `vibase-server init --env <name>`, which writes the settings file (the API host, the auth provider and the owner email you gave it) and the secrets file (generated secrets and an empty line for each value you supply), and prints the command to run next: `setup --env <name>`, with no host, provider or owner flags to repeat (a flag that differs from the settings file is refused). Without init, a new instance's first `setup` takes `--api-host` (or `--workers-dev`) and `--owner-email`. `setup`, `upgrade`, `redeploy` and `owner-reset` print their plan and ask `proceed? [Y/n]` once before the first change; `--yes` (or no terminal) skips it, and `--dry-run` reads only. `vibase-server --help` lists every flag.
 

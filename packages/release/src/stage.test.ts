@@ -196,7 +196,7 @@ describe('D3/D6 published package.json', () => {
     expect(root).toContain('[MIT](LICENSE)')
     expect(root).not.toMatch(/wrangler/i)
     expect(root).not.toMatch(/\]\((?!https?:\/\/|LICENSE\))/)
-    expect(server).toMatch(/npx @vibase\/server-d1@<version> (setup|status)/)
+    expect(server).toMatch(/vibase-server (setup|status)/)
     expect(server).toMatch(/vibase-server/)
     expect(server).toContain('https://docs.vibase.ai')
   })

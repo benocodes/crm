@@ -16,21 +16,22 @@ It is for small firms, and the consultants and IT teams who build for them, who 
 
 ## Install
 
-The command line is `@vibase/cli`; running an instance is the separate package `@vibase/server-d1`. Both need Node 22 or newer.
+The command line is `@vibase/cli` (the `vibase` program); running an instance is the separate package `@vibase/server-d1` (the `vibase-server` program). Both need Node 22 or newer.
 
 ```bash
 npm install -g @vibase/cli
+npm install -g @vibase/server-d1
 vibase --version
 ```
 
 ## Quickstart
 
-Stand up an instance (needs a Cloudflare account). The `init` command belongs to the `vibase-server` program of `@vibase/server-d1`, not to `vibase`. With no flags it asks for the instance name, API host, owner email and the sign-in and email providers, writes a settings file and a secrets file outside the package, and prints the command to run next:
+Stand up an instance (needs a Cloudflare account). The `init` command belongs to `vibase-server`, the program `@vibase/server-d1` installs, not to `vibase`. With no flags it asks for the instance name, API host, owner email and the sign-in and email providers, writes a settings file and a secrets file outside the package, and prints the command to run next:
 
 ```bash
-npx @vibase/server-d1 init
-npx @vibase/server-d1 setup --env <name>     # the command init prints for you
-npx @vibase/server-d1 status --env <name>
+vibase-server init
+vibase-server setup --env <name>     # the command init prints for you
+vibase-server status --env <name>
 ```
 
 Then sign in and use it from the command line:
