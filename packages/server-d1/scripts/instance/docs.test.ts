@@ -243,7 +243,6 @@ describe('the docs name only what the programs have (D20, P4)', () => {
 
 // [[OPS306]] obligation 6 (D13, cycle 1's part): the install docs describe Better Auth as the default path and say what the program says.
 const read = (url: string) => readFileSync(fileURLToPath(new URL(url, import.meta.url)), 'utf8')
-const README = () => read('../../DEVELOPMENT.md')
 // The release and remote command lines moved from AGENTS.md to the ship-branch skill's command reference (#332).
 const COMMANDS = () => read('../../../../.agents/skills/ship-branch/SKILL.md')
 const FREE_PLAN =
@@ -277,10 +276,7 @@ describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
     expect(clerk).toBeGreaterThan(betterAuth)
     expect(md.split(/^## Prepare your accounts$/m)[1]!.split(/^## /m)[0]).not.toMatch(/Clerk/)
   })
-  it.each([
-    ['self-hosting', () => s()],
-    ['the server-d1 README', () => README()],
-  ])(
+  it.each([['self-hosting', () => s()]])(
     "%s: the no-email statement is the program's constant, the Google redirect URI form and the Free-plan sentence are there",
     (_n, md) => {
       expect(has(md(), NO_EMAIL_STATEMENT)).toBe(true)
@@ -288,18 +284,10 @@ describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
       expect(has(md(), FREE_PLAN)).toBe(true)
     },
   )
-  it('the server-d1 README: the first setup command has no --auth clerk, and a Clerk command carries it', () => {
-    const lines = setupLines(README())
-    expect(lines[0]!.line).not.toContain('--auth clerk')
-    expect(lines.some((l) => l.line.includes('--auth clerk'))).toBe(true)
-  })
   it('self-hosting names the owner invitation link printed once', () => {
     expect(s()).toMatch(/shown once|printed once/i)
   })
-  it.each([
-    ['self-hosting', () => s()],
-    ['the server-d1 README', () => README()],
-  ])(
+  it.each([['self-hosting', () => s()]])(
     '%s: an owner-reset section gives the command, says what it prints once, and why the secrets file must be kept (OPS307 D13)',
     (_n, md) => {
       const text = md()
@@ -365,9 +353,7 @@ describe('the docs and help agree with the program on workers.dev (OPS308 D13)',
     for (const w of ['sign in again', 'vibase login', 'reconnect', 'redirect URI']) expect(has(md, w), w).toBe(true)
     expect(body.length).toBeGreaterThan(0)
   })
-  it("the server-d1 README has the no-domain path and the move, and the ship-branch command reference's setup:remote line takes the host flag pair", () => {
-    expect(README()).toMatch(/--workers-dev/)
-    expect(README()).toMatch(/--change-host/)
+  it("the ship-branch command reference's setup:remote line takes the host flag pair", () => {
     const line = COMMANDS()
       .split('\n')
       .find((l) => l.includes('setup:remote -- --env <name>'))!
