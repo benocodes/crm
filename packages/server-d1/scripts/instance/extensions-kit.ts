@@ -1,5 +1,5 @@
 // Test support for the extensions file in `redeploy` and `upgrade` ([[CORE543]]): a fake wrangler that serves `d1 execute --remote --command` and `--file` from a real SQLite (`node:sqlite`, the engine D1 is; the
-// runner is synchronous, as `spawnSync` is, so Miniflare's asynchronous D1 cannot stand behind it, 543.11), a `/health` that reports what the last deploy staged, and the call log the tests read.
+// runner is synchronous, as `spawnSync` is, so Miniflare's asynchronous D1 cannot stand behind it, 543.13), a `/health` that reports what the last deploy staged, and the call log the tests read.
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
