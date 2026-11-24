@@ -25,11 +25,11 @@ vibase --version
 
 ## Quickstart
 
-Stand up an instance (needs a Cloudflare account; the settings and secrets files it writes live outside the package):
+Stand up an instance (needs a Cloudflare account). The `init` command belongs to the `vibase-server` program of `@vibase/server-d1`, not to `vibase`. With no flags it asks for the instance name, API host, owner email and the sign-in and email providers, writes a settings file and a secrets file outside the package, and prints the command to run next:
 
 ```bash
-npx @vibase/server-d1 init --env <name> --api-host <host> --owner-email <email>
-npx @vibase/server-d1 setup --env <name>
+npx @vibase/server-d1 init
+npx @vibase/server-d1 setup --env <name>     # the command init prints for you
 npx @vibase/server-d1 status --env <name>
 ```
 
@@ -43,11 +43,31 @@ vibase contacts list --all --limit 100          # one record per line
 vibase --help                                   # every operation of your instance, as a command
 ```
 
-The commands are discovered from the instance you log in to, so `vibase --help` always matches its server. Step-by-step guides, including connecting an agent over MCP or REST, are at https://docs.vibase.ai.
+The commands are discovered from the instance you log in to, so `vibase --help` always matches its server. Step-by-step guides are at https://docs.vibase.ai.
+
+## Sign-in
+
+Vibase supports Better Auth (built into the instance) and Clerk for sign-in. You choose one when you set up the instance.
+
+## How agents connect
+
+An agent is its own account with its own audit trail. There are three ways to connect one:
+
+1. **MCP.** Agents and clients that speak the Model Context Protocol connect to the instance's remote MCP server.
+2. **The CLI with device login.** Works with any agent that has a browser and a CLI, and needs no human to approve the login. An owner creates an invitation with the agent role; the link is shown once, and the owner hands it to the agent over any channel (WhatsApp or Telegram, for example). The agent opens it in a browser, signs up with an email address to claim the invitation, then runs `vibase login --server <url>`.
+3. **The CLI with an API key.** Works with any agent that has a CLI: `printf '%s' "$KEY" | vibase login --api-key --server <url>`.
+
+A new agent account starts with no permissions. The owner then grants it per-resource `read`, `request_approval` or `write`.
 
 ## Status
 
 The first release. Vibase runs on Cloudflare D1, one database per organisation. The CLI, the REST and MCP interfaces, permissions and approvals, and the Gmail connection are available. Expect breaking changes while the version is `0.x`.
+
+## Roadmap
+
+- Custom objects and columns.
+- More channels: WhatsApp, iMessage and others.
+- Calendar sync. This is not available yet.
 
 ## Contributing
 
