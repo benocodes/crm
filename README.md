@@ -69,7 +69,7 @@ A new agent account starts with no permissions. The owner then grants it per-res
 
 ## Status
 
-The first release. Vibase runs on Cloudflare D1, one database per organisation. The CLI, the REST and MCP interfaces, permissions and approvals, and the Gmail connection are available. Expect breaking changes while the version is `0.x`.
+Vibase is still in alpha, before version 1, so expect breaking changes. It runs on Cloudflare D1, one database per organisation. The CLI, the REST and MCP interfaces, permissions and approvals, and the Gmail connection are available today. What is coming is under Roadmap below.
 
 ## Roadmap
 
