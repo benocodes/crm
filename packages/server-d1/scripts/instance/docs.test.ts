@@ -243,7 +243,7 @@ describe('the docs name only what the programs have (D20, P4)', () => {
 
 // [[OPS306]] obligation 6 (D13, cycle 1's part): the install docs describe Better Auth as the default path and say what the program says.
 const read = (url: string) => readFileSync(fileURLToPath(new URL(url, import.meta.url)), 'utf8')
-const README = () => read('../../README.md')
+const README = () => read('../../DEVELOPMENT.md')
 // The release and remote command lines moved from AGENTS.md to the ship-branch skill's command reference (#332).
 const COMMANDS = () => read('../../../../.agents/skills/ship-branch/SKILL.md')
 const FREE_PLAN =
