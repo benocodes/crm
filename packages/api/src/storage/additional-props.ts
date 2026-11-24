@@ -54,6 +54,17 @@ export const ADDITIONAL_PROPS_DESCRIPTION =
   "Convention: a plain fact about the thing takes a plain shared key (linkedin_title) so agents reuse it; a judgment (a grade, a classification) takes the judging agent's prefix (scorer:lead_grade). " +
   'Reads return the whole bag, {} when empty.'
 
+/**
+ * [[CORE549]] P6: the bag column's description in `schema.get`, for the four built-ins and every custom table: the same constants the validator uses, the merge patch, the list filter and the read that lists the keys
+ * in use (`<resource>.property_keys`). No key is listed: the keys of a workspace are the answer of that read.
+ */
+export const bagColumnDescription = (resource: string): string =>
+  'Extra facts about the record that no typed field holds: a flat object, {} when empty. ' +
+  `Keys: lowercase snake_case matching ${BAG_KEY.source}, at most ${BAG_LIMITS.keyLength} characters, at most one ":" prefix separator, no dot or double underscore. ` +
+  `Values: a string of at most ${BAG_LIMITS.string} characters, a finite number or a boolean; no nesting, arrays or stored null. At most ${BAG_LIMITS.keys} keys and ${BAG_LIMITS.bytes} bytes of compact JSON. ` +
+  'Written as a merge patch: the keys sent are set, a key sent as null is removed, the others are kept. ' +
+  `Filter the list with additional_props=<key>.<condition> (eq, neq, in, is.null, not.is.null; no index serves it). List the keys in use, with record counts and types, with ${resource}.property_keys.`
+
 /** The write input: an object of scalars and nulls, each key and value checked, refused with the key and the rule named. */
 export const additionalPropsInput = z
   .record(z.string(), z.unknown())

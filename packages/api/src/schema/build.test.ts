@@ -343,7 +343,7 @@ describe('resource bridge (D14)', () => {
       name: 'tasks',
       surface: 'api',
       path: '/api/v1/tasks',
-      operations: ['tasks.list', 'tasks.get', 'tasks.create', 'tasks.update', 'tasks.delete'],
+      operations: ['tasks.list', 'tasks.property_keys', 'tasks.get', 'tasks.create', 'tasks.update', 'tasks.delete'],
       read_scope: 'tasks:read',
       write_scope: 'tasks:write',
       sorts: [

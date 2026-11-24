@@ -5,6 +5,7 @@ import { deleteCompanyOperation } from '../identity/cascades.js'
 import { normalizeDomain } from '../identity/normalize.js'
 import { additionalPropsInput, additionalPropsRecord, type Bag } from '../storage/additional-props.js'
 import { definePreparedResource } from '../storage/definition.js'
+import { withPropertyBag } from '../storage/bag-filter.js'
 import { withColumnSorts } from '../storage/sorts.js'
 import { withColumnFilters } from '../storage/column-filters.js'
 import { tagIdFilter, tagNameFilter } from './tag-filter.js'
@@ -44,7 +45,7 @@ const update = create.partial()
  * domain refuses the write in the plan (`409 domain_exists`); the partial unique index is the commit-time re-check.
  * Delete unlinks the company's live contacts as a set (`identity/cascades.ts`).
  */
-export const companies = withColumnFilters(
+const companiesBase = withColumnFilters(
   withColumnSorts(
     definePreparedResource({
       surface: 'api',
@@ -87,3 +88,6 @@ export const companies = withColumnFilters(
     ['name'],
   ),
 )
+
+/** [[CORE549]] D10: the list takes the bag filter, `additional_props=<key>.<condition>`. */
+export const companies = withPropertyBag(companiesBase)

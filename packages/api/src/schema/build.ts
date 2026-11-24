@@ -5,6 +5,7 @@ import { formatScope } from '../scopes.js'
 import { fullPath } from '../surfaces.js'
 import { STATED_SORT_COSTS } from '../storage/sort-costs.js'
 import { describeColumnFilter, operatorsFor } from '../storage/column-filters.js'
+import { bagColumnDescription } from '../storage/additional-props.js'
 import { STATED_FILTER_COSTS } from '../storage/filter-costs.js'
 import { crudActions, readActionOf, resourcePath, scopeResourceOf } from '../resources/define.js'
 import { AUTH_TABLE_PREFIX, CATALOG, HIDDEN_TABLES, defaultLabel, type Catalog } from './catalog.js'
@@ -110,8 +111,10 @@ function filtersOf(def: AnyResource, statedFilters: ReadonlySet<string>) {
     custom: true,
     kind: null as string | null,
     operators: [] as string[],
-    indexed: null as boolean | null,
-    description: (f.schema as { description?: string }).description ?? 'Takes one value and no operators.',
+    indexed: (f.cost === undefined ? null : false) as boolean | null,
+    description: [(f.schema as { description?: string }).description ?? 'Takes one value and no operators.', f.cost]
+      .filter(Boolean)
+      .join(' '),
   }))
   return [...column, ...custom]
 }
@@ -237,7 +240,10 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
             default: c.dflt_value,
             label: own.label ?? defaultLabel(c.name),
             // The common bookkeeping text applies only to a table the catalog describes: an unknown table says nothing.
-            description: own.description ?? (text || declared ? (catalog.common[c.name] ?? null) : null),
+            description:
+              c.name === 'additional_props' && def && 'additional_props' in exposedFields
+                ? bagColumnDescription(def.name)
+                : (own.description ?? (text || declared ? (catalog.common[c.name] ?? null) : null)),
             values:
               field?.kind === 'enum'
                 ? (field.values ?? null)

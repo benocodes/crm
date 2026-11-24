@@ -298,7 +298,7 @@ describe('refusals', () => {
   )
   it('the column cap counts archived columns and names the table', async () => {
     const many = (names: string[]) => o(Object.fromEntries(names.map((n) => [n, { kind: 'text' as const }])))
-    const first = Array.from({ length: 90 }, (_, i) => `f${i}`)
+    const first = Array.from({ length: 89 }, (_, i) => `f${i}`)
     expect((await applyExtensions(d1, many(first))).refused).toEqual([])
     const before = await schema()
     const next = many([...first.slice(0, 10), 'n1', 'n2', 'n3', 'n4', 'n5'])

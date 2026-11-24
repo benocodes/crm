@@ -2356,6 +2356,7 @@
                   "path": "/api/v1/companies",
                   "operations": [
                     "companies.list",
+                    "companies.property_keys",
                     "companies.get",
                     "companies.create",
                     "companies.update",
@@ -2449,6 +2450,14 @@
                       "operators": [],
                       "indexed": null,
                       "description": "Only rows linked to the live tag with exactly this name (trimmed, case-sensitive: unlike tags?name=, which folds ASCII case). An unknown name gives an empty page. Needs tags:read and associations:read."
+                    },
+                    {
+                      "name": "additional_props",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": false,
+                      "description": "Filter by one key of additional_props: additional_props=<key>.<condition>, once per request. Conditions: eq (or a bare value), neq, in, is.null, not.is.null. Example: additional_props=employees.eq.40. A stored string matches by its text and a stored number or boolean by its JSON literal (employees.eq.40 matches 40 and \"40\", verified.eq.true matches true and \"true\"), case-sensitively. An absent key matches only is.null: eq, neq and in never match it. Reads every live row of the organisation, whatever the index. Other operators and not. forms are refused; list the keys in use with the property_keys read. no index serves a bag key (the bag is a JSON column): the filter reads the organisation's live rows; promote a key that is filtered often to a typed field"
                     }
                   ],
                   "aggregate": null
@@ -2572,7 +2581,7 @@
                     "primary_key": false,
                     "default": "'{}'",
                     "label": "Additional props",
-                    "description": "Extra facts no typed field holds: a flat object of strings, numbers and booleans, {} when empty. Written as a merge patch (a null value removes a key).",
+                    "description": "Extra facts about the record that no typed field holds: a flat object, {} when empty. Keys: lowercase snake_case matching ^[a-z0-9]+(_[a-z0-9]+)*(:[a-z0-9]+(_[a-z0-9]+)*)?$, at most 64 characters, at most one \":\" prefix separator, no dot or double underscore. Values: a string of at most 1000 characters, a finite number or a boolean; no nesting, arrays or stored null. At most 50 keys and 8192 bytes of compact JSON. Written as a merge patch: the keys sent are set, a key sent as null is removed, the others are kept. Filter the list with additional_props=<key>.<condition> (eq, neq, in, is.null, not.is.null; no index serves it). List the keys in use, with record counts and types, with companies.property_keys.",
                     "values": null,
                     "exposed": true,
                     "references": null
@@ -3310,6 +3319,7 @@
                   "path": "/api/v1/contacts",
                   "operations": [
                     "contacts.list",
+                    "contacts.property_keys",
                     "contacts.get",
                     "contacts.create",
                     "contacts.update",
@@ -3469,6 +3479,14 @@
                       "operators": [],
                       "indexed": null,
                       "description": "true: only contacts never interacted with; false: only contacts interacted with at least once. Needs interactions:read."
+                    },
+                    {
+                      "name": "additional_props",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": false,
+                      "description": "Filter by one key of additional_props: additional_props=<key>.<condition>, once per request. Conditions: eq (or a bare value), neq, in, is.null, not.is.null. Example: additional_props=employees.eq.40. A stored string matches by its text and a stored number or boolean by its JSON literal (employees.eq.40 matches 40 and \"40\", verified.eq.true matches true and \"true\"), case-sensitively. An absent key matches only is.null: eq, neq and in never match it. Reads every live row of the organisation, whatever the index. Other operators and not. forms are refused; list the keys in use with the property_keys read. no index serves a bag key (the bag is a JSON column): the filter reads the organisation's live rows; promote a key that is filtered often to a typed field"
                     }
                   ],
                   "aggregate": null
@@ -3611,7 +3629,7 @@
                     "primary_key": false,
                     "default": "'{}'",
                     "label": "Additional props",
-                    "description": "Extra facts no typed field holds: a flat object of strings, numbers and booleans, {} when empty. Written as a merge patch (a null value removes a key).",
+                    "description": "Extra facts about the record that no typed field holds: a flat object, {} when empty. Keys: lowercase snake_case matching ^[a-z0-9]+(_[a-z0-9]+)*(:[a-z0-9]+(_[a-z0-9]+)*)?$, at most 64 characters, at most one \":\" prefix separator, no dot or double underscore. Values: a string of at most 1000 characters, a finite number or a boolean; no nesting, arrays or stored null. At most 50 keys and 8192 bytes of compact JSON. Written as a merge patch: the keys sent are set, a key sent as null is removed, the others are kept. Filter the list with additional_props=<key>.<condition> (eq, neq, in, is.null, not.is.null; no index serves it). List the keys in use, with record counts and types, with contacts.property_keys.",
                     "values": null,
                     "exposed": true,
                     "references": null
@@ -3690,6 +3708,7 @@
                   "operations": [
                     "deals.list",
                     "deals.aggregate",
+                    "deals.property_keys",
                     "deals.get",
                     "deals.create",
                     "deals.update",
@@ -3855,6 +3874,14 @@
                       "operators": [],
                       "indexed": null,
                       "description": "Only deals linked to this contact (an association)."
+                    },
+                    {
+                      "name": "additional_props",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": false,
+                      "description": "Filter by one key of additional_props: additional_props=<key>.<condition>, once per request. Conditions: eq (or a bare value), neq, in, is.null, not.is.null. Example: additional_props=employees.eq.40. A stored string matches by its text and a stored number or boolean by its JSON literal (employees.eq.40 matches 40 and \"40\", verified.eq.true matches true and \"true\"), case-sensitively. An absent key matches only is.null: eq, neq and in never match it. Reads every live row of the organisation, whatever the index. Other operators and not. forms are refused; list the keys in use with the property_keys read. no index serves a bag key (the bag is a JSON column): the filter reads the organisation's live rows; promote a key that is filtered often to a typed field"
                     }
                   ],
                   "aggregate": {
@@ -4089,7 +4116,7 @@
                     "primary_key": false,
                     "default": "'{}'",
                     "label": "Additional props",
-                    "description": "Extra facts no typed field holds: a flat object of strings, numbers and booleans, {} when empty. Written as a merge patch (a null value removes a key).",
+                    "description": "Extra facts about the record that no typed field holds: a flat object, {} when empty. Keys: lowercase snake_case matching ^[a-z0-9]+(_[a-z0-9]+)*(:[a-z0-9]+(_[a-z0-9]+)*)?$, at most 64 characters, at most one \":\" prefix separator, no dot or double underscore. Values: a string of at most 1000 characters, a finite number or a boolean; no nesting, arrays or stored null. At most 50 keys and 8192 bytes of compact JSON. Written as a merge patch: the keys sent are set, a key sent as null is removed, the others are kept. Filter the list with additional_props=<key>.<condition> (eq, neq, in, is.null, not.is.null; no index serves it). List the keys in use, with record counts and types, with deals.property_keys.",
                     "values": null,
                     "exposed": true,
                     "references": null
@@ -7786,7 +7813,14 @@
                   "name": "tasks",
                   "surface": "api",
                   "path": "/api/v1/tasks",
-                  "operations": ["tasks.list", "tasks.get", "tasks.create", "tasks.update", "tasks.delete"],
+                  "operations": [
+                    "tasks.list",
+                    "tasks.property_keys",
+                    "tasks.get",
+                    "tasks.create",
+                    "tasks.update",
+                    "tasks.delete"
+                  ],
                   "read_scope": "tasks:read",
                   "write_scope": "tasks:write",
                   "sorts": [
@@ -7912,6 +7946,14 @@
                       "operators": [],
                       "indexed": null,
                       "description": "Only rows linked to the live tag with exactly this name (trimmed, case-sensitive: unlike tags?name=, which folds ASCII case). An unknown name gives an empty page. Needs tags:read and associations:read."
+                    },
+                    {
+                      "name": "additional_props",
+                      "custom": true,
+                      "kind": null,
+                      "operators": [],
+                      "indexed": false,
+                      "description": "Filter by one key of additional_props: additional_props=<key>.<condition>, once per request. Conditions: eq (or a bare value), neq, in, is.null, not.is.null. Example: additional_props=employees.eq.40. A stored string matches by its text and a stored number or boolean by its JSON literal (employees.eq.40 matches 40 and \"40\", verified.eq.true matches true and \"true\"), case-sensitively. An absent key matches only is.null: eq, neq and in never match it. Reads every live row of the organisation, whatever the index. Other operators and not. forms are refused; list the keys in use with the property_keys read. no index serves a bag key (the bag is a JSON column): the filter reads the organisation's live rows; promote a key that is filtered often to a typed field"
                     }
                   ],
                   "aggregate": null
@@ -8090,7 +8132,7 @@
                     "primary_key": false,
                     "default": "'{}'",
                     "label": "Additional props",
-                    "description": "Extra facts no typed field holds: a flat object of strings, numbers and booleans, {} when empty. Written as a merge patch (a null value removes a key).",
+                    "description": "Extra facts about the record that no typed field holds: a flat object, {} when empty. Keys: lowercase snake_case matching ^[a-z0-9]+(_[a-z0-9]+)*(:[a-z0-9]+(_[a-z0-9]+)*)?$, at most 64 characters, at most one \":\" prefix separator, no dot or double underscore. Values: a string of at most 1000 characters, a finite number or a boolean; no nesting, arrays or stored null. At most 50 keys and 8192 bytes of compact JSON. Written as a merge patch: the keys sent are set, a key sent as null is removed, the others are kept. Filter the list with additional_props=<key>.<condition> (eq, neq, in, is.null, not.is.null; no index serves it). List the keys in use, with record counts and types, with tasks.property_keys.",
                     "values": null,
                     "exposed": true,
                     "references": null

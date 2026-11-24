@@ -1,4 +1,5 @@
 import { expressionBuilder, sql, type Expression, type Kysely, type SqlBool } from 'kysely'
+import { z } from 'zod'
 import {
   COLUMN_KINDS,
   UnitDriftError,
@@ -383,6 +384,78 @@ export function aggregateOperation(
       return { aggregate: readMaybe(q) }
     },
     build: (found) => unit({ steps: [], events: [], decode: () => decodeAggregate(plan, found.maybe('aggregate')!) }),
+  })
+}
+
+/** [[CORE318]] D11, [[CORE549]] P5: the most keys one `property_keys` answer lists. */
+export const PROPERTY_KEYS_LIMIT = 200
+
+export const propertyKeysAnswer = z.object({
+  data: z.array(
+    z.object({
+      key: z.string().describe('A key held by at least one live record of the resource.'),
+      records: z.int().describe('How many live records hold the key.'),
+      types: z
+        .array(z.enum(['boolean', 'number', 'string']))
+        .describe('The JSON types of the values the key holds across records, sorted. No value is ever listed.'),
+    }),
+  ),
+  truncated: z
+    .boolean()
+    .describe(`True when more than ${PROPERTY_KEYS_LIMIT} keys exist and the list stops at the most used.`),
+})
+export type PropertyKeysAnswer = z.infer<typeof propertyKeysAnswer>
+
+/**
+ * [[CORE318]] D11, [[CORE549]] P5, P7: `<resource>.property_keys`, the keys of the property bag in use on the resource's live records (what its list returns), with the record count and the JSON types seen, never a value.
+ * One read, no event, no write. It scans the live rows: the reason the answer is cut at 200 keys and a derived key-count table is the revisit for large tables.
+ */
+export function propertyKeysOperation(def: PreparedResource, env: PreparedEnv): PreparedOperation<PropertyKeysAnswer> {
+  return defineOperation<PropertyKeysAnswer>({
+    name: `${def.name}.property_keys`,
+    mutates: false,
+    reads: (qc): Record<string, Read> => {
+      let q = loose(qc)
+        .selectFrom(def.table)
+        .innerJoin(sql`json_each(${sql.ref(`${def.table}.additional_props`)})`.as('j'), (join) => join.onTrue())
+        .select([
+          sql<string>`j.key`.as('key'),
+          sql<number>`count(*)`.as('records'),
+          sql<number>`max(j.type in ('true', 'false'))`.as('has_boolean'),
+          sql<number>`max(j.type in ('integer', 'real'))`.as('has_number'),
+          sql<number>`max(j.type = 'text')`.as('has_string'),
+        ] as never)
+      for (const w of live(def, env)) q = q.where(w)
+      return {
+        keys: readAll(
+          (q as never as { groupBy: (e: unknown) => any })
+            .groupBy(sql`j.key`)
+            .orderBy(sql`count(*)`, 'desc')
+            .orderBy(sql`j.key`, 'asc')
+            .limit(PROPERTY_KEYS_LIMIT + 1),
+        ),
+      }
+    },
+    build: (found) =>
+      unit({
+        steps: [],
+        events: [],
+        decode: () => {
+          const rows = found.all('keys')
+          return {
+            data: rows.slice(0, PROPERTY_KEYS_LIMIT).map((r) => ({
+              key: String(r.key),
+              records: Number(r.records),
+              types: [
+                ...(Number(r.has_boolean) === 1 ? (['boolean'] as const) : []),
+                ...(Number(r.has_number) === 1 ? (['number'] as const) : []),
+                ...(Number(r.has_string) === 1 ? (['string'] as const) : []),
+              ],
+            })),
+            truncated: rows.length > PROPERTY_KEYS_LIMIT,
+          }
+        },
+      }),
   })
 }
 

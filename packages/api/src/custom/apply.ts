@@ -1,6 +1,6 @@
 import type { D1Like } from '@vibase/storage-d1'
 import type { FieldDeclaration, FieldKind, ObjectDeclaration } from './declaration.js'
-import { columnDefinition, createTableStatements, ident, literal } from './ddl.js'
+import { bagColumnDefinition, columnDefinition, createTableStatements, ident, literal } from './ddl.js'
 
 // Apply ([[CORE315]] D11, D31, D32; [[CORE542]]): makes a D1 database's `__c` tables match the extensions file. Three parts (P1): `readLiveSchema` turns a D1 binding into a plain snapshot, `planApply` is a pure function from
 // (declarations, snapshot) to the plan, and `applyExtensions` runs the plan: the violation reads first, then the DDL as one batch, and nothing at all when anything is refused (P2). The live schema is the only state (P3):
@@ -225,6 +225,12 @@ export function planApply(objects: Record<string, ObjectDeclaration>, live: Live
     }
     const fields = liveFields(key, table)
     let added = 0
+    // [[CORE318]] D13: a table made before the bag existed gets the column, in the same plan and batch as the rest of the DDL; a table that has it plans nothing.
+    if (!table.columns.some((c) => c.name === 'additional_props')) {
+      adds.push(`ALTER TABLE ${ident(key)} ADD COLUMN ${bagColumnDefinition(key)}`)
+      plan.added.push({ object: key, field: 'additional_props' })
+      added++
+    }
     for (const [name, f] of Object.entries(decl.fields)) {
       const lf = fields.get(name)
       const at = `${key}.${name}`

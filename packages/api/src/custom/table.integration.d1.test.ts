@@ -69,6 +69,7 @@ describe('the generated table', () => {
       ['created_at', 'TEXT', 1],
       ['updated_at', 'TEXT', 1],
       ['deleted_at', 'TEXT', 0],
+      ['additional_props', 'TEXT', 1], // the property bag ([[CORE318]] D13)
       ['name', 'TEXT', 1], // required
       ['budget', 'INTEGER', 0],
       ['active', 'INTEGER', 0], // boolean

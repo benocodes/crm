@@ -25,6 +25,13 @@ export function columnDefinition(name: string, f: FieldDeclaration): string {
   return parts.join(' ')
 }
 
+/**
+ * [[CORE318]] D13, [[CORE549]]: the property bag's column, exactly migration 0026's definition: JSON text, `{}` when empty, never NULL, and the database checks only that it is an object (the limits are API validation, D3).
+ * `createTableStatements` creates it and apply's `ADD COLUMN` adds it to a table made before it existed.
+ */
+export const bagColumnDefinition = (key: string): string =>
+  `${ident('additional_props')} TEXT NOT NULL DEFAULT '{}' CONSTRAINT ${ident(`${key}_additional_props`)} CHECK (json_valid(${ident('additional_props')}) AND json_type(${ident('additional_props')}) = 'object')`
+
 /** The statements that create the table and its indexes, in order ([[CORE541]] P1): a reference gets `(organization_id, field, id)`, a unique field only the partial unique index over its live non-null rows. */
 export function createTableStatements(key: string, declaration: ObjectDeclaration): string[] {
   const t = ident(key)
@@ -35,6 +42,7 @@ export function createTableStatements(key: string, declaration: ObjectDeclaratio
     `${ident('created_at')} TEXT NOT NULL CHECK (${TIMESTAMP_CHECK(ident('created_at'))})`,
     `${ident('updated_at')} TEXT NOT NULL CHECK (${TIMESTAMP_CHECK(ident('updated_at'))})`,
     `${ident('deleted_at')} TEXT CHECK (${ident('deleted_at')} IS NULL OR ${TIMESTAMP_CHECK(ident('deleted_at'))})`,
+    bagColumnDefinition(key),
     ...Object.entries(declaration.fields).map(([name, f]) => columnDefinition(name, f)),
   ]
   return [

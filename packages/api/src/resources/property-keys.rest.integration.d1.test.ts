@@ -122,7 +122,7 @@ describe('the answer (P5)', () => {
     const op = k.registry.operations().find((o) => o.name === 'contacts.property_keys')
     expect(op).toBeDefined()
     expect((op as any).proposal ?? undefined).toBeUndefined()
-    expect(op!.scope).toEqual({ resource: 'contacts', action: 'read' })
+    expect((op as any).scope).toEqual({ resource: 'contacts', action: 'read' })
   })
 })
 

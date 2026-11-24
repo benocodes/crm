@@ -21,11 +21,19 @@ const op = (over: Partial<Operation> = {}): Operation =>
   }) as Operation
 
 describe('resourceOperations', () => {
-  it('generates five', () => {
+  it('generates five and the bag read', () => {
     const ops = resourceOperations(tasks)
-    expect(ops.map((o) => o.name)).toEqual(['tasks.list', 'tasks.get', 'tasks.create', 'tasks.update', 'tasks.delete'])
+    expect(ops.map((o) => o.name)).toEqual([
+      'tasks.list',
+      'tasks.property_keys',
+      'tasks.get',
+      'tasks.create',
+      'tasks.update',
+      'tasks.delete',
+    ])
     expect(ops.map((o) => `${o.method.toUpperCase()} ${o.path}`)).toEqual([
       'GET /tasks',
+      'GET /tasks/property-keys',
       'GET /tasks/{id}',
       'POST /tasks',
       'PATCH /tasks/{id}',
@@ -34,14 +42,16 @@ describe('resourceOperations', () => {
     expect(ops.map((o) => `${o.scope!.resource}:${o.scope!.action}`)).toEqual([
       'tasks:read',
       'tasks:read',
+      'tasks:read',
       'tasks:write',
       'tasks:write',
       'tasks:write',
     ])
-    expect(ops.map((o) => o.response.status)).toEqual([200, 200, 201, 200, 204])
+    expect(ops.map((o) => o.response.status)).toEqual([200, 200, 200, 201, 200, 204])
     expect(ops.every((o) => o.validation === 'handler')).toBe(true)
     expect(ops.map((o) => o.summary)).toEqual([
       'List tasks',
+      'List the property bag keys in use on tasks',
       'Get a task',
       'Create a task',
       'Update a task',
@@ -57,12 +67,13 @@ describe('resourceOperations', () => {
       update: undefined,
     } as never
     const ops = resourceOperations(ro)
-    expect(ops.map((o) => o.name)).toEqual(['task_views.list', 'task_views.get'])
-    expect(ops.map((o) => o.path)).toEqual(['/task-views', '/task-views/{id}'])
+    expect(ops.map((o) => o.name)).toEqual(['task_views.list', 'task_views.property_keys', 'task_views.get'])
+    expect(ops.map((o) => o.path)).toEqual(['/task-views', '/task-views/property-keys', '/task-views/{id}'])
   })
   it('scope resource', () => {
     const ops = resourceOperations({ ...tasks, name: 'task_notes', scopeResource: 'tasks' })
     expect(ops.map((o) => `${o.scope!.resource}:${o.scope!.action}`)).toEqual([
+      'tasks:read',
       'tasks:read',
       'tasks:read',
       'tasks:write',

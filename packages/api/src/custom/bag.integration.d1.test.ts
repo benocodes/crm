@@ -77,7 +77,7 @@ describe('the table and apply (D13)', () => {
   /** The table as it was before the bag: the DDL's first statement without the bag's column line. */
   const oldShape = () => {
     const sql = createTableStatements(PROJECTS_KEY, PROJECTS)[0]!
-    const without = sql.replace(/,\n {2}"additional_props"[^\n]*/, '')
+    const without = sql.replace(/\n {2}"additional_props"[^\n]*/, '')
     expect(without).not.toContain('additional_props')
     return without
   }
@@ -210,7 +210,7 @@ describe('served: the record, its events, the filter, property_keys and schema.g
     expect(empty.status).toBe(403)
     const op = registry.operations().find((o) => o.name === `${PROJECTS_KEY}.property_keys`)
     expect(op).toBeDefined()
-    expect(op!.scope).toEqual({ resource: PROJECTS_KEY, action: 'read' })
+    expect((op as any).scope).toEqual({ resource: PROJECTS_KEY, action: 'read' })
     const longest = `${'a'.repeat(40)}__c`
     expect(longest).toHaveLength(43)
     expect(toolName(`${longest}.property_keys`)).toMatch(/^[a-zA-Z0-9_-]{1,64}$/)

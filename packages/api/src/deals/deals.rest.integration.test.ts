@@ -81,7 +81,13 @@ describe('surface placement (D1)', () => {
       Object.keys(api.paths)
         .filter((p) => /pipeline|deals/.test(p))
         .sort(),
-    ).toEqual(['/api/v1/deals', '/api/v1/deals/aggregate', '/api/v1/deals/{id}', '/api/v1/deals/{id}/move-stage'])
+    ).toEqual([
+      '/api/v1/deals',
+      '/api/v1/deals/aggregate',
+      '/api/v1/deals/property-keys',
+      '/api/v1/deals/{id}',
+      '/api/v1/deals/{id}/move-stage',
+    ])
   })
 })
 

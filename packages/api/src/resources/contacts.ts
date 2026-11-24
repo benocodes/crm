@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { deleteContactOperation } from '../identity/cascades.js'
 import { additionalPropsInput, additionalPropsRecord, type Bag } from '../storage/additional-props.js'
 import { definePreparedResource } from '../storage/definition.js'
+import { withPropertyBag } from '../storage/bag-filter.js'
 import { withColumnSorts } from '../storage/sorts.js'
 import { withColumnFilters } from '../storage/column-filters.js'
 import { contactActivityFilters, contactDerived } from './contact-activity.js'
@@ -57,7 +58,7 @@ const create = z.strictObject(fields)
 const update = create.partial()
 
 /** Contacts on the prepared path ([[CORE36]]): the company must be a live company of this organisation; delete tombstones the identities as a set. */
-export const contacts = withColumnFilters(
+const contactsBase = withColumnFilters(
   withColumnSorts(
     definePreparedResource({
       surface: 'api',
@@ -77,3 +78,6 @@ export const contacts = withColumnFilters(
     ['name', 'last_contacted_at', 'last_interacted_at'],
   ),
 )
+
+/** [[CORE549]] D10: the list takes the bag filter, `additional_props=<key>.<condition>`. */
+export const contacts = withPropertyBag(contactsBase)

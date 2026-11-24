@@ -4,6 +4,7 @@ import { codecs, readMaybe } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { deleteDealOperation } from '../identity/cascades.js'
 import { additionalPropsInput, additionalPropsRecord, type Bag } from '../storage/additional-props.js'
+import { withPropertyBag } from '../storage/bag-filter.js'
 import { definePreparedResource, type DerivedDecl, type CustomFilter } from '../storage/definition.js'
 import { withColumnFilters } from '../storage/column-filters.js'
 import { withAggregate } from '../storage/aggregate.js'
@@ -101,7 +102,7 @@ const statusFilter: CustomFilter = {
  * must be a live one of this organisation (the generic reference check, re-checked at commit). `stage_id` and `pipeline_id` are refused on update:
  * the stage changes through `deals.move_stage` (`deals/operations.ts`). `status` is derived from the stage and never in an event.
  */
-export const deals = withAggregate(
+const dealsBase = withAggregate(
   withColumnFilters(
     withColumnSorts(
       definePreparedResource({
@@ -189,3 +190,6 @@ export const deals = withAggregate(
     amount_minor: 'currency',
   },
 )
+
+/** [[CORE549]] D10: the list takes the bag filter, `additional_props=<key>.<condition>`. */
+export const deals = withPropertyBag(dealsBase)

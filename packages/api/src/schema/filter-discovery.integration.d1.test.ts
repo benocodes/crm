@@ -85,10 +85,11 @@ describe('filters agree with the list, for every resource (CORE201 D11)', () => 
         expect(typeof f.description, `${t.name}.${f.name}`).toBe('string')
         expect(f.description.length, `${t.name}.${f.name}`).toBeGreaterThan(10)
         if (f.custom) {
+          // [[CORE549]] D10: the bag filter is a custom filter with a stated cost: no index serves a bag key.
           expect({ kind: f.kind, operators: f.operators, indexed: f.indexed }, `${t.name}.${f.name}`).toEqual({
             kind: null,
             operators: [],
-            indexed: null,
+            indexed: f.name === 'additional_props' ? false : null,
           })
           continue
         }
@@ -130,6 +131,7 @@ describe('filters agree with the list, for every resource (CORE201 D11)', () => 
       'updated_at',
       'tag_id',
       'tag',
+      'additional_props',
     ])
     expect(tasksFilters.find((f: any) => f.name === 'id').indexed).toBe(true)
     expect(tasksFilters.find((f: any) => f.name === 'title').indexed).toBe(false)
@@ -137,11 +139,11 @@ describe('filters agree with the list, for every resource (CORE201 D11)', () => 
       tableOf(doc, 'deals')
         .resource.filters.filter((f: any) => f.custom)
         .map((f: any) => f.name),
-    ).toEqual(['status', 'tag_id', 'tag', 'company_id', 'contact_id'])
+    ).toEqual(['status', 'tag_id', 'tag', 'company_id', 'contact_id', 'additional_props'])
     const contacts = tableOf(doc, 'contacts')
       .resource.filters.filter((f: any) => f.custom)
       .map((f: any) => f.name)
-    expect(contacts.slice(-6)).toEqual([
+    expect(contacts.filter((n: string) => n !== 'additional_props').slice(-6)).toEqual([
       'contacted_since',
       'not_contacted_since',
       'never_contacted',
@@ -180,6 +182,7 @@ describe('indexed follows STATED_FILTER_COSTS (D12), as a pure builder', () => {
   it('the default is the checked-in list', () => {
     const doc = buildSchemaDocument({ columns: [column], foreignKeys: [], resources: [tasks as never] })
     const f = tableOf(doc, 'tasks').resource.filters as Array<{ name: string; indexed: boolean | null }>
-    for (const x of f.filter((y) => y.indexed !== null)) expect(x.indexed, x.name).toBe(!stated('tasks', x.name))
+    for (const x of f.filter((y) => y.indexed !== null && y.name !== 'additional_props'))
+      expect(x.indexed, x.name).toBe(!stated('tasks', x.name))
   })
 })
