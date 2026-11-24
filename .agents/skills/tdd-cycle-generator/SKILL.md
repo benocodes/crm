@@ -448,6 +448,10 @@ at the limit on three lines, with goldens and "record-shape pins found by the su
 218k / 93 calls in one run (+181 / +892 lines), gate green first time, review approved round 0. The budget holds at its
 limit when no line hides a sweep; a field added to existing registry-derived surfaces is cheap. Naming the pin rider up
 front kept the five pinned record shapes from becoming a gate round.
+**CORE561** (`knowledge/specs/020-CORE561-extension-fields-switched-on/RETRO.md`, the switch over [[CORE559]]'s dormant
+seam): 5 groups (1 matrix), 6 decisions + 5 planner rules, no migration, 1 remote E2E part, riders counted by grep. ~188k
+/ 59 calls in one run plus a ~4-call fix round (+179 / +388 lines, 21 files), gate green. The budget holds: "mechanism
+dormant, then the switch" puts the sweep in the first cycle, and the switch is cheap even with a remote E2E.
 
 ### Step 3: Resolve identities
 
@@ -668,6 +672,9 @@ Writing and pushing the charter is where this skill ends. Implementation follows
    methods are dashboard state, and someone may change them between plan and run. Use the provider's
    method-independent path: for Clerk, a Backend-API sign-in token (`POST /v1/sign_in_tokens`) passed as
    `__clerk_ticket` on the Account Portal URL, or `@clerk/testing`'s `clerk.signIn` on the page's own Clerk.
+   **Write an E2E fixture in the format's own keys** (the JSON, or the declaration's words), never prose the
+   format lacks: [[CORE561]]'s "text, nullable" named no key (a non-required field is nullable), and the tester
+   had to guess.
    **Quote an expected error body from the spec's error contract, never a paraphrase.** A configuration
    error is a generic `500 internal`, and only the Worker log names the variable ([[CORE64]]). [[UI30]]'s
    charter had both wrong, which cost the E2E a false failure and a tester round.
