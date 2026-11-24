@@ -1,5 +1,11 @@
 # @vibase/cli
 
+## 0.2.1
+
+### Patch Changes
+
+- 0dfefd6: The published README is now the repository's root README: what Vibase is, install, a short quickstart and a link to https://docs.vibase.ai. The `@vibase/server-d1` README links to the documentation too.
+
 ## 0.2.0
 
 ### Minor Changes
