@@ -390,7 +390,11 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   DDL in `ddl.ts` changes what apply reads back**: keep the mark distinct and run `apply.integration.d1.test.ts`.
   SQLite cannot alter a column's default or drop a column an index names, so apply refuses a default change and a
   `unique` removal by name (spec D32); D1 caps a table at 100 columns (apply refuses past it; the validator caps an
-  object at 90 fields).
+  object at 90 fields). The live read is `liveSchemaFrom(rowReader)`: the same SQL runs on a binding (`readLiveSchema`)
+  or remotely through `wrangler d1 execute --remote --json` (`server-d1/scripts/instance/extensions.ts`, binds inlined
+  as SQL literals so a table name stays data), and the statements run with `d1 execute --remote --file`, which needs no
+  prompt under `CI=1` with a closed stdin ([[CORE543]] 543.12, 543.19). `redeploy --extensions` plans before its
+  question, runs the statements after the core migrations and before the deploy.
 - **`unit_assertion`** (in 0002) is machinery, not a resource: an always-empty table whose named CHECK
   `unit_assertion_holds` lets `assertStep` abort a D1 batch. The D1 runtime classifies that one constraint as
   drift, so never reuse the name.
