@@ -52,6 +52,7 @@ import {
   type RateLimiter,
   type AnyResource,
   type ExtendDeclarations,
+  createBuiltIns,
   type Registry,
   type StreamPrimitives,
   type TransportRegistry,
@@ -686,6 +687,9 @@ export function composeD1Worker(
   }
 
   /** Re-resolved by every Workflow step ([[CHN5]] D11): nothing here is ever returned from a step. Throws (retryably) when the deployment cannot sync. */
+  /** [[CORE559]] P2: built once from the deployment's `extend`; handed to the mail-sync runtime and the form ingress context so their contact events carry the extension fields. */
+  const builtIns = deps.extend ? createBuiltIns(deps.extend) : undefined
+
   async function mailSyncRuntime(googleFetch: typeof fetch | undefined): Promise<MailSyncRuntime> {
     if (!gmail.config) throw new Error('Gmail is not configured on this deployment')
     if (!env.MAIL_SYNC) throw new Error('the MAIL_SYNC Workflow binding is missing')
@@ -702,6 +706,7 @@ export function composeD1Worker(
         clock,
         newId,
         randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
+        ...(builtIns ? { builtIns } : {}),
         config: {
           clientId: c.clientId,
           clientSecret: c.clientSecret,
@@ -1049,6 +1054,7 @@ export function composeD1Worker(
                 clock,
                 newId,
                 randomBytes: (n) => crypto.getRandomValues(new Uint8Array(n)),
+                ...(builtIns ? { builtIns } : {}),
               },
               turnstile: siteverifyVerifier({
                 secret: typeof env.TURNSTILE_SECRET_KEY === 'string' ? env.TURNSTILE_SECRET_KEY : undefined,

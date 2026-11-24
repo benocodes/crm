@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { uuidv7 } from '@vibase/storage'
+import { seedAgent } from '@vibase/storage-d1/test/seed'
+import { fakeR2Bucket } from '@vibase/api/test/objects'
+import { nodeStreams } from '@vibase/api/test/streams'
+import { readDeployment } from './init-deployment.js'
 import { applyExtensions, type ExtendDeclarations, type Registry } from '@vibase/api'
 import { bootstrapD1, NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
@@ -123,5 +127,71 @@ describe('a proposal is approved and stores the value', () => {
     const approved = await call(wk, 'POST', `/api/v1/action-requests/${proposed.body.id}/approve`)
     expect(approved.status, JSON.stringify(approved.body)).toBe(200)
     expect((await call(wk, 'GET', `/api/v1/contacts/${made.body.id}`)).body.tier__c).toBe('silver')
+  })
+})
+
+// [[CORE559]] P2: the capture paths take the composed set from the composition, not a default: a form submission through the Worker (the mail-sync pipeline is in compose-sync.test.ts).
+describe('a form submission through the composed Worker', () => {
+  const DEFAULTED: ExtendDeclarations = {
+    contacts: { lvl__c: { kind: 'enum', values: ['a', 'b'], required: true, default: 'a' } },
+  }
+  const ORIGIN = 'https://site.test'
+  const submit = async (extend?: ExtendDeclarations) => {
+    const r = await applyExtensions(w.d1, {}, DEFAULTED)
+    expect(r.refused).toEqual([])
+    const org = (await readDeployment(w.d1))!.organizationId
+    const at = NOW.toISOString()
+    const id = '0190b2c4-0000-7000-8000-0000000f0001'
+    await seedAgent(w.d1, { id, organizationId: org, createdBy: id, name: 'Form' })
+    await w.d1
+      .prepare(
+        `insert into forms (id, created_at, updated_at, organization_id, created_by, name, public_id, enabled, email_field, name_field) values (?, ?, ?, ?, ?, 'Site', 'frm_aaaaaaaaaaaaaaaaaaaaaaaaaa', 1, 'email', 'name')`,
+      )
+      .bind(id, at, at, org, id)
+      .run()
+    await w.d1
+      .prepare(
+        'insert into form_allowed_origins (id, organization_id, form_id, origin, created_at) values (?, ?, ?, ?, ?)',
+      )
+      .bind('0190b2c4-0000-7000-8000-0000000e0001', org, id, ORIGIN, at)
+      .run()
+    const wk = composeD1Worker(
+      {
+        DB: w.d1,
+        AUTH_PROVIDER: '',
+        CREDENTIALS_KEY: CRED,
+        BODIES: fakeR2Bucket(),
+        TURNSTILE_SECRET_KEY: 'secret',
+      } as never,
+      {
+        fetch: (async () => Response.json({ success: true, hostname: 'site.test' })) as unknown as typeof fetch,
+        clock: () => NOW,
+        newId: () => uuidv7(NOW),
+        streams: nodeStreams(),
+        ...(extend ? { extend } : {}),
+      },
+    )
+    const res = await wk.fetch(
+      new Request(`${BASE}/f/frm_aaaaaaaaaaaaaaaaaaaaaaaaaa`, {
+        method: 'POST',
+        headers: {
+          origin: ORIGIN,
+          'content-type': 'application/x-www-form-urlencoded',
+          'cf-connecting-ip': '198.51.100.9',
+        },
+        body: new URLSearchParams({ email: 'ada@example.com', name: 'Ada', 'cf-turnstile-response': 'tok' }).toString(),
+      }),
+    )
+    expect(res.status, await res.clone().text()).toBe(202)
+    const ev = (await w.d1.prepare(`select after from events where type = 'contact.created'`).all()).results as Array<{
+      after: string
+    }>
+    return JSON.parse(ev[0]!.after)
+  }
+  it('with an extend, contact.created carries the defaulted extension field', async () => {
+    expect(await submit(DEFAULTED)).toMatchObject({ name: 'Ada', lvl__c: 'a' })
+  })
+  it('with no extend it is the core record', async () => {
+    expect(await submit()).not.toHaveProperty('lvl__c')
   })
 })

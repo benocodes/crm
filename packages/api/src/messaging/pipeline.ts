@@ -1,4 +1,5 @@
 import { sql } from 'kysely'
+import type { BuiltIns } from '../resources/built-ins.js'
 import {
   boundIds,
   coldDb,
@@ -48,6 +49,8 @@ export interface PipelineContext {
   cap?: number
   /** Defaults to 50 MiB ([[CORE25]] D38). */
   attachmentMaxBytes?: number
+  /** [[CORE559]] P2: the four built-ins' definitions of the deployment (the composed set of its `extend`), so the contact events of a capture carry the extension fields. Absent: the set with no `extend`. */
+  builtIns?: BuiltIns
 }
 
 /** Plain counts only (invariant 7, [[CORE25]] D47): no ids, addresses or content. */
@@ -167,11 +170,15 @@ export async function captureMessages(
     }
     assertNoCollision(
       Object.keys(
-        recordMessages(makeEnv(), {
-          source: { kind: 'connection', id: conn.id },
-          channel: 'email',
-          messages: [],
-        }).reads(qc),
+        recordMessages(
+          makeEnv(),
+          {
+            source: { kind: 'connection', id: conn.id },
+            channel: 'email',
+            messages: [],
+          },
+          ctx.builtIns?.contacts,
+        ).reads(qc),
       ),
       Object.keys(opts.final.reads(qc)),
     )
@@ -297,7 +304,9 @@ export async function captureMessages(
     }
     const last = index === chunks.length - 1
     const out = await record((env) =>
-      last && opts.final ? withFinal(recordMessages(env, input), opts.final) : recordMessages(env, input),
+      last && opts.final
+        ? withFinal(recordMessages(env, input, ctx.builtIns?.contacts), opts.final)
+        : recordMessages(env, input, ctx.builtIns?.contacts),
     )
 
     result.captured += out.captured.length
