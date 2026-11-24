@@ -1,5 +1,0 @@
----
-'@vibase/server-d1': minor
----
-
-`vibase-server setup` verifies through the Cloudflare API and no longer waits. Verify checks the Worker (this release's version and commit, and every recorded variable), its secrets by name, the custom domain or workers.dev subdomain, both migration trackers and the R2 bucket, and fails at the first check that does not hold. It then makes one 10 second request to `/health`: a host that does not answer yet (a new custom domain whose DNS has not propagated) is reported as `not reachable yet` and the run still succeeds; a wrong answer fails. The discovery checks run once, after a `200`. Setup never contacts the host before verify (the newer-release refusal and the deploy skip read the Worker's settings through the API). The output ends with the owner invitation, or a block saying why none was issued and how to get one (`vibase-server owner-reset`), and, for a custom domain that did not answer, a note about DNS propagation. `upgrade`, `redeploy` and `status` say `cannot resolve <host> from this machine (DNS)` when the name does not resolve.
