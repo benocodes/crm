@@ -4,6 +4,8 @@
 // Prerequisite: FRESH local state (`rm -rf .wrangler/state` in packages/server-d1; do not share it with another E2E: each consumes the owner invitation), and `.dev.vars` holding `e2e:auth-pages`' set
 // (AUTH_PROVIDER=better-auth, AUTH_SECRET 32+ chars, PUBLIC_BASE_URL=http://localhost:8787, dummy AUTH_GOOGLE_CLIENT_ID / AUTH_GOOGLE_CLIENT_SECRET, AUTH_TRUSTED_ORIGINS=http://localhost:8788) PLUS the Gmail core four:
 // GOOGLE_CLIENT_ID=e2e.apps.googleusercontent.com, GOOGLE_CLIENT_SECRET=<any>, OAUTH_STATE_SECRET=<random>, CREDENTIALS_KEY=<base64 of 32 random bytes>; NO CONNECT_RETURN_URL and no push variables.
+// Then, in packages/server-d1, migrate BOTH local databases before bootstrap (it writes the control marker; on fresh state it fails without them, [[CORE572]]):
+//   pnpm exec wrangler d1 migrations apply DB --local && pnpm exec wrangler d1 migrations apply CONTROL_DB --local
 //   pnpm -C packages/server-d1 bootstrap -- --org E2E --auth-provider better-auth --public-base-url http://localhost:8787 --owner-email owner@e2e.test   (E2E_INVITE_URL = the URL it printed)
 //   pnpm -C packages/server-d1 dev     (wait for its build, then:)
 //   E2E_INVITE_URL=<url> pnpm -C packages/server-d1 e2e:accounts-connect
