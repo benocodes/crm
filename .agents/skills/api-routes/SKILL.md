@@ -719,6 +719,14 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   (`group_by` included) are custom object `RESERVED_NAMES` (D6), so the load error above can never come from a
   schema file. The plan check runs per aggregatable list. It picks each filter's operand by trying samples through
   the list's own `prepare` (domain, enum and boolean filters refuse generic samples), not through `parseCondition`.
+  **`group_by`** ([[CORE207]]): one or two fields, parsed by `parseGroupBy` against `GROUPABLE_KINDS` (uuid, text,
+  integer, boolean column filters, never `id`); every refusal names the groupable fields, and a list with none has no
+  `group_by` parameter. A grouped call is still one statement: the group columns, `GROUP BY`, an explicit
+  `order by <f> asc nulls last` per field (SQLite puts nulls first by default), and `limit 201`, where a 201st row is a
+  `400`, never a truncation. Because no group is ever dropped, the top-level `count` is the sum of the group counts; a
+  future `having` or top-N would need its own count. The money rule and the `sum` overflow flag are judged per group
+  in `decode`, and the refusal names the group as `field=value` pairs (`stage_id=<id>,currency=EUR`). The plan check
+  compares the table read, not the index name: a grouped plan may pick a different index.
 - **A repeated query parameter is refused on REST unless its declared schema accepts a list** (`readInput` in
   `src/rest/app.ts`, [[CORE129]] D10a, [[CORE602]] D3): Hono's `c.req.query()` keeps the first value, so `readInput` asks
   `acceptsList(schema)` (`storage/column-filters.ts`) of each query parameter's declared schema and reads those with
@@ -757,6 +765,9 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   at read time. A filter key or sort field that is a content field goes through `checkContentScope` before any query,
   which answers `403 insufficient_scope` naming `requires`. Schema discovery shows the declaration as a resource-level
   `content` key.
+  Any parameter that names a field is a read of that field, not only filters and sorts: an aggregate's `group_by` and
+  function fields (`min=<f>`) reveal its values too, and they do not call `checkContentScope` yet. No aggregatable list
+  declares content fields today; before one does, close #618 ([[CORE207]] 207.19).
 - **Sorting by a derived field** ([[CORE133]], `sorts: [...]` on a definition, cursor codec in `src/resources/sort-cursor.ts`,
   keyset in `src/storage/crud.ts` `afterPosition`). Only a list that declares `sorts` gets `sort` and `order`. On every
   other list, both stay unknown filters with the same message as before. A `sorts` name must be a non-boolean derived field

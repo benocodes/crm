@@ -119,6 +119,7 @@ describe('schema.get per list (D7)', () => {
         min: by(['integer', 'timestamp', 'text']),
         max: by(['integer', 'timestamp', 'text']),
         money: {},
+        group_by: by(['uuid', 'text', 'integer', 'boolean']).filter((f: string) => f !== 'id'),
       })
       expect(r.aggregate.min.length, list).toBeGreaterThan(0)
       expect(r.operations).toContain(`${list}.aggregate`)

@@ -91,6 +91,11 @@ export const schemaAggregate = z.object({
     .describe(
       'Money fields, each with the column that holds its currency: a function over one is refused when the matching amounts are in more than one currency.',
     ),
+  group_by: z
+    .array(z.string())
+    .describe(
+      'The fields `group_by` takes, at most two per call (uuid, text, integer and boolean columns except id), in record field order.',
+    ),
 })
 
 // [[API514]] D9, D10: the record fields a caller sees only with a scope (they are absent from the record without it, and a filter or sort on them is refused).

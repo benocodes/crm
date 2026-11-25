@@ -1214,6 +1214,7 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
     "fields": {
       "min": "query",
       "max": "query",
+      "group_by": "query",
       "domain": "query",
       "tag_id": "query",
       "tag": "query",
@@ -2005,6 +2006,7 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
     "fields": {
       "min": "query",
       "max": "query",
+      "group_by": "query",
       "company_id": "query",
       "tag_id": "query",
       "tag": "query",
@@ -2322,6 +2324,7 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
       "avg": "query",
       "min": "query",
       "max": "query",
+      "group_by": "query",
       "pipeline_id": "query",
       "stage_id": "query",
       "owner_id": "query",
@@ -4646,6 +4649,7 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
     "fields": {
       "min": "query",
       "max": "query",
+      "group_by": "query",
       "status": "query",
       "assignee_id": "query",
       "tag_id": "query",

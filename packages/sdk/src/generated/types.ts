@@ -32,7 +32,7 @@ export interface paths {
         };
         /**
          * Count tasks, and sum, average or take the minimum or maximum of their fields
-         * @description Counts the live tasks that match the filters, which are exactly the filters of tasks.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields. The answer is { count, sum?, avg?, min?, max?, currency? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all. Cost: reads every live task that matches the filters, with no page limit; a filter schema.get marks `indexed` narrows that read through an index; any other filter, or none, reads every live task of the workspace.
+         * @description Counts the live tasks that match the filters, which are exactly the filters of tasks.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields. The answer is { count, sum?, avg?, min?, max?, currency?, groups? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all. With group_by (up to 2 of title, notes, status, assignee_id, created_by) the answer is { count, groups: [{ key, count, sum?, avg?, min?, max?, currency? }] }: count is every matching row, and each group is the answer the call would give with the key added as filters, ordered by the group fields with the null group last; more than 200 groups is refused, never truncated. Cost: reads every live task that matches the filters, with no page limit; a filter schema.get marks `indexed` narrows that read through an index; any other filter, or none, reads every live task of the workspace. With group_by the same rows are read and sorted by the group fields (no index).
          */
         get: operations["tasks.aggregate"];
         put?: never;
@@ -109,7 +109,7 @@ export interface paths {
         };
         /**
          * Count companies, and sum, average or take the minimum or maximum of their fields
-         * @description Counts the live companies that match the filters, which are exactly the filters of companies.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields. The answer is { count, sum?, avg?, min?, max?, currency? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all. Cost: reads every live company that matches the filters, with no page limit; a filter schema.get marks `indexed` narrows that read through an index; any other filter, or none, reads every live company of the workspace.
+         * @description Counts the live companies that match the filters, which are exactly the filters of companies.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields. The answer is { count, sum?, avg?, min?, max?, currency?, groups? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all. With group_by (up to 2 of name, domain, created_by) the answer is { count, groups: [{ key, count, sum?, avg?, min?, max?, currency? }] }: count is every matching row, and each group is the answer the call would give with the key added as filters, ordered by the group fields with the null group last; more than 200 groups is refused, never truncated. Cost: reads every live company that matches the filters, with no page limit; a filter schema.get marks `indexed` narrows that read through an index; any other filter, or none, reads every live company of the workspace. With group_by the same rows are read and sorted by the group fields (no index).
          */
         get: operations["companies.aggregate"];
         put?: never;
@@ -186,7 +186,7 @@ export interface paths {
         };
         /**
          * Count contacts, and sum, average or take the minimum or maximum of their fields
-         * @description Counts the live contacts that match the filters, which are exactly the filters of contacts.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields. The answer is { count, sum?, avg?, min?, max?, currency? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all. Cost: reads every live contact that matches the filters, with no page limit; a filter schema.get marks `indexed` narrows that read through an index; any other filter, or none, reads every live contact of the workspace.
+         * @description Counts the live contacts that match the filters, which are exactly the filters of contacts.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields. The answer is { count, sum?, avg?, min?, max?, currency?, groups? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all. With group_by (up to 2 of name, company_id, merged_into_id, created_by) the answer is { count, groups: [{ key, count, sum?, avg?, min?, max?, currency? }] }: count is every matching row, and each group is the answer the call would give with the key added as filters, ordered by the group fields with the null group last; more than 200 groups is refused, never truncated. Cost: reads every live contact that matches the filters, with no page limit; a filter schema.get marks `indexed` narrows that read through an index; any other filter, or none, reads every live contact of the workspace. With group_by the same rows are read and sorted by the group fields (no index).
          */
         get: operations["contacts.aggregate"];
         put?: never;
@@ -383,7 +383,7 @@ export interface paths {
         };
         /**
          * Count deals, and sum, average or take the minimum or maximum of their fields
-         * @description Counts the live deals that match the filters, which are exactly the filters of deals.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields. The answer is { count, sum?, avg?, min?, max?, currency? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all. amount_minor is money in the minor units of each deal's currency: sum, avg, min or max of it is refused (400) when the matching amounts are in more than one currency, naming them (add currency=eq.<code> to aggregate one); otherwise the answer carries currency: { amount_minor: "<code>" } (null when there are no amounts). count is never refused. Cost: reads every live deal that matches the filters, with no page limit; a filter schema.get marks `indexed` narrows that read through an index; any other filter, or none, reads every live deal of the workspace.
+         * @description Counts the live deals that match the filters, which are exactly the filters of deals.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields. The answer is { count, sum?, avg?, min?, max?, currency?, groups? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all. With group_by (up to 2 of name, pipeline_id, stage_id, amount_minor, currency, expected_close_date, owner_id, created_by) the answer is { count, groups: [{ key, count, sum?, avg?, min?, max?, currency? }] }: count is every matching row, and each group is the answer the call would give with the key added as filters, ordered by the group fields with the null group last; more than 200 groups is refused, never truncated. amount_minor is money in the minor units of each deal's currency: sum, avg, min or max of it is refused (400) when the matching amounts are in more than one currency, naming them (add currency=eq.<code> to aggregate one); otherwise the answer carries currency: { amount_minor: "<code>" } (null when there are no amounts). count is never refused. With group_by the rule is judged in each group, so group_by=currency gives one total per currency. Cost: reads every live deal that matches the filters, with no page limit; a filter schema.get marks `indexed` narrows that read through an index; any other filter, or none, reads every live deal of the workspace. With group_by the same rows are read and sorted by the group fields (no index).
          */
         get: operations["deals.aggregate"];
         put?: never;
@@ -1128,6 +1128,8 @@ export interface operations {
                 min?: string;
                 /** @description Maximum of fields, comma-separated: title, notes, status, due_at, completed_at, created_at, updated_at. The answer has max as an object keyed by field. Nulls are ignored; no values gives null. */
                 max?: string;
+                /** @description Group the answer by up to 2 fields, comma-separated: title, notes, status, assignee_id, created_by. The answer is { count, groups } with one entry per group (key, count and each function you ask for), ordered by the group fields with the null group last. More than 200 groups is refused. A function over a money field is judged in each group. */
+                group_by?: string;
                 /** @description Filter by status (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: status=ilike.*acme*. A range is two conditions: status=gte.a&status=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send status=eq.<value> for a literal. */
                 status?: string | string[];
                 /** @description Filter by assignee_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in, is. Example: assignee_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send assignee_id=eq.<value> for a literal. */
@@ -1186,6 +1188,31 @@ export interface operations {
                         currency?: {
                             [key: string]: string | null;
                         };
+                        /** @description With group_by: one answer per group, ordered by the group fields with the null group last. Then count is every matching row and no function key is at the top level. */
+                        groups?: {
+                            /** @description The value of each group field for this group, in its record form (null for the null group). */
+                            key: {
+                                [key: string]: string | number | boolean | null;
+                            };
+                            /** @description The live rows in this group's key. */
+                            count: number;
+                            sum?: {
+                                [key: string]: number | null;
+                            };
+                            avg?: {
+                                [key: string]: number | null;
+                            };
+                            min?: {
+                                [key: string]: number | string | null;
+                            };
+                            max?: {
+                                [key: string]: number | string | null;
+                            };
+                            /** @description For each money field a function was asked of: the one currency of its amounts, or null when there are none. */
+                            currency?: {
+                                [key: string]: string | null;
+                            };
+                        }[];
                     };
                 };
             };
@@ -1478,6 +1505,8 @@ export interface operations {
                 min?: string;
                 /** @description Maximum of fields, comma-separated: name, domain, created_at, updated_at. The answer has max as an object keyed by field. Nulls are ignored; no values gives null. */
                 max?: string;
+                /** @description Group the answer by up to 2 fields, comma-separated: name, domain, created_by. The answer is { count, groups } with one entry per group (key, count and each function you ask for), ordered by the group fields with the null group last. More than 200 groups is refused. A function over a money field is judged in each group. */
+                group_by?: string;
                 /** @description Filter by domain (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: domain=ilike.*acme*. A range is two conditions: domain=gte.a&domain=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send domain=eq.<value> for a literal. */
                 domain?: string | string[];
                 /** @description Only rows linked to this tag (an association). Needs tags:read and associations:read. */
@@ -1528,6 +1557,31 @@ export interface operations {
                         currency?: {
                             [key: string]: string | null;
                         };
+                        /** @description With group_by: one answer per group, ordered by the group fields with the null group last. Then count is every matching row and no function key is at the top level. */
+                        groups?: {
+                            /** @description The value of each group field for this group, in its record form (null for the null group). */
+                            key: {
+                                [key: string]: string | number | boolean | null;
+                            };
+                            /** @description The live rows in this group's key. */
+                            count: number;
+                            sum?: {
+                                [key: string]: number | null;
+                            };
+                            avg?: {
+                                [key: string]: number | null;
+                            };
+                            min?: {
+                                [key: string]: number | string | null;
+                            };
+                            max?: {
+                                [key: string]: number | string | null;
+                            };
+                            /** @description For each money field a function was asked of: the one currency of its amounts, or null when there are none. */
+                            currency?: {
+                                [key: string]: string | null;
+                            };
+                        }[];
                     };
                 };
             };
@@ -1831,6 +1885,8 @@ export interface operations {
                 min?: string;
                 /** @description Maximum of fields, comma-separated: name, created_at, updated_at. The answer has max as an object keyed by field. Nulls are ignored; no values gives null. */
                 max?: string;
+                /** @description Group the answer by up to 2 fields, comma-separated: name, company_id, merged_into_id, created_by. The answer is { count, groups } with one entry per group (key, count and each function you ask for), ordered by the group fields with the null group last. More than 200 groups is refused. A function over a money field is judged in each group. */
+                group_by?: string;
                 /** @description Filter by company_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in, is. Example: company_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send company_id=eq.<value> for a literal. */
                 company_id?: string | string[];
                 /** @description Only rows linked to this tag (an association). Needs tags:read and associations:read. */
@@ -1895,6 +1951,31 @@ export interface operations {
                         currency?: {
                             [key: string]: string | null;
                         };
+                        /** @description With group_by: one answer per group, ordered by the group fields with the null group last. Then count is every matching row and no function key is at the top level. */
+                        groups?: {
+                            /** @description The value of each group field for this group, in its record form (null for the null group). */
+                            key: {
+                                [key: string]: string | number | boolean | null;
+                            };
+                            /** @description The live rows in this group's key. */
+                            count: number;
+                            sum?: {
+                                [key: string]: number | null;
+                            };
+                            avg?: {
+                                [key: string]: number | null;
+                            };
+                            min?: {
+                                [key: string]: number | string | null;
+                            };
+                            max?: {
+                                [key: string]: number | string | null;
+                            };
+                            /** @description For each money field a function was asked of: the one currency of its amounts, or null when there are none. */
+                            currency?: {
+                                [key: string]: string | null;
+                            };
+                        }[];
                     };
                 };
             };
@@ -2861,6 +2942,8 @@ export interface operations {
                 min?: string;
                 /** @description Maximum of fields, comma-separated: name, amount_minor, currency, expected_close_date, closed_at, created_at, updated_at. The answer has max as an object keyed by field. Nulls are ignored; no values gives null. */
                 max?: string;
+                /** @description Group the answer by up to 2 fields, comma-separated: name, pipeline_id, stage_id, amount_minor, currency, expected_close_date, owner_id, created_by. The answer is { count, groups } with one entry per group (key, count and each function you ask for), ordered by the group fields with the null group last. More than 200 groups is refused. A function over a money field is judged in each group. */
+                group_by?: string;
                 /** @description Filter by pipeline_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: pipeline_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send pipeline_id=eq.<value> for a literal. */
                 pipeline_id?: string | string[];
                 /** @description Filter by stage_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: stage_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send stage_id=eq.<value> for a literal. */
@@ -2929,6 +3012,31 @@ export interface operations {
                         currency?: {
                             [key: string]: string | null;
                         };
+                        /** @description With group_by: one answer per group, ordered by the group fields with the null group last. Then count is every matching row and no function key is at the top level. */
+                        groups?: {
+                            /** @description The value of each group field for this group, in its record form (null for the null group). */
+                            key: {
+                                [key: string]: string | number | boolean | null;
+                            };
+                            /** @description The live rows in this group's key. */
+                            count: number;
+                            sum?: {
+                                [key: string]: number | null;
+                            };
+                            avg?: {
+                                [key: string]: number | null;
+                            };
+                            min?: {
+                                [key: string]: number | string | null;
+                            };
+                            max?: {
+                                [key: string]: number | string | null;
+                            };
+                            /** @description For each money field a function was asked of: the one currency of its amounts, or null when there are none. */
+                            currency?: {
+                                [key: string]: string | null;
+                            };
+                        }[];
                     };
                 };
             };
@@ -8224,6 +8332,8 @@ export interface operations {
                                     money: {
                                         [key: string]: string;
                                     };
+                                    /** @description The fields `group_by` takes, at most two per call (uuid, text, integer and boolean columns except id), in record field order. */
+                                    group_by: string[];
                                 } | null;
                             } | null;
                             columns: {

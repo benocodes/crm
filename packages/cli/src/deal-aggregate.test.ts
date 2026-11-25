@@ -91,3 +91,29 @@ it('there is no notes aggregate command', async () => {
   const result = await r.run(['notes', 'aggregate'])
   expect(result.code).not.toBe(0)
 })
+
+it('deals aggregate --group-by stage_id calls GET /api/v1/deals/aggregate?group_by=stage_id; so does a custom object (CORE207 D1)', async () => {
+  const registry = createVibaseRegistry({ definitions: [defineCustomObject(PROJECTS_KEY, PROJECTS)] })
+  const app = createApp({ storage: coldStorage(), registry })
+  const api = await (await app.request('/api/v1/openapi.json')).json()
+  const answer = { count: 1, groups: [{ key: { stage_id: 'x' }, count: 1, sum: { amount_minor: 5 } }] }
+  for (const [list, flag, field, extra] of [
+    ['deals', '--sum', 'amount_minor', 'stage_id'],
+    [PROJECTS_KEY, '--max', 'name', 'stage'],
+  ] as const) {
+    const instance = fakeInstance({
+      api,
+      routes: (req) => (new URL(req.url).pathname === `/api/v1/${list}/aggregate` ? json(answer) : undefined),
+    })
+    const r = rig({ fetch: instance.fetch, env: { VIBASE_SERVER: SERVER, VIBASE_API_KEY: KEY } })
+    rigs.push(r)
+    const result = await r.run([list, 'aggregate', '--group-by', extra, flag, field])
+    expect(result.code, `${list} ${result.stderr}`).toBe(0)
+    const sent = r.seen.filter((x) => new URL(x.url).pathname === `/api/v1/${list}/aggregate`)
+    expect(Object.fromEntries(new URL(sent[0]!.url).searchParams)).toEqual({
+      group_by: extra,
+      [flag.slice(2)]: field,
+    })
+    expect(JSON.parse(result.stdout)).toEqual(answer)
+  }
+})

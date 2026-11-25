@@ -2531,7 +2531,8 @@
                     "avg": [],
                     "min": ["name", "domain", "created_at", "updated_at"],
                     "max": ["name", "domain", "created_at", "updated_at"],
-                    "money": {}
+                    "money": {},
+                    "group_by": ["name", "domain", "created_by"]
                   }
                 },
                 "columns": [
@@ -3567,7 +3568,8 @@
                     "avg": [],
                     "min": ["name", "created_at", "updated_at"],
                     "max": ["name", "created_at", "updated_at"],
-                    "money": {}
+                    "money": {},
+                    "group_by": ["name", "company_id", "merged_into_id", "created_by"]
                   }
                 },
                 "columns": [
@@ -3986,7 +3988,17 @@
                     ],
                     "money": {
                       "amount_minor": "currency"
-                    }
+                    },
+                    "group_by": [
+                      "name",
+                      "pipeline_id",
+                      "stage_id",
+                      "amount_minor",
+                      "currency",
+                      "expected_close_date",
+                      "owner_id",
+                      "created_by"
+                    ]
                   }
                 },
                 "columns": [
@@ -8062,7 +8074,8 @@
                     "avg": [],
                     "min": ["title", "notes", "status", "due_at", "completed_at", "created_at", "updated_at"],
                     "max": ["title", "notes", "status", "due_at", "completed_at", "created_at", "updated_at"],
-                    "money": {}
+                    "money": {},
+                    "group_by": ["title", "notes", "status", "assignee_id", "created_by"]
                   }
                 },
                 "columns": [
