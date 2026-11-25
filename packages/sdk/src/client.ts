@@ -1,4 +1,5 @@
 import { VibaseError } from './errors.js'
+import { serialiseFilter } from './filters.js'
 import { builtInOperations } from './generated/operations.js'
 import type { BuiltInOperations } from './generated/types.js'
 import type { Auth, CallOptions, Client, ClientOptions, OperationEntry, OperationMap } from './types.js'
@@ -17,12 +18,48 @@ export function createClient<Ops extends OperationMap = BuiltInOperations>(optio
   const doFetch = options.fetch ?? ((input, init) => globalThis.fetch(input, init))
   const redirect: RedirectMode = { value: 'error' }
   const client: Record<string, Record<string, unknown>> = {}
-  for (const entry of Object.values(table)) {
+  for (const [id, entry] of Object.entries(table)) {
     const namespace = (client[entry.namespace] ??= {})
-    namespace[entry.method] = (args?: Record<string, unknown>, callOptions?: CallOptions) =>
-      call(origin, options.auth, doFetch, redirect, entry, args ?? {}, callOptions)
+    const send = (target: OperationEntry, args: Record<string, unknown>, callOptions?: CallOptions) =>
+      call(origin, options.auth, doFetch, redirect, target, args, callOptions)
+    const method = (args?: Record<string, unknown>, callOptions?: CallOptions) => send(entry, args ?? {}, callOptions)
+    if (entry.paginated)
+      Object.assign(method, {
+        all: (args?: Record<string, unknown>, o?: CallOptions) => pages(send.bind(null, entry), args ?? {}, o),
+      })
+    if (entry.proposable)
+      Object.assign(method, {
+        propose: (args: Record<string, unknown>, proposal: Record<string, unknown>, o?: CallOptions) => {
+          const create = table['action_requests.create']
+          if (!create)
+            throw new VibaseError(0, 'invalid_argument', 'This operation table has no action_requests.create')
+          return send(create, { ...proposal, operation: id, arguments: args }, o)
+        },
+      })
+    namespace[entry.method] = method
   }
   return client as Client<Ops>
+}
+
+/** `.all()`: one request per page, `after` from `next_cursor`, until it is null or empty; a repeated cursor is an invalid response (DX608 D10). */
+async function* pages(
+  send: (args: Record<string, unknown>, callOptions?: CallOptions) => Promise<unknown>,
+  args: Record<string, unknown>,
+  callOptions: CallOptions | undefined,
+): AsyncGenerator<unknown> {
+  const seen = new Set<string>()
+  let after: string | undefined
+  for (;;) {
+    const page = (await send({ ...args, after }, callOptions)) as { data?: unknown; next_cursor?: unknown } | null
+    if (!page || !Array.isArray(page.data)) throw new VibaseError(200, 'invalid_response', 'A page has no data list')
+    yield* page.data
+    const next = page.next_cursor
+    if (next === null || next === undefined || next === '') return
+    if (typeof next !== 'string' || seen.has(next))
+      throw new VibaseError(200, 'invalid_response', 'The next_cursor repeats or is not a string')
+    seen.add(next)
+    after = next
+  }
 }
 
 async function call(
@@ -118,6 +155,12 @@ function place(entry: OperationEntry, args: Record<string, unknown>) {
     const place = entry.fields[name]
     if (place === 'path') continue
     if (place === 'query') {
+      const filter = entry.filters[name]
+      if (filter) {
+        if (value === null) continue
+        for (const condition of serialiseFilter(name, value, filter)) query.push([name, condition])
+        continue
+      }
       for (const item of Array.isArray(value) ? value : [value])
         if (item !== undefined && item !== null) query.push([name, String(item)])
     } else if (entry.body) body[name] = value
@@ -125,7 +168,7 @@ function place(entry: OperationEntry, args: Record<string, unknown>) {
   return { path, query, body: entry.body ? body : undefined }
 }
 
-async function failure(response: Response): Promise<VibaseError> {
+export async function failure(response: Response): Promise<VibaseError> {
   const text = await response.text().catch(() => '')
   try {
     const parsed = JSON.parse(text) as { error?: { code?: unknown; message?: unknown } }

@@ -50,11 +50,17 @@ export async function emitTypes(documents: { api: unknown; meta: unknown }, ops:
     const op = `${ns}.operations[${q(o.id)}]`
     const result =
       o.output === 'json' ? `ResultOf<${op}, ${o.status}>` : o.output === 'empty' ? 'undefined' : 'Response'
+    const filterNames = Object.keys(o.filters)
+    const args = filterNames.length
+      ? `WithFilters<ArgsOf<${op}>, { ${filterNames
+          .map((n) => `${q(n)}: [${q(o.filters[n].kind)}, ${o.filters[n].operators.map(q).join(' | ')}]`)
+          .join('; ')} }>`
+      : `ArgsOf<${op}>`
     return [
       `  ${q(o.id)}: {`,
       `    namespace: ${q(o.namespace)}`,
       `    method: ${q(o.method)}`,
-      `    args: ArgsOf<${op}>`,
+      `    args: ${args}`,
       `    result: ${result}`,
       ...(o.paginated ? [`    item: ItemOf<${result}>`] : []),
       `    proposable: ${o.proposable}`,
@@ -62,7 +68,7 @@ export async function emitTypes(documents: { api: unknown; meta: unknown }, ops:
       '  }',
     ].join('\n')
   })
-  return `${HEADER}import type { ArgsOf, ItemOf, ResultOf } from '../typing.js'
+  return `${HEADER}import type { ArgsOf, ItemOf, ResultOf, WithFilters } from '../typing.js'
 
 /** openapi-typescript's translation of the api document. */
 export namespace ApiDocument {

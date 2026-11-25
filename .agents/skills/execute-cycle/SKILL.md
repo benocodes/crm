@@ -116,6 +116,12 @@ branch then carries no code, so there is no gate to run ([[DX422]] D2).
 For every **Must be tested** obligation in the charter, write the test(s) that prove it, following
 [[writing-tests]]:
 
+- **Meet the obligation as written.** Where it names a column kind, an operand form or an exact status and code, the
+  test uses that kind, form and code; a weaker substitute (a text column for a timestamp range, a 4xx range for an
+  exact error) is a review finding. If the built-in schema lacks the case (no nullable boolean filter for `is: true`),
+  build the table entry or fixture that has it. [[DX608]] lost its one review round to three such substitutions
+  (608.15 to 608.17).
+
 - Run each new test file alone and see it fail **for the reason the behaviour is missing**, not an import
   error. Commit the red tests, and append the red run's output to `RESULT.md` **at the red commit**.
 - **The red commit comes before any implementation commit, even in a mechanical cycle.** If a test cannot

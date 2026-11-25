@@ -15,7 +15,7 @@ export interface Analysed {
   status: number
   paginated: boolean
   proposable: boolean
-  filters: Record<string, { kind: string; operators: string[] }>
+  filters: Record<string, { kind: string; operators: string[]; max: number }>
 }
 
 type Obj = Record<string, any>
@@ -69,8 +69,17 @@ function analyseOperation(
     fields[p.name] = p.in
     if (p.in === 'query' && p.name === 'after') paginatedQuery = true
     const filter = p['x-vibase-filter']
-    if (p.in === 'query' && isObj(filter) && typeof filter.kind === 'string' && Array.isArray(filter.operators))
-      filters[p.name] = { kind: filter.kind, operators: filter.operators.map(String) }
+    if (p.in === 'query' && isObj(filter) && typeof filter.kind === 'string' && Array.isArray(filter.operators)) {
+      // The cap is the array alternative's maxItems (P1); a document without one allows a single condition.
+      const alternatives = [
+        deref(root, p.schema),
+        ...(Array.isArray(deref(root, p.schema).anyOf) ? deref(root, p.schema).anyOf : []),
+      ]
+      const max = alternatives
+        .map((a) => deref(root, a))
+        .find((a) => a.type === 'array' && typeof a.maxItems === 'number')
+      filters[p.name] = { kind: filter.kind, operators: filter.operators.map(String), max: max ? max.maxItems : 1 }
+    }
   }
 
   let body = false

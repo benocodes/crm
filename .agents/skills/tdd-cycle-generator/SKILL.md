@@ -496,6 +496,11 @@ context. The budget holds; when a cycle generates a large artifact, Watch out sa
 the drift test's first differing line". The fix round came from a spec example never checked against the document
 (`messages.content` is JSON): an operation a charter names as an example of a response shape is checked in the
 document first. From DX603 on, every operation-changing cycle has a rider: `pnpm -C packages/sdk generate` (api-routes).
+**DX608** (`knowledge/specs/038-DX608-sdk-filters-pagination-proposals/RETRO.md`): 6 groups (1 matrix), 4 decisions + 6
+planner rules, no migration, no E2E, the same package as DX603 cycle 1. 155k / 34 calls plus a ~7k test-only round
+(+298 / +535 lines, 19 files), approved round 2. The Watch out "never read the generated files" cut the cost to about
+40% of DX603 cycle 1's at the same Size line: keep it in every charter that regenerates a large artifact. Three gate
+runs (two red on load-sensitive tests outside the cycle, #611) are not cycle cost.
 
 ### Step 3: Resolve identities
 

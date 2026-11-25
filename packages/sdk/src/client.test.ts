@@ -16,11 +16,11 @@ describe('DX603 D5 the call', () => {
     expect(fetch.calls[0].init.method).toBe('GET')
   })
 
-  it('sends a query array as the repeated parameter and drops undefined', async () => {
+  it('sends a filter object as the repeated parameter and drops undefined', async () => {
     const { vibase, fetch } = make()
-    await vibase.tasks.list({ status: ['a', 'b'], limit: 5, tag: undefined })
+    await vibase.tasks.list({ status: { gte: 'a', lte: 'b' }, limit: 5, tag: undefined })
     const url = new URL(fetch.calls[0].url)
-    expect(url.searchParams.getAll('status')).toEqual(['a', 'b'])
+    expect(url.searchParams.getAll('status')).toEqual(['gte.a', 'lte.b'])
     expect(url.searchParams.get('limit')).toBe('5')
     expect(url.searchParams.has('tag')).toBe(false)
     expect(url.pathname).toBe('/api/v1/tasks')

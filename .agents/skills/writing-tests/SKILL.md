@@ -449,7 +449,18 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   a test at a few hundred proves nothing; run the deep case in workerd too (`smoke:worker`), because its stack differs
   ([[CORE571]], `packages/api/src/channels/gmail/mapper.test.ts`, smoke checks X1 to X4). The 50,000-level case is
   load-sensitive: it hit the 30 s timeout at gate load ~8 and passed on rerun ([[AGT588]] gate); treat it as contention
-  (§5), don't raise its timeout.
+  (§5), don't raise its timeout. It and `packages/server-d1/src/form-route.test.ts`'s 60-request per-form window case
+  turned DX608's gate red twice at load 6 to 8 and passed on the third run (#611 tracks making both deterministic).
+  Until then a red gate whose only failures are these two is rerun once; copy the raw failure out of
+  `~/.cache/vibase-gate/latest` before the rerun overwrites it.
+- **A client that serialises a server grammar is checked by the server's parser.** Parse the client's output with the
+  server's own function (the SDK's `in` quoting is parsed back by `parseCondition` from `column-filters.ts`,
+  `packages/sdk/src/filters.test.ts`), or round-trip it through the real app; a test that compares the client's output
+  with a string the same author wrote agrees with its own mistake ([[DX608]]).
+- **A package outside `@vibase/api` reaches the real app on D1 through `@vibase/api/test/api-key`**
+  (`src/test/api-key-kit.ts`): `createApp` over D1 with a control store, an agent with scopes and a real API key the
+  authenticator verifies, so the round trip is authenticated as production is, not by a stubbed principal
+  (`packages/sdk/src/round-trip.integration.d1.test.ts`, [[DX608]] 608.7). Import it only from test files.
 - **Invisible characters in test sources stay as `\u` escapes.** The Edit and Write tools can write `‮` or `​`
   in a TypeScript string as the raw character, leaving a test whose input no reviewer can see. After writing one, grep
   the file for raw characters in D4's ranges (`rg -n '[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}\x{FEFF}]'`)

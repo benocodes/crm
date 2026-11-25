@@ -53,7 +53,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "operation": {
         "kind": "text",
@@ -67,7 +68,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "status": {
         "kind": "text",
@@ -81,7 +83,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "action_request_id": {
         "kind": "uuid",
@@ -90,7 +93,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -98,7 +102,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "authorised_by": {
         "kind": "uuid",
@@ -106,7 +111,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "idempotency_key": {
         "kind": "text",
@@ -121,7 +127,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "error_code": {
         "kind": "text",
@@ -136,7 +143,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "error_message": {
         "kind": "text",
@@ -151,7 +159,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "deadline_at": {
         "kind": "timestamp",
@@ -163,7 +172,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "done_at": {
         "kind": "timestamp",
@@ -176,7 +186,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lte",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -188,7 +199,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -200,7 +212,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -304,7 +317,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "operation": {
         "kind": "text",
@@ -318,7 +332,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -326,7 +341,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "decided_by": {
         "kind": "uuid",
@@ -335,7 +351,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "contact_id": {
         "kind": "uuid",
@@ -344,7 +361,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "thread_id": {
         "kind": "uuid",
@@ -353,7 +371,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "interaction_id": {
         "kind": "uuid",
@@ -362,7 +381,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "dedup_key": {
         "kind": "text",
@@ -377,7 +397,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -385,7 +406,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "reason": {
         "kind": "text",
@@ -399,7 +421,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "expires_at": {
         "kind": "timestamp",
@@ -411,7 +434,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "decided_at": {
         "kind": "timestamp",
@@ -424,7 +448,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lte",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "decision_reason": {
         "kind": "text",
@@ -439,7 +464,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "superseded_by_id": {
         "kind": "uuid",
@@ -448,7 +474,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "error_code": {
         "kind": "text",
@@ -463,7 +490,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "error_message": {
         "kind": "text",
@@ -478,7 +506,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "executed_at": {
         "kind": "timestamp",
@@ -491,7 +520,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lte",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "target_summary": {
         "kind": "text",
@@ -506,7 +536,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -518,7 +549,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -530,7 +562,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -624,7 +657,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "name": {
         "kind": "text",
@@ -638,7 +672,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "disabled_at": {
         "kind": "timestamp",
@@ -651,7 +686,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lte",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -659,7 +695,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -671,7 +708,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -683,7 +721,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "auth_provider": {
         "kind": "text",
@@ -698,7 +737,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "auth_subject": {
         "kind": "text",
@@ -713,7 +753,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "auth_client_id": {
         "kind": "text",
@@ -728,7 +769,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "delegated_by": {
         "kind": "uuid",
@@ -737,7 +779,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -820,7 +863,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -828,7 +872,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "prefix": {
         "kind": "text",
@@ -842,7 +887,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "last_used_at": {
         "kind": "timestamp",
@@ -855,7 +901,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lte",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "revoked_at": {
         "kind": "timestamp",
@@ -868,7 +915,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lte",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "expires_at": {
         "kind": "timestamp",
@@ -881,7 +929,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lte",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -889,7 +938,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -901,7 +951,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -913,7 +964,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -1090,7 +1142,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "value": {
         "kind": "text",
@@ -1104,7 +1157,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -1112,7 +1166,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -1120,7 +1175,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -1132,7 +1188,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -1144,7 +1201,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -1231,7 +1289,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -1239,7 +1298,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "name": {
         "kind": "text",
@@ -1253,7 +1313,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -1261,7 +1322,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -1273,7 +1335,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -1285,7 +1348,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -1389,7 +1453,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "file_id": {
         "kind": "uuid",
@@ -1397,7 +1462,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -1405,7 +1471,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -1413,7 +1480,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -1425,7 +1493,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -1437,7 +1506,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -1518,7 +1588,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "provider": {
         "kind": "text",
@@ -1532,7 +1603,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "account_id": {
         "kind": "text",
@@ -1546,7 +1618,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "identity_id": {
         "kind": "uuid",
@@ -1554,7 +1627,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "owner_id": {
         "kind": "uuid",
@@ -1562,7 +1636,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "status": {
         "kind": "text",
@@ -1576,7 +1651,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "connected_at": {
         "kind": "timestamp",
@@ -1588,21 +1664,24 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "exclude_group_addresses": {
         "kind": "boolean",
         "operators": [
           "eq",
           "neq"
-        ]
+        ],
+        "max": 4
       },
       "exclude_personal_domains": {
         "kind": "boolean",
         "operators": [
           "eq",
           "neq"
-        ]
+        ],
+        "max": 4
       },
       "contact_creation": {
         "kind": "text",
@@ -1616,7 +1695,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -1624,7 +1704,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -1636,7 +1717,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -1648,7 +1730,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -1756,7 +1839,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "file_id": {
         "kind": "uuid",
@@ -1764,7 +1848,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -1772,7 +1857,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -1780,7 +1866,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -1792,7 +1879,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -1804,7 +1892,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -1892,7 +1981,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -1900,7 +1990,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "name": {
         "kind": "text",
@@ -1915,7 +2006,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "merged_into_id": {
         "kind": "uuid",
@@ -1924,7 +2016,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -1932,7 +2025,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -1944,7 +2038,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -1956,7 +2051,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -2044,7 +2140,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "stage_id": {
         "kind": "uuid",
@@ -2052,7 +2149,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "owner_id": {
         "kind": "uuid",
@@ -2061,7 +2159,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -2069,7 +2168,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "currency": {
         "kind": "text",
@@ -2084,7 +2184,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -2092,7 +2193,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "name": {
         "kind": "text",
@@ -2106,7 +2208,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "amount_minor": {
         "kind": "integer",
@@ -2119,7 +2222,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lte",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "expected_close_date": {
         "kind": "text",
@@ -2134,7 +2238,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "closed_at": {
         "kind": "timestamp",
@@ -2147,7 +2252,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lte",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -2159,7 +2265,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -2171,7 +2278,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -2264,7 +2372,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "stage_id": {
         "kind": "uuid",
@@ -2272,7 +2381,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "owner_id": {
         "kind": "uuid",
@@ -2281,7 +2391,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -2289,7 +2400,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "currency": {
         "kind": "text",
@@ -2304,7 +2416,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -2312,7 +2425,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "name": {
         "kind": "text",
@@ -2326,7 +2440,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "amount_minor": {
         "kind": "integer",
@@ -2339,7 +2454,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lte",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "expected_close_date": {
         "kind": "text",
@@ -2354,7 +2470,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "closed_at": {
         "kind": "timestamp",
@@ -2367,7 +2484,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lte",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -2379,7 +2497,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -2391,7 +2510,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -2537,7 +2657,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -2545,7 +2666,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "name": {
         "kind": "text",
@@ -2559,7 +2681,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "mime_type": {
         "kind": "text",
@@ -2573,7 +2696,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "size_bytes": {
         "kind": "integer",
@@ -2585,7 +2709,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -2593,7 +2718,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -2605,7 +2731,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -2693,7 +2820,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "name": {
         "kind": "text",
@@ -2707,7 +2835,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "public_id": {
         "kind": "text",
@@ -2721,14 +2850,16 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "enabled": {
         "kind": "boolean",
         "operators": [
           "eq",
           "neq"
-        ]
+        ],
+        "max": 4
       },
       "email_field": {
         "kind": "text",
@@ -2743,7 +2874,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "phone_field": {
         "kind": "text",
@@ -2758,7 +2890,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "name_field": {
         "kind": "text",
@@ -2773,7 +2906,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "consent_text": {
         "kind": "text",
@@ -2788,7 +2922,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "challenge": {
         "kind": "text",
@@ -2802,7 +2937,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -2810,7 +2946,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -2822,7 +2959,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -2834,7 +2972,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -2942,7 +3081,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "value": {
         "kind": "text",
@@ -2956,7 +3096,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "contact_id": {
         "kind": "uuid",
@@ -2965,7 +3106,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -2973,14 +3115,16 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "own": {
         "kind": "boolean",
         "operators": [
           "eq",
           "neq"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -2988,7 +3132,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -3000,7 +3145,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -3012,7 +3158,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -3100,7 +3247,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "channel": {
         "kind": "text",
@@ -3114,7 +3262,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "direction": {
         "kind": "text",
@@ -3128,7 +3277,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "thread_id": {
         "kind": "uuid",
@@ -3137,7 +3287,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "message_id": {
         "kind": "uuid",
@@ -3146,7 +3297,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -3154,7 +3306,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "occurred_at": {
         "kind": "timestamp",
@@ -3166,7 +3319,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -3174,7 +3328,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -3186,7 +3341,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -3303,7 +3459,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "role": {
         "kind": "text",
@@ -3317,7 +3474,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -3325,7 +3483,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -3333,7 +3492,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -3345,7 +3505,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -3357,7 +3518,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -3438,7 +3600,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "channel": {
         "kind": "text",
@@ -3452,7 +3615,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "kind": {
         "kind": "text",
@@ -3466,7 +3630,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "external_id": {
         "kind": "text",
@@ -3480,7 +3645,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "in_reply_to": {
         "kind": "text",
@@ -3495,7 +3661,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -3503,7 +3670,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "occurred_at": {
         "kind": "timestamp",
@@ -3515,7 +3683,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "preview": {
         "kind": "text",
@@ -3529,7 +3698,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "version": {
         "kind": "integer",
@@ -3541,7 +3711,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "retracted_at": {
         "kind": "timestamp",
@@ -3554,7 +3725,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lte",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -3562,7 +3734,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -3574,7 +3747,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -3672,7 +3846,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -3680,7 +3855,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "title": {
         "kind": "text",
@@ -3695,7 +3871,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "content": {
         "kind": "text",
@@ -3709,7 +3886,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -3721,7 +3899,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -3733,7 +3912,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -3828,7 +4008,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "kind": {
         "kind": "text",
@@ -3842,7 +4023,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -3850,7 +4032,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "name": {
         "kind": "text",
@@ -3864,7 +4047,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "position": {
         "kind": "integer",
@@ -3876,7 +4060,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -3884,7 +4069,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -3896,7 +4082,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -3908,7 +4095,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -4003,7 +4191,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -4011,7 +4200,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -4019,7 +4209,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -4031,7 +4222,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -4043,7 +4235,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -4152,7 +4345,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -4160,7 +4354,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -4168,7 +4363,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "description": {
         "kind": "text",
@@ -4183,7 +4379,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -4195,7 +4392,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -4207,7 +4405,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -4316,7 +4515,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "assignee_id": {
         "kind": "uuid",
@@ -4325,7 +4525,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "neq",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -4333,7 +4534,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "title": {
         "kind": "text",
@@ -4347,7 +4549,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "notes": {
         "kind": "text",
@@ -4362,7 +4565,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "due_at": {
         "kind": "timestamp",
@@ -4375,7 +4579,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lte",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "completed_at": {
         "kind": "timestamp",
@@ -4388,7 +4593,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lte",
           "in",
           "is"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -4396,7 +4602,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -4408,7 +4615,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "updated_at": {
         "kind": "timestamp",
@@ -4420,7 +4628,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
@@ -4504,7 +4713,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "in",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "id": {
         "kind": "uuid",
@@ -4512,7 +4722,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "subject": {
         "kind": "text",
@@ -4527,7 +4738,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "is",
           "like",
           "ilike"
-        ]
+        ],
+        "max": 4
       },
       "created_by": {
         "kind": "uuid",
@@ -4535,7 +4747,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
-        ]
+        ],
+        "max": 4
       },
       "created_at": {
         "kind": "timestamp",
@@ -4547,7 +4760,8 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "lt",
           "lte",
           "in"
-        ]
+        ],
+        "max": 4
       }
     }
   },
