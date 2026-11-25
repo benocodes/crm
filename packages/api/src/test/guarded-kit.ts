@@ -1,4 +1,4 @@
-// Test-only. [[CORE565]] (U3b): the guarded fixture of the adversarial contract. One `extend` applied through the production `applyExtensions` to the four built-ins, each carrying a checked field, a required field with a constant
+// Test-only. [[CORE565]] (U3b): the guarded fixture of the adversarial contract. One `extend` applied through the production `applySchemaFile` to the four built-ins, each carrying a checked field, a required field with a constant
 // default, a unique field and a reference (contacts -> companies; the others -> contacts), plus the check that every guard still holds after a system writer ran.
 import type { D1Like } from '@vibase/storage-d1'
 import type { FieldDeclaration } from '../custom/declaration.js'

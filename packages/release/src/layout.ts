@@ -18,7 +18,7 @@ const SERVER_FIXED = [
   'package.json',
   'release.json',
   'worker/worker.js',
-  'worker/vibase-extensions.schema.json',
+  'worker/vibase.schema.schema.json',
   'wrangler.base.jsonc',
 ]
 /** [[UI246]] D2, [[UI504]] D3: the auth pages the Worker serves from `assets/assets/ui/` (the binding directory is `assets/`, the files sit at their URL path `/assets/ui/…` inside it); a package without one would answer its pages with a 404, so each is required. */
@@ -90,13 +90,13 @@ export function serverProblems(dir: string, version: string): string[] {
       migrations.has(f),
     [...SERVER_FIXED, ...SERVER_UI_ASSETS, ...SERVER_APP_ASSETS],
   )
-  // [[CORE543]] P7: a deploy stages the extensions file as a Text module `vibase-extensions.json` beside the Worker, so the built Worker must import exactly that name (a hashed name is wrangler's default for a bundled build).
+  // [[CORE543]] P7: a deploy stages the schema file as a Text module `vibase.schema.json` beside the Worker, so the built Worker must import exactly that name (a hashed name is wrangler's default for a bundled build).
   const worker = existsSync(join(dir, 'worker', 'worker.js'))
     ? readFileSync(join(dir, 'worker', 'worker.js'), 'utf8')
     : null
-  if (worker !== null && !/(?:from|import)\s*["']\.\/vibase-extensions\.json["']/.test(worker))
+  if (worker !== null && !/(?:from|import)\s*["']\.\/vibase\.schema\.json["']/.test(worker))
     out.push(
-      'worker/worker.js does not import "./vibase-extensions.json" by that exact name (the deploy stages the extensions file under it)',
+      'worker/worker.js does not import "./vibase.schema.json" by that exact name (the deploy stages the schema file under it)',
     )
   const pkg = readJson(join(dir, 'package.json'))
   if (!manifest) out.push('release.json is missing or unreadable')

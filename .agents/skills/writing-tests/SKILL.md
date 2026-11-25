@@ -366,7 +366,7 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   refuse. Comparing a generated schema with its checked-in copy proves the file is current, not what it admits: a
   [[CORE561]] test said the JSON Schema "accepts the sample `extend` file" and only checked equality. The fix
   `safeParse`s the sample (true) and an out-of-set key (false); dropping `extend` from the schema then turned 3
-  tests red (`packages/server-d1/src/extensions-schema.test.ts`).
+  tests red (`packages/server-d1/src/schema-file-json.test.ts`).
 - **An assertion that must hold "in every test" runs on its own, not by a call each test remembers.** Have
   the harness record what each test produced (every run's stdout and stderr, every request) and check it in
   `afterEach`. For example: no issued secret appears in any output. A per-test helper reached 11 of 47 tests;

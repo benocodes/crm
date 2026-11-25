@@ -26,13 +26,22 @@ export const ALLOWED: readonly { file: string; includes: string; reason: string 
     reason: 'Postgres extensions in the parked baseline migration',
   },
   {
-    file: 'packages/storage/src/schema-file-name.test.ts',
-    includes: 'extensions',
-    reason: 'this guard names the word it bans',
+    file: '.agents/skills/db-schema-and-migrations/SKILL.md',
+    includes: 'Extensions available: `pgcrypto`',
+    reason: 'Postgres extensions in the parked Postgres notes',
+  },
+  {
+    file: '.agents/skills/tdd-cycle-generator/SKILL.md',
+    includes: '020-CORE543-redeploy-extensions/RETRO.md',
+    reason: 'the stable folder path of CORE543 (spec folder slugs never change, CORE569 D12)',
   },
 ]
 
+/** This file names the word it bans, so it is the one file the scan skips. */
+const SELF = 'packages/storage/src/schema-file-name.test.ts'
+
 const IN_SCOPE = (p: string) =>
+  p !== SELF &&
   (p.startsWith('packages/') || p.startsWith('.agents/') || p.startsWith('.changeset/') || p === 'AGENTS.md') &&
   !p.endsWith('CHANGELOG.md') &&
   !/(^|\/)(pnpm-lock\.yaml|package-lock\.json)$/.test(p)
@@ -84,7 +93,7 @@ describe('the schema file keeps its name (CORE569 D10)', () => {
   })
 
   it('every allow-list entry still matches a line (no stale exceptions)', () => {
-    for (const a of ALLOWED.filter((x) => !x.file.endsWith('schema-file-name.test.ts'))) {
+    for (const a of ALLOWED) {
       expect(readFileSync(`${ROOT}${a.file}`, 'utf8'), a.file).toContain(a.includes)
     }
   })

@@ -23,23 +23,23 @@ import {
   sameVersionDifferentBuild,
 } from './gate.js'
 import {
-  extensionsGuard,
-  extensionsLine,
-  extensionsMatch,
-  liveExtensionsLine,
-  liveExtensionsOf,
-  loadExtensionsFile,
+  schemaFileGuard,
+  schemaFileLine,
+  schemaFileMatch,
+  liveSchemaFileLine,
+  liveSchemaFileOf,
+  loadSchemaFile,
   planLines,
   planRemote,
   refusalText,
   rowsOf,
   runDigest,
   statementsFile,
-  type ExtensionsRun,
-  type LiveExtensions,
+  type SchemaFileRun,
+  type LiveSchemaFile,
   type RemotePlan,
-} from './extensions.js'
-import { recordExtensions } from './settings.js'
+} from './schema-file.js'
+import { recordSchemaFile } from './settings.js'
 import { isDnsFailure } from './reach.js'
 import { dnsHint, waitLine } from '../setup/verify-better-auth.js'
 import { isRefusal, InstanceRefusal, type InstanceDeps } from './types.js'
@@ -55,7 +55,7 @@ export const VERIFY_INTERVAL_MS = 10_000
 
 export type DeployMode = 'upgrade' | 'redeploy'
 const usageOf = (mode: DeployMode): string =>
-  `usage: vibase-server ${mode} --env <name> [--dry-run] [--yes]${mode === 'redeploy' ? ' [--extensions <path>]' : ''} [--settings <path>] [--secrets-file <path>]`
+  `usage: vibase-server ${mode} --env <name> [--dry-run] [--yes]${mode === 'redeploy' ? ' [--schema <path>]' : ''} [--settings <path>] [--secrets-file <path>]`
 
 /** The exact argument list of the deploy: the release's own version and commit stamped as vars, no bundling. `check.ts` hands the same list to the installed wrangler. */
 export const deployArgs = (version: string, commit: string, configPath: string): string[] => [
@@ -104,7 +104,7 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
       'secrets-file'?: string
       'dry-run'?: boolean
       yes?: boolean
-      extensions?: string
+      schema?: string
     }
     // [[OPS487]] D6: `upgrade --rollback` was replaced by `redeploy`; the flag is named, not left to parseArgs' generic message.
     if (!redeploy && argv.includes('--rollback'))
@@ -121,7 +121,7 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
           'dry-run': { type: 'boolean' },
           yes: { type: 'boolean', short: 'y' },
           // [[CORE543]] D26: only `redeploy` attaches a file; `upgrade` uses the path a redeploy recorded.
-          ...(redeploy ? { extensions: { type: 'string' as const } } : {}),
+          ...(redeploy ? { schema: { type: 'string' as const } } : {}),
         },
       }).values as typeof values
     } catch (e) {
@@ -132,13 +132,12 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
       throw new InstanceRefusal(`--env ${values.env} is not an environment name (lowercase letters, digits and dashes)`)
 
     // [[CORE543]] D26, P3: a file given on the command line is validated before anything is read or called; a recorded one right after the settings are loaded.
-    let extensionsRun: ExtensionsRun | null = values.extensions ? loadExtensionsFile(values.extensions) : null
+    let schemaFileRun: SchemaFileRun | null = values.schema ? loadSchemaFile(values.schema) : null
     const g = await runGate(
       { envName: values.env, settingsPath: values.settings, secretsPath: values['secrets-file'], mode },
       deps,
     )
-    if (extensionsRun === null && g.settings.extensions !== undefined)
-      extensionsRun = loadExtensionsFile(g.settings.extensions)
+    if (schemaFileRun === null && g.settings.schema !== undefined) schemaFileRun = loadSchemaFile(g.settings.schema)
     redact = g.secrets.redact
     const { manifest, settings } = g
     const expected = manifest.migrations.map((m) => m.name)
@@ -153,8 +152,8 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
     for (const l of diffLines(g)) deps.out(l)
 
     // [[CORE543]] D29: refuse before any write when the live Worker has a file this run would drop; the plan names both digests.
-    const guarded = extensionsGuard(g.live.extensions, extensionsRun, mode, settings.env)
-    const extensionsLines = (live: LiveExtensions): string[] => [extensionsLine(live, extensionsRun)]
+    const guarded = schemaFileGuard(g.live.schemaFile, schemaFileRun, mode, settings.env)
+    const schemaFileLines = (live: LiveSchemaFile): string[] => [schemaFileLine(live, schemaFileRun)]
     if (redeploy) {
       if (guarded !== null) throw new InstanceRefusal(guarded)
       deps.out(
@@ -162,7 +161,7 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
       )
       for (const l of pendingLines(g)) deps.out(l)
       if (hasUnknownMigrations(g)) deps.out(ROLLBACK_NOTE)
-      for (const l of extensionsLines(g.live.extensions)) deps.out(l)
+      for (const l of schemaFileLines(g.live.schemaFile)) deps.out(l)
     } else {
       // [[OPS487]] D4: before the nothing-to-do claim and before the question, whatever the migrations' state.
       if (sameVersionDifferentBuild(g)) throw new InstanceRefusal(differentBuildLines(g).join('\n'))
@@ -173,15 +172,15 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
       if (guarded !== null) throw new InstanceRefusal(guarded)
       deps.out(`plan: live ${g.live.version} -> package ${manifest.version}`)
       for (const l of pendingLines(g)) deps.out(l)
-      for (const l of extensionsLines(g.live.extensions)) deps.out(l)
+      for (const l of schemaFileLines(g.live.schemaFile)) deps.out(l)
     }
     // [[CORE543]] D30, P2: the live `__c` schema is read and the apply planned before `--dry-run` returns and before the question, so a refused or violating plan is exit 2 with no remote write.
     let remote: RemotePlan | null = null
-    if (extensionsRun !== null) {
+    if (schemaFileRun !== null) {
       remote = await withGeneratedConfigAsync(
         { packageDir: deps.packageDir, settings, tmpRoot: deps.tmpRoot },
         (configPath) =>
-          planRemote(extensionsRun!.objects, extensionsRun!.extend, (sql) => {
+          planRemote(schemaFileRun!.objects, schemaFileRun!.extend, (sql) => {
             const r = deps.runWrangler(
               ['d1', 'execute', 'DB', '--remote', '--json', '--command', sql, '-c', configPath],
               { cwd: dirname(configPath), env: childEnv(deps, g.secrets) },
@@ -210,7 +209,7 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
     }
 
     // [[CORE543]] P3: the path is recorded after the question and before the first remote write, so a later run (and `upgrade`) attaches the same file.
-    if (values.extensions && extensionsRun !== null) recordExtensions(g.settingsPath, extensionsRun.path)
+    if (values.schema && schemaFileRun !== null) recordSchemaFile(g.settingsPath, schemaFileRun.path)
 
     // From here on the instance may change: a failure is exit 3 and names its step.
     began = true
@@ -218,7 +217,7 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
       deps.runWrangler(args, { cwd: configPath.replace(/[/\\][^/\\]*$/, ''), env: childEnv(deps, g.secrets) })
     const tail = (r: { stdout: string; stderr: string }) => redact((r.stderr.trim() || r.stdout.trim()).slice(-400))
     withGeneratedConfig(
-      { packageDir: deps.packageDir, settings, tmpRoot: deps.tmpRoot, extensions: extensionsRun?.bytes },
+      { packageDir: deps.packageDir, settings, tmpRoot: deps.tmpRoot, schemaFile: schemaFileRun?.bytes },
       (configPath) => {
         // Control first, then CRM ([[OPS275]] D14): each is applied, then its tracker must hold every shipped migration before the next step.
         // `redeploy` ([[OPS487]] D2) touches only a database with something pending, and accepts `ahead` (unknown migrations are left as they are).
@@ -256,7 +255,7 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
         // [[CORE543]] D30: the core migrations never touch a `__c` table, so the planned statements run after them and before the deploy; idempotent DDL, so a failed run is planned again from the live schema.
         if (remote !== null && remote.plan.statements.length > 0) {
           step = 'apply'
-          const file = join(dirname(configPath), 'extensions.sql')
+          const file = join(dirname(configPath), 'schema-file.sql')
           writeFileSync(file, statementsFile(remote.plan.statements))
           const a = wrangler(configPath, ['d1', 'execute', 'DB', '--remote', '--file', file, '-c', configPath])
           if (a.status !== 0)
@@ -274,7 +273,7 @@ async function runDeploy(mode: DeployMode, argv: string[], deps: InstanceDeps): 
     step = 'verify'
     const accept = redeploy ? ['ahead', 'current'] : ['current']
     const seen = await verify(url, manifest.version, accept, deps, undefined, deps.out, manifest.commit, {
-      digest: runDigest(extensionsRun),
+      digest: runDigest(schemaFileRun),
     })
     if (seen !== null)
       throw new StepFailure(
@@ -319,12 +318,12 @@ export async function verify(
   progress?: (line: string) => void,
   /** The package's commit. A `/health` that reports none is judged on the version alone, as before. */
   commit?: string,
-  /** [[CORE543]] P4: the digest this run attached (`null`: none). `/health.extensions` must equal it; absent, the extensions are not judged (`setup`). */
-  extensions?: { digest: string | null },
+  /** [[CORE543]] P4: the digest this run attached (`null`: none). `/health.schema` must equal it; absent, the schema file is not judged (`setup`). */
+  schemaFile?: { digest: string | null },
 ): Promise<string | null> {
   let dnsFailed = false
   const host = new URL(url).host
-  type Seen = { version?: string; migrations?: string; commit?: string; extensions: LiveExtensions }
+  type Seen = { version?: string; migrations?: string; commit?: string; schemaFile: LiveSchemaFile }
   const read = async (): Promise<Seen | null> => {
     dnsFailed = false
     try {
@@ -336,7 +335,7 @@ export async function verify(
       if (res.status !== 200) return null
       const j = (await res.json()) as { version?: unknown; commit?: unknown; migrations?: { status?: unknown } }
       return {
-        extensions: liveExtensionsOf(j),
+        schemaFile: liveSchemaFileOf(j),
         commit: typeof j.commit === 'string' ? j.commit : undefined,
         version: typeof j.version === 'string' ? j.version : undefined,
         migrations: typeof j.migrations?.status === 'string' ? j.migrations.status : undefined,
@@ -349,7 +348,7 @@ export async function verify(
   }
   const ready = (h: Seen | null) =>
     h !== null &&
-    (extensions === undefined || extensionsMatch(h.extensions, extensions.digest)) &&
+    (schemaFile === undefined || schemaFileMatch(h.schemaFile, schemaFile.digest)) &&
     h.version === version &&
     (commit === undefined || h.commit === undefined || sameCommit(h.commit, commit)) &&
     h.migrations !== undefined &&
@@ -368,5 +367,5 @@ export async function verify(
       ? dnsFailed
         ? `no answer (DNS: ${host} does not resolve)`
         : 'no answer'
-      : `version ${h.version ?? '?'}, commit ${h.commit ?? 'none'}, migrations ${h.migrations ?? '?'}${extensions === undefined ? '' : `, ${liveExtensionsLine(h.extensions)}`}`
+      : `version ${h.version ?? '?'}, commit ${h.commit ?? 'none'}, migrations ${h.migrations ?? '?'}${schemaFile === undefined ? '' : `, ${liveSchemaFileLine(h.schemaFile)}`}`
 }

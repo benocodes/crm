@@ -80,7 +80,7 @@ export async function buildRelease(
       cliJs,
       serverJs,
       workerEntry: join(work, 'wout', 'worker.js'),
-      extensionsSchema: join(SERVER_D1, 'vibase-extensions.schema.json'),
+      schemaFileJson: join(SERVER_D1, 'vibase.schema.schema.json'),
       assetsUiDir: join(assets, 'assets', 'ui'),
       assetsAppDir: join(assets, 'assets', 'app'),
       migrationsDir,

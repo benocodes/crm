@@ -32,7 +32,7 @@ const KEYS = [
   'stage',
   'auth',
   'owner_email',
-  'extensions',
+  'schema',
 ]
 /** The full record's closed key list: the keys before OPS501 plus `owner_email`; `stage` and `auth` belong to the init shape alone. */
 const FULL_KEYS = KEYS.filter((k) => k !== 'stage' && k !== 'auth')
@@ -199,11 +199,11 @@ function parseFull(
     if (problem) fail(problem)
     out.owner_email = json.owner_email as string
   }
-  // [[CORE543]] P3: the absolute path `redeploy --extensions` recorded; a later `redeploy` or `upgrade` attaches that file.
-  if (json.extensions !== undefined) {
-    if (typeof json.extensions !== 'string' || !isAbsolute(json.extensions))
-      fail('extensions must be the absolute path of an extensions file')
-    out.extensions = json.extensions as string
+  // [[CORE543]] P3: the absolute path `redeploy --schema` recorded; a later `redeploy` or `upgrade` attaches that file.
+  if (json.schema !== undefined) {
+    if (typeof json.schema !== 'string' || !isAbsolute(json.schema))
+      fail('schema must be the absolute path of a schema file')
+    out.schema = json.schema as string
   }
   return out
 }
@@ -259,14 +259,14 @@ export function writeFileAtomic(path: string, text: string): void {
   }
 }
 
-/** [[CORE543]] P3: records the extensions file's absolute path in an existing settings file (an atomic replace), changing no other key. */
-export function recordExtensions(settingsPath: string, extensionsPath: string): void {
+/** [[CORE543]] P3: records the schema file's absolute path in an existing settings file (an atomic replace), changing no other key. */
+export function recordSchemaFile(settingsPath: string, schemaPath: string): void {
   let json: Record<string, unknown>
   try {
     json = JSON.parse(readFileSync(settingsPath, 'utf8')) as Record<string, unknown>
   } catch {
-    throw new InstanceRefusal(`${settingsPath}: cannot read it to record the extensions path`)
+    throw new InstanceRefusal(`${settingsPath}: cannot read it to record the schema path`)
   }
-  if (json.extensions === extensionsPath) return
-  writeFileAtomic(settingsPath, `${JSON.stringify({ ...json, extensions: extensionsPath }, null, 2)}\n`)
+  if (json.schema === schemaPath) return
+  writeFileAtomic(settingsPath, `${JSON.stringify({ ...json, schema: schemaPath }, null, 2)}\n`)
 }

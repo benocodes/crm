@@ -64,7 +64,7 @@ describe('before the deployment is initialised (D2, D3, D4)', () => {
       version: 'dev',
       commit: 'dev',
       migrations: UNKNOWN_MIGRATIONS,
-      extensions: null, // CORE543 P1: no objects declared
+      schema: null, // CORE543 P1: no objects declared
     })
   })
 
@@ -137,7 +137,7 @@ describe('after bootstrap', () => {
       version: 'dev',
       commit: 'dev',
       migrations: UNKNOWN_MIGRATIONS,
-      extensions: null, // CORE543 P1: no objects declared
+      schema: null, // CORE543 P1: no objects declared
     })
   })
 
@@ -207,7 +207,7 @@ describe('GET /health version (C1)', () => {
       version: 'abc123',
       commit: 'dev',
       migrations: UNKNOWN_MIGRATIONS,
-      extensions: null, // CORE543 P1: no objects declared
+      schema: null, // CORE543 P1: no objects declared
     })
   })
 

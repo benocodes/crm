@@ -1,8 +1,8 @@
 import { waitUntil } from 'cloudflare:workers'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
-import { readExtensions } from './extensions-module.js'
+import { readSchemaFile } from './schema-file-module.js'
 // [[CORE315]] D27, [[CORE543]] P7: the attached file, a Text module a deploy stages beside the Worker (the repo's builds resolve the checked-in empty default).
-import { extensionsText } from './extensions-text.js'
+import { schemaFileText } from './schema-file-text.js'
 
 // One composition per isolate, shared by the `fetch` and `scheduled` handlers and by the `MailSyncWorkflow`'s steps, so the migration state
 // they all consult is read once (see composeD1Worker: only success is cached).
@@ -12,16 +12,16 @@ let worker: ReturnType<typeof composeD1Worker> | undefined
 // [[CORE315]] D12, D28: the file is parsed once with the validator the tooling used; its definitions and extension fields reach every registry the composition builds, and a file that cannot be loaded fails every route but `/health` closed.
 export const workerFor = (env: D1WorkerEnv): ReturnType<typeof composeD1Worker> => {
   if (worker) return worker
-  const extensions = readExtensions(extensionsText)
-  if (extensions.error)
+  const schemaFile = readSchemaFile(schemaFileText)
+  if (schemaFile.error)
     console.error(
-      `[extensions] the attached file is invalid (${extensions.error.rule} at ${extensions.error.path || 'the file'})`,
+      `[schema] the attached file is invalid (${schemaFile.error.rule} at ${schemaFile.error.path || 'the file'})`,
     )
   return (worker = composeD1Worker(env, {
     waitUntil,
-    extensions,
-    ...(extensions.definitions.length > 0 ? { definitions: extensions.definitions } : {}),
+    schemaFile,
+    ...(schemaFile.definitions.length > 0 ? { definitions: schemaFile.definitions } : {}),
     // [[CORE561]] D12: the file's `extend`, the one switch for every registry, the rail, mail sync and form ingress.
-    ...(extensions.extend ? { extend: extensions.extend } : {}),
+    ...(schemaFile.extend ? { extend: schemaFile.extend } : {}),
   }))
 }

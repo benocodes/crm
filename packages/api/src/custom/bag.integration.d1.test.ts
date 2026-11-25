@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { D1Like } from '@vibase/storage-d1'
 import { openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
 import { seedDeployment, seedPrincipal } from '@vibase/storage-d1/test/seed'
-import { applyExtensions, planApply, readLiveSchema } from './apply.js'
+import { applySchemaFile, planApply, readLiveSchema } from './apply.js'
 import { createTableStatements } from './ddl.js'
 import { BAG_KEY, BAG_LIMITS } from '../storage/additional-props.js'
 import { createVibaseRegistry } from '../operations.js'
@@ -91,7 +91,7 @@ describe('the table and apply (D13)', () => {
     expect(plan.statements.filter((s) => s.startsWith('ALTER TABLE'))).toHaveLength(1)
     expect(plan.statements.join('\n')).toContain('additional_props')
     expect(plan.refused).toEqual([])
-    const report = await applyExtensions(d1, { [PROJECTS_KEY]: PROJECTS })
+    const report = await applySchemaFile(d1, { [PROJECTS_KEY]: PROJECTS })
     expect(report.refused).toEqual([])
     const bag = (await columns()).find((c) => c.name === 'additional_props')
     expect(bag).toMatchObject({ type: 'TEXT', notnull: 1, dflt_value: "'{}'" })
@@ -101,13 +101,13 @@ describe('the table and apply (D13)', () => {
     ])
     // its CHECK came with it
     expect(await insert(3, { additional_props: '[]' })).toMatch(/CHECK|constraint/i)
-    const again = await applyExtensions(d1, { [PROJECTS_KEY]: PROJECTS })
+    const again = await applySchemaFile(d1, { [PROJECTS_KEY]: PROJECTS })
     expect(again).toMatchObject({ statements: 0, created: [], added: [], indexed: [], refused: [] })
     expect(planApply({ [PROJECTS_KEY]: PROJECTS }, await readLiveSchema(d1)).statements).toEqual([])
   })
 
   it('the bag is never compared as a declared field: it is not archived, not refused, on a table that has it', async () => {
-    await applyExtensions(d1, { [PROJECTS_KEY]: PROJECTS })
+    await applySchemaFile(d1, { [PROJECTS_KEY]: PROJECTS })
     const plan = planApply({ [PROJECTS_KEY]: PROJECTS }, await readLiveSchema(d1))
     expect(plan.archived).toEqual([])
     expect(plan.refused).toEqual([])

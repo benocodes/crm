@@ -34,10 +34,10 @@ export const INSTANCE_HELP = `vibase-server: manage the Vibase instance this ser
       Exit 0: done, or nothing to do; 2: refused before any change (an older or unknown schema, a newer live version, or the same version
       with a different build: use redeploy); 3: failed after a change began (the instance may be partly upgraded: run status, then upgrade again).
 
-  vibase-server redeploy --env <name> [--dry-run] [--yes] [--extensions <path>] [--settings <path>] [--secrets-file <path>]
+  vibase-server redeploy --env <name> [--dry-run] [--yes] [--schema <path>] [--settings <path>] [--secrets-file <path>]
       Advanced: puts this package's build on the instance, whatever is live (same version, a new build, or an older package: the rollback).
       No version or schema refusal. Applies missing migrations, never reverses one (an older build runs on the newer schema);
-      \`upgrade\` is the normal, guarded path. --extensions <path> applies the file's custom objects and attaches it (the path is recorded for later runs);
+      \`upgrade\` is the normal, guarded path. --schema <path> applies the file's custom objects and attaches it (the path is recorded for later runs);
       a run with no file is refused while the live Worker carries one.
       Exit codes as upgrade.
 

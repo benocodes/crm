@@ -4,7 +4,7 @@ import { seedAgent } from '@vibase/storage-d1/test/seed'
 import { fakeR2Bucket } from '@vibase/api/test/objects'
 import { nodeStreams } from '@vibase/api/test/streams'
 import { readDeployment } from './init-deployment.js'
-import { applyExtensions, type ExtendDeclarations, type Registry } from '@vibase/api'
+import { applySchemaFile, type ExtendDeclarations, type Registry } from '@vibase/api'
 import { bootstrapD1, NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
 // [[CORE559]] P1: the Worker's composition takes the validated `extend` as ONE dependency and hands it to every registry it builds (the app's and the rail's); with it the app serves the extension fields. The entry passes the attached file's `extend` ([[CORE561]]); these tests pass it directly.
@@ -52,7 +52,7 @@ const call = async (wk: ReturnType<typeof worker>, method: string, path: string,
 
 beforeAll(async () => {
   w = await openWorkerD1()
-  const r = await applyExtensions(w.d1, {}, EXTEND)
+  const r = await applySchemaFile(w.d1, {}, EXTEND)
   expect(r.refused).toEqual([])
 })
 afterAll(() => w.dispose())
@@ -136,7 +136,7 @@ describe('a form submission through the composed Worker', () => {
   }
   const ORIGIN = 'https://site.test'
   const submit = async (extend?: ExtendDeclarations) => {
-    const r = await applyExtensions(w.d1, {}, DEFAULTED)
+    const r = await applySchemaFile(w.d1, {}, DEFAULTED)
     expect(r.refused).toEqual([])
     const org = (await readDeployment(w.d1))!.organizationId
     const at = NOW.toISOString()

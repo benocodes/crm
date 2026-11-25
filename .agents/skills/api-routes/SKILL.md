@@ -110,12 +110,12 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     plus `modulesRoot`), not `modules: true` + `scriptPath`: Better Auth's Kysely adapter has an `import(variable)`
     that Miniflare's own module scan refuses (`ERR_MODULE_DYNAMIC_SPEC`), while wrangler and workerd accept it
     ([[CORE243]] D-j; `smoke-worker.ts`, `packages/release/scripts/check.ts`, `@vibase/auth/test`'s `startWorkerd`).
-  - **The extensions file is a `Text` module, `vibase-extensions.json`** ([[CORE315]] D27, [[CORE543]]), imported once
-    by `src/extensions-text.ts` (typed `string`); the repo resolves the checked-in default `src/vibase-extensions.json`.
+  - **the schema file is a `Text` module, `vibase.schema.json`** ([[CORE315]] D27, [[CORE543]]), imported once
+    by `src/schema-file-text.ts` (typed `string`); the repo resolves the checked-in default `src/vibase.schema.json`.
     Wrangler keeps the import's name in a bundled build only with `preserve_file_names: true` (top level of
-    `wrangler.jsonc`; otherwise it emits `<sha>-vibase-extensions.json` and the release layout check refuses it). Every
+    `wrangler.jsonc`; otherwise it emits `<sha>-vibase.schema.json` and the release layout check refuses it). Every
     esbuild bundler of the Worker (the `@vibase/auth/test` harness, `smoke:worker`, the `e2e-*` scripts) loads it with
-    `scripts/extensions-text-plugin.ts`, or esbuild parses it as JSON and the Worker answers `503 extensions_invalid`;
+    `scripts/schema-file-text-plugin.ts`, or esbuild parses it as JSON and the Worker answers `503 schema_invalid`;
     a new bundler of `worker.ts` needs the plugin too. Deploys never touch the package directory: the generated config
     stages `worker.js` and the module in its temp directory with the `Text` rule.
   - **`CONTROL_DB` stays out of operations** ([[CORE259]] D5). Better Auth is composed on `CONTROL_DB` only, through

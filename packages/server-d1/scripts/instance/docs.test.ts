@@ -373,7 +373,7 @@ describe('the docs and help agree with the program on workers.dev (OPS308 D13)',
   it('OPS487 D8: release:check needs both `upgrade --env <name> [--dry-run]` and `redeploy --env <name> [--dry-run]`, and rejects an `upgrade ... [--rollback]` line', () => {
     expect(serverHelpProblems(INSTANCE_HELP)).toEqual([])
     expect(serverHelpProblems(INSTANCE_HELP.replace('vibase-server redeploy --env <name> [--dry-run]', 'x'))).toEqual([
-      'redeploy [--dry-run] [--yes] [--extensions <path>]',
+      'redeploy [--dry-run] [--yes] [--schema <path>]',
     ])
     expect(serverHelpProblems(INSTANCE_HELP.replace('vibase-server upgrade --env <name> [--dry-run]', 'x'))).toEqual([
       'upgrade [--dry-run] [--yes] (no --rollback)',

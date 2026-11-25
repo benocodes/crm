@@ -9,7 +9,7 @@ import { readSweepCounts, sweepCountLines, type SweepCounts } from '../sweep-cou
 import { withGeneratedConfig } from './config.js'
 import { defaultSecretsPath, loadSecrets, type Secrets } from './secrets.js'
 import { defaultSettingsPath, loadSettings } from './settings.js'
-import { liveExtensionsOf, type LiveExtensions } from './extensions.js'
+import { liveSchemaFileOf, type LiveSchemaFile } from './schema-file.js'
 import { InstanceRefusal, type InstanceDeps, type InstanceSettings } from './types.js'
 
 export interface GateOptions {
@@ -25,7 +25,7 @@ export interface GateOutcome {
   manifest: ReleaseManifest
   settings: InstanceSettings
   settingsPath: string
-  live: { version: string; commit: string | null; extensions: LiveExtensions }
+  live: { version: string; commit: string | null; schemaFile: LiveSchemaFile }
   /** `null`: no tracker table. */
   applied: string[] | null
   /** Names in the package not applied yet, in release order. */
@@ -65,7 +65,7 @@ const HEALTH_TIMEOUT_MS = 15_000
 async function readHealth(
   url: string,
   deps: InstanceDeps,
-): Promise<{ version: string; commit: string | null; extensions: LiveExtensions }> {
+): Promise<{ version: string; commit: string | null; schemaFile: LiveSchemaFile }> {
   let res: Response
   try {
     res = await deps.fetch(url, {
@@ -92,8 +92,8 @@ async function readHealth(
       `${url} answered 200 but not with a Vibase health body (no version string): is this the instance's api_host?`,
     )
   const commit = (body as { commit?: unknown }).commit
-  // [[CORE543]] P1: the attached extensions file as the live Worker reports it; an older build has no key, which counts as none.
-  return { version, commit: typeof commit === 'string' ? commit : null, extensions: liveExtensionsOf(body) }
+  // [[CORE543]] P1: the attached schema file as the live Worker reports it; an older build has no key, which counts as none.
+  return { version, commit: typeof commit === 'string' ? commit : null, schemaFile: liveSchemaFileOf(body) }
 }
 
 /** The whole child environment of a wrangler run: no other variable of the process, and the two Cloudflare values from the secrets. */

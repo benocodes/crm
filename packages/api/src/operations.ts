@@ -57,7 +57,7 @@ export function createVibaseRegistry(
     members?: MembersRuntime | null /** [[CORE261]] P1, P5: the audit log's read port; absent or null: `audit.list` answers `501 provider_not_configured`. The registry has it all the same. */
     audit?: AuditRuntime | null /** [[CORE351]] P5: the control-plane store of the four `api_keys.*` operations; absent or null: they answer `501 provider_not_configured`. The registry has them all the same. */
     apiKeys?: ApiKeyStorePort | null /** [[CORE315]] D23: the custom objects' definitions (`defineCustomObject`), registered before the queue's so `action_requests.create` lists their writes. Absent or empty: the registry of every deployment without one. */
-    definitions?: readonly AnyResource[] /** [[CORE559]] P1: the validated `extend` of the extensions file ([[CORE555]]'s validator output): the four built-ins' definitions are built from their declaration plus this, once, and every operation that names one of their records uses the same. Absent or empty: the definitions of a deployment without one. */
+    definitions?: readonly AnyResource[] /** [[CORE559]] P1: the validated `extend` of the schema file ([[CORE555]]'s validator output): the four built-ins' definitions are built from their declaration plus this, once, and every operation that names one of their records uses the same. Absent or empty: the definitions of a deployment without one. */
     extend?: ExtendDeclarations
   } = {},
 ): Registry {

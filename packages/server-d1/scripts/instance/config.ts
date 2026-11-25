@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { parse } from 'jsonc-parser'
 import { RemoteRefusal, resolveTarget } from '../remote.js'
 import { isWorkersDevHost } from '../setup/host.js'
-import { EMPTY_EXTENSIONS, EXTENSIONS_MODULE } from './extensions.js'
+import { EMPTY_SCHEMA_FILE, SCHEMA_FILE_MODULE } from './schema-file.js'
 import type { InstanceSettings } from './types.js'
 
 export interface InstalledPaths {
@@ -59,8 +59,8 @@ export function generateConfig(
     workflows: [{ binding: workflow.binding, name: settings.workflow.name, class_name: workflow.class_name }],
     triggers: { crons: settings.crons ?? top.triggers?.crons ?? [] },
     vars: settings.vars,
-    // [[CORE315]] D27: the extensions file is a Text module staged beside the Worker; `--no-bundle` attaches it by this rule.
-    rules: [{ type: 'Text', globs: [EXTENSIONS_MODULE], fallthrough: true }],
+    // [[CORE315]] D27: the schema file is a Text module staged beside the Worker; `--no-bundle` attaches it by this rule.
+    rules: [{ type: 'Text', globs: [SCHEMA_FILE_MODULE], fallthrough: true }],
   }
 }
 
@@ -70,8 +70,8 @@ interface ConfigOptions {
   tmpRoot: string
   /** `setup` ([[OPS232]]): the config of the calls that exist before the database does (`d1 list`, `d1 create`, `r2 bucket ...`) may carry the placeholder id; the worker name is still checked. */
   resourcesOnly?: boolean
-  /** The bytes of the extensions module the deploy attaches ([[CORE543]] D27); absent, the empty declaration. Staged beside the Worker in the temp directory, never into the package. */
-  extensions?: Uint8Array
+  /** The bytes of the schema module the deploy attaches ([[CORE543]] D27); absent, the empty declaration. Staged beside the Worker in the temp directory, never into the package. */
+  schemaFile?: Uint8Array
 }
 
 function writeConfig(o: ConfigOptions): { dir: string; path: string } {
@@ -80,7 +80,7 @@ function writeConfig(o: ConfigOptions): { dir: string; path: string } {
   try {
     // [[CORE543]] D27: the package's `worker.js` is copied beside the module, because wrangler attaches a Text module from the directory of the Worker and the package's own files are never modified.
     copyFileSync(join(o.packageDir, 'worker', 'worker.js'), join(dir, 'worker.js'))
-    writeFileSync(join(dir, EXTENSIONS_MODULE), o.extensions ?? EMPTY_EXTENSIONS)
+    writeFileSync(join(dir, SCHEMA_FILE_MODULE), o.schemaFile ?? EMPTY_SCHEMA_FILE)
     const config = generateConfig(base, o.settings, {
       worker: join(dir, 'worker.js'),
       assets: join(o.packageDir, 'assets'),

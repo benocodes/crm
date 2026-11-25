@@ -21,8 +21,8 @@ export interface InstanceSettings {
   crons?: string[]
   /** [[OPS501]] D4: the address of the owner invitation, written once when `config:write` creates the record; never added to an existing one. */
   owner_email?: string
-  /** [[CORE543]] P3: the absolute path of the extensions file `redeploy --extensions` recorded; later `redeploy` and `upgrade` runs attach it. */
-  extensions?: string
+  /** [[CORE543]] P3: the absolute path of the schema file `redeploy --schema` recorded; later `redeploy` and `upgrade` runs attach it. */
+  schema?: string
 }
 
 /** [[OPS501]] D1: the file `vibase-server init` writes, marked `stage: "init"`; setup's `config:write` replaces it with the full record. */

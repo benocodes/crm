@@ -9,7 +9,7 @@
       "type": "number",
       "const": 1
     },
-    "objects": {
+    "define": {
       "type": "object",
       "propertyNames": {
         "type": "string"
@@ -117,6 +117,6 @@
       }
     }
   },
-  "required": ["version", "objects"],
+  "required": ["version", "define"],
   "additionalProperties": false
 }

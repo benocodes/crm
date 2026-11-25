@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { execute, uuidv7 } from '@vibase/storage'
-import { ScopeSet, applyExtensions, type ExtendDeclarations } from '@vibase/api'
+import { ScopeSet, applySchemaFile, type ExtendDeclarations } from '@vibase/api'
 import { fakeR2Bucket } from '@vibase/api/test/objects'
 import { FAKE_GOOGLE_ORIGIN, FakeGoogle } from '@vibase/api/test/google'
 import { FakeGmail } from '@vibase/api/test/gmail'
@@ -176,7 +176,7 @@ describe('the composed run (runMailSync)', () => {
     const EXTEND: ExtendDeclarations = {
       contacts: { lvl__c: { kind: 'enum', values: ['a', 'b'], required: true, default: 'a' } },
     }
-    expect((await applyExtensions(w.d1, {}, EXTEND)).refused).toEqual([])
+    expect((await applySchemaFile(w.d1, {}, EXTEND)).refused).toEqual([])
     const afters = async (extend?: ExtendDeclarations) => {
       await w.reset()
       await w.d1.prepare('drop table if exists d1_migrations').run()

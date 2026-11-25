@@ -1,17 +1,17 @@
-// The extensions file as the Worker holds it ([[CORE315]] D12, D28, D29; [[CORE543]]): the Text module `vibase-extensions.json`, parsed once at start with the same validator the tooling used. A valid file becomes the definitions the
+// The schema file as the Worker holds it ([[CORE315]] D12, D28, D29; [[CORE543]]): the Text module `vibase.schema.json`, parsed once at start with the same validator the tooling used. A valid file becomes the definitions the
 // composition hands to every registry it builds; an invalid one fails the Worker closed. Node-safe (no `cloudflare:` import), so a test passes any text.
-import { defineCustomObject, parseExtensionsFile, type AnyResource, type ExtendDeclarations } from '@vibase/api'
+import { defineCustomObject, parseSchemaFile, type AnyResource, type ExtendDeclarations } from '@vibase/api'
 
-export const EXTENSIONS_INVALID_CODE = 'extensions_invalid'
+export const SCHEMA_INVALID_CODE = 'schema_invalid'
 /** The 503 body of every route but `/health` while the attached file cannot be loaded ([[CORE315]] D28). */
-export const EXTENSIONS_INVALID = {
+export const SCHEMA_INVALID = {
   error: {
-    code: EXTENSIONS_INVALID_CODE,
-    message: 'the attached extensions file is invalid: redeploy with a valid one',
+    code: SCHEMA_INVALID_CODE,
+    message: 'the attached schema file is invalid: redeploy with a valid one',
   },
 }
 
-export interface AttachedExtensions {
+export interface AttachedSchemaFile {
   /** The module's text, the bytes the digest is taken over. */
   text: string
   /** Sorted `<key>__c` names; empty when the file declares none or could not be loaded. */
@@ -25,9 +25,9 @@ export interface AttachedExtensions {
   error?: { rule: string; path: string }
 }
 
-export function readExtensions(text: string): AttachedExtensions {
+export function readSchemaFile(text: string): AttachedSchemaFile {
   try {
-    const file = parseExtensionsFile(text)
+    const file = parseSchemaFile(text)
     const keys = Object.keys(file.objects).sort()
     const fields = Object.entries(file.extend ?? {})
       .flatMap(([object, declared]) => Object.keys(declared).map((name) => `${object}.${name}`))
@@ -57,12 +57,12 @@ export async function sha256Hex(text: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-/** What `/health.extensions` says ([[CORE543]] P1, [[CORE561]] P2): `null` when the module declares no objects and extends nothing, else the digest and the names (plus `fields` only when the file extends), or the digest and the error marker. */
-export async function extensionsHealth(
-  a: AttachedExtensions | undefined,
+/** What `/health.schema` says ([[CORE543]] P1, [[CORE561]] P2): `null` when the module declares no objects and extends nothing, else the digest and the names (plus `fields` only when the file extends), or the digest and the error marker. */
+export async function schemaFileHealth(
+  a: AttachedSchemaFile | undefined,
 ): Promise<null | { digest: string; objects: string[]; fields?: string[] } | { digest: string; error: string }> {
   if (a === undefined) return null
-  if (a.error) return { digest: await sha256Hex(a.text), error: EXTENSIONS_INVALID_CODE }
+  if (a.error) return { digest: await sha256Hex(a.text), error: SCHEMA_INVALID_CODE }
   if (a.objects.length === 0 && a.fields.length === 0) return null
   return {
     digest: await sha256Hex(a.text),

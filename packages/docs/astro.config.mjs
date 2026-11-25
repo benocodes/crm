@@ -57,6 +57,7 @@ export default defineConfig({
             { label: 'MCP and REST', slug: 'guides/mcp-and-rest' },
             { label: 'Webhooks', slug: 'guides/webhooks' },
             { label: 'Website forms', slug: 'guides/forms' },
+            { label: 'Custom objects and fields', slug: 'guides/schema' },
           ],
         },
         {

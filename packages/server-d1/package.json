@@ -27,7 +27,7 @@
     "test": "VITEST_MAX_WORKERS=${VITEST_MAX_WORKERS:-4} vitest run --config ../../vitest.config.ts",
     "typecheck": "tsc --noEmit",
     "bootstrap": "tsx scripts/bootstrap.ts",
-    "schema:extensions": "tsx scripts/generate-extensions-schema.ts",
+    "schema:json": "tsx scripts/generate-schema-json.ts",
     "smoke:worker": "tsx scripts/smoke-worker.ts",
     "open:check": "tsx scripts/open-check.ts",
     "setup:remote": "tsx scripts/setup-remote.ts",

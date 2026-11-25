@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { ExtendDeclarations } from '../custom/extend.js'
 import type { ObjectDeclaration } from '../custom/declaration.js'
-import { applyExtensions } from '../custom/apply.js'
+import { applySchemaFile } from '../custom/apply.js'
 import { defineCustomObject } from '../custom/resource.js'
 import { createVibaseRegistry } from '../operations.js'
 import { CONTACT_REFERENCES, CONTACT_REFERENCE_EXEMPTIONS, contactReferencesOf } from './merge.js'
@@ -41,7 +41,7 @@ let k: ActionKit
 let owner: Actor
 beforeAll(async () => {
   k = await openActionKit({ registry: registry() })
-  const r = await applyExtensions(k.d1, OBJECTS, EXTEND)
+  const r = await applySchemaFile(k.d1, OBJECTS, EXTEND)
   if (r.refused.length > 0) throw new Error(JSON.stringify(r.refused))
 })
 afterAll(() => k.close())

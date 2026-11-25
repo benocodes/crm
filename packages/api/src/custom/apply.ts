@@ -11,8 +11,8 @@ import {
 } from './ddl.js'
 import { EXTENSIBLE_OBJECTS, type ExtendDeclarations } from './extend.js'
 
-// Apply ([[CORE315]] D11, D31, D32; [[CORE542]]): makes a D1 database's `__c` tables match the extensions file. Three parts (P1): `readLiveSchema` turns a D1 binding into a plain snapshot, `planApply` is a pure function from
-// (declarations, snapshot) to the plan, and `applyExtensions` runs the plan: the violation reads first, then the DDL as one batch, and nothing at all when anything is refused (P2). The live schema is the only state (P3):
+// Apply ([[CORE315]] D11, D31, D32; [[CORE542]]): makes a D1 database's `__c` tables match the schema file. Three parts (P1): `readLiveSchema` turns a D1 binding into a plain snapshot, `planApply` is a pure function from
+// (declarations, snapshot) to the plan, and `applySchemaFile` runs the plan: the violation reads first, then the DDL as one batch, and nothing at all when anything is refused (P2). The live schema is the only state (P3):
 // nothing is recorded anywhere, and a second run over an applied schema plans nothing. Apply creates and archives only tables whose name ends `__c` (P7); on the four extensible built-ins its only DDL is `ADD COLUMN` and `CREATE INDEX` of `__c` columns ([[CORE555]] P5).
 
 /** The columns every custom table has and apply never compares ([[CORE315]] D19; `additional_props` is [[CORE318]]'s, P7). */
@@ -445,7 +445,7 @@ function planBuiltins(
 }
 
 /** Reads the live schema, plans, runs the violation reads, and (only when nothing is refused) runs the DDL as one batch. */
-export async function applyExtensions(
+export async function applySchemaFile(
   d1: D1Like,
   objects: Record<string, ObjectDeclaration>,
   extend: ExtendDeclarations = {},

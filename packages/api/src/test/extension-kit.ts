@@ -1,7 +1,7 @@
 // Test-only. [[CORE559]]: the extension fields of the four built-ins served through the `extend` seam. A local D1 with the extension columns applied by [[CORE555]]'s apply, the production registry built with the
 // same `extend`, and the prerequisites a record of each resource needs.
 import type { D1Like } from '@vibase/storage-d1'
-import { applyExtensions } from '../custom/apply.js'
+import { applySchemaFile } from '../custom/apply.js'
 import type { ExtendDeclarations } from '../custom/extend.js'
 import type { FieldDeclaration } from '../custom/declaration.js'
 import { createVibaseRegistry } from '../operations.js'
@@ -42,7 +42,7 @@ export const every = (fields: Record<string, FieldDeclaration>): ExtendDeclarati
 })
 
 export async function applyExtend(d1: D1Like, extend: ExtendDeclarations): Promise<void> {
-  const r = await applyExtensions(d1, {}, extend)
+  const r = await applySchemaFile(d1, {}, extend)
   if (r.refused.length > 0) throw new Error(JSON.stringify(r.refused))
 }
 

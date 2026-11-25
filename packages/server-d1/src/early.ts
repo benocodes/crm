@@ -54,29 +54,29 @@ const OBJECT_KEY = /^[a-z][a-z0-9]*(_[a-z0-9]+)*__c$/
 const CUSTOM_ACTIONS = ['read', 'request_approval', 'write'] as const
 
 /**
- * The declared scopes with the attached module's custom scopes ([[CORE543]] P5), sorted as the registry sorts them. The module is read with `JSON.parse` and a name check of the `objects` keys, nothing more: this file imports no
- * validator, so a module that passes here and fails the validator is answered early with scopes the full path would refuse (`503 extensions_invalid`), a gap the authorization still closes. `undefined`: the module cannot be read this way
- * (the request goes the full way, which answers `503 extensions_invalid` for a bad file). No module, or none with objects, is the static list.
+ * The declared scopes with the attached module's custom scopes ([[CORE543]] P5), sorted as the registry sorts them. The module is read with `JSON.parse` and a name check of the `define` keys, nothing more: this file imports no
+ * validator, so a module that passes here and fails the validator is answered early with scopes the full path would refuse (`503 schema_invalid`), a gap the authorization still closes. `undefined`: the module cannot be read this way
+ * (the request goes the full way, which answers `503 schema_invalid` for a bad file). No module, or none with objects, is the static list.
  */
 export function declaredScopesWith(text: string | undefined): readonly string[] | undefined {
   if (text === undefined) return DECLARED_SCOPES
-  let objects: unknown
+  let define: unknown
   try {
-    objects = (JSON.parse(text) as { objects?: unknown } | null)?.objects
+    define = (JSON.parse(text) as { define?: unknown } | null)?.define
   } catch {
     return undefined
   }
-  if (typeof objects !== 'object' || objects === null || Array.isArray(objects)) return undefined
-  const keys = Object.keys(objects)
+  if (typeof define !== 'object' || define === null || Array.isArray(define)) return undefined
+  const keys = Object.keys(define)
   if (keys.some((k) => !OBJECT_KEY.test(k))) return undefined
   if (keys.length === 0) return DECLARED_SCOPES
   return [...DECLARED_SCOPES, ...keys.flatMap((k) => CUSTOM_ACTIONS.map((a) => `${k}:${a}`))].sort()
 }
 
-/** `extensionsText`: the attached `vibase-extensions.json` module's text; its custom scopes join the declared list ([[CORE543]] P5). */
-export function earlyAnswer(req: Request, env: EarlyEnv, extensionsText?: string): Response | undefined {
+/** `schemaFileText`: the attached `vibase.schema.json` module's text; its custom scopes join the declared list ([[CORE543]] P5). */
+export function earlyAnswer(req: Request, env: EarlyEnv, schemaFileText?: string): Response | undefined {
   if (typeof env.AUTH_PROVIDER !== 'string' || env.AUTH_PROVIDER.trim() !== 'better-auth') return undefined
-  const declared = declaredScopesWith(extensionsText)
+  const declared = declaredScopesWith(schemaFileText)
   if (declared === undefined) return undefined
   const baseUrl = baseUrlOf(env.PUBLIC_BASE_URL)
   if (baseUrl === undefined) return undefined

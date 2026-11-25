@@ -1,4 +1,4 @@
-// Test support for the extensions file in `redeploy` and `upgrade` ([[CORE543]]): a fake wrangler that serves `d1 execute --remote --command` and `--file` from a real SQLite (`node:sqlite`, the engine D1 is; the
+// Test support for the schema file in `redeploy` and `upgrade` ([[CORE543]]): a fake wrangler that serves `d1 execute --remote --command` and `--file` from a real SQLite (`node:sqlite`, the engine D1 is; the
 // runner is synchronous, as `spawnSync` is, so Miniflare's asynchronous D1 cannot stand behind it, 543.13), a `/health` that reports what the last deploy staged, and the call log the tests read.
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
@@ -60,7 +60,7 @@ export function treeHash(dir: string): string {
 
 export const sha256 = (b: Uint8Array | string): string => createHash('sha256').update(b).digest('hex')
 
-/** What `/health.extensions` shows: the shapes of [[CORE543]] P1, plus `'absent'` for an older build (no key). */
+/** What `/health.schema` shows: the shapes of [[CORE543]] P1, plus `'absent'` for an older build (no key). */
 export type HealthExt =
   | 'absent'
   | null
@@ -72,7 +72,7 @@ export interface ExtSim {
   d1: D1Like
   crm: string[] | null
   control: string[]
-  /** `/health.extensions` before the deploy. */
+  /** `/health.schema` before the deploy. */
   live: HealthExt
   /** The deploy succeeds but `/health` keeps answering the old build. */
   neverSwitch?: boolean
@@ -122,7 +122,7 @@ export const statementsOf = (text: string): string[] =>
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-export const healthExt = (ext: HealthExt): Record<string, unknown> => (ext === 'absent' ? {} : { extensions: ext })
+export const healthExt = (ext: HealthExt): Record<string, unknown> => (ext === 'absent' ? {} : { schema: ext })
 
 export function extRunner(s: ExtSim): (args: string[]) => RunResult {
   return (args) => {
@@ -164,7 +164,7 @@ export function extRunner(s: ExtSim): (args: string[]) => RunResult {
     if (sub.startsWith('deploy')) {
       const configPath = args[args.indexOf('-c') + 1]!
       const dir = dirname(configPath)
-      const modulePath = join(dir, 'vibase-extensions.json')
+      const modulePath = join(dir, 'vibase.schema.json')
       s.staged = {
         files: readdirSync(dir).sort(),
         module: existsSync(modulePath) ? readFileSync(modulePath, 'utf8') : null,
@@ -179,23 +179,23 @@ export function extRunner(s: ExtSim): (args: string[]) => RunResult {
   }
 }
 
-/** What `/health.extensions` shows once the deploy staged `module` (the Worker's rule, P1). */
+/** What `/health.schema` shows once the deploy staged `module` (the Worker's rule, P1). */
 export function healthOfModule(text: string | null): HealthExt {
   if (text === null) return null
   const digest = sha256(text)
   try {
     const o = JSON.parse(text) as {
-      objects?: Record<string, unknown>
+      define?: Record<string, unknown>
       extend?: Record<string, { fields?: Record<string, unknown> }>
     }
-    const names = Object.keys(o.objects ?? {}).sort()
+    const names = Object.keys(o.define ?? {}).sort()
     const fields = Object.entries(o.extend ?? {})
       .flatMap(([object, d]) => Object.keys(d.fields ?? {}).map((f) => `${object}.${f}`))
       .sort()
     if (names.length === 0 && fields.length === 0) return null
     return { digest, objects: names, ...(fields.length > 0 ? { fields } : {}) }
   } catch {
-    return { digest, error: 'extensions_invalid' }
+    return { digest, error: 'schema_invalid' }
   }
 }
 
@@ -206,7 +206,7 @@ export function extWorld(s: ExtSim, health: Record<string, any>, o: WorldOptions
       const path = new URL(url).pathname
       if (path === '/health') {
         const switched = s.deployed && !s.neverSwitch
-        const { commit: _c, extensions: _e, ...rest } = health
+        const { commit: _c, schema: _e, ...rest } = health
         return json(200, {
           ...rest,
           commit: switched ? PKG_COMMIT : '1111111',
@@ -235,7 +235,7 @@ export function extFile(name: string, content: unknown): string {
 export const ext = {
   a: () => ({
     version: 1,
-    objects: {
+    define: {
       projects__c: {
         label: 'Projects',
         fields: {
@@ -252,9 +252,9 @@ export const ext = {
     const a = ext.a()
     return {
       ...a,
-      objects: {
-        ...a.objects,
-        projects__c: { ...a.objects.projects__c, fields: { ...a.objects.projects__c.fields, note: { kind: 'text' } } },
+      define: {
+        ...a.define,
+        projects__c: { ...a.define.projects__c, fields: { ...a.define.projects__c.fields, note: { kind: 'text' } } },
       },
     }
   },
@@ -263,20 +263,20 @@ export const ext = {
     const a = ext.a()
     return {
       ...a,
-      objects: {
-        ...a.objects,
+      define: {
+        ...a.define,
         projects__c: {
-          ...a.objects.projects__c,
-          fields: { ...a.objects.projects__c.fields, code: { kind: 'integer', unique: true } },
+          ...a.define.projects__c,
+          fields: { ...a.define.projects__c.fields, code: { kind: 'integer', unique: true } },
         },
       },
     }
   },
-  empty: () => ({ version: 1, objects: {} }),
+  empty: () => ({ version: 1, define: {} }),
   /** [[CORE561]]: extension fields on contacts only: an enum with a required default, and a unique text. */
   x: () => ({
     version: 1,
-    objects: {},
+    define: {},
     extend: {
       contacts: {
         fields: {
@@ -299,5 +299,5 @@ export const ext = {
   /** Objects and extend together. */
   ax: () => ({ ...ext.a(), extend: ext.x().extend }),
   /** An extend section with no fields: no file at all in the sense of the deliberate drop. */
-  noFields: () => ({ version: 1, objects: {}, extend: { contacts: { fields: {} } } }),
+  noFields: () => ({ version: 1, define: {}, extend: { contacts: { fields: {} } } }),
 }

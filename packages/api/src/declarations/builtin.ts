@@ -5,7 +5,7 @@ import { additionalPropsInput, additionalPropsRecord } from '../storage/addition
 
 // [[CORE315]] D1, D2, D6, [[CORE554]]: a built-in object declared once. A declaration is plain data plus a little code: the record, create and update
 // schemas, the column filter options, the sorts, the column kinds and the `schema.get` text of the table are all derived from it (the builders below), so
-// they cannot drift apart. `BuiltInField` is a code-only superset of the extensions file's `FieldDeclaration` (P1, row 554.2): everything a file may say a
+// they cannot drift apart. `BuiltInField` is a code-only superset of the schema file's `FieldDeclaration` (P1, row 554.2): everything a file may say a
 // field is, plus the properties only a core field has, which may carry code (D6). The file's validator and its published JSON Schema do not know them.
 // D15: there is no presentation metadata here: no order, view, icon or layout key (a test holds the key set).
 

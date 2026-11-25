@@ -25,7 +25,7 @@ import { fixtures } from './test/fixtures.js'
 import { runContractSuite } from './test/contract.js'
 import { d1Backend } from './test/d1-backend.js'
 import { PROJECTS, PROJECTS_KEY, projectsDefinition } from './test/custom-objects.js'
-import { applyExtensions } from './custom/apply.js'
+import { applySchemaFile } from './custom/apply.js'
 import type { ExtendDeclarations } from './custom/extend.js'
 import { createVibaseRegistry } from './operations.js'
 import { describe, expect, it } from 'vitest'
@@ -41,7 +41,7 @@ const SHAPES: NonNullable<ExtendDeclarations['contacts']> = {
   proj__c: { kind: 'reference', target: PROJECTS_KEY },
 }
 const applyShapes = async (d1: D1Like) => {
-  const r = await applyExtensions(
+  const r = await applySchemaFile(
     d1,
     { [PROJECTS_KEY]: PROJECTS },
     { contacts: SHAPES, companies: SHAPES, deals: SHAPES, tasks: SHAPES },
