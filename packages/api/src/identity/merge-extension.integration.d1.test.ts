@@ -169,6 +169,24 @@ describe('D13, response contract', () => {
   })
 })
 
+describe('D13, response contract over MCP', () => {
+  const rpc = async (method: string, params: unknown = {}) =>
+    (await k.call(owner, 'POST', '/mcp', { jsonrpc: '2.0', id: 1, method, params })).body as any
+  it('contacts_merge declares merge_conflicts in its output schema and returns it in structuredContent', async () => {
+    const tool = ((await rpc('tools/list')).result.tools as any[]).find((t) => t.name === 'contacts_merge')
+    expect(Object.keys(tool.outputSchema.properties)).toContain('merge_conflicts')
+    const survivor = await contact({ name: 'S', note__c: 'a' })
+    const source = await contact({ name: 'S', note__c: 'b' })
+    const res = await rpc('tools/call', {
+      name: 'contacts_merge',
+      arguments: { id: survivor.id, source_id: source.id },
+    })
+    expect(res.result.isError, JSON.stringify(res)).not.toBe(true)
+    const rec = res.result.structuredContent ?? JSON.parse(res.result.content[0].text)
+    expect(rec).toMatchObject({ id: survivor.id, merge_conflicts: [{ field: 'note__c', source_value: 'b' }] })
+  })
+})
+
 describe('D21: references to contacts, merge re-points them', () => {
   type Kind = Exclude<Resource, 'contacts'> | 'custom'
   const KINDS: Kind[] = ['companies', 'deals', 'tasks', 'custom']
