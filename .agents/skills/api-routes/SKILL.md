@@ -790,6 +790,19 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   never build a merge without them. Merge tombstones the source **before** it fills the survivor, so a unique `__c` value
   can move inside one unit (the partial unique index covers live rows only), and nothing else in the unit may write the
   survivor's row before the fill (its stamp guard); that is why `extend.contacts` cannot reference contacts.
+- **A new writer of contacts, companies, deals or tasks joins the adversarial contract** ([[CORE565]]). Any non-test
+  module under `packages/api/src` that writes one of the four tables is found by
+  `src/custom/adversarial-inventory.test.ts`, which looks for:
+  - a literal `insertInto`, `updateTable` or `deleteFrom` on one of the four tables;
+  - a raw `insert into`, `update` or `delete from` on one of them, with the table name quoted;
+  - an `after: { table }` naming one of them;
+  - a write verb on a variable table.
+
+  The test fails until the module is in `COVERED_WRITERS` (`src/test/guarded-kit.ts`), with the suite that runs it on
+  the guarded fixture: the row it creates holds each `__c` default and NULL elsewhere, and a second create through it
+  does not collide. A variable-table writer that cannot touch the four tables goes in `EXCLUDED_DYNAMIC_WRITERS` with
+  the reason. A system writer must never name an extension column (D8). An `extend` field is refused when it is both
+  `unique` and defaulted (`unique_with_default`), since every system-created row would take the default.
 - **Definition mechanisms added for deals and pipelines** ([[CORE130]], `src/resources/deals.ts`, `pipelines.ts`,
   `pipeline-stages.ts`). Reuse them; do not hand-roll a fourth shape:
   - **`createOnly: { field: hint }`** (`src/storage/prepare.ts`): `prepareUpdate` refuses a listed key *before* the strict
