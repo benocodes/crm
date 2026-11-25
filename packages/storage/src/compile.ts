@@ -80,7 +80,7 @@ export const DEFAULT_MAX_SET_SIZE = 100
  * The cap of a cascade's set reads ([[CORE573]] D15): the deletes of a parent and `contacts.merge` read their dependants as one set each, and a holder of
  * `associations:write` sizes those. One `memberOf` JSON parameter keeps each set one statement, so the unit stays atomic.
  */
-export const CASCADE_MAX_SET_SIZE = 5000
+export const CASCADE_MAX_SET_SIZE = 4000
 
 export function queryContext(
   dialect: Dialect,

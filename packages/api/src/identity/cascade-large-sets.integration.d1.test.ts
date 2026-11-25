@@ -5,7 +5,7 @@ import { createApp } from '../rest/app.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
 
-// [[CORE573]] D15: a delete's cascade reads and `contacts.merge`'s reads are bounded by the cascade cap (5,000), not the default 100, on real rows.
+// [[CORE573]] D15: a delete's cascade reads and `contacts.merge`'s reads are bounded by the cascade cap (4,000), not the default 100, on real rows.
 const registry = createVibaseRegistry()
 let e: Engine
 let app: ReturnType<typeof createApp>
