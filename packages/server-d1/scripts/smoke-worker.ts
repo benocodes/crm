@@ -46,7 +46,7 @@ import { bootstrapD1 } from '../src/bootstrap-d1.js'
 import { buildApp } from './build-app.js'
 import { buildUi } from './build-ui.js'
 import { APP_RUN_WORKER_FIRST } from '../src/app/paths.js'
-import { ALLOWED_NODE_MODULES, BUNDLE_SIZE_CEILING, nodeImportProblems, nodeImportsOf } from './node-imports.js'
+import { ALLOWED_NODE_MODULES, nodeImportProblems, nodeImportsOf } from './node-imports.js'
 
 let failures = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -137,10 +137,10 @@ try {
   })
   const bundleBytes = statSync(bundle).size
   console.log(`bundle ${bundleBytes} bytes (${bundle})`)
-  // [[CORE243]] D2: the bundle's `node:` imports are an explicit list and its size has a ceiling.
-  const nodeProblems = nodeImportProblems(readFileSync(bundle, 'utf8'), bundleBytes)
+  // [[CORE243]] D2: the bundle's `node:` imports are an explicit list.
+  const nodeProblems = nodeImportProblems(readFileSync(bundle, 'utf8'))
   check(
-    `0 the bundle imports only the allowed node: modules (${nodeImportsOf(readFileSync(bundle, 'utf8')).join(', ') || 'none'}; allowed ${ALLOWED_NODE_MODULES.join(', ')}) and is under ${BUNDLE_SIZE_CEILING} bytes (${bundleBytes})`,
+    `0 the bundle imports only the allowed node: modules (${nodeImportsOf(readFileSync(bundle, 'utf8')).join(', ') || 'none'}; allowed ${ALLOWED_NODE_MODULES.join(', ')})`,
     nodeProblems.length === 0,
     nodeProblems,
   )

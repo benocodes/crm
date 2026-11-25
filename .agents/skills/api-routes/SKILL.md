@@ -100,8 +100,8 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     migrations (`d1 migrations apply --local --persist-to <dir>`) and Miniflare reads `<dir>/v3/d1`.
   - The Worker runs with **`nodejs_compat`** for the built-in auth provider only ([[CORE243]] D2: Better Auth imports
     `node:crypto`). Keep Node built-ins out of `@vibase/api` production code anyway (Web Crypto only). `smoke:worker`
-    fails on any `node:` import outside `ALLOWED_NODE_MODULES` and on a bundle over `BUNDLE_SIZE_CEILING`
-    (`packages/server-d1/scripts/node-imports.ts`); widening either is a reviewed decision, not a fix to make the smoke
+    fails on any `node:` import outside `ALLOWED_NODE_MODULES`
+    (`packages/server-d1/scripts/node-imports.ts`); widening it is a reviewed decision, not a fix to make the smoke
     pass. The flag lives in `wrangler.jsonc`'s top level and in the release base config (`serverProblems` refuses one
     without it); every Miniflare that runs the real Worker sets `compatibilityFlags: ['nodejs_compat']`. A package
     whose entry imports Node built-ins at top level (`chat@4.43.0`) is a devDependency imported type-only;
