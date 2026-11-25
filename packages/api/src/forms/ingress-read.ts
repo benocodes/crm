@@ -15,6 +15,8 @@ export interface FormIngress {
   phone_field: string | null
   name_field: string | null
   consent_text: string | null
+  /** The visitor check this form requires: `none` skips it, `turnstile` demands a passed Turnstile token. */
+  challenge: 'none' | 'turnstile'
   tag_ids: string[]
 }
 
@@ -40,6 +42,7 @@ export function formIngressRead(
       'forms.phone_field',
       'forms.name_field',
       'forms.consent_text',
+      'forms.challenge',
       sql<string>`(select json_group_array("form_allowed_origins"."origin" order by "form_allowed_origins"."origin") from "form_allowed_origins" where "form_allowed_origins"."form_id" = "forms"."id" and "form_allowed_origins"."organization_id" = "forms"."organization_id")`.as(
         'allowed_origins',
       ),
@@ -70,6 +73,8 @@ export function decodeFormIngress(row: Row | null): FormIngress | null {
     phone_field: orNull(row.phone_field),
     name_field: orNull(row.name_field),
     consent_text: orNull(row.consent_text),
+    // Anything but an explicit 'none' keeps the check (closed on every doubt).
+    challenge: row.challenge === 'none' ? 'none' : 'turnstile',
     tag_ids: list(row.tag_ids),
   }
 }

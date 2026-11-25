@@ -360,6 +360,8 @@ export const CATALOG: Catalog = {
         name_field: "The key of the submitted payload that holds the submitter's name, or null.",
         consent_text:
           'The consent wording the site shows beside the form (1 to 2000 characters), or null; copied onto each submission so a later edit does not rewrite it.',
+        challenge:
+          "The visitor check a submission must pass: 'none' (no check; the honeypot, origin allow-list, blocklist and rate limits still apply) or 'turnstile' (Cloudflare Turnstile). Existing forms keep 'turnstile'; a new form defaults to 'none'.",
       },
     },
     form_allowed_origins: {

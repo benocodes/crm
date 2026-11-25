@@ -43,6 +43,7 @@ async function seedForm(over: Partial<FormIngress> = {}): Promise<FormIngress> {
     phone_field: 'phone',
     name_field: 'name',
     consent_text: null,
+    challenge: 'turnstile',
     tag_ids: [],
     ...over,
   }

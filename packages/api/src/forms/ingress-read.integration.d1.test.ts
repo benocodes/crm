@@ -67,6 +67,7 @@ describe('formIngressRead (D14)', () => {
       email_field: 'email',
       phone_field: 'phone',
       name_field: 'name',
+      challenge: 'turnstile',
       consent_text: 'We store it.',
       tag_ids: [t1, t2].sort(),
     })

@@ -4895,6 +4895,14 @@
                       "description": "Filter by consent_text (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: consent_text=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send consent_text=eq.<value> for a literal."
                     },
                     {
+                      "name": "challenge",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
+                      "indexed": false,
+                      "description": "Filter by challenge (text). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: challenge=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send challenge=eq.<value> for a literal."
+                    },
+                    {
                       "name": "created_by",
                       "custom": false,
                       "kind": "uuid",
@@ -5097,6 +5105,19 @@
                     "label": "Consent text",
                     "description": "The consent wording the site shows beside the form (1 to 2000 characters), or null; copied onto each submission so a later edit does not rewrite it.",
                     "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "challenge",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": "'turnstile'",
+                    "label": "Challenge",
+                    "description": "The visitor check a submission must pass: 'none' (no check; the honeypot, origin allow-list, blocklist and rate limits still apply) or 'turnstile' (Cloudflare Turnstile). Existing forms keep 'turnstile'; a new form defaults to 'none'.",
+                    "values": ["none", "turnstile"],
                     "exposed": true,
                     "references": null
                   }

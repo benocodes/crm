@@ -11,7 +11,7 @@ CLERK_SECRET_KEY=
 AUTH_ROLE_CLAIM=
 # AUTH_CLI_CLIENT_ID=
 CLERK_API_URL=
-# The public form route (CHN432): the Turnstile secret for /f/<public_id>. Without it the route answers 503 challenge_unavailable. This is Cloudflare's always-pass TEST secret: it accepts only the token XXXX.DUMMY.TOKEN.XXXX and
+# The public form route (CHN432): the Turnstile secret for /f/<public_id>, used only by forms whose challenge is turnstile. Without it such a form answers 503 challenge_unavailable. This is Cloudflare's always-pass TEST secret: it accepts only the token XXXX.DUMMY.TOKEN.XXXX and
 # answers hostname example.com, so a form tried locally must allow the origin https://example.com. A deployed instance sets its own secret (`wrangler secret put TURNSTILE_SECRET_KEY`), never this one.
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 # The Vite dev server (pnpm dev, UI489 D6) is a first-party origin of this Worker: the proxy keeps the browser's Origin, so the Worker must trust it (Better Auth).

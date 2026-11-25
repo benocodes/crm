@@ -334,6 +334,8 @@ export interface FormsTable {
   phone_field: string | null
   name_field: string | null
   consent_text: string | null
+  /** The visitor check: `none` or `turnstile` (migration 0027). */
+  challenge: 'none' | 'turnstile'
 }
 /** [[CHN420]] D8: the browser origins a form accepts (written whole by forms.create and forms.update, [[CHN424]]). D1 only. */
 export interface FormAllowedOriginsTable {
@@ -890,6 +892,7 @@ export const COLUMN_KINDS = {
     phone_field: 'text',
     name_field: 'text',
     consent_text: 'text',
+    challenge: 'text',
   },
   form_allowed_origins: {
     id: 'uuid',

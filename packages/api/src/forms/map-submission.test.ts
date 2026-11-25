@@ -21,6 +21,7 @@ const FORM: FormIngress = {
   phone_field: 'phone',
   name_field: 'name',
   consent_text: null,
+  challenge: 'turnstile',
   tag_ids: [],
 }
 const f = (name: string, value: string | string[]): FormAnswer => ({ name, value })
