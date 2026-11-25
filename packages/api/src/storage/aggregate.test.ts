@@ -45,7 +45,7 @@ describe('deals declares its aggregate fields from the kind table (D14, D19)', (
 
 describe('load errors (D13, D15)', () => {
   it('a filter named like an aggregate parameter on an aggregatable list is a load error, for each name', () => {
-    for (const name of ['count', 'sum', 'avg', 'min', 'max']) {
+    for (const name of ['count', 'sum', 'avg', 'min', 'max', 'group_by']) {
       const def = { ...deals, customFilters: { ...deals.customFilters, [name]: tagNameFilter('deals') } }
       expect(() => withAggregate(def as never, { amount_minor: 'currency' }), name).toThrow(
         new RegExp(`"${name}".*filter|filter.*"${name}"`),
