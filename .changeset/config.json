@@ -14,6 +14,7 @@
     "@vibase/db",
     "@vibase/docs",
     "@vibase/release",
+    "@vibase/sdk",
     "@vibase/server-postgres",
     "@vibase/storage",
     "@vibase/storage-d1",

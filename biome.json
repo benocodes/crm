@@ -15,7 +15,8 @@
       "!pnpm-lock.yaml",
       "!.changeset/*.md",
       "!**/*.md",
-      "!packages/db/src/generated"
+      "!packages/db/src/generated",
+      "!packages/sdk/src/generated"
     ]
   },
   "formatter": {

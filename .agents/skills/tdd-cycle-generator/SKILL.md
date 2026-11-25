@@ -489,6 +489,13 @@ review round apart.
 E2E, split at plan time from a 10-decision spec. 207k / 87 calls over a build run and a free gate-fix round (+121 / +404
 lines, 18 files), approved round 0. The budget holds. The gate-fix was a rider named wrong ("OpenAPI goldens"): a cycle
 that changes a query parameter's schema names the wire snapshot, not the goldens, as its rider (writing-tests §1).
+**DX603** cycle 1 (`knowledge/specs/038-DX603-typescript-sdk/RETRO.md`): 6 groups (1 matrix), 8 decisions, no migration,
+no E2E, a new workspace package. ~380k / ~64 calls over a build run and one fix round (+701 / +606 lines, plus 14k
+generated lines), approved round 1. Few calls, many tokens: ~650 KB of generated files and full-suite output filled the
+context. The budget holds; when a cycle generates a large artifact, Watch out says "never read the generated files, quote
+the drift test's first differing line". The fix round came from a spec example never checked against the document
+(`messages.content` is JSON): an operation a charter names as an example of a response shape is checked in the
+document first. From DX603 on, every operation-changing cycle has a rider: `pnpm -C packages/sdk generate` (api-routes).
 
 ### Step 3: Resolve identities
 
