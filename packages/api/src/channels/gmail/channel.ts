@@ -49,7 +49,11 @@ export class GmailChannel implements ChannelPort<GmailConnection> {
         ids[0] !== post.anchor_external_id
       )
         throw new GmailAnchorError()
-      const subject = decodeMimeWords(header(anchor.payload?.headers, 'Subject') ?? '').replace(/[\r\n]+[ \t]*/g, ' ')
+      // [[CORE579]] D23: every C0 control and DEL in the decoded subject (encoded words included) becomes a space, runs collapse, the ends are trimmed.
+      const subject = decodeMimeWords(header(anchor.payload?.headers, 'Subject') ?? '')
+        .replace(/[\x00-\x1f\x7f]/g, ' ')
+        .replace(/ {2,}/g, ' ')
+        .trim()
       fixed = {
         ...post,
         subject,

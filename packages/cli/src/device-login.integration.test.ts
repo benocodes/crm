@@ -87,7 +87,9 @@ describe('who signs in (D14, D17)', () => {
     expect(me.principal.kind).toBe('user')
     expect(me.active_organization.role).toBe('owner')
     expect(me.active_organization.scopes.length).toBeGreaterThan(0)
-    expect(res.stderr).not.toContain('vibase agents update')
+    // no scope-grant hint for the owner (the agent hint), but the CORE579 owner-login warning is there
+    expect(res.stderr).not.toContain('which has no scopes yet')
+    expect(res.stderr).toContain("owner's permissions")
     // the default scopes came from the real protected-resource document: every declared scope
     const asked = new URLSearchParams(s.net.at(kit.issuer.issuer, '/oauth/device_authorization')[0]!.body)
       .get('scope')!

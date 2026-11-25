@@ -193,6 +193,9 @@ describe('operator x kind on deals (D3, D8)', () => {
     )
     expect(await refusal('organization_id=eq.x')).toBe('unknown filter: organization_id')
     expect(await refusal('nonsense=1')).toBe('unknown filter: nonsense')
+    // CORE579 P1: Object.prototype names are unknown filters too, never a 500.
+    for (const k of ['constructor', 'toString', 'hasOwnProperty'])
+      expect(await refusal(`${k}=1`)).toBe(`unknown filter: ${k}`)
   })
 
   it('a repeated parameter is still a 400 and a pattern is limited to 200 characters', async () => {
