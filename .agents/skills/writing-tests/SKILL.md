@@ -447,7 +447,18 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
 - **Untrusted nesting is tested at 5,000 and 50,000 levels**, with the bound pinned on both sides (exactly at it keeps
   structure, one past it flattens or ignores). Node's stack overflows between 1,000 and 2,000 levels of recursion, so
   a test at a few hundred proves nothing; run the deep case in workerd too (`smoke:worker`), because its stack differs
-  ([[CORE571]], `packages/api/src/channels/gmail/mapper.test.ts`, smoke checks X1 to X4).
+  ([[CORE571]], `packages/api/src/channels/gmail/mapper.test.ts`, smoke checks X1 to X4). The 50,000-level case is
+  load-sensitive: it hit the 30 s timeout at gate load ~8 and passed on rerun ([[AGT588]] gate); treat it as contention
+  (§5), don't raise its timeout.
+- **Invisible characters in test sources stay as `\u` escapes.** The Edit and Write tools can write `‮` or `​`
+  in a TypeScript string as the raw character, leaving a test whose input no reviewer can see. After writing one, grep
+  the file for raw characters in D4's ranges (`rg -n '[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}\x{FEFF}]'`)
+  and turn any hit back into an escape ([[AGT588]] red commit).
+- **A guard no path can reach today cannot be proven red through the API.** When an earlier refusal already stops every
+  caller (a reply proposal needs `messages:read` before the summary's `read_metadata` check runs), pin that refusal and
+  the protected value's absence, record the guard as defence in depth with a revisit condition naming the path that
+  would make it reachable, and don't ask for a seam test the code doesn't have ([[AGT588]] 588.36). A reviewer who asks
+  for a new guard checks reachability first.
 
 ## 2. Type-level tests
 
@@ -523,6 +534,8 @@ One program, two engines: the same assertions run on Postgres and D1.
     `WIRE_SNAPSHOT=write pnpm -C packages/api test src/resources/wire-snapshot.rest.integration.d1.test.ts`, explain each
     moved digest by diffing `WIRE_DUMP_DIR=<dir>` dumps from `main` and the branch, keep `errors.json` as committed unless an
     error body changed (the writer emits it unformatted: 3,000 lines of churn), then `pnpm format` ([[CORE556]] gate-fix).
+    A new field on any resource's record moves four digests (OpenAPI, MCP tools, golden, `schema.get`): a charter that adds
+    one names the wire snapshot as a rider, or the gate goes red once ([[AGT588]] gate-fix).
   - A **dormant general mechanism** (kept with no production caller, e.g. the per-type `owner` predicate in the
     event-type map after CORE347) is proven through a test-only registration on the test kit's registry, plus one
     assertion against the real registry that no production entry uses it, so a later caller is a deliberate choice

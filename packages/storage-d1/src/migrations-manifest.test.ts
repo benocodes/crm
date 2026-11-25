@@ -74,6 +74,7 @@ describe('migrations manifest (D5)', () => {
       '0027_form_challenge.sql',
       '0028_content_sha256.sql',
       '0029_reset_content_sha256.sql',
+      '0030_action_request_target_summary.sql',
     ])
   })
   it('catches one edited byte', () => {

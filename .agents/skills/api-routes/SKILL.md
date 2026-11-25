@@ -1201,6 +1201,12 @@ service context enforces it, so scope checks are written once.
     `git grep -nE "request_approval\|write|'request_approval'"`. A filtering copy that misses the action drops the
     scope without any error. Once a scope string is valid grammar but undeclared, it is refused as `unknown scope`,
     not `invalid scope`.
+  - **Text the vault composes from stored rows follows the caller's read scope, value by value.** `request_approval`
+    implies nothing about `read`, so a summary, label or subject that `create` reads from a target record and returns
+    to a proposer is a read of that record: use the stored value only when the proposer holds the target resource's
+    read action (`readActionOf`), else name the record by its id ([[AGT588]] D8, rulings 588.31 and 588.34,
+    `packages/api/src/action-requests/summary.ts`). A spec that interpolates stored values into a response names the
+    scope each value needs.
   - **Every tenant operation that is not a GET declares `proposal`** (`{ eligible: true, target?, alsoRequires? }`
     or `{ eligible: false, reason }`); `Registry.register` refuses one without it, and `proposal.test.ts` pins the
     eligible list. A generated resource that must not be proposed sets `notProposable: '<reason>'` on its

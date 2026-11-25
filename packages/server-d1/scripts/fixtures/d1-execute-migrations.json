@@ -87,6 +87,9 @@
       },
       {
         "name": "0029_reset_content_sha256.sql"
+      },
+      {
+        "name": "0030_action_request_target_summary.sql"
       }
     ],
     "success": true,

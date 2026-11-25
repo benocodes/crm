@@ -63,7 +63,8 @@ test.beforeAll(async ({ browser, request }) => {
   const proposal = await as(request, P.key)('POST', '/api/v1/action-requests', {
     operation: 'tasks.update',
     arguments: { id: taskId, title: 'retitled by approval' },
-    reason: 'the title is wrong',
+    // [[AGT588]] D12: a reason that starts with a right-to-left override and runs past the clamp.
+    reason: `\u202Ethe title is wrong ${'and here is a long explanation. '.repeat(30)}`,
   })
   expect(proposal.status, JSON.stringify(proposal.body)).toBe(201)
   requestId = proposal.body.id
@@ -98,8 +99,31 @@ test('3. signing in with the owner password returns to the app, signed in, with 
   await page.getByRole('button', { name: 'Sign in' }).click()
   await page.waitForURL(`${APP}/`)
   await expect(page.getByText('owner@e2e.test')).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Update task' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: `Update tasks record "T ${stamp}" (fields: title)` })).toBeVisible()
   await expect(page.getByText('the title is wrong')).toBeVisible()
+})
+
+test("3b. the card leads with the vault's summary, names the proposer, labels the clamped reason as the proposer's and shows no U+202E; the API returns the same words", async ({
+  request,
+}) => {
+  const card = page.locator('article.card')
+  await expect(card.locator('.proposer')).toHaveText(`Proposed by agent ui388-p-${stamp}`)
+  const reason = card.locator('.reason')
+  await expect(reason).toContainText("Proposer's reason")
+  await expect(card.locator('.reason-text')).toHaveClass(/clamped/)
+  await expect(reason.getByRole('button', { name: 'Show more' })).toBeVisible()
+  expect(await card.evaluate((el) => el.textContent)).not.toContain('\u202E')
+  // Order: the headline, then the proposer, then the reason.
+  const tops = await card.evaluate((el) =>
+    ['h2', '.proposer', '.reason'].map((sel) => el.querySelector(sel)!.getBoundingClientRect().top),
+  )
+  expect(tops[0]!).toBeLessThan(tops[1]!)
+  expect(tops[1]!).toBeLessThan(tops[2]!)
+  const got = await as(request, P.key)('GET', `/api/v1/action-requests/${requestId}`)
+  expect(got.status, JSON.stringify(got.body)).toBe(200)
+  expect(got.body.target_summary).toBe(`Update tasks record "T ${stamp}" (fields: title)`)
+  expect(got.body.proposer_kind).toBe('agent')
+  expect(got.body.proposer_name).toBe(`ui388-p-${stamp}`)
 })
 
 test('4. approving leaves Pending; read back as P it is no longer pending and the decision is the owner', async ({

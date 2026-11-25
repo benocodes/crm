@@ -37,6 +37,7 @@ import type { PreparedEnv } from '../storage/definition.js'
 import { canonicalId } from '../storage/prepare.js'
 import { splitArguments } from '../mcp/tools.js'
 import { actionRequests, evidenceItem, type ActionRequestRecord } from './definition.js'
+import { summarise } from './summary.js'
 import { readSendBody, requireSendStore, storeSendBody } from '../messaging/send-body.js'
 import { requireReplyRead } from '../messaging/send.js'
 
@@ -276,6 +277,7 @@ function buildCreate(
     : undefined
   const targetId = typeof rawTargetId === 'string' ? rawTargetId.toLowerCase() : null
   const dedupKey = body.dedup_key ?? null
+  const isSend = target.name === 'messages.send'
   const live = (table: 'contacts' | 'threads' | 'interactions' | 'messages', qc: QueryContext, refId: string) => {
     const hasDeleted = table === 'contacts'
     let q = qc.db
@@ -307,13 +309,29 @@ function buildCreate(
       })
       const t = target.proposal?.eligible ? target.proposal.target : undefined
       if (t && targetId) {
+        // [[AGT588]] D8: the same read that proves the target exists also gives the summary its label (no second read of the target).
         let q = qc.db
           .selectFrom(t.table as 'tasks')
-          .select(sql<number>`1`.as('one'))
+          .selectAll()
           .where(sql.ref(`${t.table}.id`) as never, '=', targetId as never)
           .where(sql.ref(`${t.table}.organization_id`) as never, '=', env.organizationId as never)
         if (t.live) q = q.where(sql.ref(`${t.table}.deleted_at`) as never, 'is', null as never)
         reads['ar:target'] = readMaybe(q)
+      }
+      if (isSend) {
+        // [[AGT588]] D8, D10: the summary of a send names the connection's mailbox and a reply's thread subject. Both are plain reads (a missing one is a gap in
+        // the sentence, never a refusal: authorisation of the send is at approval, D11).
+        reads['ar:mailbox'] = readMaybe(
+          sql<Row>`select "identities"."value" as mailbox from "channel_connections" join "identities" on "identities"."id" = "channel_connections"."identity_id" and "identities"."organization_id" = "channel_connections"."organization_id" where "channel_connections"."id" = ${String(body.arguments.connection_id)} and "channel_connections"."organization_id" = ${env.organizationId} and "channel_connections"."deleted_at" is null`.compile(
+            qc.db,
+          ),
+        )
+        if (typeof body.arguments.thread_id === 'string' && body.arguments.mode === 'reply')
+          reads['ar:thread-subject'] = readMaybe(
+            sql<Row>`select "threads"."subject" as subject from "threads" where "threads"."id" = ${body.arguments.thread_id} and "threads"."organization_id" = ${env.organizationId}`.compile(
+              qc.db,
+            ),
+          )
       }
       if (dedupKey !== null) {
         reads['ar:holder'] = readMaybe(
@@ -409,6 +427,28 @@ function buildCreate(
           ),
         )
       }
+      // [[AGT588]] D7, D8, D11: written once, as proposed; building it never fails the create.
+      // The label is the target's stored name: shown only to a proposer who may read that resource, else the record is named by its id (588.31).
+      const mayRead = target.scope !== null && env.scopes.has({ resource: target.scope.resource, action: 'read' })
+      const targetRow = t && mayRead ? found.maybe('ar:target') : null
+      const targetSummary = summarise({
+        operation: target.name,
+        args: body.arguments,
+        paramKeys: Object.keys(targetInput.params),
+        target: targetRow,
+        targetId,
+        ...(isSend
+          ? {
+              send: {
+                mailbox: (found.maybe('ar:mailbox')?.mailbox as string | null | undefined) ?? null,
+                // The thread's subject is message metadata: named only to a proposer who may read it, else the thread's id (588.34).
+                threadSubject: env.scopes.has({ resource: 'messages', action: 'read_metadata' })
+                  ? ((found.maybe('ar:thread-subject')?.subject as string | null | undefined) ?? null)
+                  : null,
+              },
+            }
+          : {}),
+      })
       const row = {
         id,
         organization_id: env.organizationId,
@@ -434,6 +474,7 @@ function buildCreate(
         error_code: null,
         error_message: null,
         executed_at: null,
+        target_summary: targetSummary,
       }
       steps.push(
         step(qc.db.insertInto('action_requests').values(row), steps.length === 0 ? 'first-mutation' : undefined),
