@@ -46,7 +46,21 @@ const STATUS: Record<ConnectError, number> = {
 /** Own addresses of one connection: the profile address plus verified aliases, bounded so the connect unit stays one small batch. */
 export const MAX_OWN_ADDRESSES = 25
 
+/**
+ * [[CORE572]] D8, D9, P2: how the callback binds the browser to the person who started the connect. Named by the composition from the auth provider, never inferred from an absent reader:
+ * `better-auth` refuses unless the request carries a live session of the state's user; `state-only` (clerk, none) trusts the signed state alone, the accepted gap of D9.
+ */
+export type CallbackSession =
+  | {
+      mode: 'better-auth'
+      /** The sign-in subject of the live session on these request headers (Better Auth's own lookup); null: no live session; throws when it cannot say. */
+      read: (headers: Headers) => Promise<string | null>
+    }
+  | { mode: 'state-only' }
+
 export interface CallbackDeps {
+  /** [[CORE572]] P2: required, so a composition that forgets it does not compile. */
+  session: CallbackSession
   /** Null: unconfigured, the route answers 404 ([[CHN5]] D58). */
   config: GmailConfig | null
   endpoints: GoogleEndpoints

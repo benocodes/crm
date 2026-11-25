@@ -10,7 +10,7 @@ import type { Principal, UserAuthenticator } from '../auth/types.js'
 import { createUserAuthenticator } from '../auth/user-authenticator.js'
 import { createProfileCache, createWorkspaceAuthenticator, workspaceRole } from '../auth/workspace-authenticator.js'
 import { SCOPE_POLICY, type Role, type ScopePolicy } from '../auth/roles.js'
-import { googleCallbackHandler } from '../connections/callback.js'
+import { googleCallbackHandler, type CallbackSession } from '../connections/callback.js'
 import type { MailSyncInstances } from '../sync/request.js'
 import { gmailConfigNotice, gmailUnconfigured, type GmailConfig, type PushConfig } from '../connections/config.js'
 import { PUSH_PATH, gmailPushHandler } from '../channels/gmail/push.js'
@@ -49,6 +49,8 @@ import { documentOperation, honoPath, registerSecurityScheme } from './openapi.j
 /** The Gmail surface of an app ([[CHN5]] D58). `config` null is "unconfigured": the callback answers 404 and `connections.authorize` 501. */
 export interface GmailAppOptions {
   config: GmailConfig | null
+  /** [[CORE572]] P2: how the callback binds the browser to the person who started the connect, named by the composition from the auth provider; `createApp` refuses a Gmail surface without it. */
+  session: CallbackSession
   /** From `parseGmailConfig`: the variables that are missing or malformed (named in a startup log line, never their values). */
   problems?: readonly string[]
   /** Google's endpoints; default the real ones. Injected in tests and the workerd smoke. */

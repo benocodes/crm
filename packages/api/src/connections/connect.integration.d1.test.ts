@@ -9,6 +9,7 @@ import { createApp } from '../rest/app.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { FAKE_ENDPOINTS, FAKE_GMAIL_BASE, FakeGoogle, type ConsentOptions, type FakeAccount } from '../test/google.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
+import type { CallbackSession } from './callback.js'
 import { parseGmailConfig } from './config.js'
 import { openToken } from './credentials.js'
 import { connectOperation } from './connect.js'
@@ -53,13 +54,29 @@ let google: FakeGoogle
 let now: Date
 let roles: Map<string, Role | null>
 let roleFailure: boolean
+/** CORE572 D8: the fake Better Auth session store: cookie `sid=<token>` -> the sign-in subject of that session. A token missing from the map is a revoked or unknown session. */
+let sessions: Map<string, string>
+let sessionFailure: boolean
 let policy: ScopePolicy
 let env: Record<string, string | undefined>
 let app: ReturnType<typeof createApp>
 
+/** The session reader the composition builds from Better Auth's own lookup, faked on the request's headers (P4). */
+const readSession = async (headers: Headers): Promise<string | null> => {
+  if (sessionFailure) throw new Error('control database down')
+  const token = /(?:^|;\s*)sid=([^;]+)/.exec(headers.get('cookie') ?? '')?.[1]
+  return token ? (sessions.get(token) ?? null) : null
+}
+const BETTER_AUTH_SESSION = { mode: 'better-auth' as const, read: readSession }
+/** The cookie of the live session a signed-in browser of this user carries (the harness default: every flow is the owner's own browser). */
+const cookieOf = (userId: string) => `sid=s-${userId === e.user2Id ? e.user2Subject : e.userSubject}`
 const buildApp = (
   envVars: Record<string, string | undefined>,
-  over: { roleOf?: (s: string) => Promise<Role | null>; defaultReturnPath?: string } = {},
+  over: {
+    roleOf?: (s: string) => Promise<Role | null>
+    defaultReturnPath?: string
+    session?: CallbackSession
+  } = {},
 ) => {
   const { config, problems } = parseGmailConfig(envVars)
   return createApp({
@@ -74,6 +91,7 @@ const buildApp = (
       fetch: google.fetch,
       gmailBaseUrl: FAKE_GMAIL_BASE,
       policy,
+      session: over.session ?? BETTER_AUTH_SESSION,
       ...(over.defaultReturnPath ? { defaultReturnPath: over.defaultReturnPath } : {}),
       roleOf:
         over.roleOf ??
@@ -101,6 +119,11 @@ beforeEach(async () => {
     ['user_engine_2', 'member'],
   ])
   roleFailure = false
+  sessionFailure = false
+  sessions = new Map([
+    [`s-${e.userSubject}`, e.userSubject],
+    [`s-${e.user2Subject}`, e.user2Subject],
+  ])
   policy = SCOPE_POLICY
   env = { ...ENV }
   app = buildApp(env)
@@ -147,12 +170,15 @@ async function connect(
     consent?: ConsentOptions
     mutateCallback?: (url: URL) => void | Promise<void>
     app?: ReturnType<typeof createApp>
+    /** The browser's Cookie header on the callback; default the state user's own live session. */
+    cookie?: string | null
   } = {},
 ) {
   const { authorize_url } = await authorize(opts.as, opts.app)
   const callback = new URL(await google.consent(authorize_url, account, opts.consent))
   await opts.mutateCallback?.(callback)
-  return (opts.app ?? app).request(callback.toString())
+  const cookie = opts.cookie === undefined ? cookieOf(opts.as ?? e.userId) : opts.cookie
+  return (opts.app ?? app).request(callback.toString(), cookie ? { headers: { cookie } } : {})
 }
 const rows = (table: string) => e.rows(table)
 const snapshot = async () =>
@@ -252,7 +278,7 @@ describe('connect, happy path (one unit, acting as the user)', () => {
     expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:8787/oauth/callback/google')
     // And the callback of the same origin completes the flow (the redirect URI must match at the token endpoint).
     const back = new URL(await google.consent(url.toString(), ANN))
-    expect((await local.request(back.toString())).status).toBe(200)
+    expect((await local.request(back.toString(), { headers: { cookie: cookieOf(e.userId) } })).status).toBe(200)
   })
 
   it('a late statement that fails leaves nothing: no connection, credential, cursor, state row or identity (absence mutation target)', async () => {
@@ -523,7 +549,7 @@ describe('every callback refusal writes nothing and emits nothing (D9, D33, D57)
     const { authorize_url } = await authorize()
     const callback = new URL(await google.consent(authorize_url, ANN, opts.consent))
     await mutate?.(callback)
-    const res = await app.request(callback.toString())
+    const res = await app.request(callback.toString(), { headers: { cookie: cookieOf(e.userId) } })
     const text = await res.text()
     expect(res.status).toBeGreaterThanOrEqual(400)
     expect(text).toContain(`<code>${code}</code>`)
@@ -553,6 +579,7 @@ describe('every callback refusal writes nothing and emits nothing (D9, D33, D57)
         endpoints: FAKE_ENDPOINTS,
         fetch: google.fetch,
         gmailBaseUrl: `${FAKE_GMAIL_BASE}/nope`,
+        session: BETTER_AUTH_SESSION,
         roleOf: async () => 'owner',
       },
     })
@@ -583,11 +610,119 @@ describe('every callback refusal writes nothing and emits nothing (D9, D33, D57)
     expect((await connect()).status).toBe(200)
   })
 
-  it('a user principal with no sign-in link (no role source subject) is not a member', async () => {
+  it('a user principal with no sign-in link (no role source subject) is not a member, where no session is checked (state-only)', async () => {
     const orphan = await e.seedMember('member')
     const before = await snapshot()
-    expect(await (await connect(ANN, { as: orphan.userId })).text()).toContain('<code>not_a_member</code>')
+    const stateOnly = buildApp(env, { session: { mode: 'state-only' } })
+    expect(await (await connect(ANN, { as: orphan.userId, app: stateOnly, cookie: null })).text()).toContain(
+      '<code>not_a_member</code>',
+    )
     expect(await snapshot()).toEqual(before)
+  })
+})
+
+// CORE572 D8, D9, P1-P4: on a Better Auth instance the callback is the browser of the person who started the connect.
+describe('the browser session (CORE572)', () => {
+  const MISMATCH_TEXT =
+    'Sign in to this workspace in this browser as the person who started the connection, then start again.'
+  const refusedWith = async (res: Response, code: string) => {
+    const text = await res.text()
+    expect(text).toContain(`<code>${code}</code>`)
+    return text
+  }
+  const googleCalls = () => google.calls.length
+  const mismatches: Array<[string, () => string | null, (() => Promise<unknown>) | null]> = [
+    ['no cookie at all', () => null, null],
+    ['a live session of another member of the workspace', () => cookieOf(e.user2Id), null],
+    [
+      'a signed-out session (the cookie of a session since revoked)',
+      () => {
+        sessions.delete(`s-${e.userSubject}`)
+        return cookieOf(e.userId)
+      },
+      null,
+    ],
+    ['a cookie that names no session', () => 'sid=forged', null],
+  ]
+  it.each(mismatches)('%s -> session_mismatch/403, nothing written, no Google call', async (_n, cookie) => {
+    const before = await snapshot()
+    const { authorize_url } = await authorize()
+    const callback = new URL(await google.consent(authorize_url, ANN))
+    const calls = googleCalls()
+    const c = cookie()
+    const res = await app.request(callback.toString(), c ? { headers: { cookie: c } } : {})
+    expect(res.status).toBe(403)
+    expect(await refusedWith(res, 'session_mismatch')).toContain(MISMATCH_TEXT)
+    expect(await snapshot()).toEqual(before)
+    expect(googleCalls()).toBe(calls)
+  })
+
+  it('a state user with no auth_subject is session_mismatch even with a live session', async () => {
+    const orphan = await e.seedMember('member')
+    const before = await snapshot()
+    const res = await connect(ANN, { as: orphan.userId, cookie: cookieOf(e.userId) })
+    expect(res.status).toBe(403)
+    await refusedWith(res, 'session_mismatch')
+    expect(await snapshot()).toEqual(before)
+  })
+
+  it('with CONNECT_RETURN_URL set the refusal is the return redirect with error=session_mismatch', async () => {
+    app = buildApp({ ...env, CONNECT_RETURN_URL: 'https://app.example.test/connected' })
+    const res = await connect(ANN, { cookie: null })
+    expect(res.status).toBe(302)
+    expect(new URL(res.headers.get('location')!).searchParams.get('error')).toBe('session_mismatch')
+  })
+
+  it('the owner’s own session still connects (and a state-only composition connects with no cookie)', async () => {
+    expect((await connect()).status).toBe(200)
+    const stateOnly = buildApp(env, { session: { mode: 'state-only' } })
+    expect(
+      (await connect({ ...ANN, sub: 'sub-bob', email: 'bob@example.test' }, { app: stateOnly, cookie: null })).status,
+    ).toBe(200)
+  })
+
+  it('order (P1): a bad state with no session is state_invalid; a valid state denied at Google with no session is session_mismatch', async () => {
+    const bad = await connect(ANN, {
+      cookie: null,
+      mutateCallback: (u) => u.searchParams.set('state', 'garbage'),
+    })
+    await refusedWith(bad, 'state_invalid')
+    const denied = await connect(ANN, { cookie: null, consent: { deny: true } })
+    expect(denied.status).toBe(403)
+    await refusedWith(denied, 'session_mismatch')
+    // And signed in, the same denial is consent_denied: the session step passed.
+    await refusedWith(await connect(ANN, { consent: { deny: true } }), 'consent_denied')
+  })
+
+  it('a session lookup that throws is temporarily_unavailable, retryable, and writes nothing (P4)', async () => {
+    sessionFailure = true
+    const before = await snapshot()
+    const res = await connect()
+    expect(res.status).toBe(503)
+    await refusedWith(res, 'temporarily_unavailable')
+    expect(await snapshot()).toEqual(before)
+    sessionFailure = false
+    expect((await connect()).status).toBe(200)
+  })
+
+  it('a composition that names no session mode fails to build, never falls open (P2)', () => {
+    const { config } = parseGmailConfig(ENV)
+    expect(() =>
+      createApp({
+        storage: () => e.binding,
+        userAuthenticator: fakeUserAuthenticator(),
+        gmail: { config, endpoints: FAKE_ENDPOINTS, fetch: google.fetch, roleOf: async () => 'owner' } as never,
+      }),
+    ).toThrow(/session/)
+  })
+
+  it('logs the code only: no user id, subject, cookie or email', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    await connect(ANN, { cookie: cookieOf(e.user2Id) })
+    const printed = warn.mock.calls.flat().map(String).join('\n')
+    expect(printed).toContain('connect refused: session_mismatch')
+    for (const secret of [e.userId, e.user2Id, e.userSubject, e.user2Subject, 'sid=', ANN.email])
+      expect(printed).not.toContain(secret)
   })
 })
 
