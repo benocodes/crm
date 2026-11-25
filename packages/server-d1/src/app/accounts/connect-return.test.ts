@@ -49,6 +49,16 @@ describe('describeReturn', () => {
   })
 })
 
+describe('session_mismatch (CORE572 P3)', () => {
+  const TEXT = 'Sign in to this workspace in this browser as the person who started the connection, then start again.'
+  it('is in both tables with the one sentence, and /app/accounts?error=session_mismatch shows it once', () => {
+    expect(API_TEXT['session_mismatch']).toBe(TEXT)
+    expect(CONNECT_ERROR_TEXT['session_mismatch']).toBe(TEXT)
+    const { ret } = takeConnectReturn('?error=session_mismatch')
+    expect(describeReturn(ret!, null)).toEqual({ variant: 'error', text: `${TEXT} (session_mismatch)` })
+  })
+})
+
 describe("the app's text table equals @vibase/api's (P2)", () => {
   it('has exactly the same codes and the same sentences', () => {
     expect(CONNECT_ERROR_TEXT).toEqual(API_TEXT)
@@ -57,6 +67,7 @@ describe("the app's text table equals @vibase/api's (P2)", () => {
       'exchange_failed',
       'not_a_member',
       'scope_missing',
+      'session_mismatch',
       'state_invalid',
       'temporarily_unavailable',
     ])

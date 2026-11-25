@@ -62,6 +62,7 @@ const buildApp = (env: Record<string, string | undefined> = { ...ENV, ...PUSH_EN
     clock: () => now,
     newId: () => uuidv7(now),
     gmail: {
+      session: { mode: 'state-only' },
       config,
       push,
       instances,

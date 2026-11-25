@@ -23,6 +23,7 @@ export type ConnectError =
   | 'consent_denied'
   | 'scope_missing'
   | 'not_a_member'
+  | 'session_mismatch'
   | 'exchange_failed'
   | 'temporarily_unavailable'
 
@@ -32,6 +33,8 @@ export const CONNECT_ERROR_TEXT: Record<ConnectError, string> = {
   consent_denied: 'The connection was cancelled at Google. Nothing was connected.',
   scope_missing: 'Gmail access was not granted. Start again and leave the Gmail permission ticked.',
   not_a_member: 'Your account is not allowed to connect a mailbox to this workspace.',
+  session_mismatch:
+    'Sign in to this workspace in this browser as the person who started the connection, then start again.',
   exchange_failed: 'Google did not complete the connection. Start again.',
   temporarily_unavailable: 'The connection could not be completed right now. Try again in a minute.',
 }
@@ -40,13 +43,28 @@ const STATUS: Record<ConnectError, number> = {
   consent_denied: 400,
   scope_missing: 400,
   not_a_member: 403,
+  session_mismatch: 403,
   exchange_failed: 400,
   temporarily_unavailable: 503,
 }
 /** Own addresses of one connection: the profile address plus verified aliases, bounded so the connect unit stays one small batch. */
 export const MAX_OWN_ADDRESSES = 25
 
+/**
+ * [[CORE572]] D8, D9, P2: how the callback binds the browser to the person who started the connect. Named by the composition from the auth provider, never inferred from an absent reader:
+ * `better-auth` refuses unless the request carries a live session of the state's user; `state-only` (clerk, none) trusts the signed state alone, the accepted gap of D9.
+ */
+export type CallbackSession =
+  | {
+      mode: 'better-auth'
+      /** The sign-in subject of the live session on these request headers (Better Auth's own lookup); null: no live session; throws when it cannot say. */
+      read: (headers: Headers) => Promise<string | null>
+    }
+  | { mode: 'state-only' }
+
 export interface CallbackDeps {
+  /** [[CORE572]] P2: required, so a composition that forgets it does not compile. */
+  session: CallbackSession
   /** Null: unconfigured, the route answers 404 ([[CHN5]] D58). */
   config: GmailConfig | null
   endpoints: GoogleEndpoints
@@ -140,6 +158,33 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
     const state = q.get('state')
     const claims = state ? await verifyState(config.stateSecret, state, now.getTime()) : null
     if (!claims) return refuse('state_invalid')
+
+    // [[CORE572]] D8, P1: the state only proves who started the connect, not who is in this browser: a forwarded authorize link would otherwise connect the mailbox of whoever opens it under the sender.
+    // On Better Auth the browser must carry a live session of the state's user; refused before `consent_denied` and before any call to Google, so an unbound browser never spends the code.
+    // D9: on `state-only` (Clerk and `none`) there is no same-origin session to read, so the state alone binds the connect. That gap is accepted and recorded; do not close it here.
+    const binding = storage
+    const organizationId = binding.organizationId
+    let subject: string | null | undefined
+    const stateSubject = async (): Promise<string | null> =>
+      (subject ??= (
+        await execute(
+          binding,
+          { kind: 'tenant', actorId: claims.user_id, organizationId },
+          userSubjectOperation(claims.user_id),
+        )
+      ).value)
+    if (deps.session.mode === 'better-auth') {
+      let sessionSubject: string | null
+      let userSubject: string | null
+      try {
+        sessionSubject = await deps.session.read(c.req.raw.headers)
+        userSubject = sessionSubject === null ? null : await stateSubject()
+      } catch {
+        return refuse('temporarily_unavailable')
+      }
+      if (sessionSubject === null || userSubject === null || sessionSubject !== userSubject)
+        return refuse('session_mismatch')
+    }
     if (q.get('error')) return refuse('consent_denied')
     const code = q.get('code')
     const redirectUri = redirectUriOf(config, url.origin)
@@ -202,24 +247,17 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
     }
 
     // D33: the person must still hold a role that grants connections:write. A lookup that fails is retryable and changes nothing.
-    const binding = storage
-    const organizationId = binding.organizationId
-    let subject: string | null
+    let subjectNow: string | null
     try {
-      subject = (
-        await execute(
-          binding,
-          { kind: 'tenant', actorId: claims.user_id, organizationId },
-          userSubjectOperation(claims.user_id),
-        )
-      ).value
+      subjectNow = await stateSubject()
     } catch {
       return refuse('temporarily_unavailable')
     }
-    if (subject === null || deps.roleOf === null) return refuse('not_a_member')
+    if (subjectNow === null || deps.roleOf === null) return refuse('not_a_member')
+    const subjectForRole: string = subjectNow
     let role: Role | null
     try {
-      role = await deps.roleOf(subject)
+      role = await deps.roleOf(subjectForRole)
     } catch {
       return refuse('temporarily_unavailable')
     }

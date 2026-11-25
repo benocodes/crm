@@ -112,6 +112,7 @@ describe('connections.sync (D43, D75)', () => {
       clock: () => now,
       newId: () => uuidv7(now),
       gmail: {
+        session: { mode: 'state-only' },
         config: over.config === false ? null : config,
         endpoints: FAKE_ENDPOINTS,
         fetch: google.fetch,
@@ -219,6 +220,7 @@ describe('the connect flow requests a sync after its unit commits (D9, D55)', ()
       clock: () => now,
       newId: () => uuidv7(now),
       gmail: {
+        session: { mode: 'state-only' },
         config,
         problems,
         endpoints: FAKE_ENDPOINTS,

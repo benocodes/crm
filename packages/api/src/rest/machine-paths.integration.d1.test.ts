@@ -37,7 +37,13 @@ beforeAll(async () => {
     storage: () => e.binding,
     authAdapter: clerk.adapter,
     newId: () => uuidv7(),
-    gmail: { config, push, fetch: jwksFetch([key]).fetch, instances: { create: async () => undefined } },
+    gmail: {
+      session: { mode: 'state-only' },
+      config,
+      push,
+      fetch: jwksFetch([key]).fetch,
+      instances: { create: async () => undefined },
+    },
   })
 })
 afterAll(async () => {

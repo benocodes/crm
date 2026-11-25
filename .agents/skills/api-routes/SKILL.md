@@ -284,6 +284,17 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     op flag `agents: true`), and memberships are synthesised from the role. `CLERK_AUTHORIZED_PARTIES` is
     optional on D1, because session tokens minted through Clerk's Backend API carry no `azp`. An `azp` that is
     present must still be listed. Bootstrap uses `src/bootstrap-workspace.ts` (no human, attributed to `system`).
+  - **A check that depends on the auth provider is a required, named mode, never an optional dependency**
+    ([[CORE572]] P2). The Gmail callback's browser-session check takes `gmail.session: CallbackSession`
+    (`{ mode: 'better-auth', read }` or `{ mode: 'state-only' }`), required by the type, and `createApp` also throws
+    when a Gmail surface omits it, so a composition (or a JS caller) that forgets the reader fails to build instead of
+    falling open. The composition picks the mode from `AUTH_PROVIDER` in `compose.ts`; prove it through the composed
+    Worker with an absence mutation (pass `state-only` for Better Auth: the cookie-less case must turn red,
+    `packages/server-d1/src/compose-connect-session.test.ts`). A route outside `/auth` reads a Better Auth session only
+    through `AuthService.sessionSubject(headers)` (Better Auth's own `getSession`: cookie name, `__Secure-` prefix,
+    signature, expiry), never a hand-parsed cookie; a lookup that throws is retryable (`temporarily_unavailable`), never
+    "no session". Its premise, the session cookie riding a cross-site top-level redirect, holds only while the cookie
+    is `SameSite=Lax`: the Set-Cookie pin in that test turns red on `strict`.
   - **D1 agent principals** ([[CORE77]], migration `0007`). The workspace adapter returns `kind: 'session' | 'oauth'`;
     an OAuth token is marked by RFC 9068's `typ: at+jwt` header **or** a `client_id` claim (required), verified with
     the session key, no `aud`/`azp` check. Clerk's own scopes are dropped, the rest go through

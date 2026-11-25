@@ -560,6 +560,11 @@ export interface AuthService {
    * `null` when no account has this email. Calls for one address are serialised; the token is returned to the caller only and never stored or logged here.
    */
   issueResetToken(email: string): Promise<{ token: string; expiresAt: Date } | null>
+  /**
+   * [[CORE572]] P4: the user id of the live session these request headers carry, through Better Auth's own session lookup (its cookie name and prefix, signature and expiry); `null` when there is none.
+   * Throws when the lookup cannot answer (the control database unreachable): the caller treats that as retryable, never as "no session".
+   */
+  sessionSubject(headers: Headers): Promise<string | null>
 }
 
 /** The built-in provider for the Worker: build once per isolate; it holds the library's own caches. */
@@ -574,6 +579,10 @@ export function createAuth(db: AuthDatabaseLike, config: AuthRuntimeConfig, opts
       new URL(req.url).pathname === AUTH_SERVER_METADATA_PATH
         ? staticMetadataResponse(config.baseURL, config.vaultScopes ?? [])
         : auth.handler(req),
+    async sessionSubject(headers) {
+      const found = await auth.api.getSession({ headers })
+      return found?.user.id ?? null
+    },
     issueResetToken(email) {
       const key = email.trim().toLowerCase()
       const run = (lanes.get(key) ?? Promise.resolve()).then(async () => {

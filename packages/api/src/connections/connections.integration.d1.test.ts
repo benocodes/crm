@@ -242,6 +242,7 @@ describe('scopes (D20)', () => {
       storage: () => e.binding,
       userAuthenticator: fakeUserAuthenticator(),
       gmail: {
+        session: { mode: 'state-only' },
         config: parseGmailConfig({
           GOOGLE_CLIENT_ID: 'id',
           GOOGLE_CLIENT_SECRET: 's',
@@ -324,6 +325,7 @@ describe('Postgres compiles only (D29): the connection operations and the callba
       storage: coldStorage(),
       userAuthenticator: fakeUserAuthenticator(),
       gmail: {
+        session: { mode: 'state-only' },
         config: parseGmailConfig({
           GOOGLE_CLIENT_ID: 'id',
           GOOGLE_CLIENT_SECRET: 's',
