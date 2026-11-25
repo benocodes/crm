@@ -1,1541 +1,1541 @@
 {
- "contacts create: over-long name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too big: expected string to have <=500 characters"
-   }
+  "contacts create: over-long name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too big: expected string to have <=500 characters"
+      }
+    }
+  },
+  "contacts update: over-long name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too big: expected string to have <=500 characters"
+      }
+    }
+  },
+  "contacts create: empty name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too small: expected string to have >=1 characters"
+      }
+    }
+  },
+  "contacts update: empty name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too small: expected string to have >=1 characters"
+      }
+    }
+  },
+  "contacts create: null name": {
+    "status": 201,
+    "body": {
+      "id": "<uuid>",
+      "organization_id": "<uuid>",
+      "name": null,
+      "company_id": null,
+      "merged_into_id": null,
+      "additional_props": {},
+      "created_by": "<uuid>",
+      "created_at": "2026-11-06T10:00:00.000Z",
+      "updated_at": "2026-11-06T10:00:00.000Z",
+      "last_contacted_at": null,
+      "last_interacted_at": null
+    }
+  },
+  "contacts update: null name": {
+    "status": 200,
+    "body": {
+      "id": "<uuid>",
+      "organization_id": "<uuid>",
+      "name": null,
+      "company_id": null,
+      "merged_into_id": null,
+      "additional_props": {},
+      "created_by": "<uuid>",
+      "created_at": "2026-11-06T10:00:00.000Z",
+      "updated_at": "2026-11-06T10:00:00.000Z",
+      "last_contacted_at": null,
+      "last_interacted_at": null
+    }
+  },
+  "contacts create: number name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received number"
+      }
+    }
+  },
+  "contacts update: number name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received number"
+      }
+    }
+  },
+  "contacts create: unknown key": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"bogus\""
+      }
+    }
+  },
+  "contacts update: unknown key": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"bogus\""
+      }
+    }
+  },
+  "contacts create: id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"id\""
+      }
+    }
+  },
+  "contacts update: id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"id\""
+      }
+    }
+  },
+  "contacts create: organization_id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"organization_id\""
+      }
+    }
+  },
+  "contacts update: organization_id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"organization_id\""
+      }
+    }
+  },
+  "contacts create: created_by": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_by\""
+      }
+    }
+  },
+  "contacts update: created_by": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_by\""
+      }
+    }
+  },
+  "contacts create: created_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_at\""
+      }
+    }
+  },
+  "contacts update: created_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_at\""
+      }
+    }
+  },
+  "contacts create: deleted_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"deleted_at\""
+      }
+    }
+  },
+  "contacts update: deleted_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"deleted_at\""
+      }
+    }
+  },
+  "contacts create: bad bag": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
+      }
+    }
+  },
+  "contacts update: bad bag": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
+      }
+    }
+  },
+  "contacts create: bag not object": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected record, received string"
+      }
+    }
+  },
+  "contacts update: bag not object": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected record, received string"
+      }
+    }
+  },
+  "contacts create: merged_into_id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"merged_into_id\""
+      }
+    }
+  },
+  "contacts update: merged_into_id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"merged_into_id\""
+      }
+    }
+  },
+  "contacts create: company_id not uuid": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid UUID"
+      }
+    }
+  },
+  "contacts update: company_id not uuid": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid UUID"
+      }
+    }
+  },
+  "contacts create: company_id absent": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "invalid_reference",
+        "message": "a referenced record does not exist"
+      }
+    }
+  },
+  "contacts update: company_id absent": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "invalid_reference",
+        "message": "a referenced record does not exist"
+      }
+    }
+  },
+  "contacts create: last_contacted_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"last_contacted_at\""
+      }
+    }
+  },
+  "contacts update: last_contacted_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"last_contacted_at\""
+      }
+    }
+  },
+  "contacts create: status": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"status\""
+      }
+    }
+  },
+  "contacts update: status": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"status\""
+      }
+    }
+  },
+  "contacts create: empty body": {
+    "status": 201,
+    "body": {
+      "id": "<uuid>",
+      "organization_id": "<uuid>",
+      "name": null,
+      "company_id": null,
+      "merged_into_id": null,
+      "additional_props": {},
+      "created_by": "<uuid>",
+      "created_at": "2026-11-06T10:00:00.000Z",
+      "updated_at": "2026-11-06T10:00:00.000Z",
+      "last_contacted_at": null,
+      "last_interacted_at": null
+    }
+  },
+  "contacts list: bad sort and limit": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "limit: Too small: expected number to be >=1"
+      }
+    }
+  },
+  "companies create: over-long name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too big: expected string to have <=500 characters"
+      }
+    }
+  },
+  "companies update: over-long name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too big: expected string to have <=500 characters"
+      }
+    }
+  },
+  "companies create: empty name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too small: expected string to have >=1 characters"
+      }
+    }
+  },
+  "companies update: empty name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too small: expected string to have >=1 characters"
+      }
+    }
+  },
+  "companies create: null name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received null"
+      }
+    }
+  },
+  "companies update: null name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received null"
+      }
+    }
+  },
+  "companies create: number name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received number"
+      }
+    }
+  },
+  "companies update: number name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received number"
+      }
+    }
+  },
+  "companies create: unknown key": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"bogus\""
+      }
+    }
+  },
+  "companies update: unknown key": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"bogus\""
+      }
+    }
+  },
+  "companies create: id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"id\""
+      }
+    }
+  },
+  "companies update: id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"id\""
+      }
+    }
+  },
+  "companies create: organization_id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"organization_id\""
+      }
+    }
+  },
+  "companies update: organization_id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"organization_id\""
+      }
+    }
+  },
+  "companies create: created_by": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_by\""
+      }
+    }
+  },
+  "companies update: created_by": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_by\""
+      }
+    }
+  },
+  "companies create: created_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_at\""
+      }
+    }
+  },
+  "companies update: created_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_at\""
+      }
+    }
+  },
+  "companies create: deleted_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"deleted_at\""
+      }
+    }
+  },
+  "companies update: deleted_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"deleted_at\""
+      }
+    }
+  },
+  "companies create: bad bag": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
+      }
+    }
+  },
+  "companies update: bad bag": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
+      }
+    }
+  },
+  "companies create: bag not object": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected record, received string"
+      }
+    }
+  },
+  "companies update: bag not object": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected record, received string"
+      }
+    }
+  },
+  "companies create: domain long": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too big: expected string to have <=253 characters"
+      }
+    }
+  },
+  "companies update: domain long": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too big: expected string to have <=253 characters"
+      }
+    }
+  },
+  "companies create: domain number": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received number"
+      }
+    }
+  },
+  "companies update: domain number": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received number"
+      }
+    }
+  },
+  "companies create: domain taken": {
+    "status": 409,
+    "body": {
+      "error": {
+        "code": "domain_exists",
+        "message": "a company with domain a.example already exists (<uuid>)"
+      }
+    }
+  },
+  "companies update: domain taken": {
+    "status": 200,
+    "body": {
+      "id": "<uuid>",
+      "organization_id": "<uuid>",
+      "name": "N",
+      "domain": "a.example",
+      "additional_props": {},
+      "created_by": "<uuid>",
+      "created_at": "2026-11-06T10:00:00.000Z",
+      "updated_at": "2026-11-06T10:00:00.000Z"
+    }
+  },
+  "companies create: empty body": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received undefined"
+      }
+    }
+  },
+  "companies list: bad sort and limit": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "limit: Too small: expected number to be >=1"
+      }
+    }
+  },
+  "deals create: over-long name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too big: expected string to have <=200 characters"
+      }
+    }
+  },
+  "deals update: over-long name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too big: expected string to have <=200 characters"
+      }
+    }
+  },
+  "deals create: empty name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too small: expected string to have >=1 characters"
+      }
+    }
+  },
+  "deals update: empty name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too small: expected string to have >=1 characters"
+      }
+    }
+  },
+  "deals create: null name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received null"
+      }
+    }
+  },
+  "deals update: null name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received null"
+      }
+    }
+  },
+  "deals create: number name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received number"
+      }
+    }
+  },
+  "deals update: number name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received number"
+      }
+    }
+  },
+  "deals create: unknown key": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"bogus\""
+      }
+    }
+  },
+  "deals update: unknown key": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"bogus\""
+      }
+    }
+  },
+  "deals create: id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"id\""
+      }
+    }
+  },
+  "deals update: id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"id\""
+      }
+    }
+  },
+  "deals create: organization_id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"organization_id\""
+      }
+    }
+  },
+  "deals update: organization_id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"organization_id\""
+      }
+    }
+  },
+  "deals create: created_by": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_by\""
+      }
+    }
+  },
+  "deals update: created_by": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_by\""
+      }
+    }
+  },
+  "deals create: created_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_at\""
+      }
+    }
+  },
+  "deals update: created_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_at\""
+      }
+    }
+  },
+  "deals create: deleted_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"deleted_at\""
+      }
+    }
+  },
+  "deals update: deleted_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"deleted_at\""
+      }
+    }
+  },
+  "deals create: bad bag": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
+      }
+    }
+  },
+  "deals update: bad bag": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
+      }
+    }
+  },
+  "deals create: bag not object": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected record, received string"
+      }
+    }
+  },
+  "deals update: bag not object": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected record, received string"
+      }
+    }
+  },
+  "deals create: bad currency": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "currency must be a three letter ISO 4217 code"
+      }
+    }
+  },
+  "deals update: bad currency": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "currency must be a three letter ISO 4217 code"
+      }
+    }
+  },
+  "deals create: currency digits": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "currency must be a three letter ISO 4217 code"
+      }
+    }
+  },
+  "deals update: currency digits": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "currency must be a three letter ISO 4217 code"
+      }
+    }
+  },
+  "deals create: amount without currency": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "an amount needs a currency: send currency with amount_minor"
+      }
+    }
+  },
+  "deals update: amount without currency": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "an amount needs a currency: send currency with amount_minor"
+      }
+    }
+  },
+  "deals create: negative amount": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too small: expected number to be >=0"
+      }
+    }
+  },
+  "deals update: negative amount": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too small: expected number to be >=0"
+      }
+    }
+  },
+  "deals create: fractional amount": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected int, received number"
+      }
+    }
+  },
+  "deals update: fractional amount": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected int, received number"
+      }
+    }
+  },
+  "deals create: huge amount": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too big: expected int to be <=9007199254740991; Too big: expected number to be <=9007199254740991"
+      }
+    }
+  },
+  "deals update: huge amount": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too big: expected int to be <=9007199254740991; Too big: expected number to be <=9007199254740991"
+      }
+    }
+  },
+  "deals create: bad date": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid ISO date"
+      }
+    }
+  },
+  "deals update: bad date": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid ISO date"
+      }
+    }
+  },
+  "deals create: datetime date": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid ISO date"
+      }
+    }
+  },
+  "deals update: datetime date": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid ISO date"
+      }
+    }
+  },
+  "deals create: owner not uuid": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid UUID"
+      }
+    }
+  },
+  "deals update: owner not uuid": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid UUID"
+      }
+    }
+  },
+  "deals create: owner absent": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "invalid_reference",
+        "message": "a referenced record does not exist"
+      }
+    }
+  },
+  "deals update: owner absent": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "invalid_reference",
+        "message": "a referenced record does not exist"
+      }
+    }
+  },
+  "deals create: stage_id": {
+    "status": 201,
+    "body": {
+      "id": "<uuid>",
+      "organization_id": "<uuid>",
+      "name": "N",
+      "pipeline_id": "<uuid>",
+      "stage_id": "<uuid>",
+      "status": "open",
+      "amount_minor": null,
+      "currency": null,
+      "expected_close_date": null,
+      "owner_id": null,
+      "closed_at": null,
+      "additional_props": {},
+      "created_by": "<uuid>",
+      "created_at": "2026-11-06T10:00:00.000Z",
+      "updated_at": "2026-11-06T10:00:00.000Z"
+    }
+  },
+  "deals update: stage_id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "stage_id cannot be changed after creation; use deals.move_stage to change the stage"
+      }
+    }
+  },
+  "deals create: stage_id bad": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid UUID"
+      }
+    }
+  },
+  "deals update: stage_id bad": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "stage_id cannot be changed after creation; use deals.move_stage to change the stage"
+      }
+    }
+  },
+  "deals create: pipeline_id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"pipeline_id\""
+      }
+    }
+  },
+  "deals update: pipeline_id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "pipeline_id cannot be changed after creation; a deal moves between stages of its pipeline with deals.move_stage"
+      }
+    }
+  },
+  "deals create: closed_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"closed_at\""
+      }
+    }
+  },
+  "deals update: closed_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"closed_at\""
+      }
+    }
+  },
+  "deals create: status": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"status\""
+      }
+    }
+  },
+  "deals update: status": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"status\""
+      }
+    }
+  },
+  "deals create: empty body": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received undefined; Invalid input: expected string, received undefined"
+      }
+    }
+  },
+  "deals list: bad sort and limit": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "limit: Too small: expected number to be >=1"
+      }
+    }
+  },
+  "tasks create: over-long name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too big: expected string to have <=500 characters"
+      }
+    }
+  },
+  "tasks update: over-long name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too big: expected string to have <=500 characters"
+      }
+    }
+  },
+  "tasks create: empty name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too small: expected string to have >=1 characters"
+      }
+    }
+  },
+  "tasks update: empty name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too small: expected string to have >=1 characters"
+      }
+    }
+  },
+  "tasks create: null name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received null"
+      }
+    }
+  },
+  "tasks update: null name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received null"
+      }
+    }
+  },
+  "tasks create: number name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received number"
+      }
+    }
+  },
+  "tasks update: number name": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received number"
+      }
+    }
+  },
+  "tasks create: unknown key": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"bogus\""
+      }
+    }
+  },
+  "tasks update: unknown key": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"bogus\""
+      }
+    }
+  },
+  "tasks create: id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"id\""
+      }
+    }
+  },
+  "tasks update: id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"id\""
+      }
+    }
+  },
+  "tasks create: organization_id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"organization_id\""
+      }
+    }
+  },
+  "tasks update: organization_id": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"organization_id\""
+      }
+    }
+  },
+  "tasks create: created_by": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_by\""
+      }
+    }
+  },
+  "tasks update: created_by": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_by\""
+      }
+    }
+  },
+  "tasks create: created_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_at\""
+      }
+    }
+  },
+  "tasks update: created_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"created_at\""
+      }
+    }
+  },
+  "tasks create: deleted_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"deleted_at\""
+      }
+    }
+  },
+  "tasks update: deleted_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"deleted_at\""
+      }
+    }
+  },
+  "tasks create: bad bag": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
+      }
+    }
+  },
+  "tasks update: bad bag": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
+      }
+    }
+  },
+  "tasks create: bag not object": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected record, received string"
+      }
+    }
+  },
+  "tasks update: bag not object": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected record, received string"
+      }
+    }
+  },
+  "tasks create: status out of enum": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid option: expected one of \"open\"|\"done\""
+      }
+    }
+  },
+  "tasks update: status out of enum": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid option: expected one of \"open\"|\"done\""
+      }
+    }
+  },
+  "tasks create: status won": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid option: expected one of \"open\"|\"done\""
+      }
+    }
+  },
+  "tasks update: status won": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid option: expected one of \"open\"|\"done\""
+      }
+    }
+  },
+  "tasks create: notes long": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too big: expected string to have <=10000 characters"
+      }
+    }
+  },
+  "tasks update: notes long": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Too big: expected string to have <=10000 characters"
+      }
+    }
+  },
+  "tasks create: due_at bad": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid ISO datetime"
+      }
+    }
+  },
+  "tasks update: due_at bad": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid ISO datetime"
+      }
+    }
+  },
+  "tasks create: due_at no offset": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid ISO datetime"
+      }
+    }
+  },
+  "tasks update: due_at no offset": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid ISO datetime"
+      }
+    }
+  },
+  "tasks create: assignee not uuid": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid UUID"
+      }
+    }
+  },
+  "tasks update: assignee not uuid": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid UUID"
+      }
+    }
+  },
+  "tasks create: assignee absent": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "invalid_reference",
+        "message": "a referenced record does not exist"
+      }
+    }
+  },
+  "tasks update: assignee absent": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "invalid_reference",
+        "message": "a referenced record does not exist"
+      }
+    }
+  },
+  "tasks create: completed_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"completed_at\""
+      }
+    }
+  },
+  "tasks update: completed_at": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Unrecognized key: \"completed_at\""
+      }
+    }
+  },
+  "tasks create: empty body": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid input: expected string, received undefined"
+      }
+    }
+  },
+  "tasks list: bad sort and limit": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "limit: Too small: expected number to be >=1"
+      }
+    }
+  },
+  "deals list: bad amount filter": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "filter amount_minor: \"x\" is not a safe integer"
+      }
+    }
   }
- },
- "contacts update: over-long name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too big: expected string to have <=500 characters"
-   }
-  }
- },
- "contacts create: empty name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too small: expected string to have >=1 characters"
-   }
-  }
- },
- "contacts update: empty name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too small: expected string to have >=1 characters"
-   }
-  }
- },
- "contacts create: null name": {
-  "status": 201,
-  "body": {
-   "id": "<uuid>",
-   "organization_id": "<uuid>",
-   "name": null,
-   "company_id": null,
-   "merged_into_id": null,
-   "additional_props": {},
-   "created_by": "<uuid>",
-   "created_at": "2026-11-06T10:00:00.000Z",
-   "updated_at": "2026-11-06T10:00:00.000Z",
-   "last_contacted_at": null,
-   "last_interacted_at": null
-  }
- },
- "contacts update: null name": {
-  "status": 200,
-  "body": {
-   "id": "<uuid>",
-   "organization_id": "<uuid>",
-   "name": null,
-   "company_id": null,
-   "merged_into_id": null,
-   "additional_props": {},
-   "created_by": "<uuid>",
-   "created_at": "2026-11-06T10:00:00.000Z",
-   "updated_at": "2026-11-06T10:00:00.000Z",
-   "last_contacted_at": null,
-   "last_interacted_at": null
-  }
- },
- "contacts create: number name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received number"
-   }
-  }
- },
- "contacts update: number name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received number"
-   }
-  }
- },
- "contacts create: unknown key": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"bogus\""
-   }
-  }
- },
- "contacts update: unknown key": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"bogus\""
-   }
-  }
- },
- "contacts create: id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"id\""
-   }
-  }
- },
- "contacts update: id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"id\""
-   }
-  }
- },
- "contacts create: organization_id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"organization_id\""
-   }
-  }
- },
- "contacts update: organization_id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"organization_id\""
-   }
-  }
- },
- "contacts create: created_by": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_by\""
-   }
-  }
- },
- "contacts update: created_by": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_by\""
-   }
-  }
- },
- "contacts create: created_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_at\""
-   }
-  }
- },
- "contacts update: created_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_at\""
-   }
-  }
- },
- "contacts create: deleted_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"deleted_at\""
-   }
-  }
- },
- "contacts update: deleted_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"deleted_at\""
-   }
-  }
- },
- "contacts create: bad bag": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
-   }
-  }
- },
- "contacts update: bad bag": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
-   }
-  }
- },
- "contacts create: bag not object": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected record, received string"
-   }
-  }
- },
- "contacts update: bag not object": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected record, received string"
-   }
-  }
- },
- "contacts create: merged_into_id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"merged_into_id\""
-   }
-  }
- },
- "contacts update: merged_into_id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"merged_into_id\""
-   }
-  }
- },
- "contacts create: company_id not uuid": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid UUID"
-   }
-  }
- },
- "contacts update: company_id not uuid": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid UUID"
-   }
-  }
- },
- "contacts create: company_id absent": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "invalid_reference",
-    "message": "a referenced record does not exist"
-   }
-  }
- },
- "contacts update: company_id absent": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "invalid_reference",
-    "message": "a referenced record does not exist"
-   }
-  }
- },
- "contacts create: last_contacted_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"last_contacted_at\""
-   }
-  }
- },
- "contacts update: last_contacted_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"last_contacted_at\""
-   }
-  }
- },
- "contacts create: status": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"status\""
-   }
-  }
- },
- "contacts update: status": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"status\""
-   }
-  }
- },
- "contacts create: empty body": {
-  "status": 201,
-  "body": {
-   "id": "<uuid>",
-   "organization_id": "<uuid>",
-   "name": null,
-   "company_id": null,
-   "merged_into_id": null,
-   "additional_props": {},
-   "created_by": "<uuid>",
-   "created_at": "2026-11-06T10:00:00.000Z",
-   "updated_at": "2026-11-06T10:00:00.000Z",
-   "last_contacted_at": null,
-   "last_interacted_at": null
-  }
- },
- "contacts list: bad sort and limit": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "limit: Too small: expected number to be >=1"
-   }
-  }
- },
- "companies create: over-long name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too big: expected string to have <=500 characters"
-   }
-  }
- },
- "companies update: over-long name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too big: expected string to have <=500 characters"
-   }
-  }
- },
- "companies create: empty name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too small: expected string to have >=1 characters"
-   }
-  }
- },
- "companies update: empty name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too small: expected string to have >=1 characters"
-   }
-  }
- },
- "companies create: null name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received null"
-   }
-  }
- },
- "companies update: null name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received null"
-   }
-  }
- },
- "companies create: number name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received number"
-   }
-  }
- },
- "companies update: number name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received number"
-   }
-  }
- },
- "companies create: unknown key": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"bogus\""
-   }
-  }
- },
- "companies update: unknown key": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"bogus\""
-   }
-  }
- },
- "companies create: id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"id\""
-   }
-  }
- },
- "companies update: id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"id\""
-   }
-  }
- },
- "companies create: organization_id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"organization_id\""
-   }
-  }
- },
- "companies update: organization_id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"organization_id\""
-   }
-  }
- },
- "companies create: created_by": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_by\""
-   }
-  }
- },
- "companies update: created_by": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_by\""
-   }
-  }
- },
- "companies create: created_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_at\""
-   }
-  }
- },
- "companies update: created_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_at\""
-   }
-  }
- },
- "companies create: deleted_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"deleted_at\""
-   }
-  }
- },
- "companies update: deleted_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"deleted_at\""
-   }
-  }
- },
- "companies create: bad bag": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
-   }
-  }
- },
- "companies update: bad bag": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
-   }
-  }
- },
- "companies create: bag not object": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected record, received string"
-   }
-  }
- },
- "companies update: bag not object": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected record, received string"
-   }
-  }
- },
- "companies create: domain long": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too big: expected string to have <=253 characters"
-   }
-  }
- },
- "companies update: domain long": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too big: expected string to have <=253 characters"
-   }
-  }
- },
- "companies create: domain number": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received number"
-   }
-  }
- },
- "companies update: domain number": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received number"
-   }
-  }
- },
- "companies create: domain taken": {
-  "status": 409,
-  "body": {
-   "error": {
-    "code": "domain_exists",
-    "message": "a company with domain a.example already exists (<uuid>)"
-   }
-  }
- },
- "companies update: domain taken": {
-  "status": 200,
-  "body": {
-   "id": "<uuid>",
-   "organization_id": "<uuid>",
-   "name": "N",
-   "domain": "a.example",
-   "additional_props": {},
-   "created_by": "<uuid>",
-   "created_at": "2026-11-06T10:00:00.000Z",
-   "updated_at": "2026-11-06T10:00:00.000Z"
-  }
- },
- "companies create: empty body": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received undefined"
-   }
-  }
- },
- "companies list: bad sort and limit": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "limit: Too small: expected number to be >=1"
-   }
-  }
- },
- "deals create: over-long name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too big: expected string to have <=200 characters"
-   }
-  }
- },
- "deals update: over-long name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too big: expected string to have <=200 characters"
-   }
-  }
- },
- "deals create: empty name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too small: expected string to have >=1 characters"
-   }
-  }
- },
- "deals update: empty name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too small: expected string to have >=1 characters"
-   }
-  }
- },
- "deals create: null name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received null"
-   }
-  }
- },
- "deals update: null name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received null"
-   }
-  }
- },
- "deals create: number name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received number"
-   }
-  }
- },
- "deals update: number name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received number"
-   }
-  }
- },
- "deals create: unknown key": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"bogus\""
-   }
-  }
- },
- "deals update: unknown key": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"bogus\""
-   }
-  }
- },
- "deals create: id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"id\""
-   }
-  }
- },
- "deals update: id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"id\""
-   }
-  }
- },
- "deals create: organization_id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"organization_id\""
-   }
-  }
- },
- "deals update: organization_id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"organization_id\""
-   }
-  }
- },
- "deals create: created_by": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_by\""
-   }
-  }
- },
- "deals update: created_by": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_by\""
-   }
-  }
- },
- "deals create: created_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_at\""
-   }
-  }
- },
- "deals update: created_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_at\""
-   }
-  }
- },
- "deals create: deleted_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"deleted_at\""
-   }
-  }
- },
- "deals update: deleted_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"deleted_at\""
-   }
-  }
- },
- "deals create: bad bag": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
-   }
-  }
- },
- "deals update: bad bag": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
-   }
-  }
- },
- "deals create: bag not object": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected record, received string"
-   }
-  }
- },
- "deals update: bag not object": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected record, received string"
-   }
-  }
- },
- "deals create: bad currency": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "currency must be a three letter ISO 4217 code"
-   }
-  }
- },
- "deals update: bad currency": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "currency must be a three letter ISO 4217 code"
-   }
-  }
- },
- "deals create: currency digits": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "currency must be a three letter ISO 4217 code"
-   }
-  }
- },
- "deals update: currency digits": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "currency must be a three letter ISO 4217 code"
-   }
-  }
- },
- "deals create: amount without currency": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "an amount needs a currency: send currency with amount_minor"
-   }
-  }
- },
- "deals update: amount without currency": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "an amount needs a currency: send currency with amount_minor"
-   }
-  }
- },
- "deals create: negative amount": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too small: expected number to be >=0"
-   }
-  }
- },
- "deals update: negative amount": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too small: expected number to be >=0"
-   }
-  }
- },
- "deals create: fractional amount": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected int, received number"
-   }
-  }
- },
- "deals update: fractional amount": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected int, received number"
-   }
-  }
- },
- "deals create: huge amount": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too big: expected int to be <=9007199254740991; Too big: expected number to be <=9007199254740991"
-   }
-  }
- },
- "deals update: huge amount": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too big: expected int to be <=9007199254740991; Too big: expected number to be <=9007199254740991"
-   }
-  }
- },
- "deals create: bad date": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid ISO date"
-   }
-  }
- },
- "deals update: bad date": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid ISO date"
-   }
-  }
- },
- "deals create: datetime date": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid ISO date"
-   }
-  }
- },
- "deals update: datetime date": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid ISO date"
-   }
-  }
- },
- "deals create: owner not uuid": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid UUID"
-   }
-  }
- },
- "deals update: owner not uuid": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid UUID"
-   }
-  }
- },
- "deals create: owner absent": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "invalid_reference",
-    "message": "a referenced record does not exist"
-   }
-  }
- },
- "deals update: owner absent": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "invalid_reference",
-    "message": "a referenced record does not exist"
-   }
-  }
- },
- "deals create: stage_id": {
-  "status": 201,
-  "body": {
-   "id": "<uuid>",
-   "organization_id": "<uuid>",
-   "name": "N",
-   "pipeline_id": "<uuid>",
-   "stage_id": "<uuid>",
-   "status": "open",
-   "amount_minor": null,
-   "currency": null,
-   "expected_close_date": null,
-   "owner_id": null,
-   "closed_at": null,
-   "additional_props": {},
-   "created_by": "<uuid>",
-   "created_at": "2026-11-06T10:00:00.000Z",
-   "updated_at": "2026-11-06T10:00:00.000Z"
-  }
- },
- "deals update: stage_id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "stage_id cannot be changed after creation; use deals.move_stage to change the stage"
-   }
-  }
- },
- "deals create: stage_id bad": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid UUID"
-   }
-  }
- },
- "deals update: stage_id bad": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "stage_id cannot be changed after creation; use deals.move_stage to change the stage"
-   }
-  }
- },
- "deals create: pipeline_id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"pipeline_id\""
-   }
-  }
- },
- "deals update: pipeline_id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "pipeline_id cannot be changed after creation; a deal moves between stages of its pipeline with deals.move_stage"
-   }
-  }
- },
- "deals create: closed_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"closed_at\""
-   }
-  }
- },
- "deals update: closed_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"closed_at\""
-   }
-  }
- },
- "deals create: status": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"status\""
-   }
-  }
- },
- "deals update: status": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"status\""
-   }
-  }
- },
- "deals create: empty body": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received undefined; Invalid input: expected string, received undefined"
-   }
-  }
- },
- "deals list: bad sort and limit": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "limit: Too small: expected number to be >=1"
-   }
-  }
- },
- "tasks create: over-long name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too big: expected string to have <=500 characters"
-   }
-  }
- },
- "tasks update: over-long name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too big: expected string to have <=500 characters"
-   }
-  }
- },
- "tasks create: empty name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too small: expected string to have >=1 characters"
-   }
-  }
- },
- "tasks update: empty name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too small: expected string to have >=1 characters"
-   }
-  }
- },
- "tasks create: null name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received null"
-   }
-  }
- },
- "tasks update: null name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received null"
-   }
-  }
- },
- "tasks create: number name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received number"
-   }
-  }
- },
- "tasks update: number name": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received number"
-   }
-  }
- },
- "tasks create: unknown key": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"bogus\""
-   }
-  }
- },
- "tasks update: unknown key": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"bogus\""
-   }
-  }
- },
- "tasks create: id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"id\""
-   }
-  }
- },
- "tasks update: id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"id\""
-   }
-  }
- },
- "tasks create: organization_id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"organization_id\""
-   }
-  }
- },
- "tasks update: organization_id": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"organization_id\""
-   }
-  }
- },
- "tasks create: created_by": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_by\""
-   }
-  }
- },
- "tasks update: created_by": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_by\""
-   }
-  }
- },
- "tasks create: created_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_at\""
-   }
-  }
- },
- "tasks update: created_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"created_at\""
-   }
-  }
- },
- "tasks create: deleted_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"deleted_at\""
-   }
-  }
- },
- "tasks update: deleted_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"deleted_at\""
-   }
-  }
- },
- "tasks create: bad bag": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
-   }
-  }
- },
- "tasks update: bad bag": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "additional_props.nest: a value must be a string, number or boolean (no objects, arrays or null; null removes the key)"
-   }
-  }
- },
- "tasks create: bag not object": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected record, received string"
-   }
-  }
- },
- "tasks update: bag not object": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected record, received string"
-   }
-  }
- },
- "tasks create: status out of enum": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid option: expected one of \"open\"|\"done\""
-   }
-  }
- },
- "tasks update: status out of enum": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid option: expected one of \"open\"|\"done\""
-   }
-  }
- },
- "tasks create: status won": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid option: expected one of \"open\"|\"done\""
-   }
-  }
- },
- "tasks update: status won": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid option: expected one of \"open\"|\"done\""
-   }
-  }
- },
- "tasks create: notes long": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too big: expected string to have <=10000 characters"
-   }
-  }
- },
- "tasks update: notes long": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Too big: expected string to have <=10000 characters"
-   }
-  }
- },
- "tasks create: due_at bad": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid ISO datetime"
-   }
-  }
- },
- "tasks update: due_at bad": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid ISO datetime"
-   }
-  }
- },
- "tasks create: due_at no offset": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid ISO datetime"
-   }
-  }
- },
- "tasks update: due_at no offset": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid ISO datetime"
-   }
-  }
- },
- "tasks create: assignee not uuid": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid UUID"
-   }
-  }
- },
- "tasks update: assignee not uuid": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid UUID"
-   }
-  }
- },
- "tasks create: assignee absent": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "invalid_reference",
-    "message": "a referenced record does not exist"
-   }
-  }
- },
- "tasks update: assignee absent": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "invalid_reference",
-    "message": "a referenced record does not exist"
-   }
-  }
- },
- "tasks create: completed_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"completed_at\""
-   }
-  }
- },
- "tasks update: completed_at": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Unrecognized key: \"completed_at\""
-   }
-  }
- },
- "tasks create: empty body": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "Invalid input: expected string, received undefined"
-   }
-  }
- },
- "tasks list: bad sort and limit": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "limit: Too small: expected number to be >=1"
-   }
-  }
- },
- "deals list: bad amount filter": {
-  "status": 400,
-  "body": {
-   "error": {
-    "code": "validation_error",
-    "message": "filter amount_minor: \"x\" is not a safe integer"
-   }
-  }
- }
 }
