@@ -451,6 +451,15 @@ at the limit on three lines, with goldens and "record-shape pins found by the su
 218k / 93 calls in one run (+181 / +892 lines), gate green first time, review approved round 0. The budget holds at its
 limit when no line hides a sweep; a field added to existing registry-derived surfaces is cheap. Naming the pin rider up
 front kept the five pinned record shapes from becoming a gate round.
+**CORE559** (`knowledge/specs/020-CORE559-extension-fields-served/RETRO.md`): 6 groups (1 matrix), 7 decisions + 8 planner
+rules, no migration or E2E, one sweep rider ("every path that writes or emits an event of the four built-ins", ~6 files).
+It cost ~354k / 133 calls initial plus a ~29k fix round (+549 / +1,238 lines, 37 files), past 559.1's ~300k line. The
+sweep was 11 files, and it carried its own obligation (a named test and an absence mutation per path: 15 mutations), so it
+was a group, not a rider. The grep (the definitions' importers, `eventStatement`) missed the capture pipeline, which reaches
+contacts from a Workflow and webhooks through `recordMessages`; that gap was the review round. **Rule:** a sweep whose
+proof is per path (a test or a mutation each) counts as a "Must be tested" group in the Size line, and its file count comes
+from a grep that follows the callers of every function the swept value is passed to, including entry points outside the
+registry (Workflows, queues, webhooks, ingress), written as a number, not an estimate.
 **CORE561** (`knowledge/specs/020-CORE561-extension-fields-switched-on/RETRO.md`, the switch over [[CORE559]]'s dormant
 seam): 5 groups (1 matrix), 6 decisions + 5 planner rules, no migration, 1 remote E2E part, riders counted by grep. ~188k
 / 59 calls in one run plus a ~4-call fix round (+179 / +388 lines, 21 files), gate green. The budget holds: "mechanism

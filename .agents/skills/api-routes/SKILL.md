@@ -54,6 +54,13 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     declared-scopes and cold registries in `server-d1/src/compose.ts`, the bootstraps and `desiredScopes` (find them with
     `git grep -n "createVibaseRegistry(" packages ':!*.test.ts'`); a missing one fails only on its own path. Proposable
     definitions register before the queue's operations, or `action_requests.create` does not list them;
+  - the option `extend` ([[CORE559]]) builds the four extensible built-ins once (`createBuiltIns`,
+    `src/resources/built-ins.ts`); the module constants (`contacts`, `deals`, ...) are the no-extend set. Hand-written
+    paths take the composed definition as a trailing optional parameter that defaults to the constant, so a caller that
+    forgets it compiles and silently serves core fields only. Paths that run outside a registry (the capture pipeline
+    from the mail-sync Workflow and webhooks, form ingress) get the set through their context from `composeD1Worker`;
+    each such path has a test that turns red when the set is withheld. Grep the constant's importers *and* the callers
+    of the functions that take it (`recordMessages`), not only the registry;
   - `src/rest/{app,errors,openapi}.ts` (`createApp`, `renderError`);
   - `src/auth/{types,api-keys,middleware}.ts`;
   - `src/bootstrap.ts` (`bootstrapOperation`, `bootstrap(storage, opts, env?)`: one internal unit, no events). The
@@ -895,6 +902,9 @@ interactive transaction, no `withContext` and no `executor` marker.
     (the runtime encodes a JS array) and `recordJson` renders it as `json(col)`, so an event's `after` holds a
     JSON array on both engines. Its column type is the decoded `string[]`, so a record typing it `z.string()`
     does not compile.
+  - **A nullable `boolean` renders `null` in `recordJson` on D1** ([[CORE559]] 559.19; it rendered `false` through
+    `iif` before). Nullable booleans arrive with custom and extension fields; pin `null`, not `false`, in an event's
+    `after` for an unset one.
   - **A `json` column on D1 is decoded on every path separately** ([[CORE318]], `additional_props`): the generic
     write encodes the object as JSON text (`columnsOnly`), and the record read (`toRecord`), the event embed
     (`json(col)` in `recordJson`) and any hook that reads the before row as data (the contact-merge fill) each
