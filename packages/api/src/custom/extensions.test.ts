@@ -3,7 +3,7 @@ import { DeclarationError, MAX_FILE_BYTES, parseExtensionsFile } from '../index.
 
 // [[CORE542]] D5, D26: the extensions file's envelope. Every refusal carries a stable rule code and a path; tests assert the code, not the sentence.
 const file = (over: Record<string, unknown> = {}) =>
-  JSON.stringify({ version: 1, objects: { projects__c: { fields: { name: { kind: 'text' } } } }, ...over })
+  JSON.stringify({ version: 1, define: { projects__c: { fields: { name: { kind: 'text' } } } }, ...over })
 const refused = (text: string): DeclarationError => {
   try {
     parseExtensionsFile(text)
@@ -20,7 +20,7 @@ describe('the envelope', () => {
       JSON.stringify({
         $schema: 'https://example.test/vibase-extensions.schema.json',
         version: 1,
-        objects: {
+        define: {
           projects__c: { fields: { client: { kind: 'reference', target: 'clients__c' } } },
           clients__c: { fields: { name: { kind: 'text' }, project: { kind: 'reference', target: 'projects__c' } } },
         },
@@ -30,12 +30,12 @@ describe('the envelope', () => {
     expect(f.version).toBe(1)
   })
   it('accepts a file with no objects', () => {
-    expect(parseExtensionsFile(file({ objects: {} })).objects).toEqual({})
+    expect(parseExtensionsFile(file({ define: {} })).objects).toEqual({})
   })
   it('refuses a file over 256 KiB before parsing it (not even valid JSON is needed)', () => {
     expect(MAX_FILE_BYTES).toBe(256 * 1024)
     expect(refused('x'.repeat(MAX_FILE_BYTES + 1)).rule).toBe('file_too_large')
-    expect(refused(`{"version":1,"objects":{},"pad":"${'x'.repeat(MAX_FILE_BYTES)}"}`).rule).toBe('file_too_large')
+    expect(refused(`{"version":1,"define":{},"pad":"${'x'.repeat(MAX_FILE_BYTES)}"}`).rule).toBe('file_too_large')
     expect(refused('x'.repeat(MAX_FILE_BYTES)).rule).toBe('invalid_json')
   })
   it('counts bytes, not characters', () => {
@@ -51,20 +51,24 @@ describe('the envelope', () => {
     ['2', 2],
     ['a string', '1'],
   ])('refuses version %s', (_n, v) => {
-    const o: Record<string, unknown> = { objects: {} }
+    const o: Record<string, unknown> = { define: {} }
     if (v !== undefined) o.version = v
     const e = refused(JSON.stringify(o))
     expect(e.rule).toBe('version_invalid')
     expect(e.path).toBe('version')
   })
+  it('refuses the old objects key as unknown (D2, D10: no alias)', () => {
+    const e = refused(JSON.stringify({ version: 1, objects: {} }))
+    expect([e.rule, e.path]).toEqual(['unknown_key', 'objects'])
+  })
   it('refuses objects missing or not a map', () => {
-    expect(refused(JSON.stringify({ version: 1 })).rule).toBe('objects_missing')
-    const e = refused(JSON.stringify({ version: 1, objects: [] }))
-    expect([e.rule, e.path]).toEqual(['not_an_object', 'objects'])
+    expect(refused(JSON.stringify({ version: 1 })).rule).toBe('define_missing')
+    const e = refused(JSON.stringify({ version: 1, define: [] }))
+    expect([e.rule, e.path]).toEqual(['not_an_object', 'define'])
   })
   it('refuses a key without the __c suffix, with the path through the key', () => {
-    const e = refused(file({ objects: { projects: { fields: {} } } }))
-    expect([e.rule, e.path]).toEqual(['key_suffix', 'objects.projects'])
+    const e = refused(file({ define: { projects: { fields: {} } } }))
+    expect([e.rule, e.path]).toEqual(['key_suffix', 'define.projects'])
   })
   it('accepts extend: parsed with the file, objects kept (P1, D5, D26)', () => {
     const f = parseExtensionsFile(
@@ -88,7 +92,7 @@ describe('the envelope', () => {
     )
     expect(f.extend?.deals?.project__c?.kind).toBe('reference')
     expect(
-      parseExtensionsFile(JSON.stringify({ version: 1, objects: {}, extend: { tasks: { fields: {} } } })).extend,
+      parseExtensionsFile(JSON.stringify({ version: 1, define: {}, extend: { tasks: { fields: {} } } })).extend,
     ).toEqual({
       tasks: {},
     })
@@ -133,7 +137,7 @@ describe('the envelope', () => {
   it('a custom object keeps accepting unique + default; unique + required with no default is accepted on extend (CORE565 D8)', () => {
     const f = parseExtensionsFile(
       file({
-        objects: { projects__c: { fields: { code: { kind: 'text', unique: true, default: 'x' } } } },
+        define: { projects__c: { fields: { code: { kind: 'text', unique: true, default: 'x' } } } },
         extend: { deals: { fields: { a__c: { kind: 'text', unique: true, required: true } } } },
       }),
     )
@@ -149,25 +153,25 @@ describe('the envelope', () => {
     expect([e.rule, e.path]).toEqual(['unknown_key', 'hooks'])
   })
   it('refuses a non-string $schema', () => {
-    expect(refused(file({ $schema: 3 })).rule).toBe('schema_invalid')
+    expect(refused(file({ $schema: 3 })).rule).toBe('schema_ref_invalid')
   })
   it('refuses a declaration error inside an object, with the path through the key', () => {
-    const e = refused(file({ objects: { projects__c: { fields: { id: { kind: 'text' } } } } }))
-    expect([e.rule, e.path]).toEqual(['reserved_name', 'objects.projects__c.fields.id'])
+    const e = refused(file({ define: { projects__c: { fields: { id: { kind: 'text' } } } } }))
+    expect([e.rule, e.path]).toEqual(['reserved_name', 'define.projects__c.fields.id'])
   })
   it('refuses a reference to an undeclared sibling', () => {
     const e = refused(
-      file({ objects: { projects__c: { fields: { c: { kind: 'reference', target: 'clients__c' } } } } }),
+      file({ define: { projects__c: { fields: { c: { kind: 'reference', target: 'clients__c' } } } } }),
     )
-    expect([e.rule, e.path]).toEqual(['reference_target_undeclared', 'objects.projects__c.fields.c'])
+    expect([e.rule, e.path]).toEqual(['reference_target_undeclared', 'define.projects__c.fields.c'])
   })
   it('refuses an object of 91 fields and accepts 90', () => {
     const fields = (n: number) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`f${i}`, { kind: 'text' }]))
     expect(
-      parseExtensionsFile(file({ objects: { projects__c: { fields: fields(90) } } })).objects.projects__c,
+      parseExtensionsFile(file({ define: { projects__c: { fields: fields(90) } } })).objects.projects__c,
     ).toBeDefined()
-    const e = refused(file({ objects: { projects__c: { fields: fields(91) } } }))
+    const e = refused(file({ define: { projects__c: { fields: fields(91) } } }))
     expect(e.rule).toBe('too_many_fields')
-    expect(e.path).toBe('objects.projects__c.fields')
+    expect(e.path).toBe('define.projects__c.fields')
   })
 })
