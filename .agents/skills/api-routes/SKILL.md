@@ -520,6 +520,12 @@ a route or an MCP tool that bypasses the registry.
   pre-deals cache (`cli.integration.test.ts`, "a cache that predates deals" edits the cache file to build that state).
   A new list flag on a stale cache is refused as unknown by `parseInvocation`, so `main` refreshes once and re-parses
   against the live document ([[CORE136]]); it never sends the list without the flag it was asked for.
+- **A CLI flag repeats only when its query parameter accepts an array of strings** (`anyOf`/`oneOf` with a string
+  array, `acceptsStringList` in `packages/cli/src/derive.ts`, which must agree with the server's `acceptsList`): it gets
+  `multiple: true`, each occurrence is sent as one raw query parameter in order, and help says `, may repeat`. Every
+  other flag keeps `parseArgs` last-wins. Do not reuse the `json` flag type for this: it JSON-coerces array items, and a
+  column filter must stay a raw string per occurrence. The CLI does not enforce server caps; it shows the server's `400`
+  ([[CORE605]] 605.1, 605.5).
 - **A retry that re-runs a parser must not consume one-shot input twice.** stdin (`--data -`) can be read once per
   process: the stale-cache re-parse in `packages/cli/src/cli.ts` reads it through a memoised `io.readStdin`
   (`stdin ??= deps.readStdin()`), so a genuine usage error (bad JSON) answers the same on a cached run as on a fresh

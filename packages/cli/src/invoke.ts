@@ -54,7 +54,7 @@ async function readData(spec: string, io: InvokeIo): Promise<unknown> {
 /** Turns the words after the command into one request ([[API6]] D7): positional path parameters, flags, `--data`. */
 export async function parseInvocation(cmd: Command, args: string[], io: InvokeIo): Promise<Invocation> {
   if (cmd.error) throw usage(cmd.error)
-  const options: Record<string, { type: 'string' | 'boolean' }> = {
+  const options: Record<string, { type: 'string' | 'boolean'; multiple?: boolean }> = {
     data: { type: 'string' },
     all: { type: 'boolean' },
     refresh: { type: 'boolean' },
@@ -63,7 +63,11 @@ export async function parseInvocation(cmd: Command, args: string[], io: InvokeIo
     server: { type: 'string' },
     output: { type: 'string' },
   }
-  for (const f of cmd.flags) options[f.name] = { type: f.type === 'boolean' ? 'boolean' : 'string' }
+  for (const f of cmd.flags)
+    options[f.name] = {
+      type: f.type === 'boolean' ? 'boolean' : 'string',
+      ...(f.repeatable ? { multiple: true } : {}),
+    }
   let parsed
   try {
     parsed = parseArgs({ args, options, allowPositionals: true, allowNegative: true })
@@ -93,6 +97,11 @@ export async function parseInvocation(cmd: Command, args: string[], io: InvokeIo
   for (const f of cmd.flags) {
     const v = values[f.name]
     if (v === undefined) continue
+    if (f.repeatable && Array.isArray(v)) {
+      // [[CORE605]] D6: one repeated query parameter per occurrence, raw, in the order given.
+      for (const item of v) query.push([f.prop, coerce(f, item as string) as string])
+      continue
+    }
     const typed = f.type === 'boolean' ? v === true : coerce(f, v as string)
     if (f.where === 'query') {
       if (Array.isArray(typed)) for (const item of typed) query.push([f.prop, String(item)])

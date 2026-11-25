@@ -6,6 +6,7 @@ import { ApiError } from '../errors.js'
 import { deals } from '../resources/deals.js'
 import { definePreparedResource } from './definition.js'
 import {
+  MAX_CONDITIONS,
   OPERATORS,
   compileCondition,
   describeColumnFilter,
@@ -294,6 +295,30 @@ describe('description (D9)', () => {
     expect(describeColumnFilter('name', spec('text', false))).toContain(
       `Operators: ${operatorsFor('text', false).join(', ')}.`,
     )
+  })
+})
+
+describe('description per kind ([[CORE605]] D9)', () => {
+  const kinds: FilterKind[] = ['uuid', 'text', 'integer', 'timestamp', 'boolean']
+  const hasRange = (k: FilterKind) => k === 'text' || k === 'integer' || k === 'timestamp'
+  for (const kind of kinds)
+    for (const nullable of [true, false])
+      it(`${kind}${nullable ? ' (nullable)' : ''}: no "once per field", the cap and the AND, a range example only where the table has gte and lt`, () => {
+        const d = describeColumnFilter('f', spec(kind, nullable))
+        expect(d).not.toContain('once per field')
+        expect(d).toContain(`up to ${MAX_CONDITIONS} times`)
+        expect(d).toMatch(/AND/)
+        // the range example is two conditions on one field, and the operators of the table agree with the kinds that get one
+        const ops = operatorsFor(kind, nullable)
+        expect(ops.includes('gte') && ops.includes('lt')).toBe(hasRange(kind))
+        expect(/\bf=gte\.[^&\s]+&f=lt\./.test(d)).toBe(hasRange(kind))
+        // uuid and boolean keep exactly one example
+        expect(d.match(/Example/g)).toHaveLength(1)
+      })
+  it('the number in the text is the constant, not a literal', () => {
+    const d = describeColumnFilter('f', spec('integer'))
+    expect(d).toContain(`${MAX_CONDITIONS} times`)
+    expect([...d.matchAll(/\b(\d+) times/g)].map((m) => Number(m[1]))).toEqual([MAX_CONDITIONS])
   })
 })
 
