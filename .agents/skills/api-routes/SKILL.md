@@ -110,7 +110,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     plus `modulesRoot`), not `modules: true` + `scriptPath`: Better Auth's Kysely adapter has an `import(variable)`
     that Miniflare's own module scan refuses (`ERR_MODULE_DYNAMIC_SPEC`), while wrangler and workerd accept it
     ([[CORE243]] D-j; `smoke-worker.ts`, `packages/release/scripts/check.ts`, `@vibase/auth/test`'s `startWorkerd`).
-  - **the schema file is a `Text` module, `vibase.schema.json`** ([[CORE315]] D27, [[CORE543]]), imported once
+  - **The schema file is a `Text` module, `vibase.schema.json`** ([[CORE315]] D27, [[CORE543]]), imported once
     by `src/schema-file-text.ts` (typed `string`); the repo resolves the checked-in default `src/vibase.schema.json`.
     Wrangler keeps the import's name in a bundled build only with `preserve_file_names: true` (top level of
     `wrangler.jsonc`; otherwise it emits `<sha>-vibase.schema.json` and the release layout check refuses it). Every

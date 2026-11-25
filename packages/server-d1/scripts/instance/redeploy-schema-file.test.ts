@@ -208,6 +208,13 @@ describe('group 2: the place and the staging (D26, D27, P3, P7)', () => {
     expect(s2.staged!.module).toBe(readFileSync(p, 'utf8'))
     expect(treeHash(w2.pkg.dir)).toBe(before2)
   })
+  it('the old flag is an unknown option: exit 2, and no fetch or wrangler call (CORE569 D8)', async () => {
+    const { w, code } = await go('redeploy', extSim(), ['--extensions', '/x.json'])
+    expect(code).toBe(2)
+    expect(w.err.join('\n')).toMatch(/Unknown option/)
+    expect(w.fetchCalls).toEqual([])
+    expect(w.wrangler).toEqual([])
+  })
   it('upgrade has no --schema flag; it uses the recorded path', async () => {
     const refused = await go('upgrade', extSim(), ['--schema', '/x.json'])
     expect(refused.code).toBe(2)

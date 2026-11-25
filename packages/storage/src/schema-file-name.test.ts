@@ -26,6 +26,11 @@ export const ALLOWED: readonly { file: string; includes: string; reason: string 
     reason: 'Postgres extensions in the parked baseline migration',
   },
   {
+    file: 'packages/server-d1/scripts/instance/redeploy-schema-file.test.ts',
+    includes: "'--extensions', '/x.json'",
+    reason: 'proves the old flag is refused, CORE569 D8',
+  },
+  {
     file: '.agents/skills/db-schema-and-migrations/SKILL.md',
     includes: 'Extensions available: `pgcrypto`',
     reason: 'Postgres extensions in the parked Postgres notes',

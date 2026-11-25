@@ -1,6 +1,6 @@
 ---
 title: Custom objects and fields
-description: Declare your own objects and add fields to contacts, companies and deals in one JSON file, deploy it with redeploy, and know where the file's path is recorded.
+description: Declare your own objects and add fields to contacts, companies, deals and tasks in one JSON file, deploy it with redeploy, and know where the file's path is recorded.
 ---
 
 An instance can carry more than the built-in tables. One JSON file, the **schema file**, declares your own **custom objects** (their own tables, such as `projects__c`) and **extension fields** (your own columns on contacts, companies, deals and tasks). The Worker serves them on create, update, get, list (as filters), the MCP tools and the OpenAPI document, like any built-in field.
@@ -99,5 +99,5 @@ The settings file lives in your home folder, not in your project. A second machi
 ## Not available yet
 
 - **A typed notation.** The file is JSON by design: there are no `defineObject` or `extendObject` calls, and nothing is executed. A helper that emits this same JSON is a possible addition.
-- **Finding the file in the project folder.** There is no convention such as a `vibase.schema.json` next to your other configuration (`vibase.schema.json` is the conventional name, but the CLI takes the file only through `--schema` or the recorded path).
+- **Finding the file in the project folder.** The CLI does not look for `vibase.schema.json` in your project folder; it takes the file only through `--schema` or the recorded path.
 - **More identity kinds** such as a social profile URL.
