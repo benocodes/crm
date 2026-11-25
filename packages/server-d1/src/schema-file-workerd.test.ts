@@ -2,23 +2,23 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { BASE, bundleWorker, startWorkerd, type Bundle, type Workerd } from '@vibase/auth/test'
-import { applyExtensions, defineCustomObject, parseExtensionsFile } from '@vibase/api'
+import { applySchemaFile, defineCustomObject, parseSchemaFile } from '@vibase/api'
 import { createTableStatements } from '@vibase/api'
 import { openControlDb } from '@vibase/storage-d1'
 import { uuidv7 } from '@vibase/storage'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { bootstrapD1 } from './bootstrap-d1.js'
 
-// [[CORE543]] group 3 (D12, D28, P1, P7) in workerd with a REAL Text module: the real Worker entry (`worker.ts`) imports `vibase-extensions.json`, which a deploy attaches with a `Text` rule and this harness attaches as a Text module
+// [[CORE543]] group 3 (D12, D28, P1, P7) in workerd with a REAL Text module: the real Worker entry (`worker.ts`) imports `vibase.schema.json`, which a deploy attaches with a `Text` rule and this harness attaches as a Text module
 // by the same name. The three states of the file (an object, none, invalid), and the rail seeing the definitions.
 const ENTRY = fileURLToPath(new URL('./worker.ts', import.meta.url))
-const MODULE = 'vibase-extensions.json'
+const MODULE = 'vibase.schema.json'
 const sha256 = (t: string) => createHash('sha256').update(t).digest('hex')
 const CRED = Buffer.from(Uint8Array.from({ length: 32 }, (_, i) => i + 1)).toString('base64')
 const WITH_OBJECT = `${JSON.stringify(
   {
     version: 1,
-    objects: { projects__c: { label: 'Projects', fields: { name: { kind: 'text', required: true } } } },
+    define: { projects__c: { label: 'Projects', fields: { name: { kind: 'text', required: true } } } },
   },
   null,
   2,
@@ -26,7 +26,7 @@ const WITH_OBJECT = `${JSON.stringify(
 const WITH_EXTEND = `${JSON.stringify(
   {
     version: 1,
-    objects: {},
+    define: {},
     extend: {
       contacts: {
         fields: { u2c_tier__c: { kind: 'enum', values: ['standard', 'gold'], required: true, default: 'standard' } },
@@ -36,9 +36,9 @@ const WITH_EXTEND = `${JSON.stringify(
   null,
   2,
 )}\n`
-const INVALID_EXTEND = '{"version":1,"objects":{},"extend":{"contacts":{"fields":{"a__c":{"kind":"money"}}}}}\n'
-const EMPTY = '{"version":1,"objects":{}}\n'
-const INVALID = '{"version":1,"objects":{"projects__c":{"fields":{"x":{"kind":"money"}}}}}\n'
+const INVALID_EXTEND = '{"version":1,"define":{},"extend":{"contacts":{"fields":{"a__c":{"kind":"money"}}}}}\n'
+const EMPTY = '{"version":1,"define":{}}\n'
+const INVALID = '{"version":1,"define":{"projects__c":{"fields":{"x":{"kind":"money"}}}}}\n'
 const SCOPES = [
   'projects__c:read',
   'projects__c:write',
@@ -73,11 +73,11 @@ async function boot(text: string) {
   started.push(w)
   let definitions: ReturnType<typeof defineCustomObject>[] = []
   try {
-    const file = parseExtensionsFile(text)
+    const file = parseSchemaFile(text)
     definitions = Object.entries(file.objects).map(([k, d]) => defineCustomObject(k, d))
     for (const [k, d] of Object.entries(file.objects))
       await w.d1.batch(createTableStatements(k, d).map((s) => w.d1.prepare(s)))
-    if (file.extend) expect((await applyExtensions(w.d1, {}, file.extend)).refused).toEqual([])
+    if (file.extend) expect((await applySchemaFile(w.d1, {}, file.extend)).refused).toEqual([])
   } catch {
     // an invalid file has no definitions and no tables
   }
@@ -118,9 +118,9 @@ describe('the attached module has an object', () => {
     expect(list.status).toBe(200)
     expect(list.body.data).toHaveLength(1)
     const h = await health()
-    expect(h.extensions).toEqual({ digest: sha256(WITH_OBJECT), objects: ['projects__c'] })
+    expect(h.schema).toEqual({ digest: sha256(WITH_OBJECT), objects: ['projects__c'] })
     expect(h.status).toBe('ok')
-    expect(w.logs.join('\n')).not.toMatch(/extensions_invalid/)
+    expect(w.logs.join('\n')).not.toMatch(/schema_invalid/)
   })
   it('the rail sees the definitions: the per-minute tick dispatches a webhook for a <key>__c.created event', async () => {
     const { w, call } = await boot(WITH_OBJECT)
@@ -154,35 +154,35 @@ describe('the attached module extends contacts (CORE561 D12, D28, P2, P5)', () =
     const doc = (await call('GET', '/api/v1/openapi.json')).body
     expect(JSON.stringify(doc.paths['/api/v1/contacts'].post.requestBody)).toContain('u2c_tier__c')
     expect(JSON.stringify(doc.paths['/api/v1/contacts/{id}'].patch.requestBody)).toContain('u2c_tier__c')
-    expect((await health()).extensions).toEqual({
+    expect((await health()).schema).toEqual({
       digest: sha256(WITH_EXTEND),
       objects: [],
       fields: ['contacts.u2c_tier__c'],
     })
-    expect(w.logs.join('\n')).not.toMatch(/extensions_invalid/)
+    expect(w.logs.join('\n')).not.toMatch(/schema_invalid/)
   })
   it('an invalid extend fails closed: 503 on REST and /mcp, /health 200 with the error', async () => {
     const { w, call, key, health } = await boot(INVALID_EXTEND)
     const r = await call('GET', '/api/v1/contacts')
-    expect([r.status, r.body.error.code]).toEqual([503, 'extensions_invalid'])
+    expect([r.status, r.body.error.code]).toEqual([503, 'schema_invalid'])
     const mcp = (await w.mf.dispatchFetch(`${BASE}/mcp`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
     })) as unknown as Response
     expect(mcp.status).toBe(503)
-    expect((await health()).extensions).toEqual({ digest: sha256(INVALID_EXTEND), error: 'extensions_invalid' })
+    expect((await health()).schema).toEqual({ digest: sha256(INVALID_EXTEND), error: 'schema_invalid' })
   })
   it('an objects-only module reports no fields key (CORE561 group 5)', async () => {
     const { health } = await boot(WITH_OBJECT)
-    expect(Object.keys((await health()).extensions).sort()).toEqual(['digest', 'objects'])
+    expect(Object.keys((await health()).schema).sort()).toEqual(['digest', 'objects'])
   })
 })
 
 describe('the attached module declares no objects', () => {
-  it('is the default: /health.extensions is null and there is no custom route', async () => {
+  it('is the default: /health.schema is null and there is no custom route', async () => {
     const { call, health } = await boot(EMPTY)
-    expect((await health()).extensions).toBeNull()
+    expect((await health()).schema).toBeNull()
     expect((await call('GET', '/api/v1/projects__c')).status).toBe(404)
     expect((await call('GET', '/api/v1/companies')).status).toBe(200)
   })
@@ -192,7 +192,7 @@ describe('the attached module declares no objects', () => {
 })
 
 describe('the attached module is invalid (D28 fails closed)', () => {
-  it('REST, an authenticated /mcp and schema.get answer 503 extensions_invalid; /health is 200 with the error and the digest', async () => {
+  it('REST, an authenticated /mcp and schema.get answer 503 schema_invalid; /health is 200 with the error and the digest', async () => {
     const { w, call, key, health } = await boot(INVALID)
     for (const [method, path] of [
       ['GET', '/api/v1/companies'],
@@ -201,7 +201,7 @@ describe('the attached module is invalid (D28 fails closed)', () => {
     ] as const) {
       const r = await call(method, path)
       expect(r.status, path).toBe(503)
-      expect(r.body.error.code, path).toBe('extensions_invalid')
+      expect(r.body.error.code, path).toBe('schema_invalid')
     }
     const mcp = (await w.mf.dispatchFetch(`${BASE}/mcp`, {
       method: 'POST',
@@ -209,9 +209,9 @@ describe('the attached module is invalid (D28 fails closed)', () => {
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
     })) as unknown as Response
     expect(mcp.status).toBe(503)
-    expect(((await mcp.json()) as any).error.code).toBe('extensions_invalid')
+    expect(((await mcp.json()) as any).error.code).toBe('schema_invalid')
     const h = await health()
-    expect(h.extensions).toEqual({ digest: sha256(INVALID), error: 'extensions_invalid' })
+    expect(h.schema).toEqual({ digest: sha256(INVALID), error: 'schema_invalid' })
     expect(h.status).toBe('ok')
   })
 })

@@ -102,6 +102,7 @@ async function seedForm(): Promise<FormIngress> {
     name_field: 'name',
     consent_text: null,
     tag_ids: [],
+    challenge: 'none',
   }
 }
 const f = (name: string, value: string): FormAnswer => ({ name, value })

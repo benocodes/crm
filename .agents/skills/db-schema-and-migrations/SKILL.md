@@ -384,10 +384,10 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   status is `unknown` and nothing is gated. Tests that need `current`, `behind` or `ahead` create it with
   `createMigrationTracker` and fill it with `recordMigrations`/`forgetMigrations` (`@vibase/storage-d1/test`).
   `clearD1` must never delete from it.
-- **Custom object tables (`__c`) are not migrations: apply makes them match the extensions file** ([[CORE315]] D11,
+- **Custom object tables (`__c`) are not migrations: apply makes them match the schema file** ([[CORE315]] D11,
   [[CORE542]]), with the live schema as the only state (no definition rows). `packages/api/src/custom/apply.ts` is three
   parts: `readLiveSchema` (a D1 binding to a plain JSON snapshot: `sqlite_master` rows, then `pragma_table_info` per
-  table, since D1 refuses the pragma in a join), the pure `planApply(objects, live)`, and `applyExtensions` (violation
+  table, since D1 refuses the pragma in a join), the pure `planApply(objects, live)`, and `applySchemaFile` (violation
   reads first, then one batch; a refused plan runs nothing). A field's kind is read from its column's definition text,
   since kinds share storage types: each kind's DDL from `createTableStatements` carries its own mark (a length CHECK =
   text, `strftime(` CHECK = timestamp, `IN (0, 1)` = boolean, `REFERENCES` = reference, bare TEXT = enum, bare INTEGER =
@@ -396,9 +396,9 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   SQLite cannot alter a column's default or drop a column an index names, so apply refuses a default change and a
   `unique` removal by name (spec D32); D1 caps a table at 100 columns (apply refuses past it; the validator caps an
   object at 90 fields). The live read is `liveSchemaFrom(rowReader)`: the same SQL runs on a binding (`readLiveSchema`)
-  or remotely through `wrangler d1 execute --remote --json` (`server-d1/scripts/instance/extensions.ts`, binds inlined
+  or remotely through `wrangler d1 execute --remote --json` (`server-d1/scripts/instance/schema-file.ts`, binds inlined
   as SQL literals so a table name stays data), and the statements run with `d1 execute --remote --file`, which needs no
-  prompt under `CI=1` with a closed stdin ([[CORE543]] 543.12, 543.19). `redeploy --extensions` plans before its
+  prompt under `CI=1` with a closed stdin ([[CORE543]] 543.12, 543.19). `redeploy --schema` plans before its
   question, runs the statements after the core migrations and before the deploy.
 - **Extension fields: apply also adds `<name>__c` columns to contacts, companies, deals and tasks** ([[CORE315]] D7,
   D8, [[CORE555]]). The snapshot keeps the four apart from custom tables (`LiveSchema.builtins`, read by

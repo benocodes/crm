@@ -12,6 +12,7 @@ import { NO_EMAIL_STATEMENT } from '../setup/verify-better-auth.js'
 import { INSTANCE_HELP } from './main.js'
 import { serverHelpProblems } from '../../../release/src/help-assertions.js'
 import { parseInstanceSetupArgs } from './setup-args.js'
+import { parseSchemaFile } from '../../../api/src/custom/schema-file.js'
 
 const DOCS = fileURLToPath(new URL('../../../docs/src/content/docs/', import.meta.url))
 const page = (p: string) => readFileSync(`${DOCS}${p}.md`, 'utf8')
@@ -373,7 +374,7 @@ describe('the docs and help agree with the program on workers.dev (OPS308 D13)',
   it('OPS487 D8: release:check needs both `upgrade --env <name> [--dry-run]` and `redeploy --env <name> [--dry-run]`, and rejects an `upgrade ... [--rollback]` line', () => {
     expect(serverHelpProblems(INSTANCE_HELP)).toEqual([])
     expect(serverHelpProblems(INSTANCE_HELP.replace('vibase-server redeploy --env <name> [--dry-run]', 'x'))).toEqual([
-      'redeploy [--dry-run] [--yes] [--extensions <path>]',
+      'redeploy [--dry-run] [--yes] [--schema <path>]',
     ])
     expect(serverHelpProblems(INSTANCE_HELP.replace('vibase-server upgrade --env <name> [--dry-run]', 'x'))).toEqual([
       'upgrade [--dry-run] [--yes] (no --rollback)',
@@ -507,4 +508,17 @@ describe('OPS501 D7: the short form in the help and the docs', () => {
       expect(md.slice(md.indexOf('## 5.'))).toMatch(/\nvs setup --env <env> --dry-run\n/)
     },
   )
+})
+
+// [[CORE569]]: every schema-file sample in the docs (a fenced json block or an inline `{...}` span with `"version": 1`) is a file the shipped parser accepts.
+describe('the schema-file samples in the docs parse', () => {
+  const samples = (md: string): string[] => [
+    ...[...md.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => m[1]!),
+    ...[...md.matchAll(/`(\{[^`]*\})`/g)].map((m) => m[1]!),
+  ]
+  it.each(['deployment/self-hosting', 'guides/schema'])('%s', (p) => {
+    const found = samples(page(p)).filter((s) => /"version"\s*:\s*1/.test(s))
+    expect(found.length).toBeGreaterThan(0)
+    for (const s of found) expect(() => parseSchemaFile(s), s).not.toThrow()
+  })
 })

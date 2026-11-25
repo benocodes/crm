@@ -19,8 +19,8 @@ export interface StageInput {
   serverJs: string
   /** The built Worker entry, copied to `worker/worker.js` (the source map and README of wrangler's outdir are not shipped). */
   workerEntry: string
-  /** The extensions file's JSON Schema ([[CORE542]] D26), copied to `worker/vibase-extensions.schema.json` beside the Worker. */
-  extensionsSchema: string
+  /** the schema file's JSON Schema ([[CORE542]] D26), copied to `worker/vibase.schema.schema.json` beside the Worker. */
+  schemaFileJson: string
   /** The built `assets/ui/` directory of the auth pages ([[UI246]] D2): `index.html`, `app.js`, `ui.css`, copied to `assets/assets/ui/` ([[UI504]] D3: the files sit at their URL path inside the binding directory). */
   assetsUiDir: string
   /** The built `assets/app/` directory of the workspace app ([[UI460]] D6): `index.html`, `app.js`, `app.css`, copied to `assets/assets/app/`. */
@@ -128,7 +128,7 @@ export function stageServer(i: StageInput): ReleaseManifest {
   const out = i.outDir
   copyInto(join(out, 'cli', 'server.js'), i.serverJs)
   copyInto(join(out, 'worker', 'worker.js'), i.workerEntry)
-  copyInto(join(out, 'worker', 'vibase-extensions.schema.json'), i.extensionsSchema)
+  copyInto(join(out, 'worker', 'vibase.schema.schema.json'), i.schemaFileJson)
   for (const f of readdirSync(i.assetsUiDir)) copyInto(join(out, 'assets', 'assets', 'ui', f), join(i.assetsUiDir, f))
   for (const f of readdirSync(i.assetsAppDir))
     copyInto(join(out, 'assets', 'assets', 'app', f), join(i.assetsAppDir, f))

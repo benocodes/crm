@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createVibaseRegistry, defineCustomObject, parseExtensionsFile } from '@vibase/api'
+import { createVibaseRegistry, defineCustomObject, parseSchemaFile } from '@vibase/api'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
 import { MIGRATIONS } from '@vibase/storage-d1'
 import { uuidv7 } from '@vibase/storage'
@@ -128,13 +128,13 @@ describe('what is not answered early', () => {
 // [[CORE543]] P5 (group 5): the early answers list the custom scopes of the attached module, derived by `JSON.parse` and a name check, with no validator.
 const TWO = JSON.stringify({
   version: 1,
-  objects: {
+  define: {
     projects__c: { label: 'Projects', fields: { name: { kind: 'text', required: true } } },
     milestones__c: { fields: { project: { kind: 'reference', target: 'projects__c' } } },
   },
 })
 const twoDefinitions = () =>
-  Object.entries(parseExtensionsFile(TWO).objects).map(([key, decl]) => defineCustomObject(key, decl))
+  Object.entries(parseSchemaFile(TWO).objects).map(([key, decl]) => defineCustomObject(key, decl))
 const scopesOf = (header: string | null) => (/scope="([^"]*)"/.exec(header ?? '')?.[1] ?? '').split(' ').sort()
 
 describe('the early answers with an attached module (P5)', () => {
@@ -145,7 +145,7 @@ describe('the early answers with an attached module (P5)', () => {
     expect([...declaredScopesWith(TWO)!]).toEqual(want)
   })
   it('an extend-only module adds no scope (CORE561 P5): the early answer is the static list, equal to no file', () => {
-    const text = '{"version":1,"objects":{},"extend":{"contacts":{"fields":{"u2c_tier__c":{"kind":"text"}}}}}'
+    const text = '{"version":1,"define":{},"extend":{"contacts":{"fields":{"u2c_tier__c":{"kind":"text"}}}}}'
     expect(declaredScopesWith(text)).toEqual(DECLARED_SCOPES)
     expect(declaredScopesWith(text)).toEqual(declaredScopesWith(undefined))
     const req2 = new Request('https://api.test/mcp', { method: 'POST', headers: { origin: ORIGIN } })
@@ -155,15 +155,15 @@ describe('the early answers with an attached module (P5)', () => {
     expect(withExtend.headers.get('www-authenticate')).toBe(withNone.headers.get('www-authenticate'))
   })
   it('no objects, or the default module, is the static list; an unreadable module is undefined', () => {
-    expect(declaredScopesWith('{"version":1,"objects":{}}\n')).toEqual(DECLARED_SCOPES)
+    expect(declaredScopesWith('{"version":1,"define":{}}\n')).toEqual(DECLARED_SCOPES)
     expect(declaredScopesWith(undefined)).toEqual(DECLARED_SCOPES)
     for (const bad of [
       '{nope',
       '[]',
       '{"version":1}',
-      '{"objects":{"Projects":{}}}',
-      '{"objects":{"a__c":1,"b":{}}}',
-      '{"objects":[]}',
+      '{"define":{"Projects":{}}}',
+      '{"define":{"a__c":1,"b":{}}}',
+      '{"define":[]}',
     ])
       expect(declaredScopesWith(bad), bad).toBeUndefined()
   })
@@ -188,7 +188,7 @@ describe('the early answers with an attached module (P5)', () => {
   })
   it('a module the light check cannot read sends the request the full way', () => {
     expect(earlyAnswer(req('/mcp', MCP_INIT), env(), '{nope')).toBeUndefined()
-    expect(earlyAnswer(req('/.well-known/oauth-protected-resource', {}), env(), '{"objects":{"x":1}}')).toBeUndefined()
+    expect(earlyAnswer(req('/.well-known/oauth-protected-resource', {}), env(), '{"define":{"x":1}}')).toBeUndefined()
   })
   it('early.ts imports no validator and no composition', () => {
     const src = readFileSync(new URL('./early.ts', import.meta.url), 'utf8')
@@ -196,6 +196,6 @@ describe('the early answers with an attached module (P5)', () => {
     expect(imports.sort()).toEqual(
       ['./declared-scopes.js', '@vibase/api/discovery', '@vibase/auth/static-metadata'].sort(),
     )
-    expect(src).not.toMatch(/zod|parseExtensionsFile|parseObjectDeclaration/)
+    expect(src).not.toMatch(/zod|parseSchemaFile|parseObjectDeclaration/)
   })
 })

@@ -1,4 +1,4 @@
-// The extensions file on the tooling side ([[CORE315]] D26 to D30, [[CORE543]]): validate the file before any write, derive its digest, read the live `__c` schema through wrangler, plan the apply, and compare the file with what
+// The schema file on the tooling side ([[CORE315]] D26 to D30, [[CORE543]]): validate the file before any write, derive its digest, read the live `__c` schema through wrangler, plan the apply, and compare the file with what
 // the live Worker reports. Pure and synchronous where it can be; every wrangler call stays in `upgrade.ts`, which hands this module a row reader.
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
@@ -14,15 +14,15 @@ import {
 import { DeclarationError, type ObjectDeclaration } from '../../../api/src/custom/declaration.js'
 import type { ExtendDeclarations } from '../../../api/src/custom/extend.js'
 import { literal } from '../../../api/src/custom/ddl.js'
-import { parseExtensionsFile } from '../../../api/src/custom/extensions.js'
+import { parseSchemaFile } from '../../../api/src/custom/schema-file.js'
 import { InstanceRefusal } from './types.js'
 
 /** The Text module's name: the release-built `worker.js` imports it by exactly this ([[CORE543]] P7). */
-export const EXTENSIONS_MODULE = 'vibase-extensions.json'
+export const SCHEMA_FILE_MODULE = 'vibase.schema.json'
 /** What a deploy with no file attaches ([[CORE315]] D27). */
-export const EMPTY_EXTENSIONS = '{"version":1,"objects":{}}\n'
+export const EMPTY_SCHEMA_FILE = '{"version":1,"define":{}}\n'
 
-export interface ExtensionsRun {
+export interface SchemaFileRun {
   /** Absolute. */
   path: string
   bytes: Buffer
@@ -32,7 +32,7 @@ export interface ExtensionsRun {
   extend: ExtendDeclarations
 }
 /** What a `/health` says of the attached file ([[CORE543]] P1, [[CORE561]] P2): `null` none, `{digest, objects, fields?}` a file, `{digest, error}` a file the Worker could not load. */
-export type LiveExtensions =
+export type LiveSchemaFile =
   | null
   | { digest: string; objects: string[]; fields?: string[] }
   | { digest: string; error: string }
@@ -40,16 +40,16 @@ export type LiveExtensions =
 export const sha256Hex = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex')
 
 /** Reads and validates the file with the validator the Worker uses; a refusal names the path and the rule code ([[CORE543]] D26). */
-export function loadExtensionsFile(path: string): ExtensionsRun {
+export function loadSchemaFile(path: string): SchemaFileRun {
   const abs = resolve(path)
   let bytes: Buffer
   try {
     bytes = readFileSync(abs)
   } catch {
-    throw new InstanceRefusal(`cannot read the extensions file ${abs}`)
+    throw new InstanceRefusal(`cannot read the schema file ${abs}`)
   }
   try {
-    const file = parseExtensionsFile(bytes.toString('utf8'))
+    const file = parseSchemaFile(bytes.toString('utf8'))
     return { path: abs, bytes, digest: sha256Hex(bytes), objects: file.objects, extend: file.extend ?? {} }
   } catch (e) {
     if (e instanceof DeclarationError)
@@ -59,20 +59,20 @@ export function loadExtensionsFile(path: string): ExtensionsRun {
 }
 
 /** The extension fields a run declares, sorted `<object>.<name>__c` (what the Worker reports as `fields`). */
-export const runFields = (run: ExtensionsRun): string[] =>
+export const runFields = (run: SchemaFileRun): string[] =>
   Object.entries(run.extend)
     .flatMap(([object, declared]) => Object.keys(declared).map((name) => `${object}.${name}`))
     .sort()
 /** True when the run is a file in the Worker's sense ([[CORE561]] P3): it declares an object or an extension field. The deliberate drop is a file with neither. */
-export const isFile = (run: ExtensionsRun | null): boolean =>
+export const isFile = (run: SchemaFileRun | null): boolean =>
   run !== null && (Object.keys(run.objects).length > 0 || runFields(run).length > 0)
 
 /** The digest a run attaches: `null` when there is no file or it declares no objects and no extension fields (the Worker reports `null` for both, P1, P2). */
-export const runDigest = (run: ExtensionsRun | null): string | null => (run !== null && isFile(run) ? run.digest : null)
+export const runDigest = (run: SchemaFileRun | null): string | null => (run !== null && isFile(run) ? run.digest : null)
 
-/** `/health.extensions` as the tooling reads it: no key (an older build) is none, an unreadable shape is none, an error marker is a file the Worker could not load (P1). */
-export function liveExtensionsOf(health: unknown): LiveExtensions {
-  const e = (health as { extensions?: unknown } | null | undefined)?.extensions
+/** `/health.schema` as the tooling reads it: no key (an older build) is none, an unreadable shape is none, an error marker is a file the Worker could not load (P1). */
+export function liveSchemaFileOf(health: unknown): LiveSchemaFile {
+  const e = (health as { schema?: unknown } | null | undefined)?.schema
   if (typeof e !== 'object' || e === null) return null
   const { digest, objects, fields, error } = e as {
     digest?: unknown
@@ -100,13 +100,13 @@ const holds = (objects: string[], fields: string[]): string =>
     ...(objects.length > 0 || fields.length === 0 ? [names(objects)] : []),
     ...(fields.length > 0 ? [`fields: ${fields.join(', ')}`] : []),
   ].join('; ')
-const liveText = (live: LiveExtensions): string =>
+const liveText = (live: LiveSchemaFile): string =>
   live === null
     ? 'none'
     : 'error' in live
       ? `${live.digest} (invalid: ${live.error})`
       : `${live.digest} (${holds(live.objects, live.fields ?? [])})`
-const runText = (run: ExtensionsRun | null): string =>
+const runText = (run: SchemaFileRun | null): string =>
   run === null
     ? 'none'
     : !isFile(run)
@@ -114,31 +114,31 @@ const runText = (run: ExtensionsRun | null): string =>
       : `${run.digest} (${holds(Object.keys(run.objects), runFields(run))})`
 
 /** The line `status` prints. */
-export const liveExtensionsLine = (live: LiveExtensions): string => `extensions: ${liveText(live)}`
+export const liveSchemaFileLine = (live: LiveSchemaFile): string => `schema: ${liveText(live)}`
 /** The plan line naming both digests (D29). */
-export const extensionsLine = (live: LiveExtensions, run: ExtensionsRun | null): string =>
-  `extensions: live ${liveText(live)} -> run ${runText(run)}`
+export const schemaFileLine = (live: LiveSchemaFile, run: SchemaFileRun | null): string =>
+  `schema: live ${liveText(live)} -> run ${runText(run)}`
 
 /** The refusal text, or `null` ([[CORE543]] D29): the live Worker has a file (or one it could not load) and this run has none, so the deploy would drop it silently. */
-export function extensionsGuard(
-  live: LiveExtensions,
-  run: ExtensionsRun | null,
+export function schemaFileGuard(
+  live: LiveSchemaFile,
+  run: SchemaFileRun | null,
   mode: 'upgrade' | 'redeploy',
   env: string,
 ): string | null {
   if (live === null || run !== null) return null
   const what =
     'error' in live
-      ? `an extensions file it could not load (digest ${live.digest})`
-      : `an extensions file (digest ${live.digest}, ${holds(live.objects, live.fields ?? [])})`
-  const drop = `a file with no objects and no extend (${EMPTY_EXTENSIONS.trim()}) drops it on purpose`
+      ? `a schema file it could not load (digest ${live.digest})`
+      : `a schema file (digest ${live.digest}, ${holds(live.objects, live.fields ?? [])})`
+  const drop = `a file with an empty define and no extend (${EMPTY_SCHEMA_FILE.trim()}) drops it on purpose`
   return mode === 'redeploy'
-    ? `the live Worker carries ${what} and this run has none: it would be dropped. Pass --extensions <path> to attach one (${drop}), or record one with an earlier redeploy --extensions`
-    : `the live Worker carries ${what} and this instance records none: upgrade would drop it. Run vibase-server redeploy --extensions <path> --env ${env} to attach one and record it (${drop})`
+    ? `the live Worker carries ${what} and this run has none: it would be dropped. Pass --schema <path> to attach one (${drop}), or record one with an earlier redeploy --schema`
+    : `the live Worker carries ${what} and this instance records none: upgrade would drop it. Run vibase-server redeploy --schema <path> --env ${env} to attach one and record it (${drop})`
 }
 
 /** True when `/health` shows what this run attached (P4): none and none, or the same digest and no error. */
-export function extensionsMatch(live: LiveExtensions, expect: string | null): boolean {
+export function schemaFileMatch(live: LiveSchemaFile, expect: string | null): boolean {
   if (expect === null) return live === null
   return live !== null && !('error' in live) && live.digest === expect
 }
@@ -177,7 +177,7 @@ const list = (items: string[]): string => (items.length === 0 ? 'none' : items.j
 export function planLines(p: RemotePlan): string[] {
   const { plan } = p
   return [
-    `extensions plan: ${plan.statements.length} statement${plan.statements.length === 1 ? '' : 's'}`,
+    `schema plan: ${plan.statements.length} statement${plan.statements.length === 1 ? '' : 's'}`,
     `  create: ${list(plan.created)}`,
     `  add: ${list(plan.added.map((a) => `${a.object}.${a.field}`))}`,
     `  index: ${list(plan.indexed.map((i) => i.index))}`,
@@ -187,7 +187,7 @@ export function planLines(p: RemotePlan): string[] {
 }
 /** The refusal text of a plan that cannot run: one line per refusal, by rule code. */
 export const refusalText = (refused: Refusal[]): string =>
-  `the extensions file cannot be applied (nothing was changed):\n${refused.map((r) => `  ${r.rule}: ${r.message}`).join('\n')}`
+  `the schema file cannot be applied (nothing was changed):\n${refused.map((r) => `  ${r.rule}: ${r.message}`).join('\n')}`
 
 /** The statements as the `--file` content: each ends in `;` and a newline. */
 export const statementsFile = (statements: string[]): string => `${statements.map((s) => `${s};`).join('\n')}\n`

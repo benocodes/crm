@@ -131,7 +131,7 @@ export interface WranglerCall {
   /** The generated config as it was on disk during the call. */
   configText: string | null
   configPath: string | null
-  /** [[CORE543]] D27: what the generated config's directory held during the call: the file names, and the extensions module's text. */
+  /** [[CORE543]] D27: what the generated config's directory held during the call: the file names, and the schema module's text. */
   staged: { files: string[]; module: string | null } | null
 }
 export interface World {
@@ -219,8 +219,8 @@ export function makeWorld(o: WorldOptions = {}): World {
           configPath && existsSync(configPath)
             ? {
                 files: readdirSync(join(configPath, '..')).sort(),
-                module: existsSync(join(configPath, '..', 'vibase-extensions.json'))
-                  ? readFileSync(join(configPath, '..', 'vibase-extensions.json'), 'utf8')
+                module: existsSync(join(configPath, '..', 'vibase.schema.json'))
+                  ? readFileSync(join(configPath, '..', 'vibase.schema.json'), 'utf8')
                   : null,
               }
             : null,

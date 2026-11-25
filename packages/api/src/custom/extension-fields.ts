@@ -17,7 +17,7 @@ const notNull = (f: FieldDeclaration): boolean => f.required === true && f.defau
 const COST =
   "no (organization_id, column, id) index (D33): only reference and unique extension fields are indexed, so eq reads the organisation's live rows"
 
-export function extensionShapes(fields: ExtensionFields) {
+export function extendShapes(fields: ExtensionFields) {
   const names = Object.keys(fields)
   const record = Object.fromEntries(names.map((n) => [n, recordOf(fields[n]!, notNull(fields[n]!))]))
   // Create: required with no default must be given (non-null); a default is applied when the field is absent; any other is optional and may be null (D8).
@@ -47,7 +47,7 @@ export function extensionShapes(fields: ExtensionFields) {
 export function extendDefinition<D extends PreparedResource>(def: D, fields: ExtensionFields | undefined): D {
   const names = Object.keys(fields ?? {})
   if (!fields || names.length === 0) return def
-  const shapes = extensionShapes(fields)
+  const shapes = extendShapes(fields)
   const references = Object.fromEntries(
     names.flatMap((n) => (fields[n]!.kind === 'reference' ? [[n, referenceSpec(fields[n]!)] as const] : [])),
   ) as Record<string, ReferenceTarget>

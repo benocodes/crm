@@ -121,7 +121,7 @@ export interface AppOptions {
   extraOperations?: (registry: Registry) => void
   /** [[CORE315]] D23: the custom objects' definitions (`defineCustomObject`), registered in the registry this app builds. Ignored when `registry` is given. */
   definitions?: readonly AnyResource[]
-  /** [[CORE559]] P1: the validated `extend` of the extensions file, handed to the registry this app builds (see `createVibaseRegistry`). Ignored when `registry` is given. */
+  /** [[CORE559]] P1: the validated `extend` of the schema file, handed to the registry this app builds (see `createVibaseRegistry`). Ignored when `registry` is given. */
   extend?: ExtendDeclarations
   /** The object store of operations with an object stage ([[CORE25]] D52). Absent: those operations answer `503 objects_unavailable`. */
   objects?: ObjectStore

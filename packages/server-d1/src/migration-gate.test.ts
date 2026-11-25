@@ -206,7 +206,7 @@ describe('a database with no marker table and no tracker (edge)', () => {
         latest_applied: null,
         latest_expected: LAST,
       },
-      extensions: null, // CORE543 P1
+      schema: null, // CORE543 P1
     })
   })
   it('other routes are 503 not_initialised, openapi still served', async () => {

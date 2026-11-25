@@ -11,8 +11,8 @@ export const SERVER_HELP_NEEDLES: ReadonlyArray<{ name: string; pattern: RegExp 
     pattern: /vibase-server upgrade --env <name> \[--dry-run\] \[--yes\](?! \[--rollback\])/,
   },
   {
-    name: 'redeploy [--dry-run] [--yes] [--extensions <path>]',
-    pattern: /vibase-server redeploy --env <name> \[--dry-run\] \[--yes\] \[--extensions <path>\]/,
+    name: 'redeploy [--dry-run] [--yes] [--schema <path>]',
+    pattern: /vibase-server redeploy --env <name> \[--dry-run\] \[--yes\] \[--schema <path>\]/,
   },
   {
     name: 'setup --env <name> [--api-host <host> | --workers-dev] ... [--dry-run] [--yes]',

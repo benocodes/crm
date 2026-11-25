@@ -33,12 +33,12 @@ export async function bundleWorker(entry: string, opts: { external?: string[] } 
     conditions: ['workerd', 'worker', 'browser'],
     target: 'es2022',
     external: ['cloudflare:workers', 'node:*', ...(opts.external ?? [])],
-    // A deploy attaches `vibase-extensions.json` as a Text module ([[CORE543]] P7); esbuild would parse it as JSON, so the one file of that name is inlined as text (the checked-in default), unless `external` leaves it to `textModules`.
+    // A deploy attaches `vibase.schema.json` as a Text module ([[CORE543]] P7); esbuild would parse it as JSON, so the one file of that name is inlined as text (the checked-in default), unless `external` leaves it to `textModules`.
     plugins: [
       {
-        name: 'extensions-text-module',
+        name: 'schema-file-text-module',
         setup: (b) =>
-          b.onLoad({ filter: /[\\/]vibase-extensions\.json$/ }, (a) => ({
+          b.onLoad({ filter: /[\\/]vibase\.schema\.json$/ }, (a) => ({
             contents: readFileSync(a.path, 'utf8'),
             loader: 'text',
           })),

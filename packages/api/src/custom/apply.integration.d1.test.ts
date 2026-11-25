@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { D1Like } from '@vibase/storage-d1'
 import { openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
 import { seedDeployment, seedPrincipal } from '@vibase/storage-d1/test/seed'
-import { applyExtensions, type ObjectDeclaration, type Refusal } from '../index.js'
+import { applySchemaFile, type ObjectDeclaration, type Refusal } from '../index.js'
 
 // [[CORE542]] D11, D31, D32, P2, P3, P4, P5: apply over a real D1. Declarations are built behind functions, never at import, so a red run fails per test.
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
@@ -87,7 +87,7 @@ describe('apply from empty, and idempotence', () => {
       clients__c: { fields: { name: { kind: 'text' }, project: { kind: 'reference', target: 'projects__c' } } },
     }
     objects.projects__c!.fields.client = { kind: 'reference', target: 'clients__c' }
-    const r = await applyExtensions(d1, objects)
+    const r = await applySchemaFile(d1, objects)
     expect(r.refused).toEqual([])
     expect(r.created.sort()).toEqual(['clients__c', 'projects__c'])
     const idx = await all<{ name: string; unique: number; partial: number }>(
@@ -103,14 +103,14 @@ describe('apply from empty, and idempotence', () => {
     ).toBe(1)
   })
   it('a second run plans and executes nothing and leaves the schema byte-equal', async () => {
-    await applyExtensions(d1, projects())
+    await applySchemaFile(d1, projects())
     const before = await schema()
-    const again = await applyExtensions(d1, projects())
+    const again = await applySchemaFile(d1, projects())
     expect(again).toEqual({ created: [], added: [], indexed: [], archived: [], refused: [], statements: 0 })
     expect(await schema()).toBe(before)
   })
   it('a file with no objects on a database with no custom table plans nothing', async () => {
-    expect(await applyExtensions(d1, {})).toEqual({
+    expect(await applySchemaFile(d1, {})).toEqual({
       created: [],
       added: [],
       indexed: [],
@@ -124,14 +124,14 @@ describe('apply from empty, and idempotence', () => {
 
 describe('allowed changes over data', () => {
   beforeEach(async () => {
-    await applyExtensions(d1, projects())
+    await applySchemaFile(d1, projects())
     await insert('projects__c', 1, { name: 'A', code: 'a1' })
     await insert('projects__c', 2, { name: 'B', code: 'b1' })
   })
   it('a new nullable field and a new required field with a default (existing rows take it)', async () => {
     const o = with_('note', { kind: 'text' })
     o.projects__c!.fields.tier = { kind: 'text', required: true, default: 'std' }
-    const r = await applyExtensions(d1, o)
+    const r = await applySchemaFile(d1, o)
     expect(r.refused).toEqual([])
     expect(r.added.map((a) => a.field).sort()).toEqual(['note', 'tier'])
     const rows = await all(`select note, tier from projects__c order by id`)
@@ -141,7 +141,7 @@ describe('allowed changes over data', () => {
     ])
   })
   it('a new reference field gets its index', async () => {
-    const r = await applyExtensions(d1, with_('deal', { kind: 'reference', target: 'deals' }))
+    const r = await applySchemaFile(d1, with_('deal', { kind: 'reference', target: 'deals' }))
     expect(r.refused).toEqual([])
     expect(r.indexed.map((i) => i.index)).toContain('idx_projects__c_deal_id')
     expect(
@@ -149,7 +149,7 @@ describe('allowed changes over data', () => {
     ).toBe(1)
   })
   it('unique added to an existing field over clean data', async () => {
-    const r = await applyExtensions(d1, with_('budget', { kind: 'integer', unique: true }))
+    const r = await applySchemaFile(d1, with_('budget', { kind: 'integer', unique: true }))
     expect(r.refused).toEqual([])
     expect(r.indexed.map((i) => i.index)).toEqual(['idx_projects__c_budget_unique'])
   })
@@ -163,10 +163,10 @@ describe('allowed changes over data', () => {
     f.when = { kind: 'timestamp' }
     f.flag = { kind: 'boolean', default: false }
     f.size = { kind: 'enum', values: ['s', 'm'] }
-    const first = await applyExtensions(d1, o)
+    const first = await applySchemaFile(d1, o)
     expect(first.refused).toEqual([])
     const before = await schema()
-    expect(await applyExtensions(d1, o)).toEqual({
+    expect(await applySchemaFile(d1, o)).toEqual({
       created: [],
       added: [],
       indexed: [],
@@ -184,12 +184,12 @@ describe('allowed changes over data', () => {
     ] as const) {
       const changed = projects()
       Object.assign(changed.projects__c!.fields, o.projects__c!.fields, { [name]: to })
-      expect(rules((await applyExtensions(d1, changed)).refused), name).toContain(`kind_changed:projects__c.${name}`)
+      expect(rules((await applySchemaFile(d1, changed)).refused), name).toContain(`kind_changed:projects__c.${name}`)
     }
   })
   it('a new sibling object', async () => {
     const o = { ...projects(), notes__c: { fields: { body: { kind: 'text' as const } } } }
-    const r = await applyExtensions(d1, o)
+    const r = await applySchemaFile(d1, o)
     expect(r.created).toEqual(['notes__c'])
     expect((await all(`select count(*) n from projects__c`))[0]!.n).toBe(2)
   })
@@ -200,14 +200,14 @@ describe('allowed changes over data', () => {
     o.projects__c!.fields.name!.label = 'Title'
     o.projects__c!.fields.stage = { kind: 'enum', values: ['planned', 'active', 'done'], default: 'planned' }
     const before = await schema()
-    const r = await applyExtensions(d1, o)
+    const r = await applySchemaFile(d1, o)
     expect(r).toEqual({ created: [], added: [], indexed: [], archived: [], refused: [], statements: 0 })
     expect(await schema()).toBe(before)
   })
   it('a removed field and a removed object are reported archived, and their column, table and values stay', async () => {
-    await applyExtensions(d1, { ...projects(), notes__c: { fields: { body: { kind: 'text' } } } })
+    await applySchemaFile(d1, { ...projects(), notes__c: { fields: { body: { kind: 'text' } } } })
     await insert('notes__c', 3, { body: 'keep me' })
-    const r = await applyExtensions(d1, without('budget'))
+    const r = await applySchemaFile(d1, without('budget'))
     expect(r.refused).toEqual([])
     expect(r.archived).toEqual(
       expect.arrayContaining([{ object: 'projects__c', field: 'budget' }, { object: 'notes__c' }]),
@@ -216,7 +216,7 @@ describe('allowed changes over data', () => {
     expect((await all(`select name from projects__c order by id`)).map((x) => x.name)).toEqual(['A', 'B'])
     expect(await all(`select body from notes__c`)).toEqual([{ body: 'keep me' }])
     // and a second run reports the same archive but plans no statement
-    expect((await applyExtensions(d1, without('budget'))).statements).toBe(0)
+    expect((await applySchemaFile(d1, without('budget'))).statements).toBe(0)
   })
 })
 
@@ -283,13 +283,13 @@ describe('refusals', () => {
   it.each(cases)(
     '%s is refused as %s naming the object and field, with no statement run',
     async (_n, rule, field, base, next) => {
-      await applyExtensions(d1, base())
+      await applySchemaFile(d1, base())
       const before = await schema()
       // an unrelated allowed change rides along: it must not run either (P2)
       const wanted = next()
       wanted.projects__c!.fields.extra_ok = { kind: 'text' }
       wanted.other__c = { fields: { x: { kind: 'text' } } }
-      const r = await applyExtensions(d1, wanted)
+      const r = await applySchemaFile(d1, wanted)
       expect(rules(r.refused)).toEqual([`${rule}:projects__c.${field}`])
       expect(r.statements).toBe(0)
       expect(r.created).toEqual([])
@@ -297,8 +297,8 @@ describe('refusals', () => {
     },
   )
   it('the kind_changed message names the live kind with the right article ([[CORE561]] 561.20)', async () => {
-    await applyExtensions(d1, o({ e: E, t: T }))
-    const r = await applyExtensions(d1, o({ e: T, t: E }))
+    await applySchemaFile(d1, o({ e: E, t: T }))
+    const r = await applySchemaFile(d1, o({ e: T, t: E }))
     expect(r.refused.filter((x) => x.rule === 'kind_changed').map((x) => x.message)).toEqual([
       'projects__c.e is an enum field and the file declares text: a kind never changes',
       'projects__c.t is a text field and the file declares enum: a kind never changes',
@@ -307,21 +307,21 @@ describe('refusals', () => {
   it('the column cap counts archived columns and names the table', async () => {
     const many = (names: string[]) => o(Object.fromEntries(names.map((n) => [n, { kind: 'text' as const }])))
     const first = Array.from({ length: 89 }, (_, i) => `f${i}`)
-    expect((await applyExtensions(d1, many(first))).refused).toEqual([])
+    expect((await applySchemaFile(d1, many(first))).refused).toEqual([])
     const before = await schema()
     const next = many([...first.slice(0, 10), 'n1', 'n2', 'n3', 'n4', 'n5'])
-    const r = await applyExtensions(d1, next)
+    const r = await applySchemaFile(d1, next)
     expect(rules(r.refused)).toEqual(['column_cap:projects__c'])
     expect(r.refused[0]!.message).toContain('projects__c')
     expect(await schema()).toBe(before)
     // 100 columns exactly is allowed
-    expect((await applyExtensions(d1, many([...first.slice(0, 10), 'n1', 'n2', 'n3', 'n4']))).refused).toEqual([])
+    expect((await applySchemaFile(d1, many([...first.slice(0, 10), 'n1', 'n2', 'n3', 'n4']))).refused).toEqual([])
   })
 })
 
 describe('violating data', () => {
   beforeEach(async () => {
-    await applyExtensions(d1, o2())
+    await applySchemaFile(d1, o2())
   })
   const o2 = (): Record<string, ObjectDeclaration> => ({ projects__c: { fields: { name: { kind: 'text' } } } })
   const withUnique = (): Record<string, ObjectDeclaration> => ({
@@ -334,7 +334,7 @@ describe('violating data', () => {
     const wanted = withUnique()
     wanted.projects__c!.fields.extra_ok = { kind: 'text' }
     const before = await schema()
-    const r = await applyExtensions(d1, wanted)
+    const r = await applySchemaFile(d1, wanted)
     expect(rules(r.refused)).toEqual(['unique_violation:projects__c.name'])
     expect(r.refused[0]!.value).toBe('dup')
     expect(r.refused[0]!.ids).toEqual([id(1), id(2)])
@@ -347,7 +347,7 @@ describe('violating data', () => {
     await insert('projects__c', 2, { name: 'dup', deleted_at: AT })
     await insert('projects__c', 3, { name: null })
     await insert('projects__c', 4, { name: null })
-    const r = await applyExtensions(d1, withUnique())
+    const r = await applySchemaFile(d1, withUnique())
     expect(r.refused).toEqual([])
     expect(r.indexed.map((i) => i.index)).toEqual(['idx_projects__c_name_unique'])
   })
@@ -361,13 +361,13 @@ describe('violating data', () => {
     await insert('projects__c', 2, { name: 'b' })
     await insert('projects__c', 3, { name: 'c', deleted_at: AT })
     const before = await schema()
-    const r = await applyExtensions(d1, wanted())
+    const r = await applySchemaFile(d1, wanted())
     expect(rules(r.refused)).toEqual(['unique_violation:projects__c.slug'])
     expect(r.refused[0]!.value).toBe('x')
     expect(r.refused[0]!.ids).toEqual([id(1), id(2)])
     expect(await schema()).toBe(before)
     await d1.prepare(`delete from projects__c where id = ?`).bind(id(2)).run()
-    expect((await applyExtensions(d1, wanted())).refused).toEqual([])
+    expect((await applySchemaFile(d1, wanted())).refused).toEqual([])
     expect(await all(`select slug from projects__c where id = ?`, id(1))).toEqual([{ slug: 'x' }])
   })
 })

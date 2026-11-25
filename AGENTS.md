@@ -16,7 +16,7 @@ self-managed, one D1 database per organisation/workspace in the customer's Cloud
 enterprise tier and no cloud-hosted Postgres service for now. The engine-neutral storage port and the
 Postgres adapters stay in the repo, dormant, for later: no new Postgres work, and Postgres suites are not a
 cycle gate. A single-workspace D1 deployment uses Clerk for sign-in but not Clerk Organizations; membership and roles live in Clerk (the `vibase_role` claim, [[CORE64]] D7); the vault keeps principals, agents and scopes.
-**Custom objects are built (milestone T, [[CORE315]])** as physical tables with typed columns, declared in the extensions file (no shared `records` table, no jsonb); the built-ins also carry an `additional_props` property bag ([[CORE318]]). Custom `<name>__c` fields on contacts, companies, deals and tasks are declared in the same file's `extend` section ([[CORE561]]); contact merge fills them and re-points references to contacts ([[CORE556]]); the adversarial contract is next (#565). A
+**Custom objects are built (milestone T, [[CORE315]])** as physical tables with typed columns, declared under `define` in the schema file (`vibase.schema.json`, `redeploy --schema`, [[CORE569]]; no shared `records` table, no jsonb); the built-ins also carry an `additional_props` property bag ([[CORE318]]). Custom `<name>__c` fields on contacts, companies, deals and tasks are declared in the same file's `extend` section ([[CORE561]]); contact merge fills them and re-points references to contacts ([[CORE556]]); every system writer is proven against them ([[CORE565]]). A
 **discoverable schema** (real names, native types, declared FKs; easy for agents and humans to query and
 understand) is a core principle.
 

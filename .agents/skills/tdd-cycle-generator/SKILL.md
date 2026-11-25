@@ -110,7 +110,10 @@ Over budget on any line means split, at plan time. Do not write a fallback cut (
 ~1,500 lines"): a coder deep in a cycle does not stop to split it, and lines do not predict tokens ([[AGT165]]
 D47's tripwire never fired). The one exception is OPS92's: a large mechanical change (renames, file
 splits) that one check proves whole, such as a before/after test-name manifest, is one cycle, because a split
-only adds an interim state where old and new mechanisms live side by side. Say so in the Size line.
+only adds an interim state where old and new mechanisms live side by side. Say so in the Size line. A rename
+charter also asks for: the docs' samples parsed by the shipped code (a renamed key is an ordinary word no token ban
+catches), the old name refused by a test that the guard's allow-list names, and the changesets read back after the
+replace (lowercase sentence starts survive into the CHANGELOG) ([[CORE569]] review).
 
 These numbers are a first calibration (2026-11-06). Each retro records the cost against them ([[retrospect]]),
 and they move when the retros say so.

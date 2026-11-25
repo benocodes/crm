@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { D1Like } from '@vibase/storage-d1'
 import { openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
 import { seedDeployment, seedPrincipal } from '@vibase/storage-d1/test/seed'
-import { applyExtensions, planApply, readLiveSchema } from './apply.js'
+import { applySchemaFile, planApply, readLiveSchema } from './apply.js'
 import { parseExtend, type ExtendDeclarations } from './extend.js'
 import { DeclarationError, type ObjectDeclaration } from './declaration.js'
 
@@ -91,7 +91,7 @@ const one = (fields: NonNullable<ExtendDeclarations['contacts']>): ExtendDeclara
 describe("D8's shapes on the live table (P3)", () => {
   it('each shape reads only its own column, on all four tables, and a second apply plans nothing', async () => {
     await fresh()
-    const r = await applyExtensions(d1, { projects__c: PROJECTS }, everywhere())
+    const r = await applySchemaFile(d1, { projects__c: PROJECTS }, everywhere())
     expect(r.refused).toEqual([])
     for (const t of TABLES) {
       const cols = await info(t)
@@ -121,7 +121,7 @@ describe("D8's shapes on the live table (P3)", () => {
       expect(await indexSql(`idx_${t}_company_ref__c_id`), t).toMatch(/\("organization_id", "company_ref__c", "id"\)/)
       expect(await indexSql(`idx_${t}_proj__c_id`), t).toMatch(/\("organization_id", "proj__c", "id"\)/)
     }
-    const again = await applyExtensions(d1, { projects__c: PROJECTS }, everywhere())
+    const again = await applySchemaFile(d1, { projects__c: PROJECTS }, everywhere())
     expect(again).toEqual({ created: [], added: [], indexed: [], archived: [], refused: [], statements: 0 })
     expect(planApply({ projects__c: PROJECTS }, await readLiveSchema(d1), everywhere()).statements).toEqual([])
   })
@@ -136,7 +136,7 @@ describe("D8's shapes on the live table (P3)", () => {
     expect(plan.statements.findIndex((s) => s.includes('ADD COLUMN "proj__c"'))).toBeGreaterThan(0)
     expect(
       (
-        await applyExtensions(
+        await applySchemaFile(
           d1,
           { projects__c: PROJECTS },
           one({ proj__c: { kind: 'reference', target: 'projects__c' } }),
@@ -147,19 +147,19 @@ describe("D8's shapes on the live table (P3)", () => {
   it('a required field with no default is added to a table that has rows (D8)', async () => {
     await fresh()
     await rowOf('contacts', 1)
-    const r = await applyExtensions(d1, {}, one({ tier__c: { kind: 'text', required: true } }))
+    const r = await applySchemaFile(d1, {}, one({ tier__c: { kind: 'text', required: true } }))
     expect(r.refused).toEqual([])
     expect((await all(`select tier__c from contacts`))[0]).toEqual({ tier__c: null })
   })
   it('a required field with a constant default fills existing rows', async () => {
     await fresh()
     await rowOf('contacts', 1)
-    await applyExtensions(d1, {}, one({ status__c: { kind: 'text', required: true, default: 'new' } }))
+    await applySchemaFile(d1, {}, one({ status__c: { kind: 'text', required: true, default: 'new' } }))
     expect((await all(`select status__c from contacts`))[0]).toEqual({ status__c: 'new' })
   })
   it('the built-ins keep working: rows insert and the core constraints still hold with every shape applied', async () => {
     await fresh()
-    await applyExtensions(d1, { projects__c: PROJECTS }, everywhere())
+    await applySchemaFile(d1, { projects__c: PROJECTS }, everywhere())
     for (const t of TABLES) if (t !== 'deals') await rowOf(t, 1)
     expect((await all(`select status__c from contacts`))[0]).toEqual({ status__c: 'new' })
   })
@@ -176,7 +176,7 @@ describe('refusals and archive on built-ins (P4, P5)', () => {
     })
   const withBase = async () => {
     await fresh()
-    expect((await applyExtensions(d1, {}, base())).refused).toEqual([])
+    expect((await applySchemaFile(d1, {}, base())).refused).toEqual([])
   }
   const change = (patch: Record<string, any>): ExtendDeclarations => ({ contacts: { ...base().contacts, ...patch } })
   const refusals: [string, Record<string, any>, string][] = [
@@ -192,7 +192,7 @@ describe('refusals and archive on built-ins (P4, P5)', () => {
     it(`${name} is refused by name and runs no statement`, async () => {
       await withBase()
       const before = await snapshot()
-      const r = await applyExtensions(d1, {}, { contacts: { ...change(patch).contacts!, fresh__c: { kind: 'text' } } })
+      const r = await applySchemaFile(d1, {}, { contacts: { ...change(patch).contacts!, fresh__c: { kind: 'text' } } })
       expect(rules(r)).toContain(rule)
       expect(r.statements).toBe(0)
       expect(await snapshot()).toBe(before)
@@ -200,9 +200,9 @@ describe('refusals and archive on built-ins (P4, P5)', () => {
   it('the kind_changed message names the live kind with the right article, "an enum" and "a text" ([[CORE561]] 561.20)', async () => {
     await fresh()
     expect(
-      (await applyExtensions(d1, {}, one({ e__c: { kind: 'enum', values: ['a'] }, t__c: { kind: 'text' } }))).refused,
+      (await applySchemaFile(d1, {}, one({ e__c: { kind: 'enum', values: ['a'] }, t__c: { kind: 'text' } }))).refused,
     ).toEqual([])
-    const r = await applyExtensions(d1, {}, one({ e__c: { kind: 'text' }, t__c: { kind: 'enum', values: ['a'] } }))
+    const r = await applySchemaFile(d1, {}, one({ e__c: { kind: 'text' }, t__c: { kind: 'enum', values: ['a'] } }))
     const messages = r.refused.filter((x) => x.rule === 'kind_changed').map((x) => x.message)
     expect(messages).toEqual([
       'contacts.e__c is an enum field and the file declares text: a kind never changes',
@@ -211,18 +211,18 @@ describe('refusals and archive on built-ins (P4, P5)', () => {
   })
   it('optional to required with the default kept is refused (not-null changes)', async () => {
     await fresh()
-    await applyExtensions(d1, {}, one({ s__c: { kind: 'text', default: 'x' } }))
-    const r = await applyExtensions(d1, {}, one({ s__c: { kind: 'text', default: 'x', required: true } }))
+    await applySchemaFile(d1, {}, one({ s__c: { kind: 'text', default: 'x' } }))
+    const r = await applySchemaFile(d1, {}, one({ s__c: { kind: 'text', default: 'x', required: true } }))
     expect(rules(r)).toContain('optional_to_required:contacts.s__c')
   })
   it('toggling required on a field with no default changes no DDL and is allowed, both ways', async () => {
     await fresh()
-    await applyExtensions(d1, {}, one({ t__c: { kind: 'text' } }))
+    await applySchemaFile(d1, {}, one({ t__c: { kind: 'text' } }))
     expect(planApply({}, await readLiveSchema(d1), one({ t__c: { kind: 'text', required: true } }))).toMatchObject({
       statements: [],
       refused: [],
     })
-    await applyExtensions(d1, {}, one({ t2__c: { kind: 'text', required: true } }))
+    await applySchemaFile(d1, {}, one({ t2__c: { kind: 'text', required: true } }))
     expect(planApply({}, await readLiveSchema(d1), one({ t2__c: { kind: 'text' } }))).toMatchObject({
       statements: [],
       refused: [],
@@ -230,14 +230,14 @@ describe('refusals and archive on built-ins (P4, P5)', () => {
   })
   it('a unique field over live duplicates is refused with value and ids; a soft-deleted twin does not count; an empty table is fine', async () => {
     await fresh()
-    expect((await applyExtensions(d1, {}, one({ code__c: { kind: 'text', unique: true } }))).refused).toEqual([]) // empty state
+    expect((await applySchemaFile(d1, {}, one({ code__c: { kind: 'text', unique: true } }))).refused).toEqual([]) // empty state
     await fresh()
-    await applyExtensions(d1, {}, one({ code__c: { kind: 'text' } }))
+    await applySchemaFile(d1, {}, one({ code__c: { kind: 'text' } }))
     await rowOf('contacts', 1, { code__c: 'dup' })
     await rowOf('contacts', 2, { code__c: 'dup' })
     await rowOf('contacts', 3, { code__c: 'solo' })
     const before = await snapshot()
-    const r = await applyExtensions(d1, {}, one({ code__c: { kind: 'text', unique: true } }))
+    const r = await applySchemaFile(d1, {}, one({ code__c: { kind: 'text', unique: true } }))
     expect(r.refused).toEqual([
       expect.objectContaining({
         rule: 'unique_violation',
@@ -249,10 +249,10 @@ describe('refusals and archive on built-ins (P4, P5)', () => {
     ])
     expect(await snapshot()).toBe(before)
     await d1.prepare(`update contacts set deleted_at = ? where id = ?`).bind(AT, id(2)).run()
-    expect((await applyExtensions(d1, {}, one({ code__c: { kind: 'text', unique: true } }))).refused).toEqual([])
+    expect((await applySchemaFile(d1, {}, one({ code__c: { kind: 'text', unique: true } }))).refused).toEqual([])
     expect(await indexSql('idx_contacts_code__c_unique')).toBeDefined()
   })
-  // [[CORE565]] 565.2: the file parser refuses unique + default (`unique_with_default`), so this is the defence for input built by hand: `applyExtensions` takes parsed declarations and still refuses a collision it would create.
+  // [[CORE565]] 565.2: the file parser refuses unique + default (`unique_with_default`), so this is the defence for input built by hand: `applySchemaFile` takes parsed declarations and still refuses a collision it would create.
   it('a new unique field with a default over several live rows is refused (every row holds the default); the parser refuses the declaration first', async () => {
     expect(() =>
       parseExtend({ contacts: { fields: { k__c: { kind: 'text', unique: true, default: 'same' } } } }),
@@ -260,7 +260,7 @@ describe('refusals and archive on built-ins (P4, P5)', () => {
     await fresh()
     await rowOf('contacts', 1)
     await rowOf('contacts', 2)
-    const r = await applyExtensions(d1, {}, one({ k__c: { kind: 'text', unique: true, default: 'same' } }))
+    const r = await applySchemaFile(d1, {}, one({ k__c: { kind: 'text', unique: true, default: 'same' } }))
     expect(r.refused[0]).toMatchObject({ rule: 'unique_violation', value: 'same', ids: expect.any(Array) })
   })
   it('the 100-column cap counts the core columns', async () => {
@@ -268,17 +268,17 @@ describe('refusals and archive on built-ins (P4, P5)', () => {
     const core = Object.keys(await info('contacts')).length
     const make = (n: number) =>
       Object.fromEntries(Array.from({ length: n }, (_, i) => [`f${i}__c`, { kind: 'integer' as const }]))
-    const over = await applyExtensions(d1, {}, one(make(100 - core + 1)))
+    const over = await applySchemaFile(d1, {}, one(make(100 - core + 1)))
     expect(rules(over)).toContain('column_cap:contacts.')
     expect(over.statements).toBe(0)
-    expect((await applyExtensions(d1, {}, one(make(100 - core)))).refused).toEqual([])
+    expect((await applySchemaFile(d1, {}, one(make(100 - core)))).refused).toEqual([])
     expect(Object.keys(await info('contacts'))).toHaveLength(100)
   })
   it('a removed field is archived: reported, kept, its data readable', async () => {
     await fresh()
-    await applyExtensions(d1, {}, one({ note__c: { kind: 'text' }, keep__c: { kind: 'text' } }))
+    await applySchemaFile(d1, {}, one({ note__c: { kind: 'text' }, keep__c: { kind: 'text' } }))
     await rowOf('contacts', 1, { note__c: 'hello' })
-    const r = await applyExtensions(d1, {}, one({ keep__c: { kind: 'text' } }))
+    const r = await applySchemaFile(d1, {}, one({ keep__c: { kind: 'text' } }))
     expect(r.archived).toEqual([{ object: 'contacts', field: 'note__c' }])
     expect(r.statements).toBe(0)
     expect((await all(`select note__c from contacts`))[0]).toEqual({ note__c: 'hello' })
@@ -301,25 +301,25 @@ describe('the boundary and the snapshot (P5, P6)', () => {
   it('the four tables are never created or archived, with extend or without, also over a fully applied database', async () => {
     await fresh()
     for (const extend of [undefined, {}, everywhere()]) {
-      const r = await applyExtensions(d1, { projects__c: PROJECTS }, extend)
+      const r = await applySchemaFile(d1, { projects__c: PROJECTS }, extend)
       expect(r.created.filter((t) => TABLES.includes(t))).toEqual([])
       expect(r.archived.filter((a) => TABLES.includes(a.object) && a.field === undefined)).toEqual([])
     }
-    expect((await applyExtensions(d1, { projects__c: PROJECTS })).archived.every((a) => a.field !== undefined)).toBe(
+    expect((await applySchemaFile(d1, { projects__c: PROJECTS })).archived.every((a) => a.field !== undefined)).toBe(
       true,
     )
   })
   it('a __c column left on a built-in with no declaration is archived and kept', async () => {
     await fresh()
-    await applyExtensions(d1, {}, everywhere())
-    const r = await applyExtensions(d1, {})
+    await applySchemaFile(d1, {}, everywhere())
+    const r = await applySchemaFile(d1, {})
     expect(r.archived).toHaveLength(Object.keys(shapes()!).length * 4)
     expect(r.archived).toContainEqual({ object: 'tasks', field: 'note__c' })
     expect(r.statements).toBe(0)
   })
   it('the snapshot covers the four tables beside the __c tables', async () => {
     await fresh()
-    await applyExtensions(d1, { projects__c: PROJECTS }, one({ note__c: { kind: 'text' } }))
+    await applySchemaFile(d1, { projects__c: PROJECTS }, one({ note__c: { kind: 'text' } }))
     const live = await readLiveSchema(d1)
     expect(Object.keys(live.tables)).toEqual(['projects__c'])
     expect(Object.keys(live.builtins ?? {}).sort()).toEqual(['companies', 'contacts', 'deals', 'tasks'])

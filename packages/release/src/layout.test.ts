@@ -186,15 +186,15 @@ describe('D8 (2), (3), (4), (9): the server package', () => {
       expect(() => assertServerLayout(dir, s.version), JSON.stringify(flags)).toThrow(/nodejs_compat/)
     }
   })
-  it('CORE543 P7: a worker.js that does not import vibase-extensions.json by that exact name is refused (a hashed name would break the deploy that stages the module)', () => {
+  it('CORE543 P7: a worker.js that does not import vibase.schema.json by that exact name is refused (a hashed name would break the deploy that stages the module)', () => {
     for (const text of [
       'export default {}\n',
-      'import e from "./33783e073d7cdea258fd1d873ca8c61ac8604cc1-vibase-extensions.json";\nexport default { e }\n',
+      'import e from "./33783e073d7cdea258fd1d873ca8c61ac8604cc1-vibase.schema.json";\nexport default { e }\n',
       'import e from "./other.json";\nexport default { e }\n',
     ]) {
       const { dir, s } = server()
       put(dir, 'worker/worker.js', text)
-      expect(() => assertServerLayout(dir, s.version), text).toThrow(/vibase-extensions\.json/)
+      expect(() => assertServerLayout(dir, s.version), text).toThrow(/vibase\.schema\.json/)
     }
     const { dir, s } = server()
     expect(serverProblems(dir, s.version)).toEqual([])
@@ -202,7 +202,7 @@ describe('D8 (2), (3), (4), (9): the server package', () => {
   it('a missing worker, base config or release.json is refused by name', () => {
     for (const f of [
       'worker/worker.js',
-      'worker/vibase-extensions.schema.json',
+      'worker/vibase.schema.schema.json',
       'wrangler.base.jsonc',
       'release.json',
       'cli/server.js',

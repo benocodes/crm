@@ -80,7 +80,7 @@ describe('D3 layout', () => {
       'migrations/0002_b.sql',
       'package.json',
       'release.json',
-      'worker/vibase-extensions.schema.json',
+      'worker/vibase.schema.schema.json',
       'worker/worker.js',
       'wrangler.base.jsonc',
     ])
