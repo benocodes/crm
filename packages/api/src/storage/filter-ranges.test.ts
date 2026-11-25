@@ -41,7 +41,10 @@ describe('the OpenAPI parameter of a column filter (D4)', () => {
           { type: 'string' },
           { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: MAX_CONDITIONS },
         ])
-        expect(p['x-vibase-filter'], where).toEqual({ kind: spec.kind, operators: operatorsFor(spec.kind, spec.nullable) })
+        expect(p['x-vibase-filter'], where).toEqual({
+          kind: spec.kind,
+          operators: operatorsFor(spec.kind, spec.nullable),
+        })
       }
     }
     expect(seen).toBeGreaterThan(40)
@@ -49,7 +52,8 @@ describe('the OpenAPI parameter of a column filter (D4)', () => {
   })
   it('`is` is present exactly when the field is nullable', async () => {
     const d = await doc()
-    const ops = (op: string, name: string) => parametersOf(d, op).find((p) => p.name === name)['x-vibase-filter'].operators
+    const ops = (op: string, name: string) =>
+      parametersOf(d, op).find((p) => p.name === name)['x-vibase-filter'].operators
     expect(ops('deals.list', 'expected_close_date')).toContain('is')
     expect(ops('deals.list', 'name')).not.toContain('is')
   })

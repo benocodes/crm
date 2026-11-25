@@ -245,7 +245,10 @@ export function parseConditions(
 export function acceptsList(schema: unknown): boolean {
   let def = (schema as { _zod?: { def?: any } } | undefined)?._zod?.def
   while (def && (def.type === 'optional' || def.type === 'nullable')) def = def.innerType?._zod?.def
-  return def?.type === 'union' && (def.options as Array<{ _zod: { def: { type: string } } }>).some((o) => o._zod.def.type === 'array')
+  return (
+    def?.type === 'union' &&
+    (def.options as Array<{ _zod: { def: { type: string } } }>).some((o) => o._zod.def.type === 'array')
+  )
 }
 
 /** [[CORE199]] D4: the operand's `*` is the wildcard of `ilike`; `%`, `_` and the escape character are literal (LIKE ... ESCAPE '\'). */
@@ -430,7 +433,9 @@ export function columnFilterParams(def: {
       z
         .union([z.string(), z.array(z.string()).min(1).max(MAX_CONDITIONS)])
         .describe(describeColumnFilter(key, spec))
-        .meta({ param: { 'x-vibase-filter': { kind: spec.kind, operators: [...operatorsFor(spec.kind, spec.nullable)] } } })
+        .meta({
+          param: { 'x-vibase-filter': { kind: spec.kind, operators: [...operatorsFor(spec.kind, spec.nullable)] } },
+        })
         .optional(),
     ]),
   )

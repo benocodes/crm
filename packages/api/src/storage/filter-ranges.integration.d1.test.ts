@@ -168,7 +168,11 @@ describe('the cap and the refusals (group 2)', () => {
   })
   it('a caller without the read scope gets 403 before any condition is parsed', async () => {
     const nobody = await k.actor('nobody', 'agent', ['contacts:read'])
-    const r = await k.call(nobody, 'GET', `/api/v1/deals?amount_minor=bad&amount_minor=worse&amount_minor=x&amount_minor=y&amount_minor=z`)
+    const r = await k.call(
+      nobody,
+      'GET',
+      `/api/v1/deals?amount_minor=bad&amount_minor=worse&amount_minor=x&amount_minor=y&amount_minor=z`,
+    )
     expect(r.status).toBe(403)
   })
 })

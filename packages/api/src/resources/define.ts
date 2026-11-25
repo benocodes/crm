@@ -64,7 +64,13 @@ function equalityOf(raw: string): string | undefined {
 
 export function parseListQuery(
   def: ListDef,
-  raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string | readonly string[]> },
+  raw: {
+    after?: unknown
+    limit?: unknown
+    sort?: unknown
+    order?: unknown
+    filters?: Record<string, string | readonly string[]>
+  },
 ): { after: string | null; limit: number; filters: Record<string, unknown>; sort: SortRequest | null } {
   let limit = 50
   if (raw.limit !== undefined) {
@@ -112,7 +118,11 @@ export function parseListQuery(
   const siblings: Record<string, string | undefined> = {}
   // [[CORE602]] D8: a field with two or more conditions is not a plain equality, even when one of them is `eq`.
   for (const [key, value] of Object.entries(raw.filters ?? {}))
-    siblings[key] = Array.isArray(value) ? (value.length === 1 ? equalityOf(String(value[0])) : undefined) : equalityOf(String(value))
+    siblings[key] = Array.isArray(value)
+      ? value.length === 1
+        ? equalityOf(String(value[0]))
+        : undefined
+      : equalityOf(String(value))
   const parsed: Record<string, unknown> = {}
   const conditions: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(raw.filters ?? {})) {
