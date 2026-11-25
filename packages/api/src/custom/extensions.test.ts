@@ -115,6 +115,12 @@ describe('the envelope', () => {
       'extend.contacts.fields.a__c',
     ],
     [
+      'a unique field with a default (CORE565 D8)',
+      { tasks: { fields: { a__c: { kind: 'text', unique: true, default: 'x' } } } },
+      'unique_with_default',
+      'extend.tasks.fields.a__c',
+    ],
+    [
       'a reference to a custom object not in the file',
       { deals: { fields: { a__c: { kind: 'reference', target: 'other__c' } } } },
       'reference_target_undeclared',
@@ -123,6 +129,16 @@ describe('the envelope', () => {
   ])('refuses extend: %s -> %s at %s', (_n, extend, rule, path) => {
     const e = refused(file({ extend }))
     expect([e.rule, e.path]).toEqual([rule, path])
+  })
+  it('a custom object keeps accepting unique + default; unique + required with no default is accepted on extend (CORE565 D8)', () => {
+    const f = parseExtensionsFile(
+      file({
+        objects: { projects__c: { fields: { code: { kind: 'text', unique: true, default: 'x' } } } },
+        extend: { deals: { fields: { a__c: { kind: 'text', unique: true, required: true } } } },
+      }),
+    )
+    expect(f.objects.projects__c!.fields!.code).toMatchObject({ unique: true, default: 'x' })
+    expect(f.extend?.deals?.a__c).toMatchObject({ unique: true, required: true })
   })
   it('refuses a non-object extend', () => {
     const e = refused(file({ extend: [] }))

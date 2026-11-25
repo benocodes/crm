@@ -332,6 +332,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   and running it: a hand-written argv supplies what the printed one omits and hides it ([[OPS494]] review: the printed
   `setup` command lacked `--auth`, so a `clerk` file would have been set up as Better Auth, while the test passed
   `--auth clerk` itself).
+- **An `it.each` row whose body `return`s early is a green case that asserts nothing.** Filter the row out of the list
+  and say in a comment where its property is proven instead ([[CORE565]] review: deals in the per-table refusal matrix,
+  `packages/api/src/custom/adversarial-guards.integration.d1.test.ts`).
 - **A test that passes in the red run is vacuous until proven otherwise.** List every one in RESULT.md, then tighten it
   so it fails under the stub (assert the success status, `201`/`200`, before the absence it claims) or name the mutation
   that reddens it. [[CORE245]]'s "no CRM event" test passed in red on a `404`: it proved nothing until it asserted the

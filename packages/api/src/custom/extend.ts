@@ -87,6 +87,12 @@ export function parseExtend(input: unknown, customKeys: readonly string[] = []):
           'reference_contacts_self',
           'a field of contacts cannot reference contacts: an association links two contacts',
         )
+      // [[CORE565]] 565.2 (D8): every row a system writer creates takes the default, so a second one would collide on the unique index; a custom object has no system writers and keeps the combination.
+      if (f.unique === true && f.default !== undefined)
+        fail(
+          'unique_with_default',
+          'a unique extension field cannot have a default: every row a system writer creates would take it and collide',
+        )
       if (f.kind === 'reference' && f.target?.endsWith(KEY_SUFFIX) && !customKeys.includes(f.target))
         throw new DeclarationError('reference_target_undeclared', `${f.target} is not a declared custom object`, fat)
       fields[key] = f
