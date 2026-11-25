@@ -55,7 +55,7 @@ const EXPECTED_QUERIES: Record<string, number> = {
   'contact-delete-100-with-links': 3,
   'capture-chunk-1': 2, // read batch, write batch (no route: the unit is run directly, CORE68 D55)
   'capture-chunk-100': 2, // the same two, at the cap: 100 messages, 100 distinct addresses, 100 stored attachments
-  'pipeline-batch-25': 3, // CORE69 D16: pre-check read, then the unit's read batch and write batch (25 new messages, one chunk; objects are R2, not D1)
+  'pipeline-batch-25': 4, // CORE69 D16: pre-check read, CORE574 574.14: the chunk's fresh fingerprint re-read before content is stored, then the unit's read batch and write batch (25 new messages, one chunk; objects are R2, not D1)
   'pipeline-batch-25-existing': 3, // the same batch again: pre-check, then the unit's two batches (sources only)
 }
 
