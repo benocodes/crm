@@ -5,6 +5,7 @@ import { messagePreview } from '../../messaging/preview.js'
 import { toBase64Url } from '../../test/gmail.js'
 import { gmailFixture, MAILBOX, type FixtureName } from '../../test/gmail-fixtures.js'
 import type { MessageSpec } from '../../test/gmail.js'
+import type { GmailMessagePart } from './types.js'
 import { mapGmailMessage, type GmailConnection } from './mapper.js'
 
 // [[CHN5]] D35, [[CORE25]] "Channel port", D28, D29, D36, D37: the Gmail mapper over the synthetic fixtures.
@@ -247,5 +248,100 @@ describe('raw', () => {
     expect(out.raw).toMatchObject({ ext: 'eml', content_type: 'message/rfc822', size: null })
     const stream = await out.raw.open()
     expect(stream).toBeInstanceOf(ReadableStream)
+  })
+})
+
+// [[CORE571]] D1, D4: bounded parse and bounded MIME walk. One poison email must not stop a mailbox's capture.
+const depthOf = (node: { children?: unknown[] }): number => {
+  let max = 0
+  const stack: Array<{ n: { children?: unknown[] }; d: number }> = [{ n: node, d: 0 }]
+  while (stack.length > 0) {
+    const { n, d } = stack.pop()!
+    max = Math.max(max, d)
+    for (const c of n.children ?? []) stack.push({ n: c as { children?: unknown[] }, d: d + 1 })
+  }
+  return max
+}
+const deepHtml = (levels: number, inner: string): string =>
+  `<html><body>${'<div>'.repeat(levels)}${inner}${'</div>'.repeat(levels)}</body></html>`
+const mapDeep = (html: string): ChannelMessage =>
+  map('htmlOnly', (s) => ({ ...s, payload: { ...s.payload, text: html } })).out
+
+describe('deep HTML is bounded, not rejected (CORE571 D1)', () => {
+  for (const levels of [5_000, 50_000]) {
+    it(`a body nested ${levels} levels deep maps and keeps its innermost text`, () => {
+      const out = mapDeep(deepHtml(levels, '<p>innermost words</p>'))
+      expect(out.message.text).toContain('innermost words')
+      expect(stringifyMarkdown(out.message.formatted)).toContain('innermost words')
+      expect(depthOf(out.message.formatted as never)).toBeLessThanOrEqual(256)
+    })
+  }
+
+  it('text beside nested elements past the bound keeps its document order', () => {
+    const html = `<html><body>${'<div>'.repeat(400)}one<span>two</span>three${'</div>'.repeat(400)}</body></html>`
+    expect(mapDeep(html).message.text.replace(/\s+/g, '')).toBe('onetwothree')
+  })
+
+  it('both sides of the bound: structure kept at element depth 256, flattened at 257', () => {
+    // html > body > N divs: the innermost div is at element depth N + 2, its blockquote child at N + 3.
+    const has = (m: ChannelMessage) => stringifyMarkdown(m.message.formatted).includes('> marker')
+    const atBound = mapDeep(deepHtml(253, '<blockquote>marker</blockquote>'))
+    const pastBound = mapDeep(deepHtml(254, '<blockquote>marker</blockquote>'))
+    expect(has(atBound)).toBe(true)
+    expect(has(pastBound)).toBe(false)
+    expect(pastBound.message.text).toContain('marker')
+  })
+})
+
+describe('deep MIME parts are bounded (CORE571 D4)', () => {
+  const nest = (levels: number, leaf: GmailMessagePart): GmailMessagePart => {
+    let part = leaf
+    for (let i = 0; i < levels; i++)
+      part = { partId: '', mimeType: 'multipart/mixed', filename: '', body: { size: 0 }, parts: [part] }
+    return part
+  }
+  const text = (data: string): GmailMessagePart => ({
+    partId: '0',
+    mimeType: 'text/plain',
+    filename: '',
+    body: { size: 1, data: toBase64Url(new TextEncoder().encode(data)) },
+  })
+  const att = (id: string): GmailMessagePart => ({
+    partId: '1',
+    mimeType: 'application/pdf',
+    filename: `${id}.pdf`,
+    body: { size: 1, attachmentId: id },
+  })
+  const mapParts = (payload: GmailMessagePart): ChannelMessage => {
+    const base = gmailFixture('plain').resource
+    const out = mapGmailMessage({
+      conn: CONN,
+      resource: { ...base, payload: { ...payload, headers: base.payload!.headers } },
+      openRaw: async () => new Blob([]).stream() as ReadableStream<Uint8Array>,
+    })
+    if ('skip' in out) throw new Error(`skipped: ${out.skip}`)
+    return out
+  }
+
+  it('keeps a body and an attachment under 32 multipart levels and nothing under 33', () => {
+    // `nest(n, leaf)` wraps the leaf in n multipart parts, the payload being level 1.
+    const top = (...parts: GmailMessagePart[]): GmailMessagePart => ({ ...nest(1, text('x')), parts })
+    const out = mapParts(
+      top(
+        nest(31, text('at-bound body')),
+        nest(31, att('at-bound')),
+        nest(32, text('past-bound body')),
+        nest(32, att('past-bound')),
+      ),
+    )
+    expect(out.message.text).toContain('at-bound body')
+    expect(out.message.text).not.toContain('past-bound body')
+    expect(out.facts.attachments).toHaveLength(1)
+    expect(out.message.attachments.map((a) => a.name)).toEqual(['at-bound.pdf'])
+  })
+
+  it('a resource nested 5,000 levels deep does not throw', () => {
+    const out = mapParts(nest(5_000, text('buried')))
+    expect(out.message.text).not.toContain('buried')
   })
 })

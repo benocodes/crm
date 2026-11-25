@@ -887,3 +887,54 @@ describe('a quota 403 is a throttle on every call kind the page makes (D83)', ()
     ])
   })
 })
+
+// [[CORE571]] D1-D3: one poison email must not stop a mailbox's capture, through the real pipeline and storage (no stubbed content store).
+describe('a poison message does not stop the page (CORE571)', () => {
+  const deepHtmlMessage = (id: string, levels: number): BuiltGmailMessage =>
+    gmailFixture('htmlOnly', (s) => ({
+      ...s,
+      id,
+      threadId: `t-${id}`,
+      headers: s.headers.map(([k, v]): [string, string] => [k, k === 'Message-ID' ? `<${id}@acme.test>` : v]),
+      payload: {
+        ...s.payload,
+        text: `<html><body>${'<div>'.repeat(levels)}<p>innermost words</p>${'</div>'.repeat(levels)}</body></html>`,
+      },
+    }))
+  const poison = (id: string): BuiltGmailMessage => {
+    const m = mk(id)
+    m.resource.payload!.body!.data = '!!not base64!!'
+    return m
+  }
+
+  it('completes the page, moves the cursor, captures the others and fetches nothing again', async () => {
+    const s = await setup({ messages: [poison('bad'), deepHtmlMessage('deep', 5_000), mk('fine')] })
+    addHistory(s.gmail, '1001', ['bad', 'deep', 'fine'])
+    s.gmail.profile.historyId = '1002'
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const r = page(await captureHistoryPage(s.deps, s.id))
+    expect(r).toEqual({
+      outcome: 'page',
+      next_page_token: null,
+      history_id: '1002',
+      captured: 2,
+      existing: 0,
+      skipped: 1,
+    })
+    expect((await cursor()).history_id).toBe('1002')
+    expect((await e.rows('messages')).map((m) => m.external_id).sort()).toEqual(['deep@acme.test', 'fine@acme.test'])
+    expect((await e.rows('message_sources')).map((m) => m.provider_message_id).sort()).toEqual(['deep', 'fine'])
+    expect(await eventsOf('message.created')).toHaveLength(2)
+    const deep = (await e.rows('messages')).find((m) => m.external_id === 'deep@acme.test')!
+    const body = await s.objects.get(`${deep.content_key}/v1/body.md`)
+    expect(new TextDecoder().decode(new Uint8Array(await new Response(body!.body).arrayBuffer()))).toContain(
+      'innermost words',
+    )
+    expect(warn).toHaveBeenCalledTimes(1)
+
+    const fetched = calls(s.gmail, 'full').length
+    page(await captureHistoryPage(s.deps, s.id))
+    expect(calls(s.gmail, 'full')).toHaveLength(fetched)
+  })
+})

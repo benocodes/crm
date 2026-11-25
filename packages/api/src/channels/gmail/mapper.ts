@@ -2,9 +2,10 @@
 // `raw` is the caller's `openRaw`. HTML to mdast is `hast-util-from-html` then `hast-util-to-mdast` (D45), rendered later by the vendored
 // `stringifyMarkdown`; the text part is used only when there is no HTML part ([[CORE25]] D36).
 import type { Element, Nodes as HastNodes, Root as HastRoot } from 'hast'
-import { fromHtml } from 'hast-util-from-html'
+import { fromParse5 } from 'hast-util-from-parse5'
 import { toMdast } from 'hast-util-to-mdast'
 import type { PhrasingContent, Root } from 'mdast'
+import { parse } from 'parse5'
 import { toPlainText } from '../markdown.js'
 import type { ChannelFacts, ChannelMessage, ParticipantRole, VibaseMessage } from '../port.js'
 import { charsetOf, decodeCharset, decodeMimeWords, header, messageIdTokens, parseAddressList } from './mime.js'
@@ -64,7 +65,7 @@ function prune(node: HastNodes): void {
 }
 
 function htmlToMdast(html: string): PhrasingContent[] | Root['children'] {
-  const tree = fromHtml(html, { fragment: false }) as HastRoot
+  const tree = fromParse5(parse(html, { sourceCodeLocationInfo: true, scriptingEnabled: false })) as HastRoot
   prune(tree)
   const out = toMdast(tree) as Root
   return out.children

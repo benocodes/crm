@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AttachmentFetchError, ChannelThrottledError, type ChannelMessage } from '../port.js'
 import { FakeGmail } from '../../test/gmail.js'
 import { gmailFixture, MAILBOX } from '../../test/gmail-fixtures.js'
@@ -120,5 +120,61 @@ describe('fetchAttachment', () => {
     gmail.getAttachment = async () => new Blob(['{"data":"ab+/cd"}']).stream() as ReadableStream<Uint8Array>
     const got = await channel.fetchAttachment(CONN, md)
     await expect(bytesOfStream(got.body)).rejects.toThrow()
+  })
+})
+
+// [[CORE571]] D2, D3: a content failure is a skip, a transport failure throws; the log line carries ids only.
+describe('readMessage: mapping failures skip, transport failures do not', () => {
+  afterEach(() => vi.restoreAllMocks())
+  const poisoned = () =>
+    gmailFixture('plain', (s) => ({
+      ...s,
+      payload: { ...s.payload, text: 'SECRET-BODY distinctive words' },
+      headers: s.headers.map(([k, v]): [string, string] => [
+        k,
+        k === 'Subject' ? 'SECRET-SUBJECT' : k === 'From' ? 'secret-sender@hidden.test' : v,
+      ]),
+    }))
+  const withBadBody = () => {
+    const m = poisoned()
+    m.resource.payload!.body!.data = '!!not base64!!'
+    return m
+  }
+
+  it('a body that cannot be decoded is { skip: "unreadable" }', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const gmail = new FakeGmail([withBadBody()])
+    expect(await new GmailChannel(gmail).readMessage(CONN, 'plain')).toEqual({ skip: 'unreadable' })
+  })
+
+  it.each([
+    ['a 5xx', new GmailApiError({ status: 503, gmailStatus: 'UNAVAILABLE' }), 503],
+    ['an invalid_grant', new GmailApiError({ status: 400, reason: 'invalid_grant' }), 400],
+    ['an auth failure', new GmailApiError({ status: 401, gmailStatus: 'UNAUTHENTICATED' }), 401],
+  ])('%s on the fetch still throws, status intact', async (_n, error, status) => {
+    const gmail = new FakeGmail([gmailFixture('plain')]).failWhen(() => true, error)
+    await expect(new GmailChannel(gmail).readMessage(CONN, 'plain')).rejects.toMatchObject({ status })
+  })
+
+  it('logs exactly one warning with the connection id, the provider message id and the error name, and no content', async () => {
+    const out: string[] = []
+    const sink = (...a: unknown[]) => void out.push(a.map(String).join(' '))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(sink)
+    for (const m of ['log', 'info', 'error', 'debug'] as const) vi.spyOn(console, m).mockImplementation(sink)
+    await new GmailChannel(new FakeGmail([withBadBody()])).readMessage(CONN, 'plain')
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(out).toHaveLength(1)
+    expect(out[0]).toContain('conn-1')
+    expect(out[0]).toContain('plain')
+    expect(out[0]).toContain('InvalidCharacterError')
+    for (const secret of [
+      'SECRET',
+      'secret-sender',
+      'hidden.test',
+      'distinctive',
+      'not correctly encoded',
+      '!!not base64',
+    ])
+      expect(out[0]).not.toContain(secret)
   })
 })
