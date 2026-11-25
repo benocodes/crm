@@ -125,7 +125,10 @@ describe('DX604 the --url source', () => {
     expect(withoutSourceLine(fromUrl.operations)).toBe(withoutSourceLine(fromSchema.operations))
     expect(withoutSourceLine(fromUrl.types)).toBe(withoutSourceLine(fromSchema.types))
     expect(headerOf(fromUrl.operations)).toContain(`// Source: --url ${origin}`)
-    expect(fetch.calls.map((c) => c.url).sort()).toEqual([`${origin}/api/v1/openapi.json`, `${origin}/meta/v1/openapi.json`])
+    expect(fetch.calls.map((c) => c.url).sort()).toEqual([
+      `${origin}/api/v1/openapi.json`,
+      `${origin}/meta/v1/openapi.json`,
+    ])
     for (const call of fetch.calls) {
       expect(call.init?.redirect).toBe('error')
       const headers = new Headers(call.init?.headers)
@@ -164,8 +167,8 @@ describe('DX604 the --url source', () => {
     ['a JSON array', () => Response.json([]), /paths/],
     ['a non-JSON body', () => new Response('<html>', { status: 200 }), /JSON/],
   ])('refuses %s, naming the URL', async (_label, respond, pattern) => {
-    const fetch = (async () => respond()) as typeof fetch
-    const error = await generateWorkspace({ source: { url: origin, fetch } }).catch((e) => e)
+    const failing = (async () => respond()) as typeof fetch
+    const error = await generateWorkspace({ source: { url: origin, fetch: failing } }).catch((e) => e)
     expect(error).toBeInstanceOf(Error)
     expect(String(error.message)).toContain(`${origin}/api/v1/openapi.json`)
     expect(String(error.message)).toMatch(pattern)

@@ -116,3 +116,33 @@ pnpm -C packages/sdk generate
 The drift test (`src/generate/drift.test.ts`) fails until the committed files match. The generator is the Node-only entry
 `@vibase/sdk/generate`; the runtime never imports it. `openapi-typescript` (a 7.x devDependency) needs `typescript` 5.x, so
 this package pins `typescript` 5.9.3 beside the workspace's 7.x.
+
+## Workspace types
+
+The built-in client types the built-ins only. A workspace's custom objects (`projects__c`) and `__c` fields on contacts,
+companies, deals and tasks are declared in its schema file; the generator turns that workspace into a **full map**
+(every operation, built-ins included) that `createClient` takes through `operations`. Two sources, one output directory:
+
+```bash
+# from the deployment: its two public OpenAPI documents (https; http only for localhost, 127.0.0.1, [::1]); no credential is sent
+pnpm -C packages/sdk generate --url https://api.acme.example --out apps/pipeline/src/vibase
+# from the schema file, built in-process: works offline, before a redeploy
+pnpm -C packages/sdk generate --schema ./vibase.schema.json --out apps/pipeline/src/vibase
+```
+
+A relative `--schema` or `--out` resolves against the directory you ran the command from. `--out` is required with a source and
+may not be this package's own `src/generated/`. The two files (`operations.ts`, `types.ts`) are deterministic: the header
+names the command, the source (for `--schema` the file name and its SHA-256, the digest `/health.schema` reports) and the
+documents' `info.version`, and there is no timestamp. Commit them and regenerate when the schema file or the release changes;
+nothing checks at run time that the map matches the deployment.
+
+```ts
+import { createClient } from '@vibase/sdk'
+import { workspaceOperations } from './vibase/operations.js'
+
+const vibase = createClient({ url: 'https://api.acme.example', auth: () => getToken(), operations: workspaceOperations })
+await vibase.projects__c.list({ budget: { gte: 5000 } }) // a custom namespace keeps its `__c` key, untranslated
+await vibase.contacts.update({ id, tier__c: 'gold' }) // 'platinum' is a type error
+```
+
+`Client<WorkspaceOperations>` (from `./vibase/types.js`) is the type to pass around.

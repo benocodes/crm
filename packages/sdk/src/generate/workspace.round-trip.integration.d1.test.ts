@@ -2,12 +2,12 @@ import { applySchemaFile, defineCustomObject, parseSchemaFile } from '@vibase/ap
 import { type ApiKeyKit, openApiKeyKit } from '@vibase/api/test/api-key'
 import { readFileSync } from 'node:fs'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { workspaceOperations } from './generate/fixtures/workspace/operations.js'
-import { builtInOperations } from './generated/operations.js'
-import { createClient } from './index.js'
+import { workspaceOperations } from './fixtures/workspace/operations.js'
+import { builtInOperations } from '../generated/operations.js'
+import { createClient } from '../index.js'
 
 // DX604 D6: a client built from the generated workspace map, against the real app on D1 with the same definitions and `extend`.
-const file = parseSchemaFile(readFileSync(new URL('./generate/fixtures/workspace.schema.json', import.meta.url), 'utf8'))
+const file = parseSchemaFile(readFileSync(new URL('./fixtures/workspace.schema.json', import.meta.url), 'utf8'))
 const definitions = Object.entries(file.objects).map(([key, declaration]) => defineCustomObject(key, declaration))
 
 let k: ApiKeyKit
@@ -31,7 +31,12 @@ const fetchOf = ((url: string, init: RequestInit) => k.app.request(url, init)) a
 
 describe('DX604 round trip on D1', () => {
   it('creates and lists a custom record, and updates a contact __c field, reading the values back', async () => {
-    const vibase = createClient({ url: 'https://api.acme.example', auth: key, fetch: fetchOf, operations: workspaceOperations })
+    const vibase = createClient({
+      url: 'https://api.acme.example',
+      auth: key,
+      fetch: fetchOf,
+      operations: workspaceOperations,
+    })
     const small = await vibase.projects__c.create({ name: 'Small', budget: 1000 })
     await vibase.projects__c.create({ name: 'Big', budget: 9000, stage: 'active' })
     expect(small.stage).toBe('planned')
@@ -48,7 +53,12 @@ describe('DX604 round trip on D1', () => {
   })
 
   it('absence mutation: a client built from the built-in table has no custom namespace', async () => {
-    const vibase = createClient({ url: 'https://api.acme.example', auth: key, fetch: fetchOf, operations: builtInOperations }) as any
+    const vibase = createClient({
+      url: 'https://api.acme.example',
+      auth: key,
+      fetch: fetchOf,
+      operations: builtInOperations,
+    }) as any
     expect(vibase.projects__c).toBeUndefined()
   })
 })

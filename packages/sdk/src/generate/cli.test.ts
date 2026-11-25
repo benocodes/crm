@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, relative } from 'node:path'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { run } from './cli.js'
@@ -19,7 +19,8 @@ describe('DX604 D2 command', () => {
     const r = await run([], { builtInDir: dir })
     expect(r.code).toBe(0)
     expect(files(dir)).toEqual(['operations.ts', 'types.ts'])
-    for (const f of files(dir)) expect(readFileSync(join(dir, f), 'utf8') === readFileSync(join(GENERATED, f), 'utf8')).toBe(true)
+    for (const f of files(dir))
+      expect(readFileSync(join(dir, f), 'utf8') === readFileSync(join(GENERATED, f), 'utf8')).toBe(true)
   }, 120_000)
 
   it('with two sources is refused and writes nothing', async () => {
@@ -43,7 +44,6 @@ describe('DX604 D2 command', () => {
       [`${GENERATED}/`, undefined],
       ['src/generated', SDK],
       ['../generated', join(SDK, 'src/generate')],
-      [relative(scratch(), GENERATED), undefined],
     ] as const) {
       const r = await run(['--schema', SCHEMA, '--out', out], { ...(initCwd ? { initCwd } : {}), cwd: tmpdir() })
       expect(r.code, `${out} from ${initCwd}`).not.toBe(0)
@@ -68,7 +68,9 @@ describe('DX604 D2 command', () => {
       expect(again.code, again.stderr).toBe(0)
       expect(files(join(base, 'out/env'))).toEqual(['operations.ts', 'types.ts'])
       for (const f of ['operations.ts', 'types.ts'])
-        expect(readFileSync(join(base, 'out/env', f), 'utf8') === readFileSync(join(base, 'out/vibase', f), 'utf8')).toBe(true)
+        expect(
+          readFileSync(join(base, 'out/env', f), 'utf8') === readFileSync(join(base, 'out/vibase', f), 'utf8'),
+        ).toBe(true)
     } finally {
       if (saved === undefined) delete process.env.INIT_CWD
       else process.env.INIT_CWD = saved

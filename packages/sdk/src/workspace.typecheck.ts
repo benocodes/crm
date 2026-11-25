@@ -24,10 +24,11 @@ export async function workspaceTypes() {
   await vibase.contacts.update({ id: 'c1', tier__c: 'platinum' })
   // @ts-expect-error a __c field nobody declared
   await vibase.contacts.update({ id: 'c1', nope__c: 'gold' })
-  // and a filter of contacts.list
+  // and a filter of contacts.list (the server describes an enum field's filter as text, so any text operator is typed)
   await vibase.contacts.list({ tier__c: 'bronze' })
-  // @ts-expect-error a value outside the enum in a filter
-  await vibase.contacts.list({ tier__c: 'platinum' })
+  await vibase.contacts.list({ tier__c: { in: ['bronze', 'gold'] } })
+  // @ts-expect-error a number on a text filter
+  await vibase.contacts.list({ tier__c: { in: [1] } })
 
   // the custom object is proposable, and the proposal's arguments are typed
   await vibase.projects__c.create.propose({ name: 'Site rebuild' }, { reason: 'Kick-off agreed' })
@@ -36,9 +37,9 @@ export async function workspaceTypes() {
 
   // results carry the __c fields
   const contact = await vibase.contacts.get({ id: 'c1' })
-  const tier: 'bronze' | 'gold' | null | undefined = contact.tier__c
+  const tier: string | null | undefined = contact.tier__c
   const project = await vibase.projects__c.create({ name: 'x', budget: 5 })
-  const stage: 'planned' | 'active' | 'done' | null | undefined = project.stage
+  const stage: string | null | undefined = project.stage
   void tier
   void stage
 

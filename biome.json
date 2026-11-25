@@ -16,7 +16,8 @@
       "!.changeset/*.md",
       "!**/*.md",
       "!packages/db/src/generated",
-      "!packages/sdk/src/generated"
+      "!packages/sdk/src/generated",
+      "!packages/sdk/src/generate/fixtures/workspace"
     ]
   },
   "formatter": {
