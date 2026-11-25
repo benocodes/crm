@@ -167,14 +167,7 @@ describe('readMessage: mapping failures skip, transport failures do not', () => 
     expect(out[0]).toContain('conn-1')
     expect(out[0]).toContain('plain')
     expect(out[0]).toContain('InvalidCharacterError')
-    for (const secret of [
-      'SECRET',
-      'secret-sender',
-      'hidden.test',
-      'distinctive',
-      'not correctly encoded',
-      '!!not base64',
-    ])
+    for (const secret of ['SECRET', 'secret-sender', 'hidden.test', 'distinctive', 'Invalid character', '!!not base64'])
       expect(out[0]).not.toContain(secret)
   })
 })

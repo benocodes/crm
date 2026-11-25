@@ -1,11 +1,12 @@
 // The Gmail mapper ([[CHN5]] D35, [[CORE25]] "Channel port"): a `format=full` resource to a `ChannelMessage`. Pure: no I/O; the lazy
-// `raw` is the caller's `openRaw`. HTML to mdast is `hast-util-from-html` then `hast-util-to-mdast` (D45), rendered later by the vendored
+// `raw` is the caller's `openRaw`. HTML to mdast is `parse5` (iterative), flattened past a depth bound ([[CORE571]] D1), `hast-util-from-parse5`, then `hast-util-to-mdast` (D45), rendered later by the vendored
 // `stringifyMarkdown`; the text part is used only when there is no HTML part ([[CORE25]] D36).
 import type { Element, Nodes as HastNodes, Root as HastRoot } from 'hast'
 import { fromParse5 } from 'hast-util-from-parse5'
 import { toMdast } from 'hast-util-to-mdast'
 import type { PhrasingContent, Root } from 'mdast'
 import { parse } from 'parse5'
+import type { DefaultTreeAdapterMap } from 'parse5'
 import { toPlainText } from '../markdown.js'
 import type { ChannelFacts, ChannelMessage, ParticipantRole, VibaseMessage } from '../port.js'
 import { charsetOf, decodeCharset, decodeMimeWords, header, messageIdTokens, parseAddressList } from './mime.js'
@@ -25,6 +26,10 @@ export interface MapperInput {
 }
 
 const MAX_HINTS = 20
+/** A part with more multipart ancestors than this gives no body and no attachment ([[CORE571]] D4). */
+export const MAX_MIME_DEPTH = 32
+/** Element depth kept in an HTML body (`html` is 1): deeper elements are flattened into their nearest kept ancestor, text kept ([[CORE571]] D1). */
+export const MAX_HTML_DEPTH = 256
 
 const base64Url = (text: string): string => {
   const bytes = new TextEncoder().encode(text)
@@ -44,16 +49,24 @@ interface Walked {
   attachments: GmailMessagePart[]
 }
 /** Depth-first, in order. A part with an attachment id is an attachment (position = its order among them); text parts without one are the body. */
-function walk(part: GmailMessagePart, into: Walked = { bodies: [], attachments: [] }): Walked {
-  const mime = (part.mimeType ?? '').toLowerCase()
-  if (part.body?.attachmentId) {
-    into.attachments.push(part)
-    return into
+function walk(root: GmailMessagePart): Walked {
+  const into: Walked = { bodies: [], attachments: [] }
+  // Iterative, so a resource nested thousands deep cannot overflow the stack; parts under more than `MAX_MIME_DEPTH` multipart levels are ignored ([[CORE571]] D4).
+  const stack: Array<{ part: GmailMessagePart; depth: number }> = [{ part: root, depth: 0 }]
+  while (stack.length > 0) {
+    const { part, depth } = stack.pop()!
+    if (depth > MAX_MIME_DEPTH) continue
+    const mime = (part.mimeType ?? '').toLowerCase()
+    if (part.body?.attachmentId) {
+      into.attachments.push(part)
+      continue
+    }
+    if (mime === 'message/rfc822') continue // an embedded message without an attachment id has nothing to fetch
+    if (part.parts) {
+      for (let i = part.parts.length - 1; i >= 0; i--) stack.push({ part: part.parts[i]!, depth: depth + 1 })
+    } else if ((mime === 'text/plain' || mime === 'text/html') && !part.filename && part.body?.data !== undefined)
+      into.bodies.push(part)
   }
-  if (mime === 'message/rfc822') return into // an embedded message without an attachment id has nothing to fetch
-  if (part.parts) for (const child of part.parts) walk(child, into)
-  else if ((mime === 'text/plain' || mime === 'text/html') && !part.filename && part.body?.data !== undefined)
-    into.bodies.push(part)
   return into
 }
 
@@ -64,8 +77,43 @@ function prune(node: HastNodes): void {
   for (const c of node.children) prune(c)
 }
 
+type P5Parent = DefaultTreeAdapterMap['parentNode']
+type P5Node = DefaultTreeAdapterMap['node']
+
+/**
+ * Flattens, in place and iteratively, every element deeper than `MAX_HTML_DEPTH`: the element goes, its children (text included) join the nearest kept
+ * ancestor in document order. A `<template>`'s content counts as its children. No recursion proportional to the input's depth ([[CORE571]] D1).
+ */
+function boundDepth(document: P5Parent): void {
+  const stack: Array<{ node: P5Node; parent: P5Parent; depth: number }> = []
+  const open = (container: P5Parent, depth: number, kept: P5Parent): void => {
+    const children = container.childNodes
+    container.childNodes = []
+    for (let i = children.length - 1; i >= 0; i--) stack.push({ node: children[i]!, parent: kept, depth })
+  }
+  open(document, 1, document)
+  while (stack.length > 0) {
+    const { node, parent, depth } = stack.pop()!
+    const element = 'tagName' in node
+    if (element && depth > MAX_HTML_DEPTH) {
+      // Dropped: its children go to the same kept parent, one level deeper.
+      if ('content' in node) open(node.content, depth + 1, parent)
+      open(node, depth + 1, parent)
+      continue
+    }
+    ;(node as { parentNode: P5Parent | null }).parentNode = parent
+    parent.childNodes.push(node as never)
+    if (element) {
+      if ('content' in node) open(node.content, depth + 1, node.content)
+      open(node, depth + 1, node)
+    }
+  }
+}
+
 function htmlToMdast(html: string): PhrasingContent[] | Root['children'] {
-  const tree = fromParse5(parse(html, { sourceCodeLocationInfo: true, scriptingEnabled: false })) as HastRoot
+  const document = parse(html, { sourceCodeLocationInfo: true, scriptingEnabled: false })
+  boundDepth(document)
+  const tree = fromParse5(document) as HastRoot
   prune(tree)
   const out = toMdast(tree) as Root
   return out.children

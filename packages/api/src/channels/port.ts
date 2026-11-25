@@ -70,6 +70,11 @@ export interface OutboundResult {
 export interface ChannelPort<C extends ConnectionRef = ConnectionRef> {
   readonly channel: ChannelName
   postToThread?(post: OutboundPost, signal: AbortSignal, beforeSend?: () => void): Promise<OutboundResult>
+  /**
+   * Reads one message. Content failures (the provider's resource cannot be mapped) are skips (`{ skip: 'unreadable' }`), so one malformed
+   * message never stops a page; transport failures (the provider call itself: an HTTP error, a throttle, a refused credential) throw
+   * for the caller to classify ([[CORE571]] D2).
+   */
   readMessage(conn: C, providerMessageId: string): Promise<ChannelMessage | { skip: string }>
   fetchAttachment(
     conn: C,
