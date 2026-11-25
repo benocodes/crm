@@ -117,10 +117,10 @@ describe('the other three built-ins carry the same guards (one DDL function writ
       expect([...(await indexes(r))].sort()).toEqual([...(await indexes('contacts'))].sort())
     },
   )
-  it.each(RESOURCES.filter((r) => r !== 'contacts'))(
+  // deals is not run here (a deal row needs a pipeline and a stage); its columns, CHECKs, index and foreign key are compared with contacts' in the table-text case above.
+  it.each(RESOURCES.filter((r) => r !== 'contacts' && r !== 'deals'))(
     '%s: the unique index and the foreign key refuse as on contacts',
     async (r) => {
-      if (r === 'deals') return // a deal row needs a pipeline and a stage; its table text is compared above
       await put(r, { code__c: `${r}-dup` })
       await expect(put(r, { code__c: `${r}-dup` })).rejects.toThrow(/UNIQUE constraint/i)
       await expect(put(r, { [REF[r].column]: id(98) })).rejects.toThrow(/FOREIGN KEY constraint/i)

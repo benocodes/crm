@@ -15,10 +15,7 @@ const RAW = new RegExp(`\\b(?:insert\\s+into|update|delete\\s+from)\\s+"${TABLES
 const AFTER = new RegExp(`after:\\s*\\{\\s*table:\\s*['"]${TABLES}['"]`)
 const DYNAMIC = /(?:insertInto|updateTable|deleteFrom)\(\s*[^'"\s)]/
 
-const isTestSupport = (path: string) =>
-  /\.(test|suite|typecheck)\.tsx?$/.test(path) ||
-  /\.(test|suite|typecheck)\.ts$/.test(path) ||
-  /(^|\/)test\//.test(path)
+const isTestSupport = (path: string) => /\.(test|suite|typecheck)\.tsx?$/.test(path) || /(^|\/)test\//.test(path)
 const stripComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
