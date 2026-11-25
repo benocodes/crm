@@ -489,6 +489,13 @@ One program, two engines: the same assertions run on Postgres and D1.
     before the first change and again at the end, and quote both hashes in RESULT.md ([[CORE315]] P3). Until #323 is fixed, `golden:check` fails on a clean `main` (committed fixtures are
     Biome-formatted, the generator's output is not): judge drift by `golden:generate`, then `pnpm format`, then
     `git diff -- packages/api/fixtures/golden`, and say so in RESULT.md (CORE347).
+    The **wire snapshot** (`packages/api/fixtures/wire-core554/`, `src/resources/wire-snapshot.rest.integration.d1.test.ts`,
+    [[CORE554]]) holds SHA-256 digests of both OpenAPI documents, the MCP tool list, `schema.get` and the golden text, plus
+    error bodies for contacts, companies, deals and tasks. Any deliberate change to a schema on those surfaces (a merge
+    response gaining a key) turns it red, and a grep for the operation's name does not find it. Re-pin with
+    `WIRE_SNAPSHOT=write pnpm -C packages/api test src/resources/wire-snapshot.rest.integration.d1.test.ts`, explain each
+    moved digest by diffing `WIRE_DUMP_DIR=<dir>` dumps from `main` and the branch, keep `errors.json` as committed unless an
+    error body changed (the writer emits it unformatted: 3,000 lines of churn), then `pnpm format` ([[CORE556]] gate-fix).
   - A **dormant general mechanism** (kept with no production caller, e.g. the per-type `owner` predicate in the
     event-type map after CORE347) is proven through a test-only registration on the test kit's registry, plus one
     assertion against the real registry that no production entry uses it, so a later caller is a deliberate choice

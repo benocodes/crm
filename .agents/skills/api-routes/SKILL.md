@@ -783,6 +783,13 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   always emitted); `IDENTITY_REFERENCES` lists every FK onto `identities` with no re-point (`identity-catalog.integration.suite.ts`
   compares it to both engines). `cascadeDelete` takes several children in order (contact: identities then `contact_files`;
   company: contacts then `company_files`), each with the three set guards and its own set event.
+  Since [[CORE556]], merge's catalog is `CONTACT_REFERENCES` plus `contactReferencesOf(definitions)`: one liveOnly entry per
+  contacts reference on a custom object and per `__c` reference column on a built-in, each a set update and an
+  `<event>.updated` set event rendered by the composed definition, and each part of the commit-time assertion. The
+  composed definitions reach `mergeOperation` through `identityOperations(b, definitions)` from `createVibaseRegistry`;
+  never build a merge without them. Merge tombstones the source **before** it fills the survivor, so a unique `__c` value
+  can move inside one unit (the partial unique index covers live rows only), and nothing else in the unit may write the
+  survivor's row before the fill (its stamp guard); that is why `extend.contacts` cannot reference contacts.
 - **Definition mechanisms added for deals and pipelines** ([[CORE130]], `src/resources/deals.ts`, `pipelines.ts`,
   `pipeline-stages.ts`). Reuse them; do not hand-roll a fourth shape:
   - **`createOnly: { field: hint }`** (`src/storage/prepare.ts`): `prepareUpdate` refuses a listed key *before* the strict

@@ -452,6 +452,13 @@ front kept the five pinned record shapes from becoming a gate round.
 seam): 5 groups (1 matrix), 6 decisions + 5 planner rules, no migration, 1 remote E2E part, riders counted by grep. ~188k
 / 59 calls in one run plus a ~4-call fix round (+179 / +388 lines, 21 files), gate green. The budget holds: "mechanism
 dormant, then the switch" puts the sweep in the first cycle, and the switch is cheap even with a remote E2E.
+**CORE556** (`knowledge/specs/020-CORE556-contact-merge-references/RETRO.md`, [[CORE315]] U3): 6 groups (1 matrix), 2
+decisions + 6 planner rules, no migration, no E2E, split at plan time. ~257k / ~120 calls initial plus a free gate-fix
+round and one review round (+~110 code / +~510 test lines, 21 files). The budget holds. Both extra rounds were charter
+omissions. A cycle that changes any schema on contacts, companies, deals or tasks names the `wire-core554` snapshot as a
+rider ("rider: re-pin the wire snapshot", `writing-tests` §goldens): a digest is not found by grepping the operation's
+name. A cycle that lifts a refusal greps the docs for the sentence that states it (`packages/docs`) and names that line
+under "In this cycle" (556.21).
 
 ### Step 3: Resolve identities
 
