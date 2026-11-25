@@ -3,8 +3,8 @@ import type { D1Like } from '@vibase/storage-d1'
 import { openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
 import { seedDeployment, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { applyExtensions, planApply, readLiveSchema } from './apply.js'
-import type { ExtendDeclarations } from './extend.js'
-import type { ObjectDeclaration } from './declaration.js'
+import { parseExtend, type ExtendDeclarations } from './extend.js'
+import { DeclarationError, type ObjectDeclaration } from './declaration.js'
 
 // [[CORE555]] P3 to P6: extension fields applied to the four built-in tables over a real, migrated D1. A fresh database per test (a column with a foreign key cannot be dropped to reset one).
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
@@ -252,7 +252,11 @@ describe('refusals and archive on built-ins (P4, P5)', () => {
     expect((await applyExtensions(d1, {}, one({ code__c: { kind: 'text', unique: true } }))).refused).toEqual([])
     expect(await indexSql('idx_contacts_code__c_unique')).toBeDefined()
   })
-  it('a new unique field with a default over several live rows is refused (every row holds the default)', async () => {
+  // [[CORE565]] 565.2: the file parser refuses unique + default (`unique_with_default`), so this is the defence for input built by hand: `applyExtensions` takes parsed declarations and still refuses a collision it would create.
+  it('a new unique field with a default over several live rows is refused (every row holds the default); the parser refuses the declaration first', async () => {
+    expect(() =>
+      parseExtend({ contacts: { fields: { k__c: { kind: 'text', unique: true, default: 'same' } } } }),
+    ).toThrow(DeclarationError)
     await fresh()
     await rowOf('contacts', 1)
     await rowOf('contacts', 2)

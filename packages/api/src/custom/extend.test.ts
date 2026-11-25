@@ -14,7 +14,7 @@ const refusal = (input: unknown, custom: string[] = []): DeclarationError => {
   throw new Error('accepted')
 }
 const ofKind: Record<string, Record<string, unknown>> = {
-  text: { kind: 'text', required: true, default: 'x', unique: true },
+  text: { kind: 'text', required: true, default: 'x' },
   integer: { kind: 'integer', default: 3 },
   boolean: { kind: 'boolean', default: false },
   timestamp: { kind: 'timestamp' },
@@ -52,6 +52,10 @@ describe('accepted (P1, P2)', () => {
   it('an empty extend and an object with no fields', () => {
     expect(parseExtend({})).toEqual({})
     expect(parseExtend({ tasks: { fields: {} } })).toEqual({ tasks: {} })
+  })
+  it('required + unique with no default stays accepted (the column is nullable, system rows hold NULL) ([[CORE565]] D8)', () => {
+    const f = { kind: 'text', required: true, unique: true }
+    expect((parseExtend(field(f)) as any).contacts.a__c).toEqual(f)
   })
   it('exactly 90 fields', () => {
     const fields = Object.fromEntries(Array.from({ length: 90 }, (_, i) => [`f${i}__c`, { kind: 'integer' }]))
@@ -129,6 +133,12 @@ describe('refused by rule (matrix)', () => {
       'unknown_property',
       'extend.contacts.fields.a__c',
     ],
+    [
+      'unique together with a default ([[CORE565]] 565.2: every system-created row takes the default)',
+      field({ kind: 'text', unique: true, default: 'x' }),
+      'unique_with_default',
+      'extend.contacts.fields.a__c',
+    ],
     ['unique on a boolean', field({ kind: 'boolean', unique: true }), 'unique_kind', 'extend.contacts.fields.a__c'],
     [
       'a contacts field that references contacts (its merge re-point would restamp the survivor, CORE556 P3)',
@@ -193,4 +203,17 @@ describe('refused by rule (matrix)', () => {
       const e = refusal(input)
       expect({ rule: e.rule, path: e.path }).toEqual({ rule, path })
     })
+  // [[CORE565]] D8: on each of the four extensible objects, naming the field, for both unique kinds.
+  for (const object of ['contacts', 'companies', 'deals', 'tasks'])
+    for (const f of [
+      { kind: 'text', unique: true, default: 'x' },
+      { kind: 'integer', unique: true, default: 0 },
+    ])
+      it(`${object}: unique + default (${f.kind}) -> unique_with_default naming the field`, () => {
+        const e = refusal({ [object]: { fields: { code__c: f } } })
+        expect({ rule: e.rule, path: e.path }).toEqual({
+          rule: 'unique_with_default',
+          path: `extend.${object}.fields.code__c`,
+        })
+      })
 })
