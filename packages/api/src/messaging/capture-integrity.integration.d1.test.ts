@@ -253,6 +253,44 @@ describe('capture integrity on d1', () => {
         ),
       ).toContain('A different mail with a reused id')
     })
+
+    it('(d) the first landed right after the pre-check, before any content is stored: content is not stored over it', async () => {
+      const objects = memoryObjectStore()
+      const first = setup([A], { objects })
+      let landed = false
+      const wrapped: StorageBinding = {
+        ...e.binding,
+        runtime: {
+          ...e.binding.runtime,
+          execute: (async (identity: any, op: any) => {
+            const answer = await e.binding.runtime.execute(identity, op)
+            if (op.name === 'capture.precheck' && !landed) {
+              landed = true
+              await first.run(['pid-a'], C2)
+            }
+            return answer
+          }) as typeof e.binding.runtime.execute,
+        },
+      }
+      const t = setup([B], { objects }, wrapped)
+      const out = await t.run(['pid-b'])
+      expect(landed).toBe(true)
+      expect(out).toMatchObject({ captured: 1, existing: 0 })
+      const rows = await messages()
+      expect(rows.map((r) => r.external_id).sort()).toEqual([DUP, fallback(C1, 'pid-b')].sort())
+      expect(
+        await bodyOf(
+          objects,
+          rows.find((r) => r.external_id === DUP),
+        ),
+      ).toContain('The first mail')
+      expect(
+        await bodyOf(
+          objects,
+          rows.find((r) => r.external_id === fallback(C1, 'pid-b')),
+        ),
+      ).toContain('A different mail with a reused id')
+    })
   })
 
   describe('D6 matches and the empty state', () => {
@@ -313,6 +351,24 @@ describe('capture integrity on d1', () => {
     })
   })
 
+  describe('the unit refuses what the pipeline must have decided', () => {
+    it('a chunk holding one external id with two different fingerprints is a programmer error, thrown before anything is read', async () => {
+      const one = captureMessage(e.organizationId, { external_id: DUP, content_sha256: sha('one') })
+      const two = captureMessage(e.organizationId, { external_id: DUP, content_sha256: sha('two') })
+      await expect(
+        runCapture(e, { source: { kind: 'connection', id: C1.id }, channel: 'email', messages: [one, two] }),
+      ).rejects.toThrow(/two different fingerprints/)
+      expect(await messages()).toHaveLength(0)
+    })
+
+    it('a fingerprint that is not lowercase hex SHA-256 is refused', async () => {
+      const bad = captureMessage(e.organizationId, { content_sha256: 'ABC' })
+      await expect(
+        runCapture(e, { source: { kind: 'connection', id: C1.id }, channel: 'email', messages: [bad] }),
+      ).rejects.toThrow(/lowercase hex/)
+    })
+  })
+
   describe('D7, P1, P2 the stored value', () => {
     it('is the SHA-256 of [subject, from address, markdown body] as JSON, recomputed from the fixture', async () => {
       const t = setup([A])
@@ -325,8 +381,8 @@ describe('capture integrity on d1', () => {
 
     it('a null subject and an empty subject give different digests', async () => {
       const t = setup([
-        { providerMessageId: 'n', externalId: '<n@x.test>', subject: null },
-        { providerMessageId: 'e', externalId: '<e@x.test>', subject: '' },
+        { providerMessageId: 'n', externalId: '<n@x.test>', subject: null, markdown: 'same' },
+        { providerMessageId: 'e', externalId: '<e@x.test>', subject: '', markdown: 'same' },
       ])
       await t.run(['n', 'e'])
       const n = (await byExternal('<n@x.test>'))!.content_sha256
