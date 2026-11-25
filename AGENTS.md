@@ -133,6 +133,15 @@ Next Action) and tells the user before any of these, and never works around one:
 It also stops when the fix loop exhausts its two coder rounds, when an agent is blocked on something no other
 agent can resolve, and when the backlog is empty.
 
+**When a commit to `knowledge/` is refused** (the permission check denies `git -C knowledge commit` or
+`push` on `main`), the sprint does not wait on it and does not retry on `main`. The orchestrator creates a
+branch in the knowledge repo (`kb/<issue#>-<slug>`, never touching `main`), commits the pending files there,
+pushes it, and notifies the user (the `PushNotification` tool, which skips while the terminal is active, and
+always `scripts/notify-owner.sh "<subject>" "<body>"`, an AgentMail email to the owner) with the branch name
+and the files. It records the branch in SPRINT.md (Open questions) and
+carries on with work that does not need those files on `main`; the user merges the branch. Never use another
+route to land the commit on `main`. (User ruling: 2026-11-25.)
+
 **A sprint is one milestone** (milestones live in `knowledge/milestones/<seq>-<letter>-<slug>/`: the seq is
 the rank, set by the user; the letter is the identifier). The orchestrator builds the top-ranked milestone and
 then opens the next. It stops when a milestone is too big for one sprint (the user decides the cut) and when
