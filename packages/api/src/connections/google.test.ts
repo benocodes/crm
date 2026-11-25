@@ -12,6 +12,7 @@ import {
   GoogleRefreshError,
   refreshAccessToken,
 } from './google.js'
+import { createGoogleKeyCache } from './google-keys.js'
 import { pkceChallenge, pkceVerifier } from './state.js'
 
 // CHN140 D1, D9, D57: the authorize URL, the code exchange and the ID token check, against a fake Google that mints real signed tokens.
@@ -117,7 +118,7 @@ describe('verifyIdToken (D9)', () => {
     return verifyIdToken(idToken, {
       endpoints: FAKE_ENDPOINTS,
       clientId: google.clientId,
-      fetch: google.fetch,
+      keys: createGoogleKeyCache({ fetch: google.fetch, now: () => new Date() }),
       nowMs: Date.now(),
     })
   }
@@ -143,7 +144,7 @@ describe('verifyIdToken (D9)', () => {
       verifyIdToken(idToken, {
         endpoints: FAKE_ENDPOINTS,
         clientId: google.clientId,
-        fetch: other.fetch,
+        keys: createGoogleKeyCache({ fetch: other.fetch, now: () => new Date() }),
         nowMs: Date.now(),
       }),
     ).rejects.toBeInstanceOf(GoogleExchangeError)

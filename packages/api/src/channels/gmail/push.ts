@@ -1,14 +1,15 @@
 // `POST /inbound/gmail` ([[CHN5]] D15, D87, D88): Pub/Sub's authenticated push of a Gmail notification, and the sync it requests.
 //
 // Order, each step before the next: push is on (else 404); the bearer is present and JWT-shaped with an RS256 header (else 401, and no JWKS fetch, so an
-// unauthenticated caller cannot make the Worker call Google); the JWKS is fetched per request through the injected `fetch` (a failure is 503 so Pub/Sub retries);
+// unauthenticated caller cannot make the Worker call Google); the JWKS comes from the shared key cache ([[CORE577]] D21; no usable keys is 503 so Pub/Sub retries);
 // the token's signature, `iss`, `aud`, `email`, `email_verified` and `exp` (401); only then the body, capped at 64 KiB, whose `subscription` must be ours (401).
 // A verified notification that does not decode is 204 (a 4xx would be retried for days). `historyId` is never read: the run reads history from its own cursor.
 import { sql } from 'kysely'
-import { createLocalJWKSet, decodeProtectedHeader, jwtVerify } from 'jose'
+import { decodeProtectedHeader, jwtVerify } from 'jose'
 import type { Context } from 'hono'
 import { defineOperation, execute, readSet, unit, uuidv7, type D1Binding, type StorageBinding } from '@vibase/storage'
 import type { PushConfig } from '../../connections/config.js'
+import type { GoogleKeyCache } from '../../connections/google-keys.js'
 import { instanceId, markRequested, type MailSyncInstances } from '../../sync/request.js'
 
 export const PUSH_PATH = '/inbound/gmail'
@@ -24,7 +25,8 @@ const JWT_SHAPE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
 export interface PushDeps {
   /** Null: push is off, the route answers 404 ([[CHN5]] D87). */
   push: PushConfig | null
-  fetch: typeof fetch
+  /** The Google signing-key cache ([[CORE577]] D21): shared with the connect callback, one per isolate. */
+  keys: GoogleKeyCache
   instances?: MailSyncInstances
   storage: (c: Context) => StorageBinding
   clock?: () => Date
@@ -127,21 +129,20 @@ export function gmailPushHandler(d: PushDeps): (c: Context) => Promise<Response>
     const m = /^Bearer ([^\s]+)$/i.exec(c.req.header('authorization') ?? '')
     const jwt = m?.[1]
     if (!jwt || !JWT_SHAPE.test(jwt)) return refuse('bearer')
+    let kid: string | undefined
     try {
-      if (decodeProtectedHeader(jwt).alg !== 'RS256') return refuse('alg')
+      const header = decodeProtectedHeader(jwt)
+      if (header.alg !== 'RS256') return refuse('alg')
+      kid = typeof header.kid === 'string' ? header.kid : undefined
     } catch {
       return refuse('header')
     }
 
-    // 2. Google's keys, per request (no cache: a rotation is never hidden). A failure to get them is Pub/Sub's to retry.
+    // 2. Google's keys, from the shared cache: reused for 5 minutes, refetched at most once a minute, for an unknown `kid` too (a rotation). No usable keys is Pub/Sub's to retry.
     const clock = d.clock ?? (() => new Date())
-    let keys: ReturnType<typeof createLocalJWKSet>
-    try {
-      const res = await d.fetch(GOOGLE_JWKS_URL)
-      if (!res.ok) throw new Error('jwks status')
-      keys = createLocalJWKSet((await res.json()) as Parameters<typeof createLocalJWKSet>[0])
-    } catch {
-      console.warn('[gmail-push] the JWKS could not be fetched')
+    const keys = await d.keys.keysFor(GOOGLE_JWKS_URL, kid)
+    if (keys === null) {
+      console.warn('[gmail-push] the JWKS is unavailable')
       return error(c, 503, 'jwks_unavailable', 'Google signing keys are unavailable; retry')
     }
 

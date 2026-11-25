@@ -1,7 +1,8 @@
 // Google's OAuth 2.0 web-server flow, the vault's side ([[CHN5]] D1, D9): the authorize URL, the code exchange and the ID token check.
 // Every call goes through an injected `fetch`, and the endpoints are injectable, so no test reaches Google. A failure is a
 // `GoogleExchangeError` carrying a short code only: never the response body, the URL, a token or the client secret.
-import { createLocalJWKSet, jwtVerify } from 'jose'
+import { decodeProtectedHeader, jwtVerify } from 'jose'
+import type { GoogleKeyCache } from './google-keys.js'
 
 export interface GoogleEndpoints {
   authorizeUrl: string
@@ -98,16 +99,16 @@ export async function exchangeCode(p: {
 
 /**
  * Verifies the ID token against Google's keys: signature, `iss`, `aud` = the client id, expiry, and `email_verified` ([[CHN5]] D9). The keys
- * are fetched per call (a connect is rare) through the injected `fetch`. Returns the stable `sub` and the email.
+ * come from the shared cache ([[CORE577]] D21), which fetches through its own injected `fetch`. Returns the stable `sub` and the email.
  */
 export async function verifyIdToken(
   idToken: string,
-  p: { endpoints: GoogleEndpoints; clientId: string; fetch: typeof fetch; nowMs: number },
+  p: { endpoints: GoogleEndpoints; clientId: string; keys: GoogleKeyCache; nowMs: number },
 ): Promise<{ sub: string; email: string }> {
   try {
-    const res = await p.fetch(p.endpoints.jwksUrl)
-    if (!res.ok) throw new Error('jwks')
-    const jwks = createLocalJWKSet((await res.json()) as Parameters<typeof createLocalJWKSet>[0])
+    const { kid } = decodeProtectedHeader(idToken)
+    const jwks = await p.keys.keysFor(p.endpoints.jwksUrl, kid)
+    if (jwks === null) throw new Error('jwks')
     const { payload } = await jwtVerify(idToken, jwks, {
       issuer: ISSUERS,
       audience: p.clientId,

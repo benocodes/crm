@@ -14,6 +14,7 @@ import {
   SCOPE_POLICY,
   createApp,
   createProfileCache,
+  createGoogleKeyCache,
   createVibaseRegistry,
   parseGmailConfig,
   parsePushConfig,
@@ -95,6 +96,7 @@ import { SCHEMA_INVALID, schemaFileHealth, type AttachedSchemaFile } from './sch
 import { gmailTransport } from '@vibase/api'
 import {
   AUTH_SERVER_METADATA_PATH,
+  CLI_CLIENT_ID,
   createAuth,
   resourcesFor,
   type AuthRuntimeConfig,
@@ -568,6 +570,12 @@ export function composeD1Worker(
           clock,
           newId,
         }),
+        // [[CORE577]] D10, P3: the OAuth client endpoints are the owners'; the role is the live membership of the session's subject, read from the CRM database on each call (no cache, like every role re-check).
+        clientOwner: async (subject) => {
+          const link = await readDeployment(env.DB)
+          if (!link) return false
+          return (await membershipRoleReader(d1Binding(env.DB, link), 'better-auth')(subject)) === 'owner'
+        },
       },
     )
     return builtInService
@@ -620,6 +628,8 @@ export function composeD1Worker(
         return { port: store, store }
       })()
     : null
+  // [[CORE577]] D21: ONE Google key cache for this Worker (an isolate), whichever app serves a request: the recorder's per-request apps share it. It fetches the keys plainly, never through the recorder.
+  const googleKeys = createGoogleKeyCache({ fetch: deps.fetch ?? ((input, init) => fetch(input, init)), now: clock })
   const buildApp = (binding: D1Binding, googleFetch: typeof fetch | undefined): App =>
     createApp({
       storage: () => binding,
@@ -642,6 +652,7 @@ export function composeD1Worker(
         push: pushParsed.config,
         pushProblems: pushParsed.problems,
         ...(googleFetch ? { fetch: googleFetch } : {}),
+        keys: googleKeys,
         ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}),
       },
       webhooks,
@@ -862,10 +873,16 @@ export function composeD1Worker(
     // It reads the CRM through the tick's counted D1 and writes the control database only; no audit row, no event.
     if (builtIn && control) {
       try {
-        const out = await runAuthSweep(control, db, clock)
+        const out = await runAuthSweep(control, db, clock, {
+          firstPartyClientIds: [CLI_CLIENT_ID, ...(cliClientId ? [cliClientId] : [])],
+        })
         if (out.revoked > 0 || out.deleted > 0)
           console.log(
             `[cron] ${controller.cron}: auth sweep revoked ${out.revoked} subject(s), deleted ${out.deleted} account(s)`,
+          )
+        if (out.expiredDeviceCodes > 0 || out.unusedClients > 0)
+          console.log(
+            `[cron] ${controller.cron}: auth sweep removed ${out.expiredDeviceCodes} expired device code(s), ${out.unusedClients} unused client(s)`,
           )
       } catch (err) {
         console.error(`[cron] ${controller.cron}: auth sweep failed: ${err instanceof Error ? err.name : 'error'}`)

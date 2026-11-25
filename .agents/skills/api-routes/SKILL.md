@@ -464,6 +464,12 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     make the Worker call out per request; it reads the body only after the token passes, with a cap. For a sender that
     retries every non-2xx for days (Pub/Sub), a verified payload that cannot decode, or is oversized, is acknowledged
     (`204` and a log line), and only a transient failure (keys unreachable `503`, D1 `500`) asks for a retry.
+    Google's signing keys come from **one cache per isolate** (`createGoogleKeyCache` in
+    `src/connections/google-keys.ts`, [[CORE577]] D21), built once by `composeD1Worker` and passed to every app it
+    builds, shared by push and the connect callback's ID-token check: keys reused 5 minutes, at most one fetch attempt
+    a minute (success or failure), an unknown `kid` refetches only inside that bound, a failed fetch leaves no keys,
+    concurrent callers share the in-flight fetch. A new route verifying a Google-signed token takes `keys` from it and
+    never fetches the JWKS itself.
   - **`OperationInput.origin`** is the request's origin, set by REST only (MCP leaves it undefined, and
     `validateInput` preserves it). Read it only where a spec names the request origin as a fallback.
   - **The Google OAuth callback** (`GET /oauth/callback/google`, `src/connections/callback.ts`) is the second plain
@@ -1253,7 +1259,10 @@ or an operation (`control-boundary.test.ts`, [[CORE259]] D5).
     with its `user.sessions_revoked` audit row, atomic with it ([[CORE288]]);
   - the control store's repair sweep `runAuthSweep` (the one-minute rail cron on `better-auth`): one control
     batch of hand-written deletes of the credentials of linked subjects without authority, created before the
-    sweep's CRM read, and of stale unlinked `auth_users` rows ([[CORE289]], [[CORE259]] D10). It writes no
+    sweep's CRM read, and of stale unlinked `auth_users` rows ([[CORE289]], [[CORE259]] D10); on every sweep, in the
+    same batch and capped at 500 per table oldest first, it also deletes device codes past `expires_at` and
+    dynamically registered clients never used (`user_id` and `reference_id` null, not a first-party id, over 7 days
+    old, no token or consent names them; [[CORE577]] D20). It writes no
     `control_audit` row and nothing in the CRM database; its counts are read-only `SELECT`s from the two
     status commands;
   - later, [[OPS250]]'s migration tool.

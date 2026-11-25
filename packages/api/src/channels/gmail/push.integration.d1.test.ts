@@ -160,6 +160,111 @@ describe('the verifier (D87): every refusal is 401 with no write and no instance
   })
 })
 
+describe('the Google key cache (CORE577 D21, P6)', () => {
+  const MIN = 60_000
+  const at = (ms: number) => void (now = new Date(now.getTime() + ms))
+  it('N pushes within 5 minutes cause one fetch; past 5 minutes, one refetch', async () => {
+    const a = app()
+    for (let i = 0; i < 4; i++) expect((await post(a)).status).toBe(204)
+    expect(jwks.urls).toHaveLength(1)
+    at(5 * MIN - 1000)
+    expect((await post(a)).status).toBe(204)
+    expect(jwks.urls).toHaveLength(1)
+    at(2000)
+    expect((await post(a)).status).toBe(204)
+    expect(jwks.urls).toHaveLength(2)
+    expect((await post(a)).status).toBe(204)
+    expect(jwks.urls).toHaveLength(2)
+  })
+  it('a rotated key (a new kid) is accepted after one refetch; a second unknown kid within the minute causes no fetch and is 401', async () => {
+    const rotated = await newPushKey('push-key-2')
+    const keys = [key]
+    jwks = jwksFetch(keys)
+    const a = app()
+    expect((await post(a)).status).toBe(204)
+    expect(jwks.urls).toHaveLength(1)
+    keys.push(rotated)
+    at(61_000)
+    expect((await post(a, { token: await signPushToken(rotated, now) })).status).toBe(204)
+    expect(jwks.urls).toHaveLength(2)
+    const stranger = await newPushKey('push-key-3')
+    expect((await post(a, { token: await signPushToken(stranger, now) })).status).toBe(401)
+    expect(jwks.urls).toHaveLength(2)
+    // Inside the minute the known keys still verify.
+    expect((await post(a)).status).toBe(204)
+    expect(jwks.urls).toHaveLength(2)
+  })
+  it('an unknown kid inside the minute of the first fetch is 401 with no second fetch', async () => {
+    const a = app()
+    expect((await post(a)).status).toBe(204)
+    const stranger = await newPushKey('push-key-9')
+    at(30_000)
+    expect((await post(a, { token: await signPushToken(stranger, now) })).status).toBe(401)
+    expect(jwks.urls).toHaveLength(1)
+  })
+  it.each(['status', 'throw', 'bad_json'] as const)(
+    'a failed fetch (%s) is 503 and leaves no keys; no fetch for a minute, one attempt after it',
+    async (mode) => {
+      jwks.mode = mode
+      const a = app()
+      expect((await post(a)).status).toBe(503)
+      expect(jwks.urls).toHaveLength(1)
+      jwks.mode = 'ok'
+      at(59_000)
+      const inside = await post(a)
+      expect([inside.status, inside.body.error.code]).toEqual([503, 'jwks_unavailable'])
+      expect(jwks.urls).toHaveLength(1)
+      at(2000)
+      expect((await post(a)).status).toBe(204)
+      expect(jwks.urls).toHaveLength(2)
+    },
+  )
+  it('a failed refetch of expired keys leaves none: the next push inside the minute is 503', async () => {
+    const a = app()
+    expect((await post(a)).status).toBe(204)
+    at(6 * MIN)
+    jwks.mode = 'throw'
+    expect((await post(a)).status).toBe(503)
+    jwks.mode = 'ok'
+    expect((await post(a)).status).toBe(503)
+    expect(jwks.urls).toHaveLength(2)
+  })
+  it('a failed refetch for an unknown kid leaves no usable keys: a known key is 503 until the next attempt is allowed', async () => {
+    const a = app()
+    expect((await post(a)).status).toBe(204)
+    const rotated = await newPushKey('push-key-2')
+    at(61_000)
+    jwks.mode = 'throw'
+    expect((await post(a, { token: await signPushToken(rotated, now) })).status).toBe(503)
+    jwks.mode = 'ok'
+    expect((await post(a)).status).toBe(503)
+    expect(jwks.urls).toHaveLength(2)
+    at(61_000)
+    expect((await post(a)).status).toBe(204)
+    expect(jwks.urls).toHaveLength(3)
+  })
+  it('concurrent pushes share one fetch', async () => {
+    // A slow Google, and tokens signed beforehand, so the five requests really overlap.
+    const inner = jwks.fetch
+    jwks.fetch = (async (...args: Parameters<typeof fetch>) => {
+      await new Promise((r) => setTimeout(r, 25))
+      return inner(...args)
+    }) as typeof fetch
+    const a = app()
+    const token = await signPushToken(key, now)
+    const results = await Promise.all(Array.from({ length: 5 }, () => post(a, { token })))
+    expect(results.map((r) => r.status)).toEqual([204, 204, 204, 204, 204])
+    expect(jwks.urls).toHaveLength(1)
+  })
+  it('a bearer that is not a JWT causes no fetch, even with expired keys', async () => {
+    const a = app()
+    expect((await post(a)).status).toBe(204)
+    at(10 * MIN)
+    expect((await post(a, { header: 'Bearer not-a-jwt' })).status).toBe(401)
+    expect(jwks.urls).toHaveLength(1)
+  })
+})
+
 describe('the JWKS is fetched only for a well-formed bearer (D87)', () => {
   it.each([
     ['no header', { token: null }],
@@ -179,12 +284,6 @@ describe('the JWKS is fetched only for a well-formed bearer (D87)', () => {
       .sign(new TextEncoder().encode('0123456789abcdef0123456789abcdef'))
     expect((await post(app(), { token: hs })).status).toBe(401)
     expect(jwks.urls).toEqual([])
-  })
-  it('a good token fetches the JWKS once per request, no cache', async () => {
-    const a = app()
-    await post(a)
-    await post(a)
-    expect(jwks.urls).toHaveLength(2)
   })
   it.each(['status', 'throw', 'bad_json'] as const)(
     'a JWKS fetch that fails (%s) is 503 so Pub/Sub retries, with no write',

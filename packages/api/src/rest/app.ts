@@ -14,6 +14,7 @@ import { googleCallbackHandler, type CallbackSession } from '../connections/call
 import type { MailSyncInstances } from '../sync/request.js'
 import { gmailConfigNotice, gmailUnconfigured, type GmailConfig, type PushConfig } from '../connections/config.js'
 import { PUSH_PATH, gmailPushHandler } from '../channels/gmail/push.js'
+import { createGoogleKeyCache, type GoogleKeyCache } from '../connections/google-keys.js'
 import { CLERK_WEBHOOK_PATH, clerkWebhookHandler } from '../directory/webhook.js'
 import { CALLBACK_PATH } from '../connections/operations.js'
 import { GOOGLE_ENDPOINTS, type GoogleEndpoints } from '../connections/google.js'
@@ -57,6 +58,8 @@ export interface GmailAppOptions {
   endpoints?: GoogleEndpoints
   /** The `fetch` every Google and Gmail call uses; default the global one. */
   fetch?: typeof fetch
+  /** The Google signing-key cache of push and the callback's ID-token check ([[CORE577]] D21). The composition passes one per isolate; default: one per app, on `fetch` and the app's clock. */
+  keys?: GoogleKeyCache
   /** The `users/me` base of the Gmail API; default Gmail's. */
   gmailBaseUrl?: string
   /** The role source of the callback's re-check ([[CHN5]] D33). Default: the workspace adapter's cached profile read ([[CORE77]] D12); none without a provider. */
@@ -460,13 +463,18 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   // [[CORE572]] P2: a Gmail surface without a named session mode does not build, so a composition that forgets the reader can never fall open.
   if (gmail && !gmail.session) throw new Error('createApp: gmail.session is required (better-auth or state-only)')
   const gmailSession: CallbackSession = gmail?.session ?? { mode: 'state-only' }
+  // [[CORE577]] D21: ONE key cache for push and the callback. The composition passes its per-isolate one; without it, this app's own.
+  const googleFetch: typeof fetch = gmail?.fetch ?? ((input, init) => fetch(input, init))
+  const googleKeys: GoogleKeyCache =
+    gmail?.keys ?? createGoogleKeyCache({ fetch: googleFetch, now: options.clock ?? (() => new Date()) })
   app.get(
     CALLBACK_PATH,
     googleCallbackHandler({
       session: gmailSession,
       config: gmail?.config ?? null,
       endpoints: gmail?.endpoints ?? GOOGLE_ENDPOINTS,
-      fetch: gmail?.fetch ?? ((input, init) => fetch(input, init)),
+      keys: googleKeys,
+      fetch: googleFetch,
       ...(gmail?.gmailBaseUrl ? { gmailBaseUrl: gmail.gmailBaseUrl } : {}),
       ...(gmail?.defaultReturnPath ? { defaultReturnPath: gmail.defaultReturnPath } : {}),
       roleOf:
@@ -493,7 +501,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
     PUSH_PATH,
     gmailPushHandler({
       push,
-      fetch: gmail?.fetch ?? ((input, init) => fetch(input, init)),
+      keys: googleKeys,
       ...(gmail?.instances ? { instances: gmail.instances } : {}),
       storage: options.storage,
       clock: options.clock,
