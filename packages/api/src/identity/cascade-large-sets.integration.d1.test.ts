@@ -130,6 +130,7 @@ describe('contacts.merge with 1,000 edges on the source (D15)', () => {
       1000,
     )
     expect(await n('select count(*) as n from associations where a_id = ? and deleted_at is null', source.id)).toBe(0)
+    expect(await eventCount('association.updated')).toBe(1000)
   })
 })
 

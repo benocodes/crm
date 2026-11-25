@@ -352,7 +352,7 @@ describe('tags.delete cascades the live edges (D11)', () => {
         relation: 'related_to',
       })
   }
-  // [[CORE573]] D15: the cascade cap (5,000) replaced the default 100 for a delete's edges, so 101 edges is no longer an over-cap case.
+  // [[CORE573]] D15: the cascade cap (4,000) replaced the default 100 for a delete's edges, so 101 edges is no longer an over-cap case.
   it('100 and 101 live edges both succeed, every edge tombstoned', async () => {
     const ok = await a.ent.tag('Hundred')
     await edgeRows(ok[1], 100)
@@ -361,7 +361,9 @@ describe('tags.delete cascades the live edges (D11)', () => {
 
     const big = await a.ent.tag('HundredAndOne')
     await edgeRows(big[1], 101)
+    const deletedBefore = (await e.rows('events')).filter((r) => r.type === 'association.deleted').length
     await a.call('tags.delete', { params: { id: big[1] } })
+    expect((await e.rows('events')).filter((r) => r.type === 'association.deleted').length - deletedBefore).toBe(101)
     expect((await e.rows('tags')).find((r) => r.id === big[1])!.deleted_at).not.toBeNull()
     expect((await a.edges()).filter((r) => r.b_id === big[1])).toEqual([])
   })
