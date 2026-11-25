@@ -15,6 +15,13 @@ export async function argumentTypes() {
   await vibase.deals.aggregate({ min: ['created_at', 'name'], max: 'updated_at' })
   await vibase.deals.aggregate()
   await vibase.deals.aggregate({ amount_minor: { gte: 5 } })
+  // a computed array (not a literal tuple) is accepted when every member is a field of the function
+  const computed: ReadonlyArray<'created_at' | 'name'> = ['created_at', 'name']
+  const fromComputed = await vibase.deals.aggregate({ min: computed })
+  type _computed = Expect<Equal<(typeof fromComputed)['min'], { created_at: string | null; name: string | null }>>
+  const wide: ReadonlyArray<'created_at' | 'name' | 'nope'> = ['created_at']
+  // @ts-expect-error a computed array with a field outside the list
+  await vibase.deals.aggregate({ min: wide })
   // @ts-expect-error sum takes amount_minor only
   await vibase.deals.aggregate({ sum: 'name' })
   // @ts-expect-error a field of the array that the function does not take

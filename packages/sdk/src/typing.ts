@@ -46,7 +46,7 @@ type Fn = 'sum' | 'avg' | 'min' | 'max'
 type AggParam = Fn | 'group_by'
 
 /** One field name of a function's list, or a readonly array of them (D3). */
-type OneOrMany<F extends string> = F | readonly [F, ...F[]]
+type OneOrMany<F extends string> = F | readonly F[]
 /** `group_by`: one groupable field, or a tuple of one or two (the server's cap, CORE207 D3). */
 type GroupArg<F extends string> = F | readonly [F] | readonly [F, F]
 
