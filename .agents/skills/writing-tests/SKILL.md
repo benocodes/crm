@@ -596,6 +596,10 @@ One program, two engines: the same assertions run on Postgres and D1.
 - Atomicity, isolation and concurrency suites run on both engines. On D1 a double submit lets exactly one
   write land and the loser gets `409 conflict`; on Postgres run enough trials (20) to see a race, and report
   trial counts.
+- A "concurrent callers share one X" test must make the callers **really overlap**: a stub that resolves at once
+  plus per-call async setup (signing a token) serialises them, and the test passes with the sharing removed. Do the
+  setup before `Promise.all` and make the stubbed dependency slow (a short `setTimeout`), then prove it with the
+  absence mutation of the sharing ([[CORE577]] M8 survived the first version).
 
 ## 4. Tests leave nothing behind
 
