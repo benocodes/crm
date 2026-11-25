@@ -20,7 +20,7 @@ import { bootstrapD1, NOW, faultD1, openWorkerPair, type WorkerPair } from './te
 // client to the second). The clock is fixed, so ages are exact.
 const DAY = 86_400_000
 const HOUR = 3_600_000
-const T = Date.now()
+const T = Math.floor(Date.now() / 1000) * 1000
 const clock = () => new Date(T)
 const iso = (ms: number) => new Date(ms).toISOString()
 let w: WorkerPair
@@ -57,7 +57,7 @@ const rows = async (d1: D1Like, text: string, ...binds: unknown[]) =>
   ).results ?? []) as Array<Record<string, any>>
 const ids = async (table: string, col: string) =>
   (await rows(w.control, `select ${col} from ${table}`)).map((r) => r[col] as string)
-const sweep = () => runAuthSweep(openControlDb(w.control), w.d1, clock, { firstPartyClientId: CLI_CLIENT_ID })
+const sweep = () => runAuthSweep(openControlDb(w.control), w.d1, clock, { firstPartyClientIds: [CLI_CLIENT_ID] })
 const seq = 0
 const insertDeviceCode = (code: string, expiresAt: number, status: 'pending' | 'approved' | 'denied') =>
   w.control

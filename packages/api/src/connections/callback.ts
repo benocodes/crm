@@ -13,6 +13,7 @@ import type { PreparedEnv } from '../storage/definition.js'
 import { connectOperation } from './connect.js'
 import type { GmailConfig, PushConfig } from './config.js'
 import { sealToken } from './credentials.js'
+import type { GoogleKeyCache } from './google-keys.js'
 import { GMAIL_READONLY, GoogleExchangeError, exchangeCode, verifyIdToken, type GoogleEndpoints } from './google.js'
 import { redirectUriOf } from './operations.js'
 import { pkceVerifier, verifyState } from './state.js'
@@ -68,6 +69,8 @@ export interface CallbackDeps {
   /** Null: unconfigured, the route answers 404 ([[CHN5]] D58). */
   config: GmailConfig | null
   endpoints: GoogleEndpoints
+  /** The Google signing-key cache of the ID-token check ([[CORE577]] D21): shared with push, one per isolate. */
+  keys: GoogleKeyCache
   fetch: typeof fetch
   /** The `users/me` base of the Gmail API; default Gmail's. */
   gmailBaseUrl?: string
@@ -210,7 +213,7 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
       identity = await verifyIdToken(tokens.idToken, {
         endpoints: deps.endpoints,
         clientId: config.clientId,
-        fetch: deps.fetch,
+        keys: deps.keys,
         nowMs: now.getTime(),
       })
       gmail = new HttpGmailClient({

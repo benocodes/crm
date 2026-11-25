@@ -487,8 +487,18 @@ export interface AuthSweepOutcome {
   /** Dynamically registered clients that were never used deleted ([[CORE577]] D20). */
   unusedClients: number
 }
-/** The most rows of each housekeeping table one sweep deletes, oldest first ([[CORE577]] P5). STUB (red commit). */
+/** The most rows of each housekeeping table one sweep deletes, oldest first ([[CORE577]] P5): a backlog drains over a few ticks, and one batch stays small. */
 export const SWEEP_HOUSEKEEPING_CAP = 500
+/** A dynamically registered client is swept only once it is older than this and still unused ([[CORE577]] P4). */
+const UNUSED_CLIENT_AGE_MS = 7 * 24 * 3_600_000
+/**
+ * [[CORE577]] P4: the clients of an unauthenticated registration that nothing ever used: no user or reference (an owner's client names its owner), not a first-party client, created before `?` (the cutoff),
+ * and named by no access token, refresh token or consent. Binds, in order: the first-party client ids (a JSON array), the cutoff.
+ */
+const UNUSED_CLIENT = `user_id is null and reference_id is null and client_id not in (select value from json_each(?)) and created_at < ?
+  and not exists (select 1 from auth_oauth_access_tokens t where t.client_id = auth_oauth_clients.client_id)
+  and not exists (select 1 from auth_oauth_refresh_tokens t where t.client_id = auth_oauth_clients.client_id)
+  and not exists (select 1 from auth_oauth_consents t where t.client_id = auth_oauth_clients.client_id)`
 
 /** Subject ids per statement: one JSON-array bind each (`json_each`), so D1's 100-parameter cap never applies, and the text stays small. */
 const SWEEP_CHUNK = 500
@@ -536,7 +546,7 @@ export async function runAuthSweep(
   c: ControlDb,
   crm: D1Like,
   clock: () => Date,
-  _o: { firstPartyClientId: string } = { firstPartyClientId: 'vibase-cli' },
+  o: { firstPartyClientIds: readonly string[] },
 ): Promise<AuthSweepOutcome> {
   const d1 = raw(c)
   const now = clock().toISOString()
@@ -545,25 +555,63 @@ export async function runAuthSweep(
   const credentialsBefore = clock().toISOString()
   const facts = parseSweepCrmRows(((await crm.prepare(SWEEP_CRM_READ).all()).results ?? []) as unknown[])
   const plan = classifySweep({ now, control, crm: facts })
-  if (plan.revoke.length === 0 && plan.orphans.length === 0)
-    return { revoked: 0, deleted: 0, expiredDeviceCodes: 0, unusedClients: 0 }
-  await d1.batch(sweepStatements(d1, plan, { now, credentialsBefore }))
-  // The batch's own change counts include cascaded rows, so the deletions are counted by what is gone.
-  let remaining = 0
-  for (const ids of chunks(plan.orphans))
-    remaining += Number(
-      (
-        (await d1
-          .prepare('select count(*) as n from auth_users where id in (select value from json_each(?))')
-          .bind(JSON.stringify(ids))
-          .first()) ?? { n: 0 }
-      ).n,
+  // [[CORE577]] D20, P5: housekeeping is read on every sweep, whatever the plan holds; its statements join the one batch only when there is something to delete.
+  const clientCutoff = new Date(Date.parse(now) - UNUSED_CLIENT_AGE_MS).toISOString()
+  const ids = async (query: string, ...binds: unknown[]): Promise<string[]> =>
+    (
+      ((
+        await d1
+          .prepare(query)
+          .bind(...binds)
+          .all()
+      ).results ?? []) as Array<{ id: string }>
+    ).map((r) => r.id)
+  const codeIds = await ids(
+    'select id from auth_device_codes where expires_at < ? order by expires_at, id limit ?',
+    now,
+    SWEEP_HOUSEKEEPING_CAP,
+  )
+  const clientIds = await ids(
+    `select id from auth_oauth_clients where ${UNUSED_CLIENT} order by created_at, id limit ?`,
+    JSON.stringify(o.firstPartyClientIds),
+    clientCutoff,
+    SWEEP_HOUSEKEEPING_CAP,
+  )
+  const statements = sweepStatements(d1, plan, { now, credentialsBefore })
+  // Each deletion repeats its own guard, so a row that was used (or is no longer expired) between the read and the batch survives.
+  if (codeIds.length > 0)
+    statements.push(
+      d1
+        .prepare('delete from auth_device_codes where id in (select value from json_each(?)) and expires_at < ?')
+        .bind(JSON.stringify(codeIds), now),
     )
+  if (clientIds.length > 0)
+    statements.push(
+      d1
+        .prepare(`delete from auth_oauth_clients where id in (select value from json_each(?)) and ${UNUSED_CLIENT}`)
+        .bind(JSON.stringify(clientIds), JSON.stringify(o.firstPartyClientIds), clientCutoff),
+    )
+  if (statements.length === 0) return { revoked: 0, deleted: 0, expiredDeviceCodes: 0, unusedClients: 0 }
+  await d1.batch(statements)
+  // The batch's own change counts include cascaded rows, so the deletions are counted by what is gone.
+  const remaining = async (table: string, key: string, list: string[]): Promise<number> => {
+    let n = 0
+    for (const part of chunks(list))
+      n += Number(
+        (
+          (await d1
+            .prepare(`select count(*) as n from ${table} where ${key} in (select value from json_each(?))`)
+            .bind(JSON.stringify(part))
+            .first()) ?? { n: 0 }
+        ).n,
+      )
+    return n
+  }
   return {
     revoked: plan.revoke.length,
-    deleted: plan.orphans.length - remaining,
-    expiredDeviceCodes: 0,
-    unusedClients: 0,
+    deleted: plan.orphans.length - (await remaining('auth_users', 'id', plan.orphans)),
+    expiredDeviceCodes: codeIds.length - (await remaining('auth_device_codes', 'id', codeIds)),
+    unusedClients: clientIds.length - (await remaining('auth_oauth_clients', 'id', clientIds)),
   }
 }
 

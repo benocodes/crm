@@ -229,6 +229,20 @@ describe('the Google key cache (CORE577 D21, P6)', () => {
     expect((await post(a)).status).toBe(503)
     expect(jwks.urls).toHaveLength(2)
   })
+  it('a failed refetch for an unknown kid leaves no usable keys: a known key is 503 until the next attempt is allowed', async () => {
+    const a = app()
+    expect((await post(a)).status).toBe(204)
+    const rotated = await newPushKey('push-key-2')
+    at(61_000)
+    jwks.mode = 'throw'
+    expect((await post(a, { token: await signPushToken(rotated, now) })).status).toBe(503)
+    jwks.mode = 'ok'
+    expect((await post(a)).status).toBe(503)
+    expect(jwks.urls).toHaveLength(2)
+    at(61_000)
+    expect((await post(a)).status).toBe(204)
+    expect(jwks.urls).toHaveLength(3)
+  })
   it('concurrent pushes share one fetch', async () => {
     const a = app()
     const results = await Promise.all(Array.from({ length: 5 }, () => post(a)))

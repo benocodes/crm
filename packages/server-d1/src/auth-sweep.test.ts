@@ -629,7 +629,8 @@ describe('the shared classifier equals what a tick acts on (P6 source)', () => {
     expect(plan.orphans.sort()).toEqual([o.subject, young.subject].sort())
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
     await tick(worker({}, () => new Date(now)))
-    expect(sweepLog(log)).toEqual([
+    // (The fixture's expired device codes are housekeeping, [[CORE577]]: its own line, its own tests.)
+    expect(sweepLog(log).filter((l: string) => /revoked/.test(l))).toEqual([
       `[cron] ${RAIL_CRON}: auth sweep revoked ${plan.revoke.length} subject(s), deleted ${plan.orphans.length} account(s)`,
     ])
   })

@@ -121,6 +121,11 @@ export interface CreateAuthOptions {
    * waiter). Composition builds the message and schedules the send; this package knows no email. It must return at once and never throw.
    */
   deliverResetToken?: (a: { email: string; token: string }) => void
+  /**
+   * [[CORE577]] D10, P3: whether a Better Auth subject is an owner of the workspace, from the vault's live membership. The hook behind Better Auth's OAuth client endpoints asks it on every action; absent, every
+   * client action is refused (fail closed). It may throw: that refuses too.
+   */
+  clientOwner?: (subject: string) => Promise<boolean>
 }
 
 /** The tokens `sendResetPassword` hands over, by lowercased address: a waiter is registered only around an in-process call, so nothing else can ever receive or see a token. */
@@ -203,11 +208,23 @@ export function registrationScopes(
 /** The hook Better Auth calls before every OAuth client action ([[CORE577]] D10). */
 export type ClientPrivileges = NonNullable<OAuthOptions['clientPrivileges']>
 
-/** STUB (red commit): allows everything, as the library does with no hook. */
+/**
+ * Owner only, for every action the library names ([[CORE577]] D10, P1): no product feature reads or changes OAuth clients as a member, and the library calls the hook from `/oauth2/register` whenever the request
+ * carries a session (P2), so a member's session cannot register a client either. The role is the vault's live membership of the session's subject, looked up through `isOwner` (P3). Closed: no lookup, a missing
+ * session or subject, a lookup that throws, and anything but `true` all refuse.
+ */
 export function ownerOnlyClientPrivileges(
-  _isOwner: ((subject: string) => Promise<boolean>) | undefined,
+  isOwner: ((subject: string) => Promise<boolean>) | undefined,
 ): ClientPrivileges {
-  return async () => true
+  return async ({ user, session }) => {
+    const subject = user?.id ?? session?.userId
+    if (!isOwner || typeof subject !== 'string' || subject === '') return false
+    try {
+      return (await isOwner(subject)) === true
+    } catch {
+      return false
+    }
+  }
 }
 
 function composePlugins(
@@ -216,6 +233,7 @@ function composePlugins(
   vaultScopes: readonly string[] = [],
   grantable: readonly string[] = [],
   defaults: readonly string[] | undefined = undefined,
+  clientOwner: ((subject: string) => Promise<boolean>) | undefined = undefined,
 ) {
   const s = schema ?? (() => undefined)
   const scopes = [...AUTH_SCOPES, ...vaultScopes]
@@ -252,6 +270,8 @@ function composePlugins(
       clientRegistrationDefaultApplicationType: 'infer',
       allowDynamicClientRegistration: true,
       allowUnauthenticatedClientRegistration: true,
+      // [[CORE577]] D10: only an owner manages clients through the library's own endpoints (or registers with a session).
+      clientPrivileges: ownerOnlyClientPrivileges(clientOwner),
       rateLimit: { register: REGISTRATION_LIMIT },
       ...(schema
         ? {
@@ -482,6 +502,7 @@ export function authOptions(
       config.vaultScopes,
       config.grantableScopes,
       config.defaultScopes,
+      opts.clientOwner,
     ),
     hooks: {
       before: endpointGate(
