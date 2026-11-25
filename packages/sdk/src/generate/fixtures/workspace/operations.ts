@@ -1215,6 +1215,7 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
     "fields": {
       "min": "query",
       "max": "query",
+      "group_by": "query",
       "domain": "query",
       "tag_id": "query",
       "tag": "query",
@@ -2006,6 +2007,7 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
     "fields": {
       "min": "query",
       "max": "query",
+      "group_by": "query",
       "company_id": "query",
       "tag_id": "query",
       "tag": "query",
@@ -2359,6 +2361,7 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
       "avg": "query",
       "min": "query",
       "max": "query",
+      "group_by": "query",
       "pipeline_id": "query",
       "stage_id": "query",
       "owner_id": "query",
@@ -4514,6 +4517,7 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
       "avg": "query",
       "min": "query",
       "max": "query",
+      "group_by": "query",
       "additional_props": "query",
       "id": "query",
       "created_by": "query",
@@ -4987,6 +4991,7 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
     "fields": {
       "min": "query",
       "max": "query",
+      "group_by": "query",
       "status": "query",
       "assignee_id": "query",
       "tag_id": "query",

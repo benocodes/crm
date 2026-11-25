@@ -41,9 +41,12 @@ import { applyBagPatch, type Bag, type BagPatch } from './additional-props.js'
 import { canonicalId, prepareCreate, prepareListQuery, prepareUpdate } from './prepare.js'
 import { encodeCursor, type SortRequest } from '../resources/sort-cursor.js'
 import {
+  MAX_GROUPS,
   aggregateSelect,
   decodeAggregate,
+  decodeGrouped,
   parseAggregateTerms,
+  parseGroupBy,
   planAggregate,
   type AggregateAnswer,
 } from './aggregate.js'
@@ -372,13 +375,14 @@ export function aggregateOperation(
   query: Record<string, unknown>,
 ): PreparedOperation<AggregateAnswer> {
   if (!def.aggregate) throw new Error(`${def.name} does not aggregate`)
-  const { sum, avg, min, max, ...rest } = query
+  const { sum, avg, min, max, group_by, ...rest } = query
   if (PAGING.some((key) => rest[key] !== undefined))
     throw new ApiError(400, 'validation_error', 'after, limit, sort and order are not parameters of an aggregate')
   const terms = parseAggregateTerms(def as never, { sum, avg, min, max })
   const { filters } = prepareListQuery(def, { filters: rest as Record<string, string> })
   checkFilterScopes(def, env, filters)
-  const plan = planAggregate(def as never, terms)
+  const groupBy = parseGroupBy(def as never, group_by)
+  const plan = planAggregate(def as never, terms, groupBy)
   return defineOperation<AggregateAnswer>({
     name: `${def.name}.aggregate`,
     mutates: false,
@@ -388,9 +392,22 @@ export function aggregateOperation(
         .select(aggregateSelect(qc, def.table, plan, def.aggregate!.money) as never)
       for (const w of live(def, env)) q = q.where(w)
       for (const w of filterPredicates(def, qc, filters)) q = q.where(w)
-      return { aggregate: readMaybe(q) }
+      if (plan.groups.length === 0) return { aggregate: readMaybe(q) }
+      // [[CORE207]] D5, D6: the groups ordered by the group fields, the null group last (stated, not the engine's default), one more than the cap so that a 201st is seen.
+      const grouped = q as never as { groupBy: (e: unknown) => any }
+      let g = grouped.groupBy(plan.groups.map((x) => sql.ref(`${def.table}.${x.field}`)))
+      for (const x of plan.groups) g = g.orderBy(sql`${sql.ref(`${def.table}.${x.field}`)} asc nulls last`)
+      return { aggregate: readAll(g.limit(MAX_GROUPS + 1)) }
     },
-    build: (found) => unit({ steps: [], events: [], decode: () => decodeAggregate(plan, found.maybe('aggregate')!) }),
+    build: (found) =>
+      unit({
+        steps: [],
+        events: [],
+        decode: () =>
+          plan.groups.length === 0
+            ? decodeAggregate(plan, found.maybe('aggregate')!)
+            : decodeGrouped(plan, found.all('aggregate')),
+      }),
   })
 }
 

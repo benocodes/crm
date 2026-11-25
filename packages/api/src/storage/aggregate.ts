@@ -35,12 +35,20 @@ export const MAX_TERMS = 10
 /** D14: a sum beyond this is not an exact JSON number. Spelled out as a literal in SQL, so no bind can round it. */
 export const SAFE_INTEGER_LIMIT = Number.MAX_SAFE_INTEGER
 /** The parameter names an aggregatable list cannot also use as a filter (D13); `count` is the answer's key. */
-const RESERVED = ['count', ...AGGREGATE_FUNCTIONS] as const
+const RESERVED = ['count', ...AGGREGATE_FUNCTIONS, 'group_by'] as const
+/** [[CORE207]] D2: the column kinds a group field may have (never `id`, whose every row would be its own group). */
+export const GROUPABLE_KINDS: readonly FilterKind[] = ['uuid', 'text', 'integer', 'boolean']
+/** D3: at most this many group fields. */
+export const MAX_GROUP_FIELDS = 2
+/** D6: more groups than this is refused, never truncated. */
+export const MAX_GROUPS = 200
 
 /** D19: the fields each function takes on a list, and its money declaration (`field -> the column that holds its currency`). */
 export type AggregateSpec = {
   readonly fields: Readonly<Record<AggregateFunction, readonly string[]>>
   readonly money: Readonly<Record<string, string>>
+  /** [[CORE207]] D2: the fields `group_by` takes, in record field order. */
+  readonly group_by: readonly string[]
 }
 type Aggregatable = Pick<PreparedResource, 'name' | 'eventName'> & {
   readonly aggregate?: AggregateSpec
@@ -83,7 +91,17 @@ export function withAggregate<T extends PreparedResource>(
         .map(([name]) => name),
     ]),
   ) as Record<AggregateFunction, string[]>
-  return { ...def, aggregate: Object.freeze({ fields: Object.freeze(fields), money: Object.freeze({ ...money }) }) }
+  const group_by = Object.entries(columns)
+    .filter(([name, c]) => name !== 'id' && GROUPABLE_KINDS.includes(c.kind))
+    .map(([name]) => name)
+  return {
+    ...def,
+    aggregate: Object.freeze({
+      fields: Object.freeze(fields),
+      money: Object.freeze({ ...money }),
+      group_by: Object.freeze(group_by),
+    }),
+  }
 }
 
 export type AggregateTerms = Record<AggregateFunction, string[]>
@@ -144,6 +162,44 @@ export function parseAggregateTerms(
   return out
 }
 
+/**
+ * [[CORE207]] D1-D3: `group_by` as a list of at most two group fields, each a groupable column (D2); absent gives none. A repeat, an empty term or an empty
+ * `group_by` is refused, and every refusal for a field names the groupable fields.
+ */
+export function parseGroupBy(def: Aggregatable, raw: unknown): string[] {
+  const spec = def.aggregate
+  if (!spec) throw new Error(`${def.name} does not aggregate`)
+  if (raw === undefined || raw === null) return []
+  const takes = `group_by takes: ${spec.group_by.join(', ')}`
+  const parts = String(raw)
+    .split(',')
+    .map((p) => p.trim())
+  if (parts.length === 1 && parts[0] === '') throw refuse(`group_by needs at least one field; ${takes}`)
+  if (parts.length > MAX_GROUP_FIELDS)
+    throw refuse(`group_by takes at most ${MAX_GROUP_FIELDS} fields: ${parts.length} given; ${takes}`)
+  const seen = new Set<string>()
+  for (const field of parts) {
+    if (field === '') throw refuse(`group_by has an empty term`)
+    if (!spec.group_by.includes(field)) {
+      const kind =
+        def.columnFilters && Object.hasOwn(def.columnFilters, field) ? def.columnFilters[field]!.kind : undefined
+      const why = Object.hasOwn(def.derived ?? {}, field)
+        ? `${field} is derived, not groupable`
+        : field === 'id'
+          ? `id is every row's own key, not groupable`
+          : kind
+            ? `${field} is ${kind}, not groupable`
+            : Object.hasOwn(def.record.shape, field)
+              ? `${field} cannot be grouped`
+              : `unknown field ${field}`
+      throw refuse(`group_by: ${why}; ${takes}`)
+    }
+    if (seen.has(field)) throw refuse(`group_by names ${field} twice`)
+    seen.add(field)
+  }
+  return parts
+}
+
 const described = (def: Aggregatable, fn: AggregateFunction): string => {
   const spec = def.aggregate!
   const verb = { sum: 'Sum', avg: 'Average', min: 'Minimum', max: 'Maximum' }[fn]
@@ -151,17 +207,26 @@ const described = (def: Aggregatable, fn: AggregateFunction): string => {
 }
 
 /** The `sum`, `avg`, `min` and `max` query parameters (a function with no field on the list is left out, D5), described from the same field lists that validate them (D19). */
-export function aggregateParams(def: Aggregatable): Partial<Record<AggregateFunction, z.ZodType>> {
-  return Object.fromEntries(
+export function aggregateParams(def: Aggregatable): Partial<Record<AggregateFunction | 'group_by', z.ZodType>> {
+  const params = Object.fromEntries(
     AGGREGATE_FUNCTIONS.filter((fn) => def.aggregate!.fields[fn].length > 0).map((fn) => [
       fn,
       z.string().describe(described(def, fn)).optional(),
     ]),
-  ) as unknown as Partial<Record<AggregateFunction, z.ZodType>>
+  ) as unknown as Record<string, z.ZodType>
+  // [[CORE207]] D1, D8: a list with no groupable field has no `group_by` parameter.
+  if (def.aggregate!.group_by.length > 0)
+    params.group_by = z
+      .string()
+      .describe(
+        `Group the answer by up to ${MAX_GROUP_FIELDS} fields, comma-separated: ${def.aggregate!.group_by.join(', ')}. The answer is { count, groups } with one entry per group (key, count and each function you ask for), ordered by the group fields with the null group last. More than ${MAX_GROUPS} groups is refused. A function over a money field is judged in each group.`,
+      )
+      .optional()
+  return params as Partial<Record<AggregateFunction | 'group_by', z.ZodType>>
 }
 
 /** The answer of `<list>.aggregate` (D13): `count` always, each requested function as an object keyed by field, and `currency` beside money fields. */
-export const aggregateAnswer = z.object({
+const answerFields = {
   count: z.number().int().describe('The live rows that match the filters.'),
   sum: z.record(z.string(), z.number().nullable()).optional(),
   avg: z.record(z.string(), z.number().nullable()).optional(),
@@ -173,6 +238,22 @@ export const aggregateAnswer = z.object({
     .describe(
       'For each money field a function was asked of: the one currency of its amounts, or null when there are none.',
     ),
+}
+export const aggregateGroup = z.object({
+  key: z
+    .record(z.string(), z.union([z.string(), z.number(), z.boolean()]).nullable())
+    .describe('The value of each group field for this group, in its record form (null for the null group).'),
+  ...answerFields,
+  count: z.number().int().describe("The live rows in this group's key."),
+})
+export const aggregateAnswer = z.object({
+  ...answerFields,
+  groups: z
+    .array(aggregateGroup)
+    .optional()
+    .describe(
+      'With group_by: one answer per group, ordered by the group fields with the null group last. Then count is every matching row and no function key is at the top level.',
+    ),
 })
 export type AggregateAnswer = z.infer<typeof aggregateAnswer>
 
@@ -183,12 +264,17 @@ export function aggregateDescription(def: Aggregatable & { readonly eventName: s
   const noun = def.eventName
   return [
     `Counts the live ${def.name} that match the filters, which are exactly the filters of ${def.name}.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields.`,
-    'The answer is { count, sum?, avg?, min?, max?, currency? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all.',
+    'The answer is { count, sum?, avg?, min?, max?, currency?, groups? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all.',
+    ...(spec.group_by.length > 0
+      ? [
+          `With group_by (up to ${MAX_GROUP_FIELDS} of ${spec.group_by.join(', ')}) the answer is { count, groups: [{ key, count, sum?, avg?, min?, max?, currency? }] }: count is every matching row, and each group is the answer the call would give with the key added as filters, ordered by the group fields with the null group last; more than ${MAX_GROUPS} groups is refused, never truncated.`,
+        ]
+      : []),
     ...money.map(
       ([field, currency]) =>
-        `${field} is money in the minor units of each ${noun}'s ${currency}: sum, avg, min or max of it is refused (400) when the matching amounts are in more than one currency, naming them (add ${currency}=eq.<code> to aggregate one); otherwise the answer carries ${currency}: { ${field}: "<code>" } (null when there are no amounts). count is never refused.`,
+        `${field} is money in the minor units of each ${noun}'s ${currency}: sum, avg, min or max of it is refused (400) when the matching amounts are in more than one currency, naming them (add ${currency}=eq.<code> to aggregate one); otherwise the answer carries ${currency}: { ${field}: "<code>" } (null when there are no amounts). count is never refused. With group_by the rule is judged in each group, so group_by=${currency} gives one total per currency.`,
     ),
-    `Cost: reads every live ${noun} that matches the filters, with no page limit; a filter schema.get marks \`indexed\` narrows that read through an index; any other filter, or none, reads every live ${noun} of the workspace.`,
+    `Cost: reads every live ${noun} that matches the filters, with no page limit; a filter schema.get marks \`indexed\` narrows that read through an index; any other filter, or none, reads every live ${noun} of the workspace.${spec.group_by.length > 0 ? ' With group_by the same rows are read and sorted by the group fields (no index).' : ''}`,
   ].join(' ')
 }
 
@@ -200,13 +286,20 @@ export type AggregateColumn = {
   readonly alias: string
   readonly overflow?: string
 }
+/** One group field: its alias in the select list and the kind its value decodes as. */
+export type GroupColumn = { readonly field: string; readonly kind: FilterKind; readonly alias: string }
 export type AggregatePlan = {
+  readonly groups: readonly GroupColumn[]
   readonly columns: readonly AggregateColumn[]
   readonly money: ReadonlyArray<{ readonly field: string; readonly currencies: string }>
 }
 
 /** What to compute for the parsed terms: the columns in answer order, and for each money field a function is asked of, the alias of its distinct currencies. */
-export function planAggregate(def: Aggregatable, terms: AggregateTerms): AggregatePlan {
+export function planAggregate(
+  def: Aggregatable,
+  terms: AggregateTerms,
+  groupBy: readonly string[] = [],
+): AggregatePlan {
   const spec = def.aggregate!
   const columns: AggregateColumn[] = []
   const asked = new Set<string>()
@@ -223,7 +316,11 @@ export function planAggregate(def: Aggregatable, terms: AggregateTerms): Aggrega
       if (Object.hasOwn(spec.money, field)) asked.add(field)
     }
   }
-  return { columns, money: [...asked].map((field, i) => ({ field, currencies: `c${i}` })) }
+  return {
+    groups: groupBy.map((field, i) => ({ field, kind: def.columnFilters![field]!.kind, alias: `g${i}` })),
+    columns,
+    money: [...asked].map((field, i) => ({ field, currencies: `c${i}` })),
+  }
 }
 
 /**
@@ -238,6 +335,7 @@ export function aggregateSelect(
 ): AliasedRawBuilder<unknown, string>[] {
   const ref = (c: string) => sql.ref(`${table}.${c}`)
   const out: AliasedRawBuilder<unknown, string>[] = [sql`count(*)`.as('count')]
+  for (const g of plan.groups) out.push(sql`${ref(g.field)}`.as(g.alias))
   for (const c of plan.columns) {
     out.push(sql`${sql.raw(c.fn)}(${ref(c.field)})`.as(c.alias))
     if (c.overflow)
@@ -258,15 +356,21 @@ export function aggregateSelect(
   return out
 }
 
-/** The answer from the one row: the money rule first (D15), then the exact-integer limit (D14), then each value in its record form. */
-export function decodeAggregate(plan: AggregatePlan, row: Record<string, unknown>): AggregateAnswer {
+/** [[CORE207]] D7: how a group is named in a message: its fields and values, `stage_id=<id>,currency=EUR`. */
+const groupLabel = (plan: AggregatePlan, key: Record<string, unknown>): string =>
+  plan.groups.map((g) => `${g.field}=${key[g.field] === null ? 'null' : String(key[g.field])}`).join(',')
+
+/** One row's answer (`count` and the functions): the money rule first (D15, per group under D7), then the exact-integer limit (D14), then each value in its record form. */
+function decodeRow(plan: AggregatePlan, row: Record<string, unknown>, group?: string): AggregateAnswer {
   const currency: Record<string, string | null> = {}
   for (const m of plan.money) {
     const codes =
       typeof row[m.currencies] === 'string' ? [...new Set((row[m.currencies] as string).split(','))].sort() : []
     if (codes.length > 1)
       throw refuse(
-        `${m.field} is in ${codes.length} currencies here (${codes.join(', ')}): add currency=eq.<code> to aggregate one`,
+        group === undefined
+          ? `${m.field} is in ${codes.length} currencies here (${codes.join(', ')}): add currency=eq.<code> to aggregate one`
+          : `${m.field} is in ${codes.length} currencies in group ${group} (${codes.join(', ')}): add currency to group_by, or add currency=eq.<code>`,
       )
     currency[m.field] = codes[0] ?? null
   }
@@ -274,7 +378,7 @@ export function decodeAggregate(plan: AggregatePlan, row: Record<string, unknown
   for (const c of plan.columns) {
     if (c.overflow && Number(row[c.overflow]) === 1)
       throw refuse(
-        `sum of ${c.field} is above ${SAFE_INTEGER_LIMIT}, the largest exact integer; add filters to sum fewer rows`,
+        `sum of ${c.field}${group === undefined ? '' : ` in group ${group}`} is above ${SAFE_INTEGER_LIMIT}, the largest exact integer; add filters to sum fewer rows`,
       )
     const raw = row[c.alias]
     const value =
@@ -292,4 +396,36 @@ export function decodeAggregate(plan: AggregatePlan, row: Record<string, unknown
   }
   if (plan.money.length > 0) answer.currency = currency
   return answer as AggregateAnswer
+}
+
+/** The answer from the one row of an ungrouped call. */
+export const decodeAggregate = (plan: AggregatePlan, row: Record<string, unknown>): AggregateAnswer =>
+  decodeRow(plan, row)
+
+/** A group field's value in its record form (D4). */
+function keyValue(kind: FilterKind, raw: unknown): string | number | boolean | null {
+  if (raw === null || raw === undefined) return null
+  if (kind === 'integer') return codecs.integer.readNullable(raw)
+  if (kind === 'boolean') return codecs.boolean.readNullable(raw)
+  return String(raw)
+}
+
+/**
+ * [[CORE207]] D4, D6, D7: the answer of a grouped call from its rows (the statement asked for one more than the cap): refused when it holds more than 200 groups,
+ * otherwise `count` (the sum of the groups') and one ungrouped answer per group beside its `key`.
+ */
+export function decodeGrouped(plan: AggregatePlan, rows: readonly Record<string, unknown>[]): AggregateAnswer {
+  if (rows.length > MAX_GROUPS)
+    throw refuse(
+      `group_by ${plan.groups.map((g) => g.field).join(',')} gives more than ${MAX_GROUPS} groups: add filters or group by a field with fewer values`,
+    )
+  let count = 0
+  const groups = rows.map((row) => {
+    const key: Record<string, string | number | boolean | null> = {}
+    for (const g of plan.groups) key[g.field] = keyValue(g.kind, row[g.alias])
+    const answer = decodeRow(plan, row, groupLabel(plan, key))
+    count += answer.count
+    return { key, ...answer }
+  })
+  return { count, groups }
 }

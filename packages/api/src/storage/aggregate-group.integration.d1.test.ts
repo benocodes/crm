@@ -268,7 +268,9 @@ describe('a group is the ungrouped answer (D4, D3)', () => {
 })
 
 describe('order (D5)', () => {
-  const rows = (...r: Array<Record<string, unknown>>) => Promise.all(r.map((b) => make(OBJECT, { name: 'n', ...b })))
+  const rows = async (...r: Array<Record<string, unknown>>) => {
+    for (const b of r) await make(OBJECT, { name: 'n', ...b })
+  }
   const keys = (b: any, f: string) => b.groups.map((g: any) => g.key[f])
   it('text is in byte order with the null group last, on the first and the second group field', async () => {
     await rows({ code: 'B' }, { code: 'a' }, {}, { code: 'c' })
@@ -297,14 +299,15 @@ describe('order (D5)', () => {
       ['planned', true],
     ])
   })
-  it('a null in the first field sorts last whatever the second field holds', async () => {
-    await rows({ code: 'B', budget: 2 }, { code: 'B', budget: 1 }, { budget: 5 }, { code: 'a' })
-    const r = await ok(OBJECT, 'group_by=code,budget')
-    expect(r.groups.map((g: any) => [g.key.code, g.key.budget])).toEqual([
-      ['B', 1],
-      ['B', 2],
-      ['a', null],
-      [null, 5],
+  it('a null in the first field sorts last whatever the second field holds, and a null second field sorts last within a first value', async () => {
+    await rows({ budget: 2, code: 'B' }, { budget: 2, code: 'a' }, { budget: 2 }, { code: 'c' }, {})
+    const r = await ok(OBJECT, 'group_by=budget,code')
+    expect(r.groups.map((g: any) => [g.key.budget, g.key.code])).toEqual([
+      [2, 'B'],
+      [2, 'a'],
+      [2, null],
+      [null, 'c'],
+      [null, null],
     ])
   })
 })
@@ -331,9 +334,7 @@ describe('complete or refused (D6, #208)', () => {
     await seed(201)
     const r = await agg(OBJECT, 'group_by=code')
     expect(r.status).toBe(400)
-    expect(msg(r)).toBe(
-      'group_by code gives more than 200 groups: add filters or group by a field with fewer values',
-    )
+    expect(msg(r)).toBe('group_by code gives more than 200 groups: add filters or group by a field with fewer values')
     const filtered = await ok(OBJECT, 'group_by=code&code=lt.g100')
     expect(filtered.groups).toHaveLength(100)
     expect(filtered.count).toBe(100)
@@ -422,11 +423,13 @@ describe('discovery, cost and compatibility (D8, D1)', () => {
   })
   it('OpenAPI describes group_by with the groupable fields; the answer is an object; every aggregate MCP tool has an outputSchema', async () => {
     const doc = (await k.call(owner, 'GET', '/api/v1/openapi.json')).body
+    const schema = (await k.call(owner, 'GET', '/meta/v1/schema')).body
     for (const list of lists) {
       const op = doc.paths[`/api/v1/${list}/aggregate`].get
       const p = op.parameters.find((x: any) => x.name === 'group_by')
       expect(p, list).toBeDefined()
-      expect(p.description).toContain('stage')
+      for (const f of schema.tables.find((t: any) => t.name === list).resource.aggregate.group_by)
+        expect(p.description, `${list} ${f}`).toContain(f)
       expect(op.description).toContain('groups')
     }
     const deals = doc.paths['/api/v1/deals/aggregate'].get.parameters.find((x: any) => x.name === 'group_by')
@@ -471,7 +474,11 @@ describe('discovery, cost and compatibility (D8, D1)', () => {
           .bind(...read.parameters)
           .all()
       ).results as Array<{ detail: string }>
-      return rows.map((r) => r.detail).filter((d) => /^(SEARCH|SCAN) /.test(d))
+      // the table is read through the same constraints; which index serves them (a covering one may carry the group field) is the planner's choice
+      return rows
+        .map((r) => r.detail)
+        .filter((d) => /^(SEARCH|SCAN) /.test(d))
+        .map((d) => d.replace(/ USING (COVERING )?INDEX \S+/, ' USING INDEX'))
     }
     for (const [list, group] of [
       ['deals', 'stage_id'],

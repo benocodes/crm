@@ -144,6 +144,7 @@ function resourceOf(def: AnyResource, stated: ReadonlySet<string>, statedFilters
           min: [...def.aggregate.fields.min],
           max: [...def.aggregate.fields.max],
           money: { ...def.aggregate.money },
+          group_by: [...def.aggregate.group_by],
         }
       : null,
   }

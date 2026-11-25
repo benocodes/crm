@@ -49,6 +49,17 @@ describe('schema.get says which lists aggregate (D19)', () => {
       min: MINMAX,
       max: MINMAX,
       money: { amount_minor: 'currency' },
+      // CORE207 D2: uuid, text, integer and boolean columns except id, in record field order
+      group_by: [
+        'name',
+        'pipeline_id',
+        'stage_id',
+        'amount_minor',
+        'currency',
+        'expected_close_date',
+        'owner_id',
+        'created_by',
+      ],
     })
     expect(tableOf(r.body, 'deals').resource.operations).toContain('deals.aggregate')
   })
