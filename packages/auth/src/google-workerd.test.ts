@@ -98,6 +98,7 @@ describe('Google sign-in in workerd (fake Google, network blocked)', () => {
     const u = new URL(url)
     expect(`${u.origin}${u.pathname}`).toBe('https://accounts.google.com/o/oauth2/v2/auth')
     expect(u.searchParams.get('scope')).toBe('openid email profile')
+    expect(u.searchParams.has('include_granted_scopes')).toBe(false)
     expect(u.searchParams.get('redirect_uri')).toBe(`${BASE}/auth/callback/google`)
     expect(u.searchParams.get('client_id')).toBe(CLIENT_ID)
     expect(url).not.toContain(TOKEN)

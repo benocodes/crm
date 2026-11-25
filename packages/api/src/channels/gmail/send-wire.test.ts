@@ -194,3 +194,49 @@ it('bounded References always retains the immediate anchor even when an earlier 
   expect(refs).toHaveLength(20)
   expect(refs.at(-1)).toBe('<anchor@example.test>')
 })
+
+// CORE579 D23: the anchor's decoded subject is cleaned of C0 controls and DEL before the reply's headers are built.
+const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64')
+async function replyMime(anchorSubject: string): Promise<string> {
+  const signal = new AbortController().signal
+  let sent = ''
+  const client = new HttpGmailClient({
+    accessToken: async () => 'fake-token',
+    signal,
+    fetch: async (_input, init) => {
+      if (init?.method === 'GET')
+        return Response.json({
+          id: 'a',
+          threadId: 't',
+          payload: {
+            headers: [
+              { name: 'Message-ID', value: '<anchor@example.test>' },
+              { name: 'Subject', value: anchorSubject },
+            ],
+          },
+        })
+      sent = Buffer.from(JSON.parse(String(init!.body)).raw, 'base64url').toString('utf8')
+      return Response.json({ id: 'sent', threadId: 't' })
+    },
+  })
+  await new GmailChannel(client).postToThread!(
+    { ...post, provider_anchor_id: 'a', provider_thread_id: 't', anchor_external_id: 'anchor@example.test' },
+    signal,
+  )
+  return sent
+}
+const subjectOf = (mime: string) => {
+  const headers = mime.split('\r\n\r\n')[0]!.replaceAll('\r\n ', ' ')
+  return decodeMimeWords(/Subject: (.*)/.exec(headers)![1]!)
+}
+it('a reply to a subject with a tab, a CR/LF fold, DEL and a control in an encoded word goes out with one space per run', async () => {
+  const mime = await replyMime(`Q3\tplan\r\n  update\x7fnow =?UTF-8?B?${b64('a\x01\x02b')}?= end`)
+  expect(subjectOf(mime)).toBe('Re: Q3 plan update now a b end')
+})
+it('a subject that is only controls still produces a sendable reply', async () => {
+  const mime = await replyMime('\t\x01\x7f')
+  expect(subjectOf(mime).startsWith('Re:')).toBe(true)
+})
+it('a new-send subject with a control still reaches the header check and is refused', () => {
+  expect(() => outboundMime({ ...post, subject: 'a\tb' })).toThrow('unsafe outbound header')
+})

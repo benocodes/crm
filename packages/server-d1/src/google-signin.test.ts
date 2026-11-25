@@ -331,6 +331,8 @@ describe('discovery and the authorization URL (D7, P2)', () => {
     expect(`${u.origin}${u.pathname}`).toBe('https://accounts.google.com/o/oauth2/v2/auth')
     expect(u.searchParams.get('scope')).toBe('openid email profile')
     expect(u.searchParams.get('redirect_uri')).toBe(`${AUTH_BASE}/auth/callback/google`)
+    // CORE579 P2: sign-in asks for sign-in scopes only; the parameter is absent, not merely false.
+    expect(u.searchParams.has('include_granted_scopes')).toBe(false)
     expect(u.searchParams.get('client_id')).toBe(CLIENT_ID)
   })
 

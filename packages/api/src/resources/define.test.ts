@@ -43,6 +43,19 @@ describe('parseListQuery', () => {
       message: 'unknown filter: colour',
     })
   })
+  // CORE579 P1: a key named like an Object.prototype member is an ordinary unknown filter, on any definition.
+  it.each(['constructor', 'toString', 'hasOwnProperty', 'valueOf', '__proto__'])(
+    'a filter named %s is an unknown filter, not a 500',
+    async (key) => {
+      const filters = JSON.parse(`{${JSON.stringify(key)}: "a"}`) as Record<string, string>
+      for (const def of [tasks, base({ filters: { status: { schema: z.string() } } })])
+        expect(await code(() => parseListQuery(def, { filters }))).toMatchObject({
+          status: 400,
+          code: 'validation_error',
+          message: `unknown filter: ${key}`,
+        })
+    },
+  )
   // CORE188: no shipped list is left without sorts that takes plain filters, so the unsorted negative is a definition with no `sorts`.
   it('a definition that declares no sorts refuses sort and order as unknown filters', async () => {
     const plain = { filters: { status: { schema: z.string() } } }

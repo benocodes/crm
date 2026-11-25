@@ -40,6 +40,8 @@ interface World {
   meRedirect?: string
   /** The second page of /api/v1/widgets answers 401. */
   denyPage2?: boolean
+  /** The body /meta/v1/me answers (default ME). */
+  me?: unknown
 }
 
 function world(
@@ -88,7 +90,7 @@ function world(
             next_cursor: '00000000-0000-7000-8000-000000000009',
           })
         }
-        return json(u.pathname === '/meta/v1/me' ? ME : { data: [], next_cursor: null })
+        return json(u.pathname === '/meta/v1/me' ? (w.me ?? ME) : { data: [], next_cursor: null })
       }
       return undefined
     },
@@ -137,6 +139,36 @@ const meHits = (w: World) => w.net.at(SERVER, '/meta/v1/me')
 const deviceRequests = (w: World) => w.net.at(w.iss.origin, '/oauth/device_authorization')
 const form = (body: string) => Object.fromEntries(new URLSearchParams(body))
 const tokenPosts = (w: World) => w.net.at(w.iss.origin, '/oauth/token').map((t) => form(t.body))
+
+// [[DX589]] (CORE579 P4): an owner's device login that holds a write scope says so on stderr, once, and nothing else changes.
+describe('device login: the owner-login warning', () => {
+  const meOf = (kind: string, role: string, scopes: string[]) => ({
+    principal: { id: 'p1', kind },
+    user: { id: 'p1' },
+    active_organization: { id: 'o1', role, scopes },
+  })
+  const run = async (me: unknown) => {
+    const w = world()
+    w.me = me
+    const res = await login(w)
+    expect(res.code).toBe(0)
+    expect(JSON.parse(res.stdout)).toEqual(me)
+    return res.stderr
+  }
+  it('an owner holding a write scope: stderr names the server, the owner, and the agent identity alternative', async () => {
+    const err = await run(meOf('user', 'owner', ['contacts:read', 'tasks:write']))
+    expect(err).toContain(SERVER)
+    expect(err).toContain("owner's permissions")
+    expect(err).toContain('vibase invitations create')
+  })
+  it.each([
+    ['a member with write scopes', meOf('user', 'member', ['contacts:write'])],
+    ['an agent with write scopes', meOf('agent', 'agent', ['contacts:write'])],
+    ['an owner whose consent left no :write scope', meOf('user', 'owner', ['contacts:read', 'tasks:read'])],
+  ])('no warning for %s', async (_n, me) => {
+    expect(await run(me)).not.toContain("owner's permissions")
+  })
+})
 
 describe('device login: the happy path (D11)', () => {
   it('discovers, asks for the default scopes, polls, stores the profile, prints me alone on stdout and the prompt on stderr', async () => {
