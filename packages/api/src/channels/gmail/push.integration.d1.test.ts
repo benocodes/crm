@@ -244,8 +244,15 @@ describe('the Google key cache (CORE577 D21, P6)', () => {
     expect(jwks.urls).toHaveLength(3)
   })
   it('concurrent pushes share one fetch', async () => {
+    // A slow Google, and tokens signed beforehand, so the five requests really overlap.
+    const inner = jwks.fetch
+    jwks.fetch = (async (...args: Parameters<typeof fetch>) => {
+      await new Promise((r) => setTimeout(r, 25))
+      return inner(...args)
+    }) as typeof fetch
     const a = app()
-    const results = await Promise.all(Array.from({ length: 5 }, () => post(a)))
+    const token = await signPushToken(key, now)
+    const results = await Promise.all(Array.from({ length: 5 }, () => post(a, { token })))
     expect(results.map((r) => r.status)).toEqual([204, 204, 204, 204, 204])
     expect(jwks.urls).toHaveLength(1)
   })

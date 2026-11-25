@@ -58,7 +58,6 @@ const rows = async (d1: D1Like, text: string, ...binds: unknown[]) =>
 const ids = async (table: string, col: string) =>
   (await rows(w.control, `select ${col} from ${table}`)).map((r) => r[col] as string)
 const sweep = () => runAuthSweep(openControlDb(w.control), w.d1, clock, { firstPartyClientIds: [CLI_CLIENT_ID] })
-const seq = 0
 const insertDeviceCode = (code: string, expiresAt: number, status: 'pending' | 'approved' | 'denied') =>
   w.control
     .prepare(
