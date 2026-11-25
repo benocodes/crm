@@ -1453,6 +1453,20 @@ The app and auth pages are the pattern for any page the Worker serves (one entry
 - A dependency that throws without its env goes on the context as a **lazy getter**, so sibling routes keep
   working on a box without that env.
 
+## Untrusted content (mail, uploads, provider resources)
+
+- **Input never sets recursion depth.** Anyone who can email a connected mailbox controls the HTML and the MIME tree.
+  Walk them iteratively (an explicit stack) or under a named bound: the Gmail mapper parses HTML with `parse5`
+  (iterative), flattens elements past `MAX_HTML_DEPTH` (256) into their nearest kept ancestor with their text, and
+  ignores parts past `MAX_MIME_DEPTH` (32) multipart levels (`packages/api/src/channels/gmail/mapper.ts`, [[CORE571]]
+  D1, D4). Every later stage (prune, `toMdast`, `toPlainText`, `stringifyMarkdown`) recurses and is safe only because
+  the tree reaching it is bounded. The former `hast-util-from-html` path overflowed Node's stack on a 5,000-deep body.
+- **A content failure is a skip, a transport failure throws** (`ChannelPort.readMessage`, [[CORE571]] D2). Mapping is
+  deterministic, so a throw there fails every retry of the page and the cursor never moves. An adapter catches only
+  around the pure mapping and returns `{ skip: 'unreadable' }`; the provider calls (the fetch, the lazy raw and
+  attachment reads) stay outside the catch, so throttles, `invalid_grant` and 5xx keep their classification. The skip
+  logs one warning with ids and the error's `name` only, never its message or any content (D3).
+
 ## Testing
 
 Test-writing rules live in the `writing-tests` skill: red first, the contract suite and fixtures, golden

@@ -437,6 +437,15 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   non-finite number: `1e999` parses to `Infinity` and re-serialises as `null`) never reaches the handler as itself, so
   a REST matrix row for it tests the `null` rule instead. Prove it with a unit test on the shared zod schema and say so
   in RESULT.md ([[CORE318]], `packages/api/src/storage/additional-props.test.ts`).
+- **A "no content in the log" test forbids the error's own message too.** A hand-written forbidden list misses text the
+  runtime supplies: [[CORE571]]'s list held the seeded subject, sender and body but not the `DOMException` message
+  (`Invalid character`), so the mutation "append `err.message` to the line" stayed green until it was added. Seed
+  distinctive content, add the thrown error's `message` to the forbidden list, spy every console method, and run the
+  mutation that leaks the message (`packages/api/src/channels/gmail/channel.test.ts`).
+- **Untrusted nesting is tested at 5,000 and 50,000 levels**, with the bound pinned on both sides (exactly at it keeps
+  structure, one past it flattens or ignores). Node's stack overflows between 1,000 and 2,000 levels of recursion, so
+  a test at a few hundred proves nothing; run the deep case in workerd too (`smoke:worker`), because its stack differs
+  ([[CORE571]], `packages/api/src/channels/gmail/mapper.test.ts`, smoke checks X1 to X4).
 
 ## 2. Type-level tests
 

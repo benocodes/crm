@@ -40,11 +40,6 @@ const withId = (m: MessageSpec, id: string): MessageSpec => ({
 
 // The scripted page: a normal attachment, a length mismatch, and an original of unknown size over 5 MiB (multipart).
 
-/**
- * `/gmail-pages` ([[CHN149]]): the capture pages in workerd. A connection is seeded through the real connect unit (Web Crypto seals the refresh
- * token), `runGmailSync` backfills and then reads a history page over `FakeGmail`, and the access token comes from a fake token endpoint reached
- * through the injected `fetch`. The fetch refuses every host but Google's token host, and reports the hosts it saw.
- */
 /** The seeded connection, the fake token endpoint and the sync deps the two page routes share. */
 async function pagesKit(env: Env, p: { mailbox: string; sub: string; gmail: (now: Date) => FakeGmail }) {
   const now = new Date('2026-11-05T10:00:00.000Z')
@@ -110,6 +105,11 @@ async function pagesKit(env: Env, p: { mailbox: string; sub: string; gmail: (now
   return { deps, connectionId, hosts, secrets: () => [refreshToken, ...accessTokens, 'smoke-client-secret'] }
 }
 
+/**
+ * `/gmail-pages` ([[CHN149]]): the capture pages in workerd. A connection is seeded through the real connect unit (Web Crypto seals the refresh
+ * token), `runGmailSync` backfills and then reads a history page over `FakeGmail`, and the access token comes from a fake token endpoint reached
+ * through the injected `fetch`. The fetch refuses every host but Google's token host, and reports the hosts it saw.
+ */
 async function gmailPages(env: Env): Promise<Response> {
   const kit = await pagesKit(env, {
     mailbox: 'pages@smoke.test',
