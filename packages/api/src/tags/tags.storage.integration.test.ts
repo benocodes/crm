@@ -4,6 +4,17 @@ import { mergeOperation } from '../identity/merge.js'
 import { uuidv7 } from '@vibase/storage'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { assocKit, type AssocKit, type Rec } from '../test/assoc-kit.js'
+import { ApiError } from '../errors.js'
+/** The ApiError a call throws (the MCP argument splitter refuses before any operation runs). */
+function catchApi(fn: () => unknown): ApiError {
+  try {
+    fn()
+  } catch (err) {
+    if (err instanceof ApiError) return err
+    throw err
+  }
+  throw new Error('expected an ApiError')
+}
 
 // CORE129 on D1 (the oracle): the `tags` resource, its name rules, events, the taggable set, the `tag_id` list filter on
 // companies, contacts and tasks (both canonical sides, live edges only, scopes), the delete cascade and the merge re-pointing.
@@ -410,8 +421,9 @@ describe('a repeated tag_id over MCP (D10)', () => {
     const x = await a.ent.tag('X')
     const y = await a.ent.tag('Y')
     const op = a.registry.get('companies.list')!
-    const { query } = splitArguments(op, { tag_id: [x[1], y[1]] })
-    const err = await a.fail('companies.list', { query })
+    // [[CORE602]] D3, D5: refused where the arguments are split, naming the argument
+    const err = catchApi(() => splitArguments(op, { tag_id: [x[1], y[1]] }))
     expect([err.status, err.code]).toEqual([400, 'validation_error'])
+    expect(err.message).toContain('tag_id')
   })
 })

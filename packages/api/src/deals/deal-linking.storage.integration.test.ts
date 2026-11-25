@@ -4,6 +4,17 @@ import { splitArguments } from '../mcp/tools.js'
 import { mergeOperation } from '../identity/merge.js'
 import { openD1Engine, type Engine } from '../test/engines.js'
 import { assocKit, type AssocKit, type Rec } from '../test/assoc-kit.js'
+import { ApiError } from '../errors.js'
+/** The ApiError a call throws (the MCP argument splitter refuses before any operation runs). */
+function catchApi(fn: () => unknown): ApiError {
+  try {
+    fn()
+  } catch (err) {
+    if (err instanceof ApiError) return err
+    throw err
+  }
+  throw new Error('expected an ApiError')
+}
 
 // CORE136 on D1 (the oracle), [[CORE130]] D14/D15: deals are associable with companies, contacts, tasks, notes, tags and threads;
 // `deals.list` filters by tag_id / company_id / contact_id; `deals.delete` cascades its edges; the other programs treat a deal
@@ -244,9 +255,10 @@ describe('the custom filters of deals.list (D15)', () => {
     const err = await a.fail('deals.list', { query }, { as: 'agent', scopes: ['deals:read', 'associations:read'] })
     expect([err.status, err.code]).toEqual([403, 'insufficient_scope'])
     expect(err.message).toContain('contacts:read')
-    const split = splitArguments(op, { company_id: [uuidv7(), uuidv7()] })
-    const bad = await a.fail('deals.list', { query: split.query })
+    // [[CORE602]] D3, D5: a list on a custom filter is refused where the arguments are split, as 400 validation_error naming the argument
+    const bad = catchApi(() => splitArguments(op, { company_id: [uuidv7(), uuidv7()] }))
     expect([bad.status, bad.code]).toEqual([400, 'validation_error'])
+    expect(bad.message).toContain('company_id')
   })
 })
 
