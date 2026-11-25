@@ -32,10 +32,13 @@ const make = async (titles: string[]) => {
 const titles = (page: { data: { title: string }[] }) => page.data.map((t) => t.title).sort()
 
 describe('DX608 round trip on D1', () => {
-  it('a range filter returns exactly the expected subset', async () => {
-    await make(['a', 'b', 'c', 'd'])
-    const page = await vibase.tasks.list({ title: { gte: 'b', lt: 'd' } })
-    expect(titles(page)).toEqual(['b', 'c'])
+  it('a range filter on a timestamp column returns exactly the expected subset', async () => {
+    for (const day of ['01', '02', '03', '04'])
+      await vibase.tasks.create({ title: `d${day}`, due_at: `2026-03-${day}T12:00:00Z` })
+    const page = await vibase.tasks.list({
+      due_at: { gte: new Date('2026-03-02T00:00:00Z'), lt: '2026-03-04T00:00:00Z' },
+    })
+    expect(titles(page)).toEqual(['d02', 'd03'])
   })
 
   it('an in filter with a quoted item and a not filter return the expected rows', async () => {
@@ -68,13 +71,12 @@ describe('DX608 round trip on D1', () => {
   })
 
   it('a proposal with invalid arguments is refused as a VibaseError with the server status and code', async () => {
+    const [task] = await make(['original'])
     const error = await vibase.tasks.update
-      .propose({ id: 'not-a-task', title: 5 as never }, { reason: 'bad' })
+      .propose({ id: task.id, title: 5 as never }, { reason: 'bad' })
       .catch((e) => e)
     expect(isVibaseError(error)).toBe(true)
-    expect(error.status).toBeGreaterThanOrEqual(400)
-    expect(error.status).toBeLessThan(500)
-    expect(error.code).not.toMatch(/^http_/)
+    expect([error.status, error.code]).toEqual([400, 'validation_error'])
   })
 
   it('a get of a missing id throws VibaseError 404 with the envelope code', async () => {

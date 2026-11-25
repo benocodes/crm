@@ -52,13 +52,36 @@ describe('DX608 D9 filter serialisation', () => {
     expect(parsed).toEqual({ not: false, op: 'in', value: items })
   })
 
-  it('is: null and is: true', async () => {
+  it('is: null, is: true and is: false (boolean via a hand-built table)', async () => {
     const a = make()
     await a.vibase.tasks.list({ assignee_id: { is: null } })
     expect(sent(a.fetch, 'assignee_id')).toEqual(['is.null'])
     const b = make()
     await b.vibase.tasks.list({ completed_at: { is: null } })
     expect(sent(b.fetch, 'completed_at')).toEqual(['is.null'])
+    const fetch = fakeFetch(() => jsonResponse({}))
+    const vibase = createClient({
+      url: BASE,
+      auth: 't',
+      fetch,
+      operations: {
+        'x.list': {
+          namespace: 'x',
+          method: 'list',
+          http: 'GET',
+          path: '/api/v1/x',
+          fields: { b: 'query' },
+          body: false,
+          output: 'json',
+          paginated: false,
+          proposable: false,
+          filters: { b: { kind: 'boolean', operators: ['eq', 'neq', 'is'], max: 4 } },
+        },
+      } as never,
+    }) as any
+    await vibase.x.list({ b: { is: true } })
+    await vibase.x.list({ b: { is: false } })
+    expect(fetch.calls.map((c) => new URL(c.url).searchParams.getAll('b'))).toEqual([['is.true'], ['is.false']])
   })
 
   it('like and ilike keep their *', async () => {
