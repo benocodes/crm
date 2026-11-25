@@ -90,6 +90,10 @@ export interface SummaryInput {
   send?: SendFacts
 }
 
+/** The target's label, or its id when no row was given (the proposer may not read it, 588.31); null for an operation with no target record. */
+const targetLabel = (input: SummaryInput): string | null =>
+  input.target === null ? input.targetId : labelOf(input.target, input.targetId)
+
 /** The whole summary, at most 500 characters. */
 export function summarise(input: SummaryInput): string {
   const { operation, args } = input
@@ -108,10 +112,10 @@ export function summarise(input: SummaryInput): string {
     const shown = fields.slice(0, FIELD_NAMES_SHOWN).map(clean)
     const rest = fields.length - shown.length
     const list = shown.length === 0 ? 'none' : `${shown.join(', ')}${rest > 0 ? ` and ${rest} more` : ''}`
-    text = `Update ${resource} record${record(labelOf(input.target, input.targetId))} (fields: ${list})`
-  } else if (verb === 'delete') text = `Delete ${resource} record${record(labelOf(input.target, input.targetId))}`
+    text = `Update ${resource} record${record(targetLabel(input))} (fields: ${list})`
+  } else if (verb === 'delete') text = `Delete ${resource} record${record(targetLabel(input))}`
   else {
-    const label = labelOf(input.target, input.targetId)
+    const label = targetLabel(input)
     text = label === null ? operation : `${operation} on ${resource} record ${quoted(label)}`
   }
   return clampTo(text, SUMMARY_MAX)

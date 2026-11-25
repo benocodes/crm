@@ -428,7 +428,9 @@ function buildCreate(
         )
       }
       // [[AGT588]] D7, D8, D11: written once, as proposed; building it never fails the create.
-      const targetRow = t ? found.maybe('ar:target') : null
+      // The label is the target's stored name: shown only to a proposer who may read that resource, else the record is named by its id (588.31).
+      const mayRead = target.scope !== null && env.scopes.has({ resource: target.scope.resource, action: 'read' })
+      const targetRow = t && mayRead ? found.maybe('ar:target') : null
       const targetSummary = summarise({
         operation: target.name,
         args: body.arguments,

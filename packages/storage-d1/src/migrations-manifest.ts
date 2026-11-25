@@ -39,6 +39,6 @@ export const MIGRATIONS: readonly { readonly name: string; readonly sha256: stri
   { name: '0029_reset_content_sha256.sql', sha256: 'ff921d4c844456a9f2db4855bfa75e72af2597d52ecf66dee324e3ee82e7818f' },
   {
     name: '0030_action_request_target_summary.sql',
-    sha256: '9a555302d126de17c6da397e1fc4cfb7a4b250c5007b6dbee75ffe5059a31010',
+    sha256: '3bcf22299efe27787d924776240d0d9425aa0d5105c6614cfe9a8909e088e81e',
   },
 ]

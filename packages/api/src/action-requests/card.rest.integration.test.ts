@@ -33,6 +33,9 @@ beforeEach(async () => {
     'associations:request_approval',
     'tasks:read',
     'contacts:read',
+    'deals:read',
+    'associations:read',
+    `${PROJECTS_KEY}:read`,
     'action_requests:read',
   ])
 })
@@ -132,6 +135,36 @@ describe('the summary per operation class (D8)', () => {
     expect(await summaryOf(`${PROJECTS_KEY}.create`, { name: 'Beta' })).toBe(`Create ${PROJECTS_KEY} record "Beta"`)
   })
 
+  it("a proposer without the target resource's read scope gets the record named by its id, never its name (588.31)", async () => {
+    const t = await make('tasks', { title: 'Secret title' })
+    const blind = await k.actor('blind', 'agent', ['tasks:request_approval', 'action_requests:read'])
+    const r = await propose('tasks.update', { id: t, title: 'x' }, blind)
+    expect(r.target_summary).toBe(`Update tasks record "${t}" (fields: title)`)
+    expect(JSON.stringify(r)).not.toContain('Secret title')
+    expect((await propose('tasks.delete', { id: t }, blind)).target_summary).toBe(`Delete tasks record "${t}"`)
+  })
+
+  it('more than eight changed fields name eight and count the rest; an update with no field besides the id says none', async () => {
+    const t = await make('tasks', { title: 'Many' })
+    const fields = ['title', 'description', 'status', 'priority', 'due_at', 'assignee_id', 'a1', 'a2', 'a3', 'a4']
+    const { summarise } = await import('./summary.js')
+    const args = Object.fromEntries([['id', t], ...fields.map((f) => [f, 1])])
+    expect(
+      summarise({ operation: 'tasks.update', args, paramKeys: ['id'], target: { title: 'Many' }, targetId: t }),
+    ).toBe(
+      'Update tasks record "Many" (fields: title, description, status, priority, due_at, assignee_id, a1, a2 and 2 more)',
+    )
+    expect(
+      summarise({
+        operation: 'tasks.update',
+        args: { id: t },
+        paramKeys: ['id'],
+        target: { title: 'Many' },
+        targetId: t,
+      }),
+    ).toBe('Update tasks record "Many" (fields: none)')
+  })
+
   it('label fallback through name, title and the id', async () => {
     const task = await make('tasks', { title: 'Has title' })
     const contact = await make('contacts', { name: 'Has name' })
@@ -153,9 +186,7 @@ describe("hostile values cannot pose as the server's words (D8 hygiene)", () => 
     expect(m, s).not.toBeNull()
     expect(m![1]!.length).toBeLessThanOrEqual(80)
     expect(m![1]!.endsWith('…')).toBe(true)
-    expect(m![1]!.startsWith('Ann IGNORE ALL') || m![1]!.startsWith('AnnIGNORE ALL') || m![1]!.startsWith('Ann')).toBe(
-      true,
-    )
+    expect(m![1]).toBe(`Ann IGNORE ALL ${'x'.repeat(64)}…`)
 
     const c = await prereq(k).connection()
     const sent = await summaryOf(
