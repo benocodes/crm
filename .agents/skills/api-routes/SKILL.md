@@ -552,6 +552,17 @@ a route or an MCP tool that bypasses the registry.
   (`src/boundary.test.ts`). Name it as a rider in the charter beside the wire snapshot
   (`knowledge/specs/038-DX603-typescript-sdk/RETRO.md`). The generator runs `openapi-typescript` 7.x, which cannot load
   under the workspace's TypeScript 7, so `@vibase/sdk` pins `typescript` 5.9.3 as its own devDependency (603.21).
+- **The SDK types a call from data in the document, never from prose.** What the generator needs beyond the
+  zod-derived schemas travels as an OpenAPI extension: `x-vibase-filter { kind, operators }` on each column-filter
+  parameter ([[DX608]] D9) and `x-vibase-aggregate { sum, avg, min, max, group_by, money }` on each `<name>.aggregate`
+  operation ([[DX616]] D1). The aggregate one is operation-level: emitted in `rest/openapi.ts` beside
+  `x-vibase-proposal` from the optional `aggregate` (`AggregateSpec`) on the `Operation` (set in `registry.ts`), through
+  `aggregateDocument(spec)` in `storage/aggregate.ts`, the same function `schema.get`'s `resource.aggregate` uses
+  (616.11), so the two cannot drift. Operation-level extensions do not reach MCP tool input schemas: the wire snapshot's
+  `mcp-tools` digest stays put and only `openapi-api` moves. A new extension the generator reads also needs a fallback
+  for a document without it (an older deployment), emitted exactly as before ([[DX616]] D2). A generic SDK method whose
+  argument is optional is two call signatures (a no-argument one and a generic one): an optional-argument generic
+  cannot default to a type that satisfies its own constraint (616.14, `AggregateMethod` in `packages/sdk/src/types.ts`).
 - **workerd rejects `fetch(..., { redirect: 'error' })`** with a TypeError before sending. Client code that must run on
   Workers and never follow a redirect falls back to `redirect: 'manual'` and refuses a 3xx or `opaqueredirect` response
   itself, as the SDK does (`unexpected_redirect`, [[DX603]] D6, 603.23).

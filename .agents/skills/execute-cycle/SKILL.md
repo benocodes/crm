@@ -121,6 +121,10 @@ For every **Must be tested** obligation in the charter, write the test(s) that p
   exact error) is a review finding. If the built-in schema lacks the case (no nullable boolean filter for `is: true`),
   build the table entry or fixture that has it. [[DX608]] lost its one review round to three such substitutions
   (608.15 to 608.17).
+- **Implement the shape the spec states, not a stricter or looser one.** Where the spec names a type or contract
+  (`a readonly array of field names`), the code uses exactly it; narrowing it (a non-empty tuple, to make an empty
+  list a compile error) or widening it is a design change, so either follow the spec or record a decision row saying
+  why, before review. [[DX616]] lost its one review round to an unrecorded narrowing (616.15).
 
 - Run each new test file alone and see it fail **for the reason the behaviour is missing**, not an import
   error. Commit the red tests, and append the red run's output to `RESULT.md` **at the red commit**.
