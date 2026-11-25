@@ -19,6 +19,7 @@ import { CLERK_WEBHOOK_PATH, clerkWebhookHandler } from '../directory/webhook.js
 import { CALLBACK_PATH } from '../connections/operations.js'
 import { GOOGLE_ENDPOINTS, type GoogleEndpoints } from '../connections/google.js'
 import { ApiError, mapStorageError } from '../errors.js'
+import { acceptsList } from '../storage/column-filters.js'
 import { createVibaseRegistry } from '../operations.js'
 import type { ExtendDeclarations } from '../custom/extend.js'
 import type { AuditRuntime } from '../audit/port.js'
@@ -137,13 +138,19 @@ async function readInput(c: Context<AppEnv>, op: Operation): Promise<OperationIn
   const origin = new URL(c.req.url).origin
   const query: Record<string, unknown> = c.req.query()
   // [[CORE129]] D10a (any repeated query parameter): a repeated query parameter is refused, never answered with whichever value the router keeps (the first).
+  // [[CORE602]] D1, D3: except a column filter, which the operation's declared query schema says accepts a list: its occurrences are the conditions.
+  const declared = op.request?.query?.shape as Record<string, unknown> | undefined
   for (const [key, values] of Object.entries(c.req.queries())) {
-    if (values.length > 1)
-      throw new ApiError(
-        400,
-        'validation_error',
-        `query parameter "${key}" was given ${values.length} times; send it once`,
-      )
+    if (values.length <= 1) continue
+    if (declared && Object.hasOwn(declared, key) && acceptsList(declared[key])) {
+      query[key] = values
+      continue
+    }
+    throw new ApiError(
+      400,
+      'validation_error',
+      `query parameter "${key}" was given ${values.length} times; send it once`,
+    )
   }
   let body: unknown
   if (op.method === 'post' || op.method === 'patch') {

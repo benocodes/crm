@@ -78,11 +78,13 @@ describe('ranges AND on every list kind (group 1)', () => {
   })
   it('deals.aggregate takes the same ranges', async () => {
     await seedDeals()
-    const r = await k.call(owner, 'GET', `/api/v1/deals/aggregate?${GTE}&${LT}&sum=amount_minor`)
-    expect(r.status, JSON.stringify(r.body)).toBe(200)
-    expect(r.body.count).toBe(2)
-    const usd = await k.call(owner, 'GET', `/api/v1/deals/aggregate?${GTE}&${LT}&currency=eq.USD`)
+    const all = await k.call(owner, 'GET', `/api/v1/deals/aggregate?${GTE}&${LT}`)
+    expect(all.status, JSON.stringify(all.body)).toBe(200)
+    expect(all.body.count).toBe(2)
+    const usd = await k.call(owner, 'GET', `/api/v1/deals/aggregate?${LT}&${GTE}&currency=eq.USD&sum=amount_minor`)
+    expect(usd.status, JSON.stringify(usd.body)).toBe(200)
     expect(usd.body.count).toBe(1)
+    expect(JSON.stringify(usd.body)).toContain('200000')
   })
   it('a built-in __c field (contacts.seats__c)', async () => {
     for (const [name, seats__c] of [

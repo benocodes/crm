@@ -12,10 +12,11 @@ import { MAX_CONDITIONS, columnFilterParams, operatorsFor, type ColumnFilterSpec
 const registry = createVibaseRegistry()
 const doc = async () =>
   (await (await createApp({ storage: coldStorage(), registry }).request('/api/v1/openapi.json')).json()) as any
+/** The parameters of an operation of the records document; none for a configuration-surface list, which that document does not carry. */
 const parametersOf = (d: any, operationId: string): any[] => {
   for (const item of Object.values<any>(d.paths))
     for (const o of Object.values<any>(item)) if (o.operationId === operationId) return o.parameters
-  throw new Error(`no operation ${operationId}`)
+  return []
 }
 const lists = (): Array<{ operationId: string; columns: Readonly<Record<string, ColumnFilterSpec>> }> => [
   ...registry

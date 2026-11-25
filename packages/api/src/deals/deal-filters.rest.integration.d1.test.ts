@@ -200,7 +200,8 @@ describe('operator x kind on deals (D3, D8)', () => {
 
   it('a repeated parameter is still a 400 and a pattern is limited to 200 characters', async () => {
     await seed()
-    const twice = await call(FULL, 'GET', '/api/v1/deals?amount_minor=gt.1&amount_minor=lt.5')
+    // [[CORE602]] D3: a column filter may repeat now; a custom filter still may not
+    const twice = await call(FULL, 'GET', '/api/v1/deals?tag=a&tag=b')
     expect([twice.status, twice.body.error.code]).toEqual([400, 'validation_error'])
     const long = await call(FULL, 'GET', `/api/v1/deals?name=ilike.${'a'.repeat(201)}`)
     expect(long.body.error.message).toBe('filter name: a pattern is at most 200 characters')
@@ -329,8 +330,9 @@ describe('surfaces (D9)', () => {
     ]
     for (const [name, kind, nullable] of column) {
       expect(params[name], name).toBeDefined()
-      expect(params[name].schema.type, name).toBe('string')
-      expect(params[name].schema.format, name).toBeUndefined()
+      // [[CORE602]] D4: a string, or a list of conditions
+      expect(params[name].schema.anyOf[0].type, name).toBe('string')
+      expect(params[name].schema.anyOf[0].format, name).toBeUndefined()
       const description = params[name].schema.description ?? params[name].description
       expect(description, name).toContain(`Operators: ${operatorsFor(kind, nullable).join(', ')}.`)
       expect(description, name).toContain(kind)

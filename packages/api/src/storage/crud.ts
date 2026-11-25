@@ -263,14 +263,12 @@ function filterPredicates(
   qc: QueryContext,
   filters: Record<string, unknown>,
 ): Expression<SqlBool>[] {
-  return Object.entries(filters).map(([column, value]) => {
+  return Object.entries(filters).flatMap(([column, value]) => {
     const join = def.customFilters?.[column]
     const spec = def.columnFilters?.[column]
-    return spec
-      ? compileCondition(qc, ref(def, column), spec.kind, value as Condition)
-      : join
-        ? join.where(qc, value)
-        : sql<SqlBool>`${ref(def, column)} = ${value}`
+    // [[CORE602]] D1: a field with several conditions is one predicate each; the caller ANDs them with every other.
+    if (spec) return (Array.isArray(value) ? value : [value]).map((c: Condition) => compileCondition(qc, ref(def, column), spec.kind, c))
+    return [join ? join.where(qc, value) : sql<SqlBool>`${ref(def, column)} = ${value}`]
   })
 }
 
@@ -284,7 +282,7 @@ export type ListRestriction = 'nothing' | ((qc: QueryContext) => Expression<SqlB
 export function listOperation<R extends { id: string }>(
   def: PreparedResource<PreparedResource['table'], R>,
   env: PreparedEnv,
-  raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string> },
+  raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string | readonly string[]> },
   restriction?: ListRestriction,
 ): PreparedOperation<ListResult<R>> {
   // 400s first (a malformed query is refused whatever the caller may see), then 403s ([[CORE133]] D5); both before any query is built.

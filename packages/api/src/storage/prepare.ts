@@ -62,7 +62,7 @@ export function prepareUpdate(def: PreparedResource, actor: Actor, input: unknow
 
 export function prepareListQuery(
   def: PreparedResource,
-  raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string> },
+  raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string | readonly string[]> },
 ): { after: string | null; limit: number; filters: Record<string, unknown>; sort: SortRequest | null } {
   const q = parseListQuery(def, raw)
   return {

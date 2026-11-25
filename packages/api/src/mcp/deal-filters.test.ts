@@ -9,14 +9,19 @@ import { deriveTools, splitArguments } from './tools.js'
 const registry = createVibaseRegistry()
 const entry = deriveTools(registry).find((t) => t.tool.name === 'deals_list')!
 const props = (
-  entry.tool.inputSchema as { properties: Record<string, { type?: string; format?: string; description?: string }> }
+  entry.tool.inputSchema as {
+    properties: Record<
+      string,
+      { type?: string; format?: string; description?: string; anyOf?: Array<{ type?: string; format?: string }> }
+    >
+  }
 ).properties
 
 describe('deals_list (D9)', () => {
   it('each column filter is a string argument whose description lists the operators of its kind; custom filters are as before', () => {
     for (const n of ['amount_minor', 'currency', 'name', 'expected_close_date', 'owner_id', 'closed_at', 'pipeline_id'])
-      expect(props[n]?.type, n).toBe('string')
-    expect(props.pipeline_id!.format).toBeUndefined()
+      expect(props[n]?.anyOf?.[0]?.type, n).toBe('string')
+    expect(props.pipeline_id!.anyOf![0]!.format).toBeUndefined()
     expect(props.amount_minor!.description).toContain(`Operators: ${operatorsFor('integer', true).join(', ')}.`)
     expect(props.tag!.type).toBe('string')
     expect(props.tag_id!.format).toBe('uuid')

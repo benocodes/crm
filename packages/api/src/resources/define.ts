@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { ApiError } from '../errors.js'
-import { OPERATORS, parseCondition, type ColumnFilterSpec } from '../storage/column-filters.js'
+import { OPERATORS, parseConditions, type ColumnFilterSpec } from '../storage/column-filters.js'
 import { SORT_ORDERS, decodeCursor, type SortKind, type SortOrder, type SortRequest } from './sort-cursor.js'
 
 const OPERATOR_NAMES: readonly string[] = OPERATORS
@@ -64,7 +64,7 @@ function equalityOf(raw: string): string | undefined {
 
 export function parseListQuery(
   def: ListDef,
-  raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string> },
+  raw: { after?: unknown; limit?: unknown; sort?: unknown; order?: unknown; filters?: Record<string, string | readonly string[]> },
 ): { after: string | null; limit: number; filters: Record<string, unknown>; sort: SortRequest | null } {
   let limit = 50
   if (raw.limit !== undefined) {
@@ -110,18 +110,22 @@ export function parseListQuery(
   const declared = { ...(def.filters ?? {}), ...(def.customFilters ?? {}) }
   // [[CORE201]] D10: an option that reads another filter (identities `value` needs `kind`) sees only the plain equalities of the call.
   const siblings: Record<string, string | undefined> = {}
-  for (const [key, value] of Object.entries(raw.filters ?? {})) siblings[key] = equalityOf(String(value))
+  // [[CORE602]] D8: a field with two or more conditions is not a plain equality, even when one of them is `eq`.
+  for (const [key, value] of Object.entries(raw.filters ?? {}))
+    siblings[key] = Array.isArray(value) ? (value.length === 1 ? equalityOf(String(value[0])) : undefined) : equalityOf(String(value))
   const parsed: Record<string, unknown> = {}
   const conditions: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(raw.filters ?? {})) {
     // [[CORE200]] D2-D6: a column filter of a list that adopted `withColumnFilters` is a condition in the grammar, parsed against its kind.
     const column = def.columnFilters && Object.hasOwn(def.columnFilters, key) ? def.columnFilters[key] : undefined
     if (column) {
-      conditions[key] = parseCondition(key, column, String(value), siblings)
+      conditions[key] = parseConditions(key, column, value, siblings)
       continue
     }
     const filter = Object.hasOwn(declared, key) ? declared[key] : undefined
     if (!filter) throw new ApiError(400, 'validation_error', `unknown filter: ${key}`)
+    // [[CORE602]] D3: only a column filter takes a list.
+    if (Array.isArray(value)) throw new ApiError(400, 'validation_error', `filter ${key}: takes one value, not a list`)
     const r = filter.schema.safeParse(value)
     if (!r.success) throw new ApiError(400, 'validation_error', `filter ${key}: ${issues(r.error)}`)
     parsed[key] = r.data
