@@ -5,6 +5,8 @@ export const CONNECT_ERROR_TEXT: Record<string, string> = {
   consent_denied: 'The connection was cancelled at Google. Nothing was connected.',
   scope_missing: 'Gmail access was not granted. Start again and leave the Gmail permission ticked.',
   not_a_member: 'Your account is not allowed to connect a mailbox to this workspace.',
+  session_mismatch:
+    'Sign in to this workspace in this browser as the person who started the connection, then start again.',
   exchange_failed: 'Google did not complete the connection. Start again.',
   temporarily_unavailable: 'The connection could not be completed right now. Try again in a minute.',
 }

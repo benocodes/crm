@@ -457,9 +457,13 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   app.all(MCP_PATH, mcpMethodNotAllowed)
 
   // [[CHN5]] D9: the Google OAuth callback. A plain route at the root: the browser carries no bearer token, the signed state is its credential.
+  // [[CORE572]] P2: a Gmail surface without a named session mode does not build, so a composition that forgets the reader can never fall open.
+  if (gmail && !gmail.session) throw new Error('createApp: gmail.session is required (better-auth or state-only)')
+  const gmailSession: CallbackSession = gmail?.session ?? { mode: 'state-only' }
   app.get(
     CALLBACK_PATH,
     googleCallbackHandler({
+      session: gmailSession,
       config: gmail?.config ?? null,
       endpoints: gmail?.endpoints ?? GOOGLE_ENDPOINTS,
       fetch: gmail?.fetch ?? ((input, init) => fetch(input, init)),

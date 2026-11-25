@@ -629,6 +629,11 @@ export function composeD1Worker(
       apiKeys,
       workspace: { adapter: authAdapter, cliClientId },
       gmail: {
+        // [[CORE572]] P2: the callback's session mode is named per auth provider, never inferred. Better Auth: the browser must hold the starter's live session (the reader is Better Auth's own lookup over `CONTROL_DB`).
+        // Clerk and none: state-only (D9, an accepted gap: there is no same-origin session to read).
+        session: builtIn
+          ? { mode: 'better-auth', read: (headers) => builtInAuth().sessionSubject(headers) }
+          : { mode: 'state-only' },
         ...(builtIn ? { roleOf: membershipRoleReader(binding, 'better-auth') } : {}),
         config: gmail.config,
         problems: gmail.problems,
