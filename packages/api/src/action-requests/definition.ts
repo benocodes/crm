@@ -57,6 +57,36 @@ const record = z.object({
     .nullable()
     .optional()
     .describe('The execution a queued approval created; absent or null until then and for operations that run inline.'),
+  target_summary: z
+    .string()
+    .nullable()
+    .describe(
+      "One line the vault wrote when the request was created, saying what it asks for as proposed (the operation, the target record's name, the changed fields; for a send the mailbox and recipients). Built from the request and the stored records, never from the proposer's reason; any outside text in it is quoted and shortened. Not rewritten by an edited approval; null on a request created before this field existed.",
+    ),
+  proposer_kind: z
+    .enum(['user', 'agent', 'system'])
+    .nullable()
+    .optional()
+    .describe('What kind of principal proposed it, as the vault knows it.'),
+  proposer_name: z
+    .string()
+    .nullable()
+    .optional()
+    .describe(
+      "The proposer's name as registered now: a user's name (else email), an agent's name (an agent's name may be chosen by whoever registered it); null for the system principal.",
+    ),
+  proposer_acting_for: z
+    .string()
+    .nullable()
+    .optional()
+    .describe('For a delegated agent, the name (else email) of the member it acts for; null otherwise.'),
+  sending_mailbox: z
+    .string()
+    .nullable()
+    .optional()
+    .describe(
+      "For a messages.send request, the address of the connected mailbox its connection_id names, whatever the connection's status; null for every other operation and when the connection is gone.",
+    ),
   created_by: z.uuid().describe('The principal that proposed it: the source.'),
   created_at: z.string(),
   updated_at: z.string(),
@@ -80,12 +110,33 @@ export const actionRequests = withColumnFilters(
       d1Only: true,
       operations: ['list', 'get'],
       record,
-      // [[AGT8]] D48: the request reads its execution through the execution's own link; `action_requests` stores no copy.
+      // [[AGT8]] D48: `execution_id`, the request reads its execution through the execution's own link; `action_requests` stores no copy.
+      // [[AGT588]] D9, D10: the proposer in words and the sending mailbox, read from the principals and the connection when the request is read.
       derived: {
         execution_id: {
           kind: 'text',
           expression: (_qc, parent) =>
             sql`(select "action_executions"."id" from "action_executions" where "action_executions"."action_request_id" = ${parent('id')})`,
+        },
+        proposer_kind: {
+          kind: 'text',
+          expression: (_qc, parent) =>
+            sql`(select "principals"."kind" from "principals" where "principals"."id" = ${parent('created_by')})`,
+        },
+        proposer_name: {
+          kind: 'text',
+          expression: (_qc, parent) =>
+            sql`(select case "principals"."kind" when 'user' then coalesce(nullif("users"."name", ''), "users"."email") when 'agent' then "agents"."name" end from "principals" left join "users" on "users"."id" = "principals"."id" left join "agents" on "agents"."id" = "principals"."id" where "principals"."id" = ${parent('created_by')})`,
+        },
+        proposer_acting_for: {
+          kind: 'text',
+          expression: (_qc, parent) =>
+            sql`(select coalesce(nullif("users"."name", ''), "users"."email") from "agents" join "users" on "users"."id" = "agents"."delegated_by" where "agents"."id" = ${parent('created_by')})`,
+        },
+        sending_mailbox: {
+          kind: 'text',
+          expression: (_qc, parent) =>
+            sql`(select "identities"."value" from "channel_connections" join "identities" on "identities"."id" = "channel_connections"."identity_id" and "identities"."organization_id" = "channel_connections"."organization_id" where ${parent('operation')} = 'messages.send' and "channel_connections"."id" = json_extract(${parent('arguments')}, '$.connection_id') and "channel_connections"."organization_id" = ${parent('organization_id')} and "channel_connections"."deleted_at" is null)`,
         },
       },
       filters: {

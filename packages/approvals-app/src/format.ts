@@ -16,6 +16,21 @@ export interface ActionRequest {
   error_message: string | null
   created_by: string
   created_at: string
+  /** [[AGT588]] D7: the vault's one-line account of the request; null on a request created before it existed, absent from an older vault. */
+  target_summary?: string | null
+  /** [[AGT588]] D9, D10: the proposer in words and, for a send, the mailbox it leaves from; absent from an older vault. */
+  proposer_kind?: 'user' | 'agent' | 'system' | null
+  proposer_name?: string | null
+  proposer_acting_for?: string | null
+  sending_mailbox?: string | null
+}
+
+/** "Proposed by agent Name, acting for Member"; null when the vault did not say who proposed it. */
+export function proposerLine(r: ActionRequest): string | null {
+  if (!r.proposer_kind) return null
+  if (r.proposer_kind === 'system') return 'Proposed by the system'
+  const who = `Proposed by ${r.proposer_kind}${r.proposer_name ? ` ${r.proposer_name}` : ''}`
+  return r.proposer_acting_for ? `${who}, acting for ${r.proposer_acting_for}` : who
 }
 
 /** "tasks.update" -> "Update task"; unknown shapes fall back to the raw name. */

@@ -29,10 +29,10 @@ const run = (sqlText: string, ...binds: unknown[]) =>
   )
 const all = async <T = Record<string, unknown>>(sqlText: string) =>
   ((await d1.prepare(sqlText).all()).results ?? []) as T[]
-const insertRequest = (rowId: string, extra = '') =>
+const insertRequest = (rowId: string, extra?: string) =>
   run(
-    `INSERT INTO action_requests (id, created_at, updated_at, organization_id, created_by, operation, arguments, status, reason, evidence, expires_at${extra ? ', target_summary' : ''}) VALUES (?, ?, ?, ?, ?, 'tasks.update', '{}', 'pending', 'r', '[]', '2026-12-01T09:00:00.000Z'${extra ? ', ?' : ''})`,
-    ...[rowId, AT, AT, ORG, USER, ...(extra ? [extra] : [])],
+    `INSERT INTO action_requests (id, created_at, updated_at, organization_id, created_by, operation, arguments, status, reason, evidence, expires_at${extra !== undefined ? ', target_summary' : ''}) VALUES (?, ?, ?, ?, ?, 'tasks.update', '{}', 'pending', 'r', '[]', '2026-12-01T09:00:00.000Z'${extra !== undefined ? ', ?' : ''})`,
+    ...[rowId, AT, AT, ORG, USER, ...(extra !== undefined ? [extra] : [])],
   )
 
 describe('migration 0030 over a database at 0029 holding an action request', () => {

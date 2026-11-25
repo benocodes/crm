@@ -8,16 +8,21 @@ import {
   isExpired,
   operationTitle,
   prettyJson,
+  proposerLine,
   relativeTime,
   withFullArguments,
   type ActionRequest,
 } from './format.js'
+import { stripInvisible } from './invisible.js'
 import { providerModules, type Provider } from './providers.js'
 import type { Env, ProviderModule, Session } from './session.js'
 
 type Tab = 'pending' | 'executed' | 'failed' | 'rejected'
 const TABS: Tab[] = ['pending', 'executed', 'failed', 'rejected']
 const POLL_MS = 30_000
+/** A reason longer than this (or with more lines) is clamped behind a Show more control. */
+const CLAMP_CHARS = 240
+const CLAMP_LINES = 4
 
 function h<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -84,6 +89,7 @@ class Page {
   private loading = true
   private busy = new Set<string>()
   private open = new Set<string>()
+  private expanded = new Set<string>()
   private notes = new Map<string, string>()
   /** Full records of messages.send requests (body text included), by id; a body never changes under its request. */
   private full = new Map<string, ActionRequest>()
@@ -232,6 +238,31 @@ class Page {
     )
   }
 
+  /** The proposer's reason, labelled as theirs, with the bidi controls removed, clamped to a few lines with a control to expand when it is long. */
+  private reason(r: ActionRequest): HTMLElement {
+    const text = stripInvisible(r.reason)
+    const long = text.length > CLAMP_CHARS || text.split('\n').length > CLAMP_LINES
+    const body = h('p', { class: `reason-text${long && !this.expanded.has(r.id) ? ' clamped' : ''}`, text })
+    const box = h(
+      'div',
+      { class: 'reason' },
+      h('span', { class: 'label', text: "Proposer's reason (written by the proposer, not checked by the vault)" }),
+      body,
+    )
+    if (long) {
+      const toggle = h('button', { class: 'link', text: this.expanded.has(r.id) ? 'Show less' : 'Show more' })
+      toggle.addEventListener('click', () => {
+        const open = !this.expanded.has(r.id)
+        if (open) this.expanded.add(r.id)
+        else this.expanded.delete(r.id)
+        body.classList.toggle('clamped', !open)
+        toggle.textContent = open ? 'Show less' : 'Show more'
+      })
+      box.append(toggle)
+    }
+    return box
+  }
+
   private card(r: ActionRequest, now: number): HTMLElement {
     const pending = r.status === 'pending'
     const expired = pending && isExpired(r, now)
@@ -241,10 +272,19 @@ class Page {
     const card = h(
       'article',
       { class: 'card' },
-      h('div', { class: 'row' }, h('h2', { text: operationTitle(r.operation) }), h('code', { text: r.operation })),
-      h('p', { class: 'reason', text: r.reason }),
-      h('p', { class: 'muted', text: meta }),
+      // [[AGT588]] D12: the vault's words lead (its summary, else the operation), then who proposed it and from which mailbox; the proposer's own text follows, labelled.
+      h(
+        'div',
+        { class: 'row' },
+        h('h2', { text: r.target_summary ? stripInvisible(r.target_summary) : operationTitle(r.operation) }),
+        h('code', { text: r.operation }),
+      ),
     )
+    const proposer = proposerLine(r)
+    if (proposer) card.append(h('p', { class: 'proposer', text: stripInvisible(proposer) }))
+    if (r.sending_mailbox)
+      card.append(h('p', { class: 'mailbox', text: `Sends from ${stripInvisible(r.sending_mailbox)}` }))
+    card.append(this.reason(r), h('p', { class: 'muted', text: meta }))
     const email = emailPreview(r)
     if (email) card.append(this.email(email))
     const details = h(

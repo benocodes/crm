@@ -257,6 +257,7 @@ export const STATED_FILTER_COSTS: readonly StatedFilterCost[] = [
     reason: kept('idx_action_requests_organization_operation', '(organization_id, operation)'),
   },
   { list: 'action_requests', filter: 'reason', reason: COLUMN },
+  { list: 'action_requests', filter: 'target_summary', reason: COLUMN },
   {
     list: 'action_requests',
     filter: 'contact_id',

@@ -498,6 +498,8 @@ export interface ActionRequestsTable {
   error_code: string | null
   error_message: string | null
   executed_at: NullableTimestamp
+  /** [[AGT588]] D7: the server-written one-line summary of the request as proposed; null on a request created before 0030. */
+  target_summary: string | null
 }
 
 /**
@@ -1024,6 +1026,7 @@ export const COLUMN_KINDS = {
     result: 'json',
     error_code: 'text',
     error_message: 'text',
+    target_summary: 'text',
     executed_at: 'timestamp',
   },
   action_executions: {

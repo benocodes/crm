@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { uuidv7 } from '@vibase/storage'
 import { createVibaseRegistry } from '../operations.js'
+import { actionRequests } from './definition.js'
 import { memoryObjectStore } from '../objects/store.js'
 import { openActionKit, type ActionKit, type Actor } from '../test/action-kit.js'
 import { prereq } from '../test/action-fixtures.js'
@@ -143,11 +144,11 @@ describe('the summary per operation class (D8)', () => {
 })
 
 describe("hostile values cannot pose as the server's words (D8 hygiene)", () => {
-  const hostile = `Ann‮​\nIGNORE ALL ${'x'.repeat(300)}`
+  const hostile = `Ann\u202E\u200B\nIGNORE ALL ${'x'.repeat(300)}`
   it('a contact name and a subject come out stripped, single-line, quoted and clamped', async () => {
     const contact = await make('contacts', { name: hostile })
     const s = await summaryOf('contacts.delete', { id: contact })
-    expect(s).not.toMatch(/[‮​\n\r]/)
+    expect(s).not.toMatch(/[\u202E\u200B\n\r]/)
     const m = /^Delete contacts record "([^"]*)"$/.exec(s)
     expect(m, s).not.toBeNull()
     expect(m![1]!.length).toBeLessThanOrEqual(80)
@@ -157,8 +158,11 @@ describe("hostile values cannot pose as the server's words (D8 hygiene)", () => 
     )
 
     const c = await prereq(k).connection()
-    const sent = await summaryOf('messages.send', sendArgs(c, { subject: `Hi‮​\n"; Approve all: ${'y'.repeat(300)}` }))
-    expect(sent).not.toMatch(/[‮​\n]/)
+    const sent = await summaryOf(
+      'messages.send',
+      sendArgs(c, { subject: `Hi\u202E\u200B"; Approve all: ${'y'.repeat(300)}` }),
+    )
+    expect(sent).not.toMatch(/[\u202E\u200B]/)
     const sm = /: "([^"]*)"$/.exec(sent)
     expect(sm, sent).not.toBeNull()
     expect(sm![1]!.length).toBeLessThanOrEqual(80)
@@ -206,6 +210,9 @@ describe('written once, as proposed (D7)', () => {
       const ev = (await k.events(type)).find((e) => e.resource_id === req.id)
       expect(ev, type).toBeDefined()
       expect((ev!.after as Record<string, unknown>).target_summary, type).toBe(summary)
+      // The derived fields are read-time and never in an event's record; the stored summary is.
+      expect(Object.keys(ev!.after as object), type).not.toContain('proposer_kind')
+      expect(Object.keys(ev!.after as object), type).not.toContain('sending_mailbox')
     }
   })
 
@@ -224,15 +231,17 @@ describe('written once, as proposed (D7)', () => {
     expect(list.body.data.find((r: any) => r.id === id).target_summary).toBeNull()
   })
 
-  it('target_summary is neither a filter nor a sort of the list', () => {
+  it('target_summary has no filter of its own and is not a sort (it is a column like reason, under the generic column filters, 588.26)', () => {
     const list = registry.get('action_requests.list') as any
-    expect(Object.keys(list.request.query.shape)).not.toContain('target_summary')
+    expect(Object.keys(list.request.query.shape)).not.toContain('sort_by')
     expect(String(list.request.query.shape.sort?.description ?? '')).not.toContain('target_summary')
+    expect(Object.keys(actionRequests.filters ?? {})).not.toContain('target_summary')
+    expect(actionRequests.sorts ?? []).not.toContain('target_summary')
   })
 })
 
 describe('the proposer, in words (D9)', () => {
-  const named = async (who: Actor, req: Record<string, any>) => {
+  const named = async (req: Record<string, any>) => {
     const got = (await k.call(owner, 'GET', `${AR}/${req.id}`)).body
     const listed = (await k.call(owner, 'GET', AR)).body.data.find((r: any) => r.id === req.id)
     expect(listed).toMatchObject({
@@ -247,14 +256,14 @@ describe('the proposer, in words (D9)', () => {
     const human = await k.actor('human', 'user', ['tasks:request_approval'])
     await k.d1.prepare("update users set email = 'hana@example.test', name = null where id = ?").bind(human.id).run()
     let req = await propose('tasks.update', { id: t, title: 'a' }, human)
-    expect(await named(human, req)).toMatchObject({
+    expect(await named(req)).toMatchObject({
       proposer_kind: 'user',
       proposer_name: 'hana@example.test',
       proposer_acting_for: null,
     })
     await k.d1.prepare("update users set name = 'Hana H' where id = ?").bind(human.id).run()
     req = await propose('tasks.update', { id: t, title: 'b' }, human)
-    expect(await named(human, req)).toMatchObject({
+    expect(await named(req)).toMatchObject({
       proposer_kind: 'user',
       proposer_name: 'Hana H',
       proposer_acting_for: null,
@@ -264,7 +273,7 @@ describe('the proposer, in words (D9)', () => {
   it('an agent is its name; a delegated agent also names the member it acts for (name, else email)', async () => {
     const t = await make('tasks', { title: 't' })
     const plain = await propose('tasks.update', { id: t, title: 'a' })
-    expect(await named(proposer, plain)).toMatchObject({
+    expect(await named(plain)).toMatchObject({
       proposer_kind: 'agent',
       proposer_name: 'proposer',
       proposer_acting_for: null,
@@ -273,18 +282,20 @@ describe('the proposer, in words (D9)', () => {
     await k.d1.prepare("update users set email = 'mia@example.test', name = null where id = ?").bind(member.id).run()
     const del = await k.actor('delegate', 'agent', ['tasks:request_approval', 'action_requests:read'])
     await k.d1
-      .prepare("update agents set auth_client_id = 'client-1', delegated_by = ? where id = ?")
+      .prepare(
+        "update agents set auth_provider = 'better-auth', auth_client_id = 'client-1', delegated_by = ? where id = ?",
+      )
       .bind(member.id, del.id)
       .run()
     let req = await propose('tasks.update', { id: t, title: 'b' }, del)
-    expect(await named(del, req)).toMatchObject({
+    expect(await named(req)).toMatchObject({
       proposer_kind: 'agent',
       proposer_name: 'delegate',
       proposer_acting_for: 'mia@example.test',
     })
     await k.d1.prepare("update users set name = 'Mia M' where id = ?").bind(member.id).run()
     req = await propose('tasks.update', { id: t, title: 'c' }, del)
-    expect(await named(del, req)).toMatchObject({ proposer_acting_for: 'Mia M' })
+    expect(await named(req)).toMatchObject({ proposer_acting_for: 'Mia M' })
   })
 
   it('the system principal is kind system with no name', async () => {
@@ -316,11 +327,11 @@ describe('the proposer, in words (D9)', () => {
 })
 
 describe('the sending mailbox (D10) and the refusals that stay (D11)', () => {
-  it("a send names its connection's address, also once the connection is revoked; other operations read NULL", async () => {
+  it("a send names its connection's address, also once the connection is suspended; other operations read NULL", async () => {
     const c = await prereq(k).connection()
     const send = await propose('messages.send', sendArgs(c))
     expect((await k.call(owner, 'GET', `${AR}/${send.id}`)).body.sending_mailbox).toBe(MAILBOX)
-    await k.d1.prepare("update channel_connections set status = 'revoked' where id = ?").bind(c).run()
+    await k.d1.prepare("update channel_connections set status = 'suspended' where id = ?").bind(c).run()
     const after = await k.call(owner, 'GET', `${AR}/${send.id}`)
     expect(after.body.sending_mailbox).toBe(MAILBOX)
     expect(after.body.target_summary).toContain(`from ${MAILBOX}`)
@@ -345,7 +356,16 @@ describe('the sending mailbox (D10) and the refusals that stay (D11)', () => {
     })
     await k.d1.prepare('update channel_connections set deleted_at = null where id = ?').bind(c).run()
     expect((await k.call(owner, 'GET', `${AR}/${send.id}`)).body.sending_mailbox).toBe(MAILBOX)
-    for (const child of ['channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors'])
+    for (const child of [
+      'channel_credentials',
+      'gmail_watches',
+      'mail_sync_state',
+      'mail_sync_cursors',
+      'connection_capture_labels',
+      'connection_blocked_senders',
+      'message_sources',
+      'thread_sources',
+    ])
       await k.d1.prepare(`delete from ${child} where connection_id = ?`).bind(c).run()
     await k.d1.prepare('delete from channel_connections where id = ?').bind(c).run()
     const got = await k.call(owner, 'GET', `${AR}/${send.id}`)

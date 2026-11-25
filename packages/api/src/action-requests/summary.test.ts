@@ -5,7 +5,7 @@ import { SUMMARY_MAX, VALUE_MAX, labelOf, quoted } from './summary.js'
 describe('quoted: every interpolated value', () => {
   it('is quoted, single-line, stripped of invisible characters and clamped to 80 characters with an ellipsis', () => {
     expect(quoted('Ann')).toBe('"Ann"')
-    expect(quoted('a‮b​c⁦d﻿e\u{E0041}f')).toBe('"abcdef"')
+    expect(quoted('a\u202Eb\u200Bc\u2066d\uFEFFe\u{E0041}f')).toBe('"abcdef"')
     expect(quoted('line one\nline two\r\n\tthree\u0000x')).toBe('"line one line two three x"')
     const long = quoted('x'.repeat(300))
     expect(long).toBe(`"${'x'.repeat(VALUE_MAX - 1)}…"`)
@@ -14,7 +14,7 @@ describe('quoted: every interpolated value', () => {
   })
   it('keeps a double quote from closing the quotation early, and keeps ZWJ and ZWNJ', () => {
     expect(quoted('say "hi" now')).toBe(`"say 'hi' now"`)
-    expect(quoted('a‍b‌c')).toBe('"a‍b‌c"')
+    expect(quoted('a\u200Db\u200Cc')).toBe('"a\u200Db\u200Cc"')
   })
   it('never splits a surrogate pair when clamping', () => {
     const q = quoted('😀'.repeat(200))

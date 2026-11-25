@@ -90,12 +90,12 @@ describe('the card (D12)', () => {
   })
 
   it("the reason is labelled as the proposer's and has its bidi controls and zero-width characters removed", async () => {
-    const card = await show({ reason: '‮evil​ reason⁦' })
+    const card = await show({ reason: '\u202Eevil\u200B reason\u2066' })
     const reason = card.querySelector('.reason')!
     expect(text(reason)).toContain("Proposer's reason")
     expect(text(reason)).toContain('evil reason')
-    expect(text(reason)).not.toMatch(/[‮​⁦]/)
-    expect(text(card)).not.toMatch(/[‮​⁦]/)
+    expect(text(reason)).not.toMatch(/[\u202E\u200B\u2066]/)
+    expect(text(card)).not.toMatch(/[\u202E\u200B\u2066]/)
   })
 
   it('a long reason is clamped with an expand control that toggles it; a short one has no control', async () => {

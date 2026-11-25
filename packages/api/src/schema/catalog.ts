@@ -412,8 +412,18 @@ export const CATALOG: Catalog = {
         error_code: 'Why a queued execution failed (the same code as on the execution); null otherwise.',
         error_message: 'The failure sentence of a queued execution; null otherwise.',
         executed_at: 'When the operation ran; null until then.',
+        target_summary:
+          "One line the vault wrote when the request was created, saying what it asks for as proposed: the operation, the target record's name (quoted, shortened) and the changed fields; for a send, the mailbox and recipients. Not rewritten by an edited approval; null on a request created before the column existed.",
       },
       derived: {
+        proposer_kind:
+          'user, agent or system: what kind of principal proposed the request, read from the principals now. Derived, read-only.',
+        proposer_name:
+          "The proposer's name as registered now: a user's name (else email) or an agent's name; null for the system. An agent's name may be chosen by whoever registered it. Derived, read-only.",
+        proposer_acting_for:
+          'For a delegated agent, the name (else email) of the member it acts for; null otherwise. Derived, read-only.',
+        sending_mailbox:
+          "For a messages.send request, the address of the connected mailbox its connection_id names, whatever the connection's status; null for other operations and when the connection is gone. Derived, read-only.",
         execution_id:
           "The execution a queued approval created, from the execution's own link to the request; null until then and for operations that run inline. Derived, read-only.",
       },

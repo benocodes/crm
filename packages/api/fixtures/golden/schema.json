@@ -741,6 +741,14 @@
                       "description": "Filter by executed_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: executed_at=gte.2026-11-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send executed_at=eq.<value> for a literal."
                     },
                     {
+                      "name": "target_summary",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "is", "like", "ilike"],
+                      "indexed": false,
+                      "description": "Filter by target_summary (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>, once per field. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: target_summary=ilike.*acme*. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send target_summary=eq.<value> for a literal."
+                    },
+                    {
                       "name": "created_by",
                       "custom": false,
                       "kind": "uuid",
@@ -1109,6 +1117,19 @@
                     "values": null,
                     "exposed": true,
                     "references": null
+                  },
+                  {
+                    "name": "target_summary",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Target summary",
+                    "description": "One line the vault wrote when the request was created, saying what it asks for as proposed: the operation, the target record's name (quoted, shortened) and the changed fields; for a send, the mailbox and recipients. Not rewritten by an edited approval; null on a request created before the column existed.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
                   }
                 ],
                 "derived": [
@@ -1119,6 +1140,50 @@
                     "writable": false,
                     "label": "Execution id",
                     "description": "The execution a queued approval created, from the execution's own link to the request; null until then and for operations that run inline. Derived, read-only.",
+                    "requires": null,
+                    "filters": [],
+                    "sortable": false
+                  },
+                  {
+                    "name": "proposer_kind",
+                    "kind": "text",
+                    "nullable": true,
+                    "writable": false,
+                    "label": "Proposer kind",
+                    "description": "user, agent or system: what kind of principal proposed the request, read from the principals now. Derived, read-only.",
+                    "requires": null,
+                    "filters": [],
+                    "sortable": false
+                  },
+                  {
+                    "name": "proposer_name",
+                    "kind": "text",
+                    "nullable": true,
+                    "writable": false,
+                    "label": "Proposer name",
+                    "description": "The proposer's name as registered now: a user's name (else email) or an agent's name; null for the system. An agent's name may be chosen by whoever registered it. Derived, read-only.",
+                    "requires": null,
+                    "filters": [],
+                    "sortable": false
+                  },
+                  {
+                    "name": "proposer_acting_for",
+                    "kind": "text",
+                    "nullable": true,
+                    "writable": false,
+                    "label": "Proposer acting for",
+                    "description": "For a delegated agent, the name (else email) of the member it acts for; null otherwise. Derived, read-only.",
+                    "requires": null,
+                    "filters": [],
+                    "sortable": false
+                  },
+                  {
+                    "name": "sending_mailbox",
+                    "kind": "text",
+                    "nullable": true,
+                    "writable": false,
+                    "label": "Sending mailbox",
+                    "description": "For a messages.send request, the address of the connected mailbox its connection_id names, whatever the connection's status; null for other operations and when the connection is gone. Derived, read-only.",
                     "requires": null,
                     "filters": [],
                     "sortable": false
