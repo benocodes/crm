@@ -93,3 +93,17 @@ describe('descriptions (D10, D12, D18)', () => {
     expect(d).toContain('tags?name=')
   })
 })
+
+// [[CORE605]] P3 ([[CORE602]] 602.22): `parseListQuery` is a shared reader; handed a list for a filter that is not a column filter it refuses, whoever the caller.
+describe('parseListQuery refuses a list on a filter that is not a column filter', () => {
+  it('a custom filter and the bag filter', () => {
+    for (const key of ['tag', 'additional_props'])
+      expect(() => parseListQuery(def('deals'), { filters: { [key]: ['a', 'b'] } as any }), key).toThrow(
+        expect.objectContaining({
+          status: 400,
+          code: 'validation_error',
+          message: `filter ${key}: takes one value, not a list`,
+        }),
+      )
+  })
+})

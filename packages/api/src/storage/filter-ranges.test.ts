@@ -85,3 +85,19 @@ describe('the OpenAPI parameter of a column filter (D4)', () => {
     expect(z.object({ n: p }).safeParse({ n: 5 }).success).toBe(false)
   })
 })
+
+// [[CORE605]] D9: every discovery surface teaches the range and none says "once per field".
+describe('discovery text ([[CORE605]] D9)', () => {
+  it('the api and meta OpenAPI documents and the MCP tool descriptions carry no "once per field" and state the cap', async () => {
+    const app = createApp({ storage: coldStorage(), registry })
+    for (const url of ['/api/v1/openapi.json', '/meta/v1/openapi.json']) {
+      const text = JSON.stringify(await (await app.request(url)).json())
+      expect(text, url).not.toContain('once per field')
+    }
+    const api = JSON.stringify(await doc())
+    expect(api).toContain(`up to ${MAX_CONDITIONS} times`)
+    const tools = JSON.stringify(deriveTools(registry).map((e) => e.tool))
+    expect(tools).not.toContain('once per field')
+    expect(tools).toContain(`up to ${MAX_CONDITIONS} times`)
+  })
+})
