@@ -12,6 +12,9 @@
     "typecheck": "tsc --noEmit",
     "deploy:remote": "pnpm build && CONFIRM_REMOTE=1 wrangler deploy --env hq"
   },
+  "dependencies": {
+    "@vibase/sdk": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^22",
     "better-auth": "1.7.22",
