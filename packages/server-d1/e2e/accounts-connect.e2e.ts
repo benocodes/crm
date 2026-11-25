@@ -111,6 +111,45 @@ test('2. Connect Gmail navigates to Google (intercepted) with the configured cli
   await page.unroute('https://accounts.google.com/**')
 })
 
+// [[CORE572]] P5, D8. The premise: the session cookie is sent on Google's redirect back, a cross-site top-level GET. Google is stubbed by a route that 302s straight to the callback with `error=access_denied`.
+// `localhost` stands in for a real host here; the HTTPS `__Secure-` cookie prefix is covered by the Set-Cookie pin in compose-connect-session.test.ts, not by this run.
+test('A. the owner is bounced from Google to the callback cross-site: the session cookie is sent, so the callback passes the session step (consent_denied), not session_mismatch', async () => {
+  await page.route('https://accounts.google.com/**', (route) => {
+    const st = new URL(route.request().url()).searchParams.get('state') ?? ''
+    return route.fulfill({
+      status: 302,
+      headers: { location: `${BASE}/oauth/callback/google?error=access_denied&state=${encodeURIComponent(st)}` },
+    })
+  })
+  await visit('/app/accounts')
+  await page.getByRole('region', { name: 'Your mailboxes' }).getByRole('button', { name: 'Connect Gmail' }).click()
+  await page.waitForURL((u) => u.pathname === '/app/accounts' && u.search === '')
+  const alert = page.getByRole('alert')
+  await expect(alert).toContainText('consent_denied')
+  await expect(alert).not.toContainText('session_mismatch')
+  await page.unroute('https://accounts.google.com/**')
+})
+
+test('B. a browser with no session opening the same callback is refused: session_mismatch, and no mailbox appears for the owner', async () => {
+  const stranger = await context.browser()!.newContext()
+  try {
+    const res = await stranger.request.get(
+      `${BASE}/oauth/callback/google?error=access_denied&state=${encodeURIComponent(state)}`,
+      { maxRedirects: 0 },
+    )
+    expect(res.status()).toBe(302)
+    expect(res.headers()['location']).toBe(`${BASE}/app/accounts?error=session_mismatch`)
+  } finally {
+    await stranger.close()
+  }
+  await visit('/app/accounts')
+  await expect(page.getByRole('region', { name: 'Your mailboxes' })).toContainText('No mailbox connected yet')
+  await visit(`${BASE}/app/accounts?error=session_mismatch`)
+  await expect(page.getByRole('alert')).toContainText(
+    'Sign in to this workspace in this browser as the person who started the connection, then start again.',
+  )
+})
+
 test('3. Google cancel (simulated): the callback returns to /app/accounts with consent_denied, shown once and removed from the address bar', async () => {
   const res = await page.request.get(
     `${BASE}/oauth/callback/google?error=access_denied&state=${encodeURIComponent(state)}`,

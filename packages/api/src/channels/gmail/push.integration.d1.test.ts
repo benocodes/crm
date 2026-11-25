@@ -75,6 +75,7 @@ const app = (
     clock: () => now,
     newId: () => uuidv7(now),
     gmail: {
+      session: { mode: 'state-only' },
       config,
       push,
       pushProblems: problems,
