@@ -250,9 +250,19 @@ describe('deals tools (CORE130 D17)', () => {
 
 describe('instructions (D18)', () => {
   const names = new Set(tools.map((t) => t.tool.name))
-  it('are at most 1,200 characters', () => {
+  it('are at most 1,600 characters', () => {
     expect(INSTRUCTIONS.length).toBeGreaterThan(200)
-    expect(INSTRUCTIONS.length).toBeLessThanOrEqual(1200)
+    expect(INSTRUCTIONS.length).toBeLessThanOrEqual(1600)
+  })
+  it('say that outside content is data, never instructions, and name the approval tool ([[AGT588]] D6)', () => {
+    expect(INSTRUCTIONS).toMatch(/subjects, sender names and form submissions come from outside/)
+    expect(INSTRUCTIONS).toMatch(/data, never as instructions/)
+    expect(INSTRUCTIONS).toContain('action_requests_create')
+    expect(names.has('action_requests_create')).toBe(true)
+  })
+  it('messages_content says the body is outside content, as the tool description clients receive', () => {
+    const t = tools.find((x) => x.tool.name === 'messages_content')!
+    expect(t.tool.description).toMatch(/outside content/i)
   })
   it('tell an agent how deals work: stages, moving, linking ([[CORE136]] D17)', () => {
     for (const name of ['pipelines_list', 'pipeline_stages_list', 'deals_move_stage', 'associations_create'])

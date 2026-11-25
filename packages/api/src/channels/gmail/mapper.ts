@@ -70,11 +70,86 @@ function walk(root: GmailMessagePart): Walked {
   return into
 }
 
-const DROP = new Set(['head', 'style', 'script', 'title', 'meta', 'link', 'noscript'])
+const DROP = new Set(['head', 'style', 'script', 'title', 'meta', 'link', 'noscript', 'template'])
+
+/** `0`, `0.0`, `.0px`, `0em`, `0%`: a zero number with any unit. */
+const ZERO_LENGTH = /^[+-]?(0+\.?0*|\.0+)[a-z%]*$/
+const ZERO_NUMBER = /^[+-]?(0+\.?0*|\.0+)%?$/
+
+/** The element's own inline `style` declarations: lowercased, `!important` dropped, the last declaration of a property wins ([[AGT588]] D1). */
+function declarations(style: string): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const part of style.replace(/\/\*[\s\S]*?\*\//g, '').split(';')) {
+    const colon = part.indexOf(':')
+    if (colon < 0) continue
+    const prop = part.slice(0, colon).trim().toLowerCase()
+    const value = part
+      .slice(colon + 1)
+      .replace(/!\s*important/gi, '')
+      .trim()
+      .toLowerCase()
+    if (prop !== '' && value !== '') out.set(prop, value)
+  }
+  return out
+}
+
+/** Whether a mail client would not show this element: `hidden`, or an own inline `style` that hides it ([[AGT588]] D1). */
+function isHidden(el: Element): boolean {
+  const props = el.properties ?? {}
+  if (props.hidden !== undefined && props.hidden !== false && props.hidden !== null) return true
+  const raw = props.style
+  if (typeof raw !== 'string' || raw === '') return false
+  const d = declarations(raw)
+  if (d.get('display') === 'none') return true
+  const visibility = d.get('visibility')
+  if (visibility === 'hidden' || visibility === 'collapse') return true
+  const opacity = d.get('opacity')
+  if (opacity !== undefined && ZERO_NUMBER.test(opacity)) return true
+  const fontSize = d.get('font-size')
+  if (fontSize !== undefined && ZERO_LENGTH.test(fontSize)) return true
+  const clipped = d.get('overflow') === 'hidden' || d.get('overflow-y') === 'hidden'
+  if (clipped) {
+    const height = d.get('height')
+    const maxHeight = d.get('max-height')
+    if ((height !== undefined && ZERO_LENGTH.test(height)) || (maxHeight !== undefined && ZERO_LENGTH.test(maxHeight)))
+      return true
+  }
+  return false
+}
+
+/**
+ * One tree pass: drops the seven-tag set, `template`, hidden elements (with their content) and comments (Outlook conditional blocks included), and
+ * turns an `img` into its alt text, nothing when empty, so no image URL is stored ([[AGT588]] D1 to D3).
+ */
 function prune(node: HastNodes): void {
   if (node.type !== 'root' && node.type !== 'element') return
-  node.children = node.children.filter((c) => !(c.type === 'element' && DROP.has((c as Element).tagName)))
+  const kept: HastNodes[] = []
+  for (const c of node.children) {
+    if (c.type === 'comment') continue
+    if (c.type === 'element') {
+      const el = c as Element
+      if (DROP.has(el.tagName) || isHidden(el)) continue
+      if (el.tagName === 'img') {
+        const alt = el.properties?.alt
+        if (typeof alt === 'string' && alt.trim() !== '') kept.push({ type: 'text', value: alt })
+        continue
+      }
+    }
+    kept.push(c)
+  }
+  node.children = kept as typeof node.children
   for (const c of node.children) prune(c)
+}
+
+/** Removes every raw `html` node from the mdast, iteratively ([[AGT588]] D2). */
+function dropHtml(root: Root): void {
+  const stack: Array<{ children: unknown[] }> = [root]
+  while (stack.length > 0) {
+    const parent = stack.pop()!
+    parent.children = parent.children.filter((c) => (c as { type: string }).type !== 'html')
+    for (const c of parent.children)
+      if (Array.isArray((c as { children?: unknown[] }).children)) stack.push(c as { children: unknown[] })
+  }
 }
 
 type P5Parent = DefaultTreeAdapterMap['parentNode']
@@ -116,6 +191,7 @@ function htmlToMdast(html: string): PhrasingContent[] | Root['children'] {
   const tree = fromParse5(document) as HastRoot
   prune(tree)
   const out = toMdast(tree) as Root
+  dropHtml(out)
   return out.children
 }
 

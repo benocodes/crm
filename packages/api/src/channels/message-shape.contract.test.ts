@@ -134,7 +134,7 @@ const GMAIL_EXPECTED: Record<FixtureName, { markdown: string; preview: string }>
       '# Quarterly\n\n| Item    | Qty |\n| ------- | --- |\n| Widgets | 3   |\n| Gadgets | 5   |\n\nThanks, **Jane**\n',
     preview: 'Quarterly Item Qty Widgets 3 Gadgets 5 Thanks, Jane',
   },
-  inlineImage: { markdown: 'Logo: ![logo](cid:logo1@acme.test)\n', preview: 'Logo: logo' },
+  inlineImage: { markdown: 'Logo: logo\n', preview: 'Logo: logo' }, // [[AGT588]] D3: an image is its alt text
   attachment: { markdown: 'Report attached\n', preview: 'Report attached' },
   nonAscii: { markdown: 'Grüße ✓\n', preview: 'Grüße ✓' },
   noMessageId: { markdown: 'body without a Message-ID\n', preview: 'body without a Message-ID' },

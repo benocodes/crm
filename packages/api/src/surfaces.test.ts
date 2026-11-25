@@ -196,6 +196,10 @@ describe('documents (D4, D5)', () => {
     expect(Object.keys(api.paths)).toContain('/api/v1/contacts/{id}/merge')
     expect(Object.keys(meta.paths)).toContain('/meta/v1/api-keys/{id}/revoke')
   })
+  it('the messages.content operation carries the outside-content sentence in the served OpenAPI document ([[AGT588]] D6)', async () => {
+    const api = await docOf(app, '/api/v1/openapi.json')
+    expect(String(api.paths['/api/v1/messages/{id}/content'].get.description)).toMatch(/outside content/i)
+  })
   it('the documents need no credential', async () => {
     expect((await app.request('/api/v1/openapi.json')).status).toBe(200)
     expect((await app.request('/meta/v1/openapi.json')).status).toBe(200)

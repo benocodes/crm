@@ -39,6 +39,7 @@ import { afterOf, columnsOf, toRecord } from '../storage/crud.js'
 import { columnKindsOf, type PreparedEnv } from '../storage/definition.js'
 import { recordMessages, type CaptureMessage, type CaptureResult } from '../messaging/capture.js'
 import { messageBodyKey, messageContentPrefix, messageOriginalKey } from '../messaging/r2-keys.js'
+import { stripInvisibleCharacters, stripInvisibleFromMessage } from '../channels/invisible-characters.js'
 import { storeMessageContent } from '../messaging/store-content.js'
 import type { StreamPrimitives } from '../messaging/streams.js'
 import type { FormIngress } from './ingress-read.js'
@@ -295,8 +296,11 @@ export async function captureFormSubmission(
   ctx: FormSubmissionContext,
   input: FormSubmissionInput,
 ): Promise<FormCaptureResult> {
-  const submitter = formSubmitter(input.form, input.fields)
-  const cm = mapFormSubmission(input, submitter)
+  const raw = formSubmitter(input.form, input.fields)
+  // [[AGT588]] D4: the contact name the capture derives is the stripped one, as the message's author and participant name are.
+  const cleanName = raw.name === undefined ? '' : stripInvisibleCharacters(raw.name)
+  const submitter: FormSubmitter = cleanName === '' ? { kind: raw.kind, value: raw.value } : { ...raw, name: cleanName }
+  const cm = stripInvisibleFromMessage(mapFormSubmission(input, submitter))
   const identity = identityOf(ctx, input.form)
   const makeEnv = (): PreparedEnv => ({
     actor: { id: input.form.form_id, kind: 'agent' },
