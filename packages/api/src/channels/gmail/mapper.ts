@@ -93,7 +93,7 @@ function declarations(style: string): Map<string, string> {
   return out
 }
 
-/** Whether a mail client would not show this element: `hidden`, or an own inline `style` that hides it ([[AGT588]] D1). */
+/** Whether a mail client would not show this element or anything in it: `hidden`, or an own inline `style` that hides the subtree ([[AGT588]] D1; the inherited `font-size:0` and `visibility:hidden` are carried by `prune`). */
 function isHidden(el: Element): boolean {
   const props = el.properties ?? {}
   if (props.hidden !== undefined && props.hidden !== false && props.hidden !== null) return true
@@ -101,12 +101,8 @@ function isHidden(el: Element): boolean {
   if (typeof raw !== 'string' || raw === '') return false
   const d = declarations(raw)
   if (d.get('display') === 'none') return true
-  const visibility = d.get('visibility')
-  if (visibility === 'hidden' || visibility === 'collapse') return true
   const opacity = d.get('opacity')
   if (opacity !== undefined && ZERO_NUMBER.test(opacity)) return true
-  const fontSize = d.get('font-size')
-  if (fontSize !== undefined && ZERO_LENGTH.test(fontSize)) return true
   const clipped = d.get('overflow') === 'hidden' || d.get('overflow-y') === 'hidden'
   if (clipped) {
     const height = d.get('height')
@@ -117,28 +113,60 @@ function isHidden(el: Element): boolean {
   return false
 }
 
+/** Absolute and root-relative length units, and the absolute-size keywords: a non-zero size in one of them resets an inherited zero font ([[AGT588]] D1). */
+const ABSOLUTE_FONT_SIZE = /^[+]?(\d+\.?\d*|\.\d+)(px|pt|pc|in|cm|mm|q|rem|vw|vh|vmin|vmax)$/
+const SIZE_KEYWORDS = new Set(['xx-small', 'x-small', 'small', 'medium', 'large', 'x-large', 'xx-large', 'xxx-large'])
+
+/** The two inherited hiding properties as an element's own inline style leaves them, given its parent's state ([[AGT588]] D1). */
+function inherited(el: Element, zero: boolean, invisible: boolean): { zero: boolean; invisible: boolean } {
+  const raw = el.properties?.style
+  if (typeof raw !== 'string' || raw === '') return { zero, invisible }
+  const d = declarations(raw)
+  const fontSize = d.get('font-size')
+  if (fontSize !== undefined) {
+    if (ZERO_LENGTH.test(fontSize)) zero = true
+    else if (ABSOLUTE_FONT_SIZE.test(fontSize) || SIZE_KEYWORDS.has(fontSize)) zero = false
+    // em, ex, ch, %, smaller, larger, and anything unrecognised: relative to the parent, so the parent's state stays.
+  }
+  const visibility = d.get('visibility')
+  if (visibility === 'hidden' || visibility === 'collapse') invisible = true
+  else if (visibility === 'visible') invisible = false
+  return { zero, invisible }
+}
+
 /**
- * One tree pass: drops the seven-tag set, `template`, hidden elements (with their content) and comments (Outlook conditional blocks included), and
- * turns an `img` into its alt text, nothing when empty, so no image URL is stored ([[AGT588]] D1 to D3).
+ * One tree pass: drops the seven-tag set, `template`, hidden elements (with their content) and comments (Outlook conditional blocks included), turns an
+ * `img` into its alt text, nothing when empty, so no image URL is stored, and carries the two inherited forms (`font-size:0`, `visibility:hidden`) down the
+ * walk, dropping the text beneath them until a descendant's own style resets them. An alt is kept under a zero font, dropped while invisible
+ * ([[AGT588]] D1 to D3).
  */
-function prune(node: HastNodes): void {
+function prune(node: HastNodes, zero = false, invisible = false): void {
   if (node.type !== 'root' && node.type !== 'element') return
   const kept: HastNodes[] = []
+  const below: Array<[HastNodes, boolean, boolean]> = []
   for (const c of node.children) {
     if (c.type === 'comment') continue
+    if (c.type === 'text') {
+      if (!zero && !invisible) kept.push(c)
+      continue
+    }
     if (c.type === 'element') {
       const el = c as Element
       if (DROP.has(el.tagName) || isHidden(el)) continue
+      const state = inherited(el, zero, invisible)
       if (el.tagName === 'img') {
         const alt = el.properties?.alt
-        if (typeof alt === 'string' && alt.trim() !== '') kept.push({ type: 'text', value: alt })
+        if (!state.invisible && typeof alt === 'string' && alt.trim() !== '') kept.push({ type: 'text', value: alt })
         continue
       }
+      kept.push(c)
+      below.push([c, state.zero, state.invisible])
+      continue
     }
     kept.push(c)
   }
   node.children = kept as typeof node.children
-  for (const c of node.children) prune(c)
+  for (const [c, z, i] of below) prune(c, z, i)
 }
 
 /** Removes every raw `html` node from the mdast, iteratively ([[AGT588]] D2). */

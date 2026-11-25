@@ -81,6 +81,61 @@ describe('D1 hidden elements', () => {
   })
 })
 
+describe('D1 inherited forms: font-size:0 and visibility:hidden carry down until reset', () => {
+  it.each([
+    ['text directly in a zero-font wrapper', wrapped('<div style="font-size:0">')],
+    [
+      'a child at 1em under a zero parent',
+      wrapped('<div style="font-size:0"><span style="font-size:1em">', '</span></div>'),
+    ],
+    [
+      'a child at 100% under a zero parent',
+      wrapped('<div style="font-size:0"><span style="font-size:100%">', '</span></div>'),
+    ],
+    [
+      'a child at larger under a zero parent',
+      wrapped('<div style="font-size:0"><span style="font-size:larger">', '</span></div>'),
+    ],
+    ['visibility:hidden with no reset', wrapped('<div style="visibility:hidden"><span>', '</span></div>')],
+    ['visibility:collapse with no reset', wrapped('<div style="visibility:collapse"><p>', '</p></div>')],
+    [
+      'a zero-font element nested in a visible one inside a zero one',
+      wrapped('<div style="font-size:0"><div><b>', '</b></div></div>'),
+    ],
+  ])('drops %s', (_n, html) => hides(html))
+
+  const KEEP = 'SECRET'
+  it.each([
+    [
+      'a font-size:0 wrapper with a 14px child',
+      `<p>VISIBLE-A</p><div style="font-size:0"><span style="font-size:14px">${KEEP}</span></div><p>VISIBLE-B</p>`,
+    ],
+    [
+      'a zero wrapper with a 1rem child',
+      `<p>VISIBLE-A</p><div style="font-size:0"><span style="font-size:1rem">${KEEP}</span></div><p>VISIBLE-B</p>`,
+    ],
+    [
+      'a zero wrapper with a keyword child',
+      `<p>VISIBLE-A</p><div style="font-size:0"><span style="font-size:medium">${KEEP}</span></div><p>VISIBLE-B</p>`,
+    ],
+    [
+      'a visibility:hidden wrapper with a visible child',
+      `<p>VISIBLE-A</p><div style="visibility:hidden"><span style="visibility:visible">${KEEP}</span></div><p>VISIBLE-B</p>`,
+    ],
+    [
+      'a reset two levels down',
+      `<p>VISIBLE-A</p><div style="font-size:0"><div><span style="font-size:12px">${KEEP}</span></div></div><p>VISIBLE-B</p>`,
+    ],
+  ])('keeps text under %s', (_n, html) => keeps(html))
+
+  it('keeps an img alt under a zero font, drops it while invisible', () => {
+    expect(render('<div style="font-size:0"><img src="https://t.test/i.png" alt="Chart"></div>').body).toBe('Chart\n')
+    expect(
+      render('<p>A</p><div style="visibility:hidden"><img src="https://t.test/i.png" alt="Chart"></div>').body,
+    ).toBe('A\n')
+  })
+})
+
 describe('D2 comments and raw HTML', () => {
   it('drops a plain comment from body, preview and plain text (the #193 reproduction)', () => {
     const r = render('<p>Hello<!-- SECRET comment --> world</p>')
