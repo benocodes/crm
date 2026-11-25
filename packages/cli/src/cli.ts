@@ -364,6 +364,17 @@ async function deviceLogin(server: string, name: string, scopeFlag: string | und
       `Signed in as the agent account ${id}, which has no scopes yet: an owner must grant them, for example\n  vibase agents update ${id} --data '{"scopes":["contacts:read","contacts:write"]}'\n`,
     )
   }
+  // [[DX589]]: a device login that holds the owner's write power says so, on stderr; stdout and the exit code are unchanged.
+  const org = me.active_organization
+  if (
+    me.principal?.kind === 'user' &&
+    org?.role === 'owner' &&
+    Array.isArray(org.scopes) &&
+    org.scopes.some((s: unknown) => typeof s === 'string' && s.endsWith(':write'))
+  )
+    await deps.stderr.write(
+      `Warning: this login holds the owner's permissions on ${server}, so anything that uses this CLI profile acts as the owner. Give an agent its own identity instead: invite it with the agent role (vibase invitations create --email <agent-email> --role agent), then grant it scopes with vibase agents update <agent-id>.\n`,
+    )
   return 0
 }
 

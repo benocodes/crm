@@ -120,7 +120,7 @@ export function parseListQuery(
       conditions[key] = parseCondition(key, column, String(value), siblings)
       continue
     }
-    const filter = declared[key]
+    const filter = Object.hasOwn(declared, key) ? declared[key] : undefined
     if (!filter) throw new ApiError(400, 'validation_error', `unknown filter: ${key}`)
     const r = filter.schema.safeParse(value)
     if (!r.success) throw new ApiError(400, 'validation_error', `filter ${key}: ${issues(r.error)}`)
@@ -128,7 +128,7 @@ export function parseListQuery(
   }
   const filters: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(parsed)) {
-    const normalize = declared[key]!.normalize
+    const normalize = Object.hasOwn(declared, key) ? declared[key]!.normalize : undefined
     if (!normalize) {
       filters[key] = value
       continue

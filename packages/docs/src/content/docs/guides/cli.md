@@ -35,6 +35,8 @@ Output is JSON, or one record per line for lists. Errors go to stderr. Exit code
 
 ## Give an agent its own identity
 
+A device login by an owner holds the owner's permissions, and the CLI says so on stderr after login. Anything that uses that profile acts as the owner, so an agent should not share it.
+
 For an agent account using device login:
 
 1. As an owner, create an invitation with the agent role. The link is shown once; hand it to the agent over any channel.

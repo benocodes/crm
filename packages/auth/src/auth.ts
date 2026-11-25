@@ -477,6 +477,8 @@ export function authOptions(
               clientId: config.google.clientId,
               clientSecret: config.google.clientSecret,
               disableDefaultScope: true,
+              // [[CORE579]] P2: `false` omits include_granted_scopes (undefined sends `true`): sign-in asks for sign-in scopes only.
+              includeGrantedScopes: false,
               scope: [...GOOGLE_SCOPES],
             },
           },
