@@ -41,7 +41,9 @@ describe('P3: no declarations, no change', () => {
     const custom = createVibaseRegistry({ definitions: [projectsDefinition()] })
     const added = custom.operations().filter((o) => !plain.get(o.name))
     expect(added.map((o) => o.name).sort()).toEqual(
-      ['aggregate', 'create', 'delete', 'get', 'list', 'property_keys', 'update'].map((x) => `${PROJECTS_KEY}.${x}`).sort(),
+      ['aggregate', 'create', 'delete', 'get', 'list', 'property_keys', 'update']
+        .map((x) => `${PROJECTS_KEY}.${x}`)
+        .sort(),
     )
     const scopes = custom.declaredScopes().filter((x) => !plain.declaredScopes().includes(x))
     expect(scopes).toEqual([`${PROJECTS_KEY}:read`, `${PROJECTS_KEY}:request_approval`, `${PROJECTS_KEY}:write`])
