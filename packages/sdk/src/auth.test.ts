@@ -54,7 +54,14 @@ describe('DX603 D6 auth', () => {
       filters: {},
     })
     type Ops = { 'a.one': Shape; 'a.two': Shape; 'a.three': Shape }
-    type Shape = { namespace: 'a'; method: string; args: {}; result: unknown; proposable: false; paginated: false }
+    type Shape = {
+      namespace: 'a'
+      method: string
+      args: Record<never, never>
+      result: unknown
+      proposable: false
+      paginated: false
+    }
     const operations = {
       'a.one': { ...entry('https://evil.example/steal'), namespace: 'a', method: 'one' },
       'a.two': { ...entry('//evil.example/steal'), namespace: 'a', method: 'two' },
@@ -72,5 +79,46 @@ describe('DX603 D6 auth', () => {
     }
     expect(auth).not.toHaveBeenCalled()
     expect(fetch.calls).toHaveLength(0)
+  })
+})
+
+describe('DX603 D6 redirects on a runtime without redirect: error (workerd)', () => {
+  const workerdFetch = () =>
+    fakeFetch(({ init }) => {
+      if (init.redirect === 'error')
+        throw new TypeError(
+          'Invalid redirect value, must be one of "follow" or "manual" ("error" won\'t be implemented)',
+        )
+      return jsonResponse({ ok: true })
+    })
+
+  it('retries once with redirect manual and remembers it for the client', async () => {
+    const fetch = workerdFetch()
+    const vibase = createClient({ url: BASE, auth: 't', fetch })
+    await expect(vibase.contacts.get({ id: 'x' })).resolves.toEqual({ ok: true })
+    await vibase.contacts.get({ id: 'y' })
+    expect(fetch.calls.map((c) => c.init.redirect)).toEqual(['error', 'manual', 'manual'])
+  })
+
+  it('refuses a redirect response in manual mode as unexpected_redirect', async () => {
+    const fetch = fakeFetch(({ init }) => {
+      if (init.redirect === 'error') throw new TypeError('Invalid redirect value')
+      return new Response(null, { status: 302, headers: { location: 'https://evil.example/' } })
+    })
+    const error = await createClient({ url: BASE, auth: 't', fetch })
+      .contacts.get({ id: 'x' })
+      .catch((e) => e)
+    expect(error).toMatchObject({ status: 302, code: 'unexpected_redirect' })
+  })
+
+  it('does not retry a TypeError that is not about the redirect option', async () => {
+    const fetch = fakeFetch(() => {
+      throw new TypeError('fetch failed')
+    })
+    const error = await createClient({ url: BASE, auth: 't', fetch })
+      .contacts.get({ id: 'x' })
+      .catch((e) => e)
+    expect(error).toMatchObject({ status: 0, code: 'network_error' })
+    expect(fetch.calls).toHaveLength(1)
   })
 })

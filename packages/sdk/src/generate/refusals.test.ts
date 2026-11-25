@@ -2,8 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { generateSdk, memberNames } from './index.js'
 
 // DX603 D4, D5, P3: the generator's refusals, proven over small synthetic documents (the real ones trigger none).
-const ok = { 200: { description: 'ok', content: { 'application/json': { schema: { type: 'object', properties: {} } } } } }
-const documents = (api: Record<string, Record<string, unknown>>, meta: Record<string, Record<string, unknown>> = {}) => ({
+const ok = {
+  200: { description: 'ok', content: { 'application/json': { schema: { type: 'object', properties: {} } } } },
+}
+const documents = (
+  api: Record<string, Record<string, unknown>>,
+  meta: Record<string, Record<string, unknown>> = {},
+) => ({
   api: { openapi: '3.1.0', info: { title: 'a', version: '1' }, paths: api },
   meta: { openapi: '3.1.0', info: { title: 'm', version: '1' }, paths: meta },
 })
@@ -11,7 +16,12 @@ const get = (operationId: string, extra: Record<string, unknown> = {}) => ({
   get: { operationId, responses: ok, ...extra },
 })
 const post = (operationId: string, schema: unknown, parameters: unknown[] = []) => ({
-  post: { operationId, parameters, requestBody: { required: true, content: { 'application/json': { schema } } }, responses: ok },
+  post: {
+    operationId,
+    parameters,
+    requestBody: { required: true, content: { 'application/json': { schema } } },
+    responses: ok,
+  },
 })
 
 describe('DX603 D4 names', () => {
@@ -45,9 +55,9 @@ describe('DX603 generation refusals', () => {
   })
 
   it('refuses a request body that is not a JSON object, naming the operation', async () => {
-    const error = await generateSdk(documents({ '/a': post('things.bulk', { type: 'array', items: { type: 'string' } }) })).catch(
-      (e) => e,
-    )
+    const error = await generateSdk(
+      documents({ '/a': post('things.bulk', { type: 'array', items: { type: 'string' } }) }),
+    ).catch((e) => e)
     expect(error.message).toContain('things.bulk')
     expect(error.message).toMatch(/object/)
   })

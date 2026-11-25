@@ -19,7 +19,7 @@ const workspace = readdirSync(PACKAGES)
   }))
 
 describe('OPS262 workspace package names', () => {
-  it('finds the 14 workspace packages', () => {
+  it('finds the 15 workspace packages', () => {
     expect(workspace.map((w) => w.dir).sort()).toEqual([
       'api',
       'approvals-app',
@@ -28,6 +28,7 @@ describe('OPS262 workspace package names', () => {
       'db',
       'docs',
       'release',
+      'sdk',
       'server-d1',
       'server-postgres',
       'storage',

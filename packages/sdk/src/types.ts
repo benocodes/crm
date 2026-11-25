@@ -16,7 +16,7 @@ export interface OperationShape {
   paginated: boolean
 }
 
-/** The map: operation id to its shape. The generator writes `BuiltInOperations`; DX604 writes a per-workspace one. */
+/** The map: operation id to its shape. The generator writes `BuiltInOperations` as a type alias (an interface has no index signature, so it would not satisfy this); DX604 writes a per-workspace one. */
 export type OperationMap = { [operationId: string]: OperationShape }
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -49,9 +49,10 @@ export interface CallOptions {
 }
 
 /** A method: the flat arguments (omitted when none is required) and an optional `{ signal }`. */
-export type Method<O extends OperationShape> = {} extends O['args']
-  ? (args?: O['args'], options?: CallOptions) => Promise<O['result']>
-  : (args: O['args'], options?: CallOptions) => Promise<O['result']>
+export type Method<O extends OperationShape> =
+  Record<never, never> extends O['args']
+    ? (args?: O['args'], options?: CallOptions) => Promise<O['result']>
+    : (args: O['args'], options?: CallOptions) => Promise<O['result']>
 
 /** The client: one namespace per resource prefix, one method per operation (`.all` and `.propose` come in DX608). */
 export type Client<Ops extends OperationMap> = {

@@ -49,7 +49,11 @@ describe('DX603 D1 runtime boundary', () => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const path = join(dir, entry.name)
         if (entry.isDirectory()) walk(path)
-        else if (entry.name !== 'boundary.test.ts' && /\.tsx?$/.test(entry.name) && specifiers(readFileSync(path, 'utf8')).some((s) => s === '@vibase/api'))
+        else if (
+          entry.name !== 'boundary.test.ts' &&
+          /\.tsx?$/.test(entry.name) &&
+          specifiers(readFileSync(path, 'utf8')).some((s) => s === '@vibase/api')
+        )
           importers.push(path.slice(SRC.length + 1))
       }
     }

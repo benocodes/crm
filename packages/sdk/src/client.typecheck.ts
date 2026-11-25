@@ -49,7 +49,14 @@ export async function typeTests() {
 
 // createClient({ operations }) infers a non-default map from a passed table.
 type Pong = {
-  'pings.pong': { namespace: 'pings'; method: 'pong'; args: { n: number }; result: { echoed: number }; proposable: false; paginated: false }
+  'pings.pong': {
+    namespace: 'pings'
+    method: 'pong'
+    args: { n: number }
+    result: { echoed: number }
+    proposable: false
+    paginated: false
+  }
 }
 declare const table: OperationTable<Pong>
 
