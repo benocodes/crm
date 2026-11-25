@@ -1,0 +1,26 @@
+{
+  "name": "@vibase/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Vibase TypeScript client: typed methods for every operation of the REST API, generated from its OpenAPI documents (DX603).",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./generate": "./src/generate/index.ts"
+  },
+  "scripts": {
+    "generate": "tsx src/generate/main.ts",
+    "test": "vitest run --config ../../vitest.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@vibase/api": "workspace:*",
+    "esbuild": "0.28.2",
+    "openapi-typescript": "7.13.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  }
+}
