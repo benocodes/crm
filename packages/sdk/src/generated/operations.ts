@@ -1305,7 +1305,12 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
         ],
         "max": 4
       }
-    }
+    },
+    "aggregateParams": [
+      "group_by",
+      "max",
+      "min"
+    ]
   },
   'companies.create': {
     "namespace": "companies",
@@ -2109,7 +2114,12 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
         ],
         "max": 4
       }
-    }
+    },
+    "aggregateParams": [
+      "group_by",
+      "max",
+      "min"
+    ]
   },
   'contacts.create': {
     "namespace": "contacts",
@@ -2496,7 +2506,14 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
         ],
         "max": 4
       }
-    }
+    },
+    "aggregateParams": [
+      "avg",
+      "group_by",
+      "max",
+      "min",
+      "sum"
+    ]
   },
   'deals.create': {
     "namespace": "deals",
@@ -4797,7 +4814,12 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
         ],
         "max": 4
       }
-    }
+    },
+    "aggregateParams": [
+      "group_by",
+      "max",
+      "min"
+    ]
   },
   'tasks.create': {
     "namespace": "tasks",

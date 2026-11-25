@@ -1,5 +1,5 @@
 import openapiTS, { astToString } from 'openapi-typescript'
-import type { Analysed } from './analyse.js'
+import type { Analysed, AnalysedAggregate } from './analyse.js'
 
 export const GENERATE_COMMAND = 'pnpm -C packages/sdk generate'
 
@@ -44,6 +44,7 @@ export function emitOperations(ops: Analysed[], profile: EmitProfile = BUILT_IN_
       paginated: o.paginated,
       proposable: o.proposable,
       filters: o.filters,
+      ...(o.aggregate ? { aggregateParams: o.aggregate.params } : {}),
     }
     return `  ${q(o.id)}: ${lit(entry, 2)},`
   })
@@ -55,6 +56,17 @@ ${rows.join('\n')}
 }
 `
 }
+
+const union = (names: string[]) => (names.length ? names.map(q).join(' | ') : 'never')
+/** DX616 D2: the type-level spec of one aggregate operation, on one line (the fallback test strips it by that): the field union per function and `group_by`, every field's kind and the money fields. */
+const aggregateShape = (a: AnalysedAggregate): string =>
+  `{ fields: { sum: ${union(a.sum)}; avg: ${union(a.avg)}; min: ${union(a.min)}; max: ${union(a.max)}; group_by: ${union(a.group_by)} }; kinds: { ${Object.entries(
+    a.kinds,
+  )
+    .map(([f, k]) => `${q(f)}: ${q(k)}`)
+    .join('; ')} }; money: { ${Object.entries(a.money)
+    .map(([f, c]) => `${q(f)}: ${q(c)}`)
+    .join('; ')} } }`
 
 async function documentTypes(document: unknown): Promise<string> {
   return astToString(await openapiTS(document as never)).trimEnd()
@@ -85,6 +97,7 @@ export async function emitTypes(
       `    method: ${q(o.method)}`,
       `    args: ${args}`,
       `    result: ${result}`,
+      ...(o.aggregate ? [`    aggregate: ${aggregateShape(o.aggregate)}`] : []),
       ...(o.paginated ? [`    item: ItemOf<${result}>`] : []),
       `    proposable: ${o.proposable}`,
       `    paginated: ${o.paginated}`,

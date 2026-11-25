@@ -507,6 +507,11 @@ both, no migration or E2E. 179k / 53 calls in one run (+183 code / +531 test lin
 limit. When a charter reduces a spec's scope clause ("needs no per-field scope"), grep the checks that exist first
 (`checkContentScope`, `customFilters[].requires`): 207.12 said column filters carry no per-field scope, and [[API514]]
 content fields are one (review 207.19, #618).
+**DX616** (`knowledge/specs/042-DX616-sdk-aggregate/RETRO.md`): 6 groups (1 matrix), 7 decisions, no migration or E2E, a
+new API extension plus generator and type work across `@vibase/api` and `@vibase/sdk`. ~176k / 53 calls first run, a
+4-call fix round (+180 code / +480 test lines, +69 generated, 23 files), approved round 1. The budget holds; a type-heavy
+matrix (positive and `@ts-expect-error` cases on two clients) costs test lines, not tokens. The one round was a spec type
+narrowed without a decision row (execute-cycle §3).
 
 ### Step 3: Resolve identities
 

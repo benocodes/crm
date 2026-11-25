@@ -52,6 +52,33 @@ describe('DX604 round trip on D1', () => {
     expect((await vibase.contacts.list({ tier__c: 'bronze' })).data).toEqual([])
   })
 
+  it('DX616: a typed aggregate on the custom object, ungrouped and grouped, equals the REST answer', async () => {
+    const vibase = createClient({
+      url: 'https://api.acme.example',
+      auth: key,
+      fetch: fetchOf,
+      operations: workspaceOperations,
+    })
+    await vibase.projects__c.create({ name: 'Small', budget: 1000 })
+    await vibase.projects__c.create({ name: 'Big', budget: 9000, stage: 'active' })
+    await vibase.projects__c.create({ name: 'Huge', budget: 11000, stage: 'active' })
+    const rest = async (query: string) =>
+      (
+        await k.app.request(`https://api.acme.example/api/v1/projects__c/aggregate?${query}`, {
+          headers: { authorization: `Bearer ${key}` },
+        })
+      ).json()
+    const total = await vibase.projects__c.aggregate({ sum: 'budget', max: ['name', 'budget'] })
+    expect(total).toEqual(await rest('sum=budget&max=name,budget'))
+    expect([total.count, total.sum.budget, total.max.budget]).toEqual([3, 21000, 11000])
+    const grouped = await vibase.projects__c.aggregate({ group_by: 'stage', sum: 'budget' })
+    expect(grouped).toEqual(await rest('group_by=stage&sum=budget'))
+    expect(grouped.groups.map((g) => [g.key.stage, g.count, g.sum.budget])).toEqual([
+      ['active', 2, 20000],
+      ['planned', 1, 1000],
+    ])
+  })
+
   it('absence mutation: a client built from the built-in table has no custom namespace', async () => {
     const vibase = createClient({
       url: 'https://api.acme.example',

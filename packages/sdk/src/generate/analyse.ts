@@ -16,11 +16,61 @@ export interface Analysed {
   paginated: boolean
   proposable: boolean
   filters: Record<string, { kind: string; operators: string[]; max: number }>
+  /** DX616 D2: the operation's `x-vibase-aggregate`, each named field's kind taken from the filters; absent when the document has none. */
+  aggregate?: AnalysedAggregate
+}
+
+export const AGGREGATE_FUNCTIONS = ['sum', 'avg', 'min', 'max'] as const
+export interface AnalysedAggregate {
+  sum: string[]
+  avg: string[]
+  min: string[]
+  max: string[]
+  group_by: string[]
+  money: Record<string, string>
+  /** Every field named by a list, to its filter kind. */
+  kinds: Record<string, string>
+  /** The aggregate parameters that exist on the server (a function with no field has none), sorted. */
+  params: string[]
 }
 
 type Obj = Record<string, any>
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v)
 const METHODS = ['get', 'put', 'post', 'patch', 'delete'] as const
+/** DX616 D2: reads and checks `x-vibase-aggregate`; every listed field must be a filter parameter of the same operation. */
+function analyseAggregate(id: string, raw: unknown, filters: Analysed['filters']): AnalysedAggregate {
+  const bad = (why: string) => new Error(`operation ${id}: x-vibase-aggregate ${why}`)
+  if (!isObj(raw)) throw bad('must be an object')
+  const lists: Record<string, string[]> = {}
+  const kinds: Record<string, string> = {}
+  for (const name of [...AGGREGATE_FUNCTIONS, 'group_by']) {
+    const list = raw[name]
+    if (!Array.isArray(list) || list.some((f) => typeof f !== 'string'))
+      throw bad(`"${name}" must be an array of field names`)
+    for (const field of list as string[]) {
+      if (!(field in filters))
+        throw bad(`"${name}" names the field "${field}", which is not a filter parameter of the operation`)
+      kinds[field] = filters[field].kind
+    }
+    lists[name] = list as string[]
+  }
+  const money = raw.money
+  if (!isObj(money) || Object.values(money).some((c) => typeof c !== 'string'))
+    throw bad('"money" must map each money field to its currency column')
+  return {
+    sum: lists.sum,
+    avg: lists.avg,
+    min: lists.min,
+    max: lists.max,
+    group_by: lists.group_by,
+    money: money as Record<string, string>,
+    kinds,
+    params: Object.keys(lists)
+      .filter((n) => lists[n].length > 0)
+      .sort(),
+  }
+}
+
 const RESERVED_METHODS = ['all', 'propose']
 
 /** D4: an id splits at its first dot; both parts are camelCased (`deals.move_stage` is `deals.moveStage`). DX604 D5: a namespace ending in `__c` is a custom object's key and stays verbatim (`projects__c.list` is `projects__c.list`). */
@@ -126,6 +176,8 @@ function analyseOperation(
   const resultSchema = jsonType ? deref(root, content[jsonType]?.schema) : {}
   const props = isObj(resultSchema.properties) ? resultSchema.properties : {}
   const proposal = op['x-vibase-proposal']
+  const aggregate =
+    op['x-vibase-aggregate'] === undefined ? undefined : analyseAggregate(id, op['x-vibase-aggregate'], filters)
 
   return {
     id,
@@ -141,6 +193,7 @@ function analyseOperation(
     paginated: paginatedQuery && 'next_cursor' in props,
     proposable: isObj(proposal) && proposal.eligible === true,
     filters,
+    ...(aggregate ? { aggregate } : {}),
   }
 }
 
