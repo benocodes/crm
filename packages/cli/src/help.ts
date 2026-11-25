@@ -76,7 +76,7 @@ export function commandHelp(c: Command): string {
       const where = f.where === 'query' ? 'query' : 'body'
       lines.push(
         `  --${f.name}${f.type === 'boolean' ? '' : ` <${type}>`}`.padEnd(30) +
-          `${f.type === 'boolean' ? 'boolean ' : f.type === 'integer' || f.type === 'number' ? `${f.type} ` : ''}(${where}${f.required ? ', required' : ''})${f.description ? ' ' + f.description : ''}`,
+          `${f.type === 'boolean' ? 'boolean ' : f.type === 'integer' || f.type === 'number' ? `${f.type} ` : ''}(${where}${f.required ? ', required' : ''}${f.repeatable ? ', may repeat' : ''})${f.description ? ' ' + f.description : ''}`,
       )
     }
   }

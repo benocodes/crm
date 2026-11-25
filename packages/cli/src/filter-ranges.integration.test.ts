@@ -22,7 +22,15 @@ beforeEach(async () => {
     authOrgId: 'e2e',
     email: 'e2e@example.com',
     agentName: 'e2e-agent',
-    scopes: ['contacts:read', 'contacts:write', 'schema:read', 'deals:read', 'deals:write', 'pipelines:read', 'pipelines:write'],
+    scopes: [
+      'contacts:read',
+      'contacts:write',
+      'schema:read',
+      'deals:read',
+      'deals:write',
+      'pipelines:read',
+      'pipelines:write',
+    ],
   })
   key = b.key
 })
@@ -42,7 +50,18 @@ it('deals list with two --expected-close-date flags returns the in-range deals a
     return JSON.parse(res.stdout)
   }
   const p = await j(['pipelines', 'create', '--name', 'Sales'])
-  const stage = await j(['pipeline-stages', 'create', '--pipeline-id', p.id, '--name', 'S', '--kind', 'open', '--position', '10'])
+  const stage = await j([
+    'pipeline-stages',
+    'create',
+    '--pipeline-id',
+    p.id,
+    '--name',
+    'S',
+    '--kind',
+    'open',
+    '--position',
+    '10',
+  ])
   for (const [name, date] of [
     ['Oct', '2026-10-15'],
     ['Nov', '2026-11-10'],
@@ -50,7 +69,14 @@ it('deals list with two --expected-close-date flags returns the in-range deals a
   ])
     await j(['deals', 'create', '--name', name!, '--stage-id', stage.id, '--expected-close-date', date!])
   const before = r.seen.length
-  const page = await j(['deals', 'list', '--expected-close-date', 'gte.2026-11-01', '--expected-close-date', 'lt.2026-12-01'])
+  const page = await j([
+    'deals',
+    'list',
+    '--expected-close-date',
+    'gte.2026-11-01',
+    '--expected-close-date',
+    'lt.2026-12-01',
+  ])
   expect(page.data.map((d: any) => d.name)).toEqual(['Nov'])
   const sent = r.seen.slice(before).filter((x) => new URL(x.url).pathname === '/api/v1/deals')
   expect([...new URL(sent[0]!.url).searchParams.entries()]).toEqual([
@@ -69,11 +95,29 @@ it('a timestamp range on another list (contacts --created-at) filters, and a fif
   await ok(['contacts', 'create', '--name', 'Now'])
   const day = 86_400_000
   const iso = (ms: number) => new Date(ms).toISOString()
-  const inside = await ok(['contacts', 'list', '--created-at', `gte.${iso(Date.now() - day)}`, '--created-at', `lt.${iso(Date.now() + day)}`])
+  const inside = await ok([
+    'contacts',
+    'list',
+    '--created-at',
+    `gte.${iso(Date.now() - day)}`,
+    '--created-at',
+    `lt.${iso(Date.now() + day)}`,
+  ])
   expect(inside.data.map((c: any) => c.name)).toEqual(['Now'])
-  const outside = await ok(['contacts', 'list', '--created-at', `gte.${iso(Date.now() + day)}`, '--created-at', `lt.${iso(Date.now() + 2 * day)}`])
+  const outside = await ok([
+    'contacts',
+    'list',
+    '--created-at',
+    `gte.${iso(Date.now() + day)}`,
+    '--created-at',
+    `lt.${iso(Date.now() + 2 * day)}`,
+  ])
   expect(outside.data).toEqual([])
-  const five = await r.run(['contacts', 'list', ...['1', '2', '3', '4', '5'].flatMap((n) => ['--created-at', `gte.2026-01-0${n}`])])
+  const five = await r.run([
+    'contacts',
+    'list',
+    ...['1', '2', '3', '4', '5'].flatMap((n) => ['--created-at', `gte.2026-01-0${n}`]),
+  ])
   expect(five.code).not.toBe(0)
   expect(five.stderr).toContain('at most 4 conditions (got 5)')
 })

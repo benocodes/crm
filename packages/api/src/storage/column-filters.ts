@@ -325,12 +325,25 @@ const KIND_LABEL: Record<FilterKind, string> = {
   boolean: 'boolean',
 }
 
+const RANGE_BOUNDS: Partial<Record<FilterKind, [string, string]>> = {
+  text: ['a', 'n'],
+  integer: ['100', '500'],
+  timestamp: ['2026-11-01', '2026-12-01'],
+}
+/** [[CORE605]] D9: a range example for the kinds whose operator table has both a lower and an upper bound ([[CORE602]]); none for the others. */
+function rangeExample(name: string, spec: ColumnFilterSpec): string {
+  const ops = operatorsFor(spec.kind, spec.nullable)
+  const bounds = RANGE_BOUNDS[spec.kind]
+  if (!bounds || !ops.includes('gte') || !ops.includes('lt')) return ''
+  return ` A range is two conditions: ${name}=gte.${bounds[0]}&${name}=lt.${bounds[1]}.`
+}
+
 /** The parameter description, from the same table that validates the operator ([[CORE199]] D9), so the text cannot drift from the parser. */
 export function describeColumnFilter(name: string, spec: ColumnFilterSpec): string {
   const parts = [
-    `Filter by ${name} (${KIND_LABEL[spec.kind]}${spec.nullable ? ', can be null' : ''}). A bare value means equals; otherwise [not.]<operator>.<value>, once per field.`,
+    `Filter by ${name} (${KIND_LABEL[spec.kind]}${spec.nullable ? ', can be null' : ''}). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to ${MAX_CONDITIONS} times to combine conditions on the field; they AND together and with the other filters.`,
     `Operators: ${operatorsFor(spec.kind, spec.nullable).join(', ')}.`,
-    `Example: ${EXAMPLES[spec.kind](name)}.`,
+    `Example: ${EXAMPLES[spec.kind](name)}.${rangeExample(name, spec)}`,
     'Comparisons, neq and not. never match a null value; is.null does.',
     'neq, not., like and ilike read every live row of the organisation, whatever the index.',
   ]

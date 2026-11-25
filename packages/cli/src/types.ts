@@ -49,6 +49,8 @@ export interface FlagSpec {
   where: 'query' | 'body'
   type: FlagType
   enum?: string[]
+  /** [[CORE605]] D6: a query parameter that accepts a list of strings (a column filter); each occurrence is one repeated parameter. */
+  repeatable?: boolean
   required: boolean
   description?: string
 }

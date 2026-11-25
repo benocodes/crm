@@ -109,6 +109,14 @@ export function mergeDocuments(docs: { source: 'api' | 'meta'; doc: unknown }[])
 /** A name as a command word or a flag: `_` becomes `-`, except in a `__c` name (a custom object or field), which is never translated ([[CORE315]] D25). */
 export const kebab = (s: string) => (s.endsWith('__c') ? s : s.replace(/_/g, '-'))
 
+/** [[CORE605]] D6: does a query parameter's schema accept a list of strings (`anyOf` with an array of strings)? Agrees with the server's `acceptsList`. */
+function acceptsStringList(schema: JsonSchema): boolean {
+  const variants = (s: Obj): Obj[] => (Array.isArray(s.anyOf) ? s.anyOf : Array.isArray(s.oneOf) ? s.oneOf : [])
+  const isStringArray = (v: unknown) =>
+    isObj(v) && v.type === 'array' && isObj(v.items) && (v.items as Obj).type === 'string'
+  return variants(schema).some(isStringArray)
+}
+
 function flagType(schema: JsonSchema): { type: FlagType; enum?: string[] } {
   const typeOf = (s: Obj): string | undefined => {
     const t = s.type
@@ -172,6 +180,7 @@ export function deriveCommand(op: Operation): Command {
       prop: p.name,
       where: 'query',
       ...flagType(p.schema),
+      ...(acceptsStringList(p.schema) ? { repeatable: true } : {}),
       required: p.required,
       description: p.description,
     })

@@ -318,7 +318,7 @@ describe('description per kind ([[CORE605]] D9)', () => {
   it('the number in the text is the constant, not a literal', () => {
     const d = describeColumnFilter('f', spec('integer'))
     expect(d).toContain(`${MAX_CONDITIONS} times`)
-    expect(d).not.toMatch(/\b(?!${MAX_CONDITIONS}\b)\d+ times/)
+    expect([...d.matchAll(/\b(\d+) times/g)].map((m) => Number(m[1]))).toEqual([MAX_CONDITIONS])
   })
 })
 
