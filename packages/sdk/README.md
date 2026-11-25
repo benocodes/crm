@@ -113,7 +113,13 @@ OpenAPI documents, built in-process from the production router. **Any change to 
 pnpm -C packages/sdk generate
 ```
 
-The drift test (`src/generate/drift.test.ts`) fails until the committed files match. The generator is the Node-only entry
+The drift test (`src/generate/drift.test.ts`) fails until the committed files match. The workspace-map fixture the type tests compile
+(`src/generate/fixtures/workspace/`) has its own drift check in `src/generate/workspace.test.ts`; regenerate it from the repo root:
+
+```bash
+pnpm -C packages/sdk generate --schema packages/sdk/src/generate/fixtures/workspace.schema.json --out packages/sdk/src/generate/fixtures/workspace
+```
+ The generator is the Node-only entry
 `@vibase/sdk/generate`; the runtime never imports it. `openapi-typescript` (a 7.x devDependency) needs `typescript` 5.x, so
 this package pins `typescript` 5.9.3 beside the workspace's 7.x.
 

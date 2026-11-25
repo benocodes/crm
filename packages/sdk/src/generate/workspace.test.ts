@@ -103,7 +103,8 @@ describe('DX604 the schema-file source', () => {
       if (committed !== text)
         throw new Error(
           `packages/sdk/src/generate/fixtures/workspace/${file} is out of date (${firstDifference(committed, text)}). ` +
-            'Regenerate it: pnpm -C packages/sdk generate --schema src/generate/fixtures/workspace.schema.json --out src/generate/fixtures/workspace',
+            'Regenerate it: pnpm -C packages/sdk generate --schema packages/sdk/src/generate/fixtures/workspace.schema.json --out packages/sdk/src/generate/fixtures/workspace' +
+            ' (from the repo root: relative paths resolve against where pnpm was invoked)',
         )
     }
   })
