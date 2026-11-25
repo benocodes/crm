@@ -149,9 +149,12 @@ describe('a field (D18)', () => {
     expect(parsed.fields.a).toMatchObject({ kind: 'text', unique: true })
     expect(parsed.fields.b).toMatchObject({ kind: 'integer', unique: true })
   })
-  it('refuses a reference to contacts by name, an unknown table, a missing target and an undeclared custom target', () => {
+  it('accepts a reference to contacts ([[CORE556]] D21); refuses an unknown table, a missing target and an undeclared custom target', () => {
     const r = (target?: string) => ({ x: { kind: 'reference', ...(target === undefined ? {} : { target }) } })
-    expect(rule('projects__c', ok(r('contacts')))).toBe('reference_contacts_later')
+    expect(parseObjectDeclaration('projects__c', ok(r('contacts'))).fields.x).toMatchObject({
+      kind: 'reference',
+      target: 'contacts',
+    })
     expect(rule('projects__c', ok(r('notes')))).toBe('reference_target_unknown')
     expect(rule('projects__c', ok(r('events')))).toBe('reference_target_unknown')
     expect(rule('projects__c', ok(r()))).toBe('reference_target_missing')

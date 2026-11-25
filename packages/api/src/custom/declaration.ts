@@ -5,8 +5,8 @@ import { z } from 'zod'
 
 /** The closed list of field kinds (D18). */
 export const FIELD_KINDS = ['text', 'integer', 'boolean', 'timestamp', 'enum', 'reference'] as const
-/** The built-in tables a reference may target ([[CORE315]] D21, [[CORE541]]); `contacts` waits for the merge catalog (U3), and a custom object is any declared `__c` key. */
-export const REFERENCE_TARGETS = ['companies', 'deals', 'tasks', 'principals'] as const
+/** The built-in tables a reference may target ([[CORE315]] D21, [[CORE541]]); `contacts` since [[CORE556]] (merge re-points it), and a custom object is any declared `__c` key. */
+export const REFERENCE_TARGETS = ['contacts', 'companies', 'deals', 'tasks', 'principals'] as const
 /** The field kinds that may be `unique` (D22). */
 export const UNIQUE_KINDS: readonly string[] = ['text', 'integer']
 export type FieldKind = (typeof FIELD_KINDS)[number]
@@ -127,8 +127,6 @@ export const fieldSchema = z
       return refuse(ctx, 'unique_kind', `unique is for text and integer fields, not ${kind}`)
     if (kind === 'reference') {
       if (f.target === undefined) return refuse(ctx, 'reference_target_missing', 'a reference names its target')
-      if (f.target === 'contacts')
-        return refuse(ctx, 'reference_contacts_later', 'references to contacts arrive in a later release')
       const known =
         (REFERENCE_TARGETS as readonly string[]).includes(f.target) ||
         (f.target.endsWith(KEY_SUFFIX) && NAME_SHAPE.test(f.target.slice(0, -KEY_SUFFIX.length)))

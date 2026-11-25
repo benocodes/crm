@@ -144,7 +144,7 @@ export function referenceSpec(f: FieldDeclaration): ReferenceTarget {
     ? { table: target as `${string}__c`, live: true, custom: true }
     : target === 'principals'
       ? { table: 'principals' }
-      : { table: target as 'companies' | 'deals' | 'tasks', live: true }
+      : { table: target as 'contacts' | 'companies' | 'deals' | 'tasks', live: true }
 }
 
 /** The columns whose `eq` is not served by an index (P1): the bookkeeping columns but `id`, and every declared field that is neither a reference nor unique. */

@@ -109,10 +109,10 @@ describe('the envelope', () => {
       'extend.contacts.fields.a__c',
     ],
     [
-      'a reference to contacts',
-      { deals: { fields: { a__c: { kind: 'reference', target: 'contacts' } } } },
-      'reference_contacts_later',
-      'extend.deals.fields.a__c',
+      'a contacts field that references contacts',
+      { contacts: { fields: { a__c: { kind: 'reference', target: 'contacts' } } } },
+      'reference_contacts_self',
+      'extend.contacts.fields.a__c',
     ],
     [
       'a reference to a custom object not in the file',

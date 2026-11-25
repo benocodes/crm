@@ -145,7 +145,8 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   (`packages/storage-d1/migrations/0016_webhooks.sql`, [[API7]]).
 - **A new foreign key to `contacts(id)` must join merge's re-point list** (`CONTACT_REFERENCES` in
   `packages/api/src/identity/merge.ts`) or its exemptions; `merge-catalog.integration.suite.ts` fails
-  otherwise ([[CORE2]] D11).
+  otherwise ([[CORE2]] D11). A `__c` or custom-object reference to contacts needs no entry: merge derives it from the
+  composed definitions, and the suite counts it on an extended D1 ([[CORE556]]).
   The same suite treats any `<x>_id` + `<x>_type` column pair as a polymorphic reference that might name a contact.
   A new table with such a pair that never names a contact (an event position, such as `webhook_deliveries.event_id`)
   goes into `CONTACT_NON_FK_EXEMPTIONS` ([[API219]]).
