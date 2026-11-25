@@ -50,6 +50,15 @@ export type AggregateSpec = {
   /** [[CORE207]] D2: the fields `group_by` takes, in record field order. */
   readonly group_by: readonly string[]
 }
+/** [[DX616]] D1: the one JSON form of a spec, published by `schema.get` (`resource.aggregate`) and by the OpenAPI document (`x-vibase-aggregate`), so the two cannot differ. */
+export const aggregateDocument = (spec: AggregateSpec) => ({
+  sum: [...spec.fields.sum],
+  avg: [...spec.fields.avg],
+  min: [...spec.fields.min],
+  max: [...spec.fields.max],
+  money: { ...spec.money },
+  group_by: [...spec.group_by],
+})
 type Aggregatable = Pick<PreparedResource, 'name' | 'eventName'> & {
   readonly aggregate?: AggregateSpec
   readonly derived?: Readonly<Record<string, unknown>>

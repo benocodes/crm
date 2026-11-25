@@ -8,7 +8,7 @@ import type { ObjectStore } from './objects/store.js'
 import { ApiError } from './errors.js'
 import { softDeletes, type PreparedEnv, type PreparedResource } from './storage/definition.js'
 import { columnFilterParams } from './storage/column-filters.js'
-import { aggregateAnswer, aggregateDescription, aggregateParams } from './storage/aggregate.js'
+import { aggregateAnswer, aggregateDescription, aggregateParams, type AggregateSpec } from './storage/aggregate.js'
 import { SORTED_NEXT, sortedQueryFields } from './storage/sort-params.js'
 import {
   aggregateOperation,
@@ -111,6 +111,8 @@ interface OperationBase {
   optionalBody?: boolean
   /** `binary` responds with a `BinaryBody` from the `objects` stage; default `json`. */
   output?: 'json' | 'binary'
+  /** [[DX616]] D1: an aggregate operation's field lists, published in the OpenAPI document as `x-vibase-aggregate`; never in an MCP tool. */
+  aggregate?: AggregateSpec
 }
 /**
  * The one tenant operation shape ([[CORE36]] D16): the operation builds a bounded program from the trusted environment and
@@ -452,6 +454,7 @@ export function resourceOperations(
       scope: { resource: s, action: readActionOf(def) },
       request: { query: z.object({ ...aggregateParams(def), ...filterFields(def) }) },
       response: { status: 200, schema: aggregateAnswer },
+      aggregate: def.aggregate,
       prepare: (env, input) => aggregateOperation(def, env, input.query),
     })
   }

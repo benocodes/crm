@@ -1,6 +1,7 @@
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import type { Operation } from '../registry.js'
 import { fullPath } from '../surfaces.js'
+import { aggregateDocument } from '../storage/aggregate.js'
 import { proposalMeta } from '../proposal.js'
 import type { AppEnv } from './app.js'
 
@@ -21,6 +22,7 @@ export function documentOperation(app: OpenAPIHono<AppEnv>, op: Operation): void
     security: [{ bearerAuth: [] }],
     // [[AGT8]] D40: every tenant operation says whether it can be proposed, and with which scope.
     ...(op.kind === 'tenant' ? { 'x-vibase-proposal': proposalMeta(op) } : {}),
+    ...(op.aggregate ? { 'x-vibase-aggregate': aggregateDocument(op.aggregate) } : {}),
     request: {
       params: request?.params,
       query: request?.query,

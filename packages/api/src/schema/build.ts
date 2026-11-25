@@ -6,6 +6,7 @@ import { fullPath } from '../surfaces.js'
 import { STATED_SORT_COSTS } from '../storage/sort-costs.js'
 import { describeColumnFilter, operatorsFor } from '../storage/column-filters.js'
 import { bagColumnDescription } from '../storage/additional-props.js'
+import { aggregateDocument } from '../storage/aggregate.js'
 import { STATED_FILTER_COSTS } from '../storage/filter-costs.js'
 import { crudActions, readActionOf, resourcePath, scopeResourceOf } from '../resources/define.js'
 import { AUTH_TABLE_PREFIX, CATALOG, HIDDEN_TABLES, defaultLabel, type Catalog } from './catalog.js'
@@ -137,16 +138,7 @@ function resourceOf(def: AnyResource, stated: ReadonlySet<string>, statedFilters
     ...(def.content
       ? { content: { fields: [...def.content.fields], requires: formatScope(def.content.requires) } }
       : {}),
-    aggregate: def.aggregate
-      ? {
-          sum: [...def.aggregate.fields.sum],
-          avg: [...def.aggregate.fields.avg],
-          min: [...def.aggregate.fields.min],
-          max: [...def.aggregate.fields.max],
-          money: { ...def.aggregate.money },
-          group_by: [...def.aggregate.group_by],
-        }
-      : null,
+    aggregate: def.aggregate ? aggregateDocument(def.aggregate) : null,
   }
 }
 
