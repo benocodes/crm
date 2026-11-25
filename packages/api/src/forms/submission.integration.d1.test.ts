@@ -394,6 +394,8 @@ describe('the contact is added to, never changed (D14, P3)', () => {
     const form = await seedForm({ tag_ids: [t] })
     await e.insert('identities', { kind: 'email', value: 'staff@acme.test', contact_id: null, own: true })
     await submit(form, [f('email', 'staff@acme.test'), f('name', 'Staff Person')])
+    // [[CORE574]] P2: a form submission's external id is minted by the vault, so it stores no content fingerprint
+    expect(await e.rows('messages')).toEqual([expect.objectContaining({ channel: 'form', content_sha256: null })])
     expect(await e.rows('interactions')).toEqual([expect.objectContaining({ channel: 'form', direction: 'inbound' })])
     expect(await e.rows('contacts')).toEqual([])
     expect(await e.rows('associations')).toEqual([])

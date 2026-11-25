@@ -39,6 +39,8 @@ export interface FakeMessageScript {
   skip?: string
   kind?: 'message' | 'reaction'
   externalId?: string
+  /** The adapter's fallback id (default `gmail:<connection id>:<provider message id>`, as the Gmail mapper sets it); `null` omits it. */
+  fallbackExternalId?: string | null
   inReplyTo?: string | null
   threadHints?: string[]
   providerThreadId?: string
@@ -79,7 +81,7 @@ export class FakeChannel implements ChannelPort<ConnectionRef> {
     return this
   }
 
-  async readMessage(_conn: ConnectionRef, providerMessageId: string): Promise<ChannelMessage | { skip: string }> {
+  async readMessage(conn: ConnectionRef, providerMessageId: string): Promise<ChannelMessage | { skip: string }> {
     this.reads.push(providerMessageId)
     const s = this.scripts.get(providerMessageId)
     if (!s) throw new Error(`FakeChannel: no script for ${providerMessageId}`)
@@ -113,6 +115,9 @@ export class FakeChannel implements ChannelPort<ConnectionRef> {
         channel: 'email',
         kind,
         external_id: externalId,
+        ...(s.fallbackExternalId === null
+          ? {}
+          : { fallback_external_id: s.fallbackExternalId ?? `gmail:${conn.id}:${s.providerMessageId}` }),
         in_reply_to: s.inReplyTo ?? null,
         thread_hints: s.threadHints ?? [],
         provider_message_id: s.providerMessageId,
