@@ -5,7 +5,7 @@ shows the operation, reason and arguments, and approves or rejects with an optio
 by esbuild into `dist/` and served by Cloudflare Workers Static Assets at `app.hq.vibase.ai`. At load the page reads the API origin's
 `/.well-known/vibase` and signs in with the provider it reports: Clerk (clerk-js from the instance's Frontend API) or Better Auth (the
 `better-auth/client` SDK against the API origin's `/auth`). Each provider is its own chunk behind a dynamic `import()`, so an instance
-never downloads the other's code. The page calls Vibase's REST API (`/api/v1/action-requests…`) with the session token as a Bearer.
+never downloads the other's code. The page calls Vibase only through `@vibase/sdk` (`src/vibase.ts`), with the session token as a Bearer.
 
 ```bash
 pnpm -C packages/approvals-app test && pnpm -C packages/approvals-app typecheck

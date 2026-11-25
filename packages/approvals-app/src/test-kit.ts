@@ -10,6 +10,8 @@ export interface Seen {
   url: string
   credentials: RequestCredentials | undefined
   headers: Record<string, string>
+  /** The request body as sent (a string), or undefined. */
+  body: string | undefined
 }
 export type Handler = (req: Seen) => Response | Promise<Response>
 
@@ -28,6 +30,7 @@ export function fakeFetch(routes: Record<string, Handler | Response | object | n
       url,
       credentials: (req?.credentials ?? init?.credentials) as RequestCredentials | undefined,
       headers,
+      body: typeof init?.body === 'string' ? init.body : req ? (await req.clone().text()) || undefined : undefined,
     }
     seen.push(s)
     const key = `${s.method} ${url.startsWith(API) ? url.slice(API.length) : url}`

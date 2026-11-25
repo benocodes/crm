@@ -2,7 +2,7 @@
   "name": "@vibase/approvals-app",
   "version": "0.1.0",
   "private": true,
-  "description": "The approvals mini-app: a static page (Cloudflare Workers Static Assets, no server code) that lists pending action requests of one Vibase and approves or rejects them. Signs in with Clerk, calls Vibase's REST API from the browser.",
+  "description": "The approvals mini-app: a static page (Cloudflare Workers Static Assets, no server code) that lists pending action requests of one Vibase and approves or rejects them. Signs in with Clerk, calls Vibase from the browser through @vibase/sdk.",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -11,6 +11,9 @@
     "test": "vitest run --config ../../vitest.config.ts",
     "typecheck": "tsc --noEmit",
     "deploy:remote": "pnpm build && CONFIRM_REMOTE=1 wrangler deploy --env hq"
+  },
+  "dependencies": {
+    "@vibase/sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22",

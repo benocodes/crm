@@ -1,5 +1,5 @@
 // The approvals page. Everything agent-supplied reaches the DOM through textContent only, never innerHTML.
-import { createApi, ApiFailure, type Api } from './api.js'
+import { VibaseError } from '@vibase/sdk'
 import type { AppConfig } from './config.js'
 import {
   byCreatedDesc,
@@ -16,6 +16,7 @@ import {
 import { stripInvisible } from './invisible.js'
 import { providerModules, type Provider } from './providers.js'
 import type { Env, ProviderModule, Session } from './session.js'
+import { type Api, createApi, failureText } from './vibase.js'
 
 type Tab = 'pending' | 'executed' | 'failed' | 'rejected'
 const TABS: Tab[] = ['pending', 'executed', 'failed', 'rejected']
@@ -119,7 +120,7 @@ class Page {
       this.error = null
     } catch (e) {
       this.error = this.describe(e)
-      if (e instanceof ApiFailure && e.status === 401) window.clearInterval(this.timer)
+      if (e instanceof VibaseError && e.status === 401) window.clearInterval(this.timer)
     }
     this.loading = false
     this.draw()
@@ -141,13 +142,7 @@ class Page {
   }
 
   private describe(e: unknown): string {
-    if (e instanceof ApiFailure) {
-      if (e.status === 403)
-        return `Not allowed: ${e.message}. This account needs the action_requests read scope (and the target's write scope to approve).`
-      return e.message
-    }
-    // A CORS or network failure is a TypeError with no detail.
-    return 'Vibase could not be reached.'
+    return failureText(e)
   }
 
   private async decide(r: ActionRequest, verb: 'approve' | 'reject', reason: string): Promise<void> {
