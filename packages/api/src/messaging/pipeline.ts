@@ -31,6 +31,7 @@ import {
   type CaptureResult,
 } from './capture.js'
 import { captureChunks, normalizeParticipants } from './capture-chunks.js'
+import { stripInvisibleFromMessage } from '../channels/invisible-characters.js'
 import { messagePreview } from './preview.js'
 import { fileBlobKey, messageContentPrefix } from './r2-keys.js'
 import { ATTACHMENT_MAX_BYTES, storeMessageContent, type StoredContent } from './store-content.js'
@@ -251,6 +252,7 @@ export async function captureMessages(
       skip(read.skip)
       continue
     }
+    stripInvisibleFromMessage(read) // [[AGT588]] D4: before the preview and the fingerprint, and before the stored body
     const { facts, message } = read
     const norm = normalizeParticipants(facts.participants)
     if (norm.dropped > 0) skip('dropped_address', norm.dropped)

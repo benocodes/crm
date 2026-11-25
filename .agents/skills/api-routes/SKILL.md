@@ -1257,6 +1257,7 @@ that consequence still emits its event.
 | Whatever the dev/ops `bootstrap` script writes | `bootstrap` only | [[CORE15]] |
 | Execution lease columns: `action_executions.attempts`, `next_attempt_at`, `lease_until`, `lease_token`, `dispatched_at`, `last_error_code`, and the `queued`/`claimed` status they move between | claim, dispatch stamp, retry scheduling and lease recovery, without changing `updated_at`. Creation and the final outcome of an execution, and the linked request's `executed`/`failed`, are resources: they emit `action_execution.created`, `.completed`, `.failed` and `action_request.executed`, `.failed` | [[AGT8]] D56 |
 | The D1 full-text search indexes (`<table>_search` FTS5 tables) | triggers on the base table only, never a program, an operation or a script | [[CORE194]] D5 |
+| `messages.content_sha256` reset to NULL on every row (the capture fingerprint, never exposed, [[CORE574]] P3). **The rule: any release that changes what the pipeline stores as a message's subject, sender or rendered body (a mapper change, a character rule) resets the fingerprints in a migration of that release**, so messages stored before it still match later copies (a NULL fingerprint is "existing", [[CORE574]] D6). The migration lifts the `messages_append_only` guard for this one `UPDATE` and recreates it | the release's migration only (`0029_reset_content_sha256.sql`); no program, operation or script | [[AGT588]] D5 ([[CHN193]]) |
 | The control-plane database `CONTROL_DB` | see below | [[CORE259]] |
 
 **The control-plane database.** Its tables are deployment-scoped (no `organization_id`), emit no CRM event and
@@ -1518,6 +1519,19 @@ The app and auth pages are the pattern for any page the Worker serves (one entry
   from the external id before the unit commits, so the pipeline re-reads the chunk's stored fingerprints right before
   storing content (574.14); a pre-check alone let a second mail overwrite the first's body. A window remains between
   that read and the commit (two captures racing on one id), closed only by a key not derived from the id alone (#591).
+- **Store what a reader sees, decided by a pure walk** ([[AGT588]] D1 to D4, cycle [[CHN193]]). The mapper's `prune`
+  drops `template`, the `hidden` attribute and an element whose own inline style says `display:none`, `opacity:0` or a
+  zero height with `overflow:hidden`, with its subtree; comments go and any `html` mdast node left is removed; an `img`
+  becomes its alt text. **Inherited CSS properties are carried down, not treated as a subtree drop:** `font-size:0`
+  and `visibility:hidden` hide text until a descendant's own style resets them, because a `font-size:0` wrapper with
+  sized children is the normal inline-block gap fix in mail templates (dropping it lost visible text, caught at review).
+  Before adding a hiding form, ask whether a child can override it, and give the test matrix a reset case for it.
+  Invisible characters (zero-width, bidi controls, tag characters) are stripped by `stripInvisibleFromMessage`
+  (`packages/api/src/channels/invisible-characters.ts`) right after `readMessage` in the pipeline and in
+  `captureFormSubmission`, before the preview and the fingerprint; a new channel inherits it only through one of those.
+  Any change to what is stored as subject, sender or body resets `content_sha256` in a migration of that release
+  ("Writes that emit no event"); `messages` is append-only, so that migration drops and recreates
+  `messages_append_only` around its `UPDATE`, and its test asserts the trigger is back.
 - **A column that hashes content is a content oracle.** `content_sha256` is a `SecretColumns` member and is left out
   of `schema.get` entirely by `UNLISTED_COLUMNS` (`packages/api/src/schema/build.ts`), unlike `content_key`, which is
   listed as `exposed: false`. Never add such a column to a resource's fields, filters, sorts or event payloads.

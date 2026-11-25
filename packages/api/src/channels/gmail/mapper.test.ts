@@ -216,7 +216,7 @@ describe('attachments', () => {
     expect(md('attachment')).toBe('Report attached\n')
   })
 
-  it('an inline image is an attachment with its content id, and the HTML keeps the cid reference', () => {
+  it('an inline image is an attachment with its content id, and the HTML body keeps its alt text, not the cid URL ([[AGT588]] D3)', () => {
     const { out } = map('inlineImage')
     expect(out.message.attachments).toEqual([
       {
@@ -228,7 +228,7 @@ describe('attachments', () => {
       },
     ])
     expect(out.facts.attachments).toEqual([{ position: 0, inline: true, content_id: 'logo1@acme.test' }])
-    expect(md('inlineImage')).toContain('![logo](cid:logo1@acme.test)')
+    expect(md('inlineImage')).toBe('Logo: logo\n')
   })
 
   it('declares the size the part declares, even when it is wrong', () => {

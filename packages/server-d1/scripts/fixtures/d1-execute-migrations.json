@@ -84,6 +84,9 @@
       },
       {
         "name": "0028_content_sha256.sql"
+      },
+      {
+        "name": "0029_reset_content_sha256.sql"
       }
     ],
     "success": true,
