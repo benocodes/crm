@@ -1466,6 +1466,20 @@ The app and auth pages are the pattern for any page the Worker serves (one entry
   around the pure mapping and returns `{ skip: 'unreadable' }`; the provider calls (the fetch, the lazy raw and
   attachment reads) stay outside the catch, so throttles, `invalid_grant` and 5xx keep their classification. The skip
   logs one warning with ids and the error's `name` only, never its message or any content (D3).
+- **A sender-chosen header is a claim, never a fact the vault records as its own** ([[CORE571]] D5, D6; cycle
+  [[CORE574]]). `From` and `Message-ID` are written by whoever sends the mail. Direction comes only from the caller's
+  `direction` or the provider's sent flag (`sent_by_connection`, Gmail's `SENT` label), never from "the From is an own
+  identity". Dedup on `(channel, external_id)` also needs `messages.content_sha256` to match (stored null matches);
+  a mismatch is captured as its own message under the adapter's per-connection `facts.fallback_external_id`, and an
+  existing fallback id is existing whatever the fingerprint (P4). The rule lives in one `decide()` in
+  `packages/api/src/messaging/pipeline.ts`; any new site that treats an id as "already stored" goes through it.
+- **Decide before writing to a key derived from what you are deciding.** Message content lands in R2 at a key derived
+  from the external id before the unit commits, so the pipeline re-reads the chunk's stored fingerprints right before
+  storing content (574.14); a pre-check alone let a second mail overwrite the first's body. A window remains between
+  that read and the commit (two captures racing on one id), closed only by a key not derived from the id alone (#591).
+- **A column that hashes content is a content oracle.** `content_sha256` is a `SecretColumns` member and is left out
+  of `schema.get` entirely by `UNLISTED_COLUMNS` (`packages/api/src/schema/build.ts`), unlike `content_key`, which is
+  listed as `exposed: false`. Never add such a column to a resource's fields, filters, sorts or event payloads.
 
 ## Testing
 

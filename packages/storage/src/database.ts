@@ -169,6 +169,8 @@ export interface MessagesTable {
   occurred_at: Timestamp
   preview: string
   content_key: string | null
+  /** [[CORE574]] D6: the capture fingerprint (lowercase hex SHA-256); null on old rows, reactions and forms. Never exposed (a secret column). */
+  content_sha256: string | null
   version: IntegerColumn
   retracted_at: NullableTimestamp
 }
@@ -584,7 +586,7 @@ export type ValueOf<T extends Table, C extends ColumnOf<T>> = UpdateType<
 /** Columns that must never appear in a public projection, per table. */
 export interface SecretColumns {
   /** [[CORE25]] D23: the object keys never appear in a read schema; the content operations read them with `selectColumns`. */
-  messages: 'content_key'
+  messages: 'content_key' | 'content_sha256'
   files: 'storage_key'
   /** [[CHN5]] D41: the ciphertext of the refresh token; only the credentials module selects it, by an explicit column list. */
   channel_credentials: 'refresh_token_ciphertext'
@@ -731,6 +733,7 @@ export const COLUMN_KINDS = {
     occurred_at: 'timestamp',
     preview: 'text',
     content_key: 'text',
+    content_sha256: 'text',
     version: 'integer',
     retracted_at: 'timestamp',
   },

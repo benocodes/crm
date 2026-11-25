@@ -169,7 +169,8 @@ export function mapGmailMessage(input: MapperInput): ChannelMessage | { skip: st
 
   const rawId = header(headers, 'Message-ID')?.trim() ?? ''
   const bare = rawId.startsWith('<') && rawId.endsWith('>') ? rawId.slice(1, -1).trim() : rawId
-  const externalId = bare !== '' ? bare : `gmail:${conn.id}:${resource.id}`
+  const fallbackId = `gmail:${conn.id}:${resource.id}`
+  const externalId = bare !== '' ? bare : fallbackId
 
   const replyTo = messageIdTokens(header(headers, 'In-Reply-To'))
   const refs = messageIdTokens(header(headers, 'References')).reverse()
@@ -235,6 +236,7 @@ export function mapGmailMessage(input: MapperInput): ChannelMessage | { skip: st
       channel: 'email',
       kind: 'message',
       external_id: externalId,
+      fallback_external_id: fallbackId,
       in_reply_to: replyTo[0] ?? null,
       thread_hints: hints,
       provider_message_id: resource.id,

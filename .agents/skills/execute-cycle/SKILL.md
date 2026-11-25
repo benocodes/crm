@@ -206,7 +206,11 @@ context uncached, and a Monitor that expires (900 s) and is re-armed is one such
 - While iterating, run only the affected files (`pnpm -C packages/<pkg> test <file>`), in the foreground; they finish in
   seconds to a minute or two. The full gate runs once, when the work is green, not after each change. "Affected"
   includes every test file in a folder you add a source file to: a dormant cycle's no-caller test scans its siblings'
-  sources, and [[CHN428]]'s new module tripped [[CHN424]]'s guard in the same folder, seen first by the gate.
+  sources, and [[CHN428]]'s new module tripped [[CHN424]]'s guard in the same folder, seen first by the gate. It also
+  includes `packages/server-d1/src/measured-limits.test.ts` whenever you add or remove a D1 read or write on an
+  operation or the capture pipeline in `packages/api`: it pins each scenario's query count from another package, and
+  [[CORE574]]'s extra per-chunk read was seen first by the gate. A gate-fix round updates RESULT.md (gate line, decisions)
+  as well as the log.
 - Run the whole gate as ONE background script, `scripts/gate.sh [log-dir]` (the four commands above, one log per
   step, `gate.status` ending in `GATE_EXIT=<0|1>`), started with `run_in_background`. Then wait once. Do not start a
   Monitor per suite.

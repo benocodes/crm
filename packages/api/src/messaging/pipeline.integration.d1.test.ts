@@ -424,18 +424,36 @@ function engineSuite(): void {
     it('real drift: a concurrent writer captures the same message; the retry sees it, and our duplicate blob is deleted', async () => {
       const t = setup([S.withAttachment!])
       const external = '<with-attachment@fake.test>'
-      e.betweenPlanAndCommit(async () => {
-        await runCapture(e, {
-          source: { kind: 'connection', id: C2.id },
-          channel: 'email',
-          messages: [
-            captureMessage(e.organizationId, {
-              external_id: external,
-              attachments: [storedAttachment(e.organizationId, 0)],
-            }),
-          ],
-        })
-      })
+      // The writer lands after the pipeline stored its content, between the capture unit's plan and its commit ([[CORE574]]: the chunk's own
+      // decision is read just before the content is stored, so a hook on the pre-check would be seen by it and nothing would be stored).
+      const inner = t.ctx.binding
+      t.ctx.binding = {
+        ...inner,
+        runtime: {
+          ...inner.runtime,
+          execute: ((identity: any, op: any) => {
+            if (op.name === 'capture.record')
+              e.betweenPlanAndCommit(async () => {
+                await runCapture(e, {
+                  source: { kind: 'connection', id: C2.id },
+                  channel: 'email',
+                  messages: [
+                    captureMessage(e.organizationId, {
+                      external_id: external,
+                      // other addresses than ours: two writers creating one new identity is a unique violation, not what this test is about
+                      participants: [
+                        { kind: 'email', value: 'other@writer.test', role: 'from' },
+                        { kind: 'email', value: 'other2@writer.test', role: 'to' },
+                      ],
+                      attachments: [storedAttachment(e.organizationId, 0)],
+                    }),
+                  ],
+                })
+              })
+            return inner.runtime.execute(identity, op)
+          }) as typeof inner.runtime.execute,
+        },
+      }
       const result = await t.run(['with-attachment'])
       expect(result).toMatchObject({ captured: 0, existing: 1 })
       expect(await e.rows('messages')).toHaveLength(1)

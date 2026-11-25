@@ -307,7 +307,7 @@ export function engineSuite(engineName: EngineName): void {
         expect(await e.rows('files')).toHaveLength(1)
       })
 
-      it('derives direction from the connection, then from an own sender', async () => {
+      it('derives direction from the connection or the caller, never from an own sender ([[CORE574]] D5)', async () => {
         await e.insert('identities', { kind: 'email', value: 'me@vibase.test', contact_id: null, own: true })
         const sent = msg({ sent_by_connection: true, occurred_at: '2026-10-22T09:00:00.000Z' })
         const fromOwn = msg({
@@ -321,7 +321,7 @@ export function engineSuite(engineName: EngineName): void {
           interactions.find(
             (i) => i.id === value.captured.find((c) => c.external_id === m.external_id)!.interaction_id,
           )!.direction
-        expect([direction(sent), direction(fromOwn), direction(inbound)]).toEqual(['outbound', 'outbound', 'inbound'])
+        expect([direction(sent), direction(fromOwn), direction(inbound)]).toEqual(['outbound', 'inbound', 'inbound'])
       })
     })
 
@@ -706,10 +706,10 @@ export function engineSuite(engineName: EngineName): void {
           expect((await participantsOf(m)).rows.find((p) => p.role === 'from')!.identity_id).toBe(live.id)
         })
 
-        it('a planned identity was swapped with the count kept: the new identity is the participant on retry', async () => {
+        it('a planned identity was swapped with the count kept: the new identity is the participant ([[CORE574]] P5: no identities guard left, the participant join reads it live)', async () => {
           const m = next()
           let replacement: RawRow
-          await drift([m], async () => {
+          e.betweenPlanAndCommit(async () => {
             await e.update('identities', jane.id, { deleted_at: NOW })
             replacement = await e.insert('identities', {
               kind: 'email',
@@ -722,13 +722,13 @@ export function engineSuite(engineName: EngineName): void {
           expect((await participantsOf(m)).rows.find((p) => p.role === 'from')!.identity_id).toBe(replacement!.id)
         })
 
-        it('the sender became own: the retry is outbound', async () => {
+        it('the sender became own: not drift, and still inbound ([[CORE574]] D5, P5)', async () => {
           const m = next()
-          await drift([m], async () => {
+          e.betweenPlanAndCommit(async () => {
             await e.update('identities', jane.id, { own: true, contact_id: null })
           })
           await cap([m])
-          expect((await participantsOf(m)).interaction.direction).toBe('outbound')
+          expect((await participantsOf(m)).interaction.direction).toBe('inbound')
         })
 
         it('a merge of the sender contact is not drift: the first run commits with the same identity', async () => {
@@ -748,7 +748,7 @@ export function engineSuite(engineName: EngineName): void {
 
   // Pinned from the first green run: a chunk whose addresses and messages all exist sends the plan read batch plus the
   // unit's fixed statements and none of resolve's four.
-  const ALL_EXISTING_STATEMENTS: Record<'postgres' | 'd1', number> = { postgres: 20, d1: 21 }
+  const ALL_EXISTING_STATEMENTS: Record<'postgres' | 'd1', number> = { postgres: 19, d1: 20 }
 
   describe.each([engineName])('recordMessages caps on %s', (name) => {
     let capped: Engine[]

@@ -166,6 +166,9 @@ function groupBy<T>(rows: readonly T[], key: (r: T) => string): Map<string, T[]>
   return out
 }
 
+/** [[CORE574]] P3: columns the schema document does not list at all, not even as `exposed: false`: a fingerprint of a message's content is no business of a reader of the schema. */
+const UNLISTED_COLUMNS: ReadonlySet<string> = new Set(['messages.content_sha256'])
+
 export function buildSchemaDocument(input: BuildInput): SchemaDocument {
   const catalog = input.catalog ?? CATALOG
   const kinds = input.kinds ?? (COLUMN_KINDS as Record<string, Record<string, string>>)
@@ -230,32 +233,34 @@ export function buildSchemaDocument(input: BuildInput): SchemaDocument {
         description: text?.description ?? declared?.description ?? null,
         associable: def?.associable === true,
         resource: def ? resourceOf(def, stated, statedFilters) : null,
-        columns: rows.map((c) => {
-          const field = declared?.fields[c.name] ?? extended?.[c.name]
-          const own = field ? { label: field.label, description: field.description } : textOf(text?.columns[c.name])
-          return {
-            name: c.name,
-            type: c.type,
-            kind: tableKinds?.[c.name] ?? null,
-            nullable: c.notnull === 0,
-            primary_key: c.pk > 0,
-            default: c.dflt_value,
-            label: own.label ?? defaultLabel(c.name),
-            // The common bookkeeping text applies only to a table the catalog describes: an unknown table says nothing.
-            description:
-              c.name === 'additional_props' && def && 'additional_props' in exposedFields
-                ? bagColumnDescription(def.name)
-                : (own.description ?? (text || declared ? (catalog.common[c.name] ?? null) : null)),
-            values:
-              field?.kind === 'enum'
-                ? (field.values ?? null)
-                : def && !declared
-                  ? enumValues(exposedFields[c.name])
-                  : null,
-            exposed: def ? c.name in exposedFields : false,
-            references: referenceOf.get(c.name) ?? null,
-          }
-        }),
+        columns: rows
+          .filter((c) => !UNLISTED_COLUMNS.has(`${name}.${c.name}`))
+          .map((c) => {
+            const field = declared?.fields[c.name] ?? extended?.[c.name]
+            const own = field ? { label: field.label, description: field.description } : textOf(text?.columns[c.name])
+            return {
+              name: c.name,
+              type: c.type,
+              kind: tableKinds?.[c.name] ?? null,
+              nullable: c.notnull === 0,
+              primary_key: c.pk > 0,
+              default: c.dflt_value,
+              label: own.label ?? defaultLabel(c.name),
+              // The common bookkeeping text applies only to a table the catalog describes: an unknown table says nothing.
+              description:
+                c.name === 'additional_props' && def && 'additional_props' in exposedFields
+                  ? bagColumnDescription(def.name)
+                  : (own.description ?? (text || declared ? (catalog.common[c.name] ?? null) : null)),
+              values:
+                field?.kind === 'enum'
+                  ? (field.values ?? null)
+                  : def && !declared
+                    ? enumValues(exposedFields[c.name])
+                    : null,
+              exposed: def ? c.name in exposedFields : false,
+              references: referenceOf.get(c.name) ?? null,
+            }
+          }),
         // [[CORE131]] D11: derived record fields, apart from the columns; `sortable` reads the same set as the resource's `sorts` (D10).
         derived: Object.entries(def?.derived ?? {}).map(([field, d]) => {
           const own = textOf(text?.derived?.[field])

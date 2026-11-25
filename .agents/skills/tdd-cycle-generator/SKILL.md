@@ -462,6 +462,13 @@ omissions. A cycle that changes any schema on contacts, companies, deals or task
 rider ("rider: re-pin the wire snapshot", `writing-tests` §goldens): a digest is not found by grepping the operation's
 name. A cycle that lifts a refusal greps the docs for the sentence that states it (`packages/docs`) and names that line
 under "In this cycle" (556.21).
+**CORE574** (`knowledge/specs/034-CORE574-capture-integrity/RETRO.md`, [[CORE571]] cycle 2): 6 groups (1 matrix), 3
+decisions + 5 planner rules, 1 migration, no E2E. 268k / 106 calls in one run plus a free 3-call gate-fix round (+323 /
++676 lines, 22 files), approved round 0. The budget holds. The calls went to restructuring four "already stored?" sites
+into one rule, plus nine absence mutations. When a charter changes a dedup rule on a path that writes to a key derived
+from the deduplicated id (R2 content at the external id), Watch out says the write happens before commit, and asks for
+the decision to be re-taken right before it; CORE574's coder found that only through the (d) mutation. A cycle that adds
+or removes a D1 query on an operation or the capture pipeline names `measured-limits.test.ts` as a rider.
 
 ### Step 3: Resolve identities
 

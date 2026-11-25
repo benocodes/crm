@@ -81,6 +81,9 @@
       },
       {
         "name": "0027_form_challenge.sql"
+      },
+      {
+        "name": "0028_content_sha256.sql"
       }
     ],
     "success": true,
