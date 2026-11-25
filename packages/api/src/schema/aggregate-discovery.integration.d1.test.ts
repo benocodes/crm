@@ -137,8 +137,9 @@ describe('the operation in OpenAPI and MCP (D13, D16)', () => {
     expect(names).toContain('deals_aggregate')
     expect(names).not.toContain('contacts_aggregate')
     const tool = list.result.tools.find((t: any) => t.name === 'deals_aggregate')
-    for (const n of ['sum', 'avg', 'min', 'max', 'amount_minor', 'tag'])
-      expect(tool.inputSchema.properties[n].type, n).toBe('string')
+    for (const n of ['sum', 'avg', 'min', 'max', 'tag']) expect(tool.inputSchema.properties[n].type, n).toBe('string')
+    // [[CORE602]] D4: a column filter is a string or a list of conditions
+    expect(tool.inputSchema.properties.amount_minor.anyOf[0]).toEqual({ type: 'string' })
     for (const n of ['after', 'limit', 'sort', 'order']) expect(tool.inputSchema.properties[n], n).toBeUndefined()
     const called = await rpc('tools/call', {
       name: 'deals_aggregate',

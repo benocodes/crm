@@ -4,6 +4,7 @@ import type { Principal } from '../auth/types.js'
 import { toolName, type Operation, type OperationInput, type Registry } from '../registry.js'
 import { formatScope } from '../scopes.js'
 import { proposalMeta } from '../proposal.js'
+import { acceptsList } from '../storage/column-filters.js'
 
 /** [[API106]] D7-D9: one tool, as `tools/list` carries it. */
 export interface McpTool {
@@ -58,6 +59,8 @@ function inputSchemaOf(op: Operation): Json {
   const required: string[] = []
   const add = (from: string, schema: Json) => {
     for (const [k, v] of Object.entries((schema.properties ?? {}) as Json)) {
+      // [[CORE602]] D4: `param` is OpenAPI parameter metadata (x-vibase-filter), not part of a tool's JSON Schema.
+      if (v && typeof v === 'object' && 'param' in v) delete (v as Json).param
       if (k in properties)
         throw new Error(
           `operation ${op.name}: argument "${k}" appears in more than one of params, query and body (${from})`,
@@ -123,6 +126,20 @@ const asString = (v: unknown): string =>
   typeof v === 'string' ? v : typeof v === 'object' ? JSON.stringify(v) : String(v)
 
 /**
+ * [[CORE602]] D5: a query argument is a string, as the REST router hands it over. A column filter (its declared schema accepts a list) may be a list of
+ * conditions, passed through item by item (a number stringified); a list on any other parameter is refused, naming it.
+ */
+function queryValue(name: string, v: unknown, takesList: boolean): unknown {
+  if (!Array.isArray(v)) return asString(v)
+  if (!takesList) throw new ApiError(400, 'validation_error', `argument ${name} takes one value, not a list`)
+  return v.map((item) => {
+    if (typeof item !== 'string' && typeof item !== 'number')
+      throw new ApiError(400, 'validation_error', `argument ${name}: each condition is a string or a number`)
+    return String(item)
+  })
+}
+
+/**
  * D9: the flat arguments back into params, query and body. Params and query values go over as strings, as the REST router hands
  * them over, so validation and coercion are the REST ones. Any other name is a body field (a strict body schema refuses it);
  * an operation with no body field to put it in refuses it as a validation error, never drops it.
@@ -146,7 +163,7 @@ export function splitArguments(
     // `keepNull` ([[AGT8]] D33): a request's `arguments` are stored as sent, and a null body field (clear this field) must reach the operation as it would over REST.
     if (v === null && !(opts.keepNull && objectBody && !(k in paramKeys) && !(k in queryKeys))) continue
     if (k in paramKeys) params[k] = asString(v)
-    else if (k in queryKeys) query[k] = asString(v)
+    else if (k in queryKeys) query[k] = queryValue(k, v, acceptsList(queryKeys[k]))
     else if (objectBody) bodyFields[k] = v
     else if (bodySchema && k === 'body') whole = v
     else unknown.push(k)

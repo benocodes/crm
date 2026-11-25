@@ -19,6 +19,10 @@ export type FilterKind = 'uuid' | 'text' | 'integer' | 'timestamp' | 'boolean'
 export type Operand = string | number | boolean | null
 /** One parsed condition: `value` is the list for `in`, `null`/`true`/`false` for `is`, the pattern text for `like`/`ilike`, else one operand. */
 export type Condition = { readonly not: boolean; readonly op: Operator; readonly value: Operand | readonly Operand[] }
+/** [[CORE602]] D1: what one field's filter parses to: one `Condition` (a single condition, as before) or the list of them (2 to `MAX_CONDITIONS`), ANDed. */
+export type FieldConditions = Condition | readonly Condition[]
+/** [[CORE602]] D2: the most conditions one column filter carries; the one number behind the parser, the OpenAPI `maxItems` and the MCP schema. */
+export const MAX_CONDITIONS = 4
 
 export type ColumnFilterSpec = {
   readonly kind: FilterKind
@@ -209,6 +213,44 @@ export function parseCondition(
   }
 }
 
+/**
+ * [[CORE602]] D1, D2, D7: one field's filter value: a string (one condition) or a list of 1 to `MAX_CONDITIONS` of them, each parsed by `parseCondition`. One bad condition
+ * refuses the call; with several, the message names which (`filter amount_minor: condition 2: ...`). A single condition parses and answers exactly as before.
+ */
+export function parseConditions(
+  name: string,
+  spec: ColumnFilterSpec,
+  raw: unknown,
+  siblings: Readonly<Record<string, string | undefined>> = {},
+): FieldConditions {
+  if (!Array.isArray(raw)) return parseCondition(name, spec, String(raw), siblings)
+  if (raw.length === 0) throw refusal(name, 'needs at least 1 condition')
+  if (raw.length > MAX_CONDITIONS) throw refusal(name, `at most ${MAX_CONDITIONS} conditions (got ${raw.length})`)
+  const out = raw.map((item, i) => {
+    try {
+      return parseCondition(name, spec, String(item), siblings)
+    } catch (err) {
+      if (raw.length === 1 || !(err instanceof ApiError)) throw err
+      throw new ApiError(
+        400,
+        'validation_error',
+        err.message.replace(`filter ${name}: `, `filter ${name}: condition ${i + 1}: `),
+      )
+    }
+  })
+  return out.length === 1 ? out[0]! : out
+}
+
+/** [[CORE602]] D3: does this declared query parameter accept a list (a column filter)? Read from the schema, never from a list of names. */
+export function acceptsList(schema: unknown): boolean {
+  let def = (schema as { _zod?: { def?: any } } | undefined)?._zod?.def
+  while (def && (def.type === 'optional' || def.type === 'nullable')) def = def.innerType?._zod?.def
+  return (
+    def?.type === 'union' &&
+    (def.options as Array<{ _zod: { def: { type: string } } }>).some((o) => o._zod.def.type === 'array')
+  )
+}
+
 /** [[CORE199]] D4: the operand's `*` is the wildcard of `ilike`; `%`, `_` and the escape character are literal (LIKE ... ESCAPE '\'). */
 export const likePattern = (p: string): string => p.replace(/[\\%_*]/g, (c) => (c === '*' ? '%' : `\\${c}`))
 /** [[CORE199]] D4: the operand's `*` is the wildcard of `like` (GLOB); `?`, `[` and `]` are bracketed to match themselves. */
@@ -380,14 +422,21 @@ export function withColumnFilters<T extends PreparedResource>(
   return { ...def, columnFilters }
 }
 
-/** The string query parameters of a list's column filters, each described from the operator table ([[CORE200]] D9); shared by the generated list and the hand-written action_executions one. */
+/** The query parameters of a list's column filters (a string, or a list of strings), each described from the operator table ([[CORE200]] D9); shared by the generated list and the hand-written action_executions one. */
 export function columnFilterParams(def: {
   readonly columnFilters?: Readonly<Record<string, ColumnFilterSpec>>
 }): Record<string, z.ZodType> {
   return Object.fromEntries(
     Object.entries(def.columnFilters ?? {}).map(([key, spec]) => [
       key,
-      z.string().describe(describeColumnFilter(key, spec)).optional(),
+      // [[CORE602]] D4: a string (one condition) or 1 to MAX_CONDITIONS strings (the repeated parameter); `x-vibase-filter` lands on the OpenAPI parameter, never on the schema.
+      z
+        .union([z.string(), z.array(z.string()).min(1).max(MAX_CONDITIONS)])
+        .describe(describeColumnFilter(key, spec))
+        .meta({
+          param: { 'x-vibase-filter': { kind: spec.kind, operators: [...operatorsFor(spec.kind, spec.nullable)] } },
+        })
+        .optional(),
     ]),
   )
 }

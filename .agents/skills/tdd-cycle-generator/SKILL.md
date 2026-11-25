@@ -485,6 +485,10 @@ field to a resource record names the wire snapshot as a rider (writing-tests §1
 server read a stored value into a response for a caller who may hold only `request_approval` states the read scope each
 value needs (api-routes, "Owner-granted resource authority"); AGT588 found the label and then the thread subject one
 review round apart.
+**CORE602** (`knowledge/specs/037-CORE602-filter-ranges/RETRO.md`): 6 groups (1 matrix), 8 decisions, no migration, no
+E2E, split at plan time from a 10-decision spec. 207k / 87 calls over a build run and a free gate-fix round (+121 / +404
+lines, 18 files), approved round 0. The budget holds. The gate-fix was a rider named wrong ("OpenAPI goldens"): a cycle
+that changes a query parameter's schema names the wire snapshot, not the goldens, as its rider (writing-tests §1).
 
 ### Step 3: Resolve identities
 

@@ -147,8 +147,8 @@ describe('compatibility: every bare call keeps its meaning (D10)', () => {
     const params = (path: string) =>
       Object.fromEntries((doc.paths[path].get.parameters as any[]).map((p) => [p.name, p]))
     const tasks = params('/api/v1/tasks')
-    expect(tasks.assignee_id.schema.type).toBe('string')
-    expect(tasks.assignee_id.schema.format).toBeUndefined()
+    expect(tasks.assignee_id.schema.anyOf[0].type).toBe('string')
+    expect(tasks.assignee_id.schema.anyOf[0].format).toBeUndefined()
     expect(tasks.tag_id.schema.format).toBe('uuid')
     expect(params('/api/v1/companies').domain.description).toContain('domain=eq.')
     expect(params('/api/v1/messages').external_id.description).toContain('external_id=eq.')
