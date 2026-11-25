@@ -78,6 +78,9 @@
       },
       {
         "name": "0026_additional_props.sql"
+      },
+      {
+        "name": "0027_form_challenge.sql"
       }
     ],
     "success": true,

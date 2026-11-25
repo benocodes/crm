@@ -48,6 +48,7 @@ export type FormRecord = {
   phone_field: string | null
   name_field: string | null
   consent_text: string | null
+  challenge: 'none' | 'turnstile'
   allowed_origins: string[]
   tag_ids: string[]
   created_by: string
@@ -77,6 +78,11 @@ const record = z.object({
   phone_field: z.string().nullable().describe('The submitted key holding the phone number.'),
   name_field: z.string().nullable().describe("The submitted key holding the submitter's name."),
   consent_text: z.string().nullable().describe('The consent wording shown beside the form (1 to 2000 characters).'),
+  challenge: z
+    .enum(['none', 'turnstile'])
+    .describe(
+      "The visitor check a submission must pass: 'none' (no check; the honeypot, origin allow-list, blocklist and rate limits still apply) or 'turnstile' (Cloudflare Turnstile, verified server-side).",
+    ),
   allowed_origins: z
     .array(z.string())
     .describe(
@@ -99,6 +105,12 @@ const name = z
   .max(200)
   .describe('The form name (1 to 200 characters, unique among live forms ignoring ASCII case).')
 const consentText = z.string().min(1).max(2000).describe('The consent wording shown beside the form.')
+
+const challengeMode = z
+  .enum(['none', 'turnstile'])
+  .describe(
+    "The visitor check: 'none' (open form, still behind the honeypot, origin allow-list, blocklist and rate limits) or 'turnstile' (the visitor must pass Cloudflare Turnstile).",
+  )
 
 const allowedOrigins = z
   .array(z.string().max(2048))
@@ -130,6 +142,7 @@ const create = z.strictObject({
     .nullable()
     .default(null)
     .describe('The consent wording shown beside the form; default none.'),
+  challenge: challengeMode.default('none'),
   allowed_origins: allowedOrigins.default([]),
   tag_ids: tagIds.default([]),
 })
@@ -141,6 +154,7 @@ const update = z
     phone_field: fieldKey.nullable(),
     name_field: fieldKey.nullable(),
     consent_text: consentText.nullable(),
+    challenge: challengeMode,
     allowed_origins: allowedOrigins,
     tag_ids: tagIds,
   })
@@ -340,9 +354,9 @@ export const forms = withColumnFilters(
         list: 'The workspace forms: name, public id, enabled flag, field mapping, consent text, allowed origins and tag ids. Filter by enabled or by public_id (exact). Example: vibase forms list --enabled true',
         get: 'One form. Example: vibase forms get <id>',
         create:
-          'Human only, and only an owner: create a form and its agent. The public id is minted and returned; name must be unique among live forms (409 form_name_exists); the mapping defaults to email and name and needs email_field or phone_field; allowed_origins (at most 20 normalised https origins, none by default: no browser origin is admitted) and tag_ids (at most 20 live tags) are optional; 400 invalid_reference for a tag that is not live; 403 user_required for an agent. Example: vibase forms create --name "Website contact" --allowed-origins \'["https://example.com"]\'',
+          'Human only, and only an owner: create a form and its agent. The public id is minted and returned; name must be unique among live forms (409 form_name_exists); the mapping defaults to email and name and needs email_field or phone_field; challenge (none by default, or turnstile to require Cloudflare Turnstile), allowed_origins (at most 20 normalised https origins, none by default: no browser origin is admitted) and tag_ids (at most 20 live tags) are optional; 400 invalid_reference for a tag that is not live; 403 user_required for an agent. Example: vibase forms create --name "Website contact" --allowed-origins \'["https://example.com"]\'',
         update:
-          'Human only, and only an owner: change a form (name, enabled, the field mapping, consent text, allowed origins, tag ids). A list replaces the whole set ([] clears it) and an absent list is left as it is. A new name also renames the agent of the form (an agent.updated event before form.updated). At least one field; the merged mapping must still have an identity field and no two equal fields; the public id never changes. Example: vibase forms update <id> --enabled false',
+          'Human only, and only an owner: change a form (name, enabled, the field mapping, consent text, challenge, allowed origins, tag ids). A list replaces the whole set ([] clears it) and an absent list is left as it is. A new name also renames the agent of the form (an agent.updated event before form.updated). At least one field; the merged mapping must still have an identity field and no two equal fields; the public id never changes. Example: vibase forms update <id> --enabled false',
         delete:
           'Human only, and only an owner: delete a form (soft delete; its public id is never reused) and disable its agent (an agent.updated event before form.deleted; the agent stays listed and can never be re-enabled). 404 for an unknown or already deleted form. Example: vibase forms delete <id>',
       },
@@ -596,6 +610,7 @@ export function createFormOperation(env: PreparedEnv, input: unknown): PreparedO
               phone_field: values.phone_field as string | null,
               name_field: values.name_field as string | null,
               consent_text: values.consent_text as string | null,
+              challenge: values.challenge as 'none' | 'turnstile',
             }),
           ),
           ...childSteps(qc, env, id, at, lists, false),

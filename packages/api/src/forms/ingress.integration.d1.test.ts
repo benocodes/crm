@@ -816,6 +816,28 @@ describe('Turnstile and limiter ports (D6, D7, P1-P3)', () => {
     await expectNothingWritten()
   })
 
+  it("a form with challenge 'none' accepts a submission with no token and never calls the verifier", async () => {
+    const s = await seedForm({ challenge: 'none' })
+    for (const fields of [
+      { email: 'jane@acme.test' } as Record<string, string>,
+      { email: 'jane2@acme.test', 'cf-turnstile-response': '' },
+    ]) {
+      const res = await form(s, fields)
+      expect(res.status).toBe(202)
+    }
+    // An unavailable or rejecting verifier changes nothing either: the check is not made.
+    verifier.verdict = { outcome: 'unavailable' }
+    expect((await form(s, { email: 'jane3@acme.test' })).status).toBe(202)
+    expect(verifier.calls).toEqual([])
+  })
+
+  it("a form with challenge 'none' keeps the origin check, the honeypot and the limiters", async () => {
+    const s = await seedForm({ challenge: 'none' })
+    expect((await form(s, { email: 'jane@acme.test' }, { origin: 'https://evil.test' })).status).toBe(403)
+    expect(ipLimiter.keys.length).toBeGreaterThan(0)
+    expect(verifier.calls).toEqual([])
+  })
+
   it('the verifier gets the token and the IP; no IP is passed when it is absent', async () => {
     const s = await seedForm()
     await form(s, good)

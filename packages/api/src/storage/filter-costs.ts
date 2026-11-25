@@ -153,6 +153,7 @@ export const STATED_FILTER_COSTS: readonly StatedFilterCost[] = [
   { list: 'forms', filter: 'phone_field', reason: SMALL },
   { list: 'forms', filter: 'name_field', reason: SMALL },
   { list: 'forms', filter: 'consent_text', reason: SMALL },
+  { list: 'forms', filter: 'challenge', reason: SMALL },
   { list: 'forms', filter: 'created_by', reason: SMALL },
   { list: 'forms', filter: 'created_at', reason: SMALL },
   { list: 'forms', filter: 'updated_at', reason: SMALL },

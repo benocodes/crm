@@ -294,9 +294,11 @@ export async function handleFormIngress(
     if (honeypot) return received(cors)
     if (await formSubmitterBlocked(ports.ctx, form, submitter)) return received(cors)
 
-    // 8. Turnstile, closed on every doubt.
-    const refused = await challenge(ports.turnstile, token, ip, origin)
-    if (refused) return refusal(refused, cors)
+    // 8. The visitor check, when the form asks for one (`challenge: 'turnstile'`), closed on every doubt; a `none` form skips it.
+    if (form.challenge === 'turnstile') {
+      const refused = await challenge(ports.turnstile, token, ip, origin)
+      if (refused) return refusal(refused, cors)
+    }
 
     // 9. Store and capture.
     await captureFormSubmission(ports.ctx, {

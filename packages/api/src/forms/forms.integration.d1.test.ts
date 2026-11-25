@@ -195,12 +195,14 @@ describe('validation matrix (D7, D10, D11, P1, P4)', () => {
       phone_field: null,
       name_field: 'name',
       consent_text: null,
+      challenge: 'none',
       created_by: e.userId,
       organization_id: e.organizationId,
     })
     expect(Object.keys(r.body).sort()).toEqual(
       [
         'allowed_origins',
+        'challenge',
         'consent_text',
         'created_at',
         'created_by',
@@ -216,6 +218,18 @@ describe('validation matrix (D7, D10, D11, P1, P4)', () => {
         'updated_at',
       ].sort(),
     )
+  })
+
+  it("challenge: a new form defaults to 'none', 'turnstile' is accepted, anything else is refused, and an update switches it both ways", async () => {
+    const open = await create({ name: 'Open' })
+    expect(open.body.challenge).toBe('none')
+    const guarded = await create({ name: 'Guarded', challenge: 'turnstile' })
+    expect(guarded.body.challenge).toBe('turnstile')
+    await bad({ name: 'C', challenge: 'captcha' })
+    await bad({ name: 'C', challenge: null })
+    expect((await patch(open.body.id, { challenge: 'turnstile' })).body.challenge).toBe('turnstile')
+    expect((await patch(open.body.id, { challenge: 'none' })).body.challenge).toBe('none')
+    expect(refusal(await patch(open.body.id, { challenge: 'captcha' }))).toEqual([400, 'validation_error'])
   })
 
   it('field shape: contact[email] and dots are accepted; a space, an empty string or 65 characters are refused', async () => {
@@ -451,6 +465,7 @@ describe('surfaces', () => {
     expect(Object.keys(schema.properties).sort()).toEqual(
       [
         'allowed_origins',
+        'challenge',
         'consent_text',
         'email_field',
         'enabled',
