@@ -69,6 +69,8 @@ export interface D1RuntimeOptions {
   authOrgId: string
   /** The cap on any bounded set (D7). See RESULT.md for the verified D1 limits behind the default. Default 100. */
   maxSetSize?: number
+  /** The cap of a cascade's set reads ([[CORE573]] D15). Default `CASCADE_MAX_SET_SIZE`. */
+  maxCascadeSetSize?: number
 }
 
 export function createD1Runtime(d1: D1Like, options: D1RuntimeOptions): Runtime {
@@ -88,7 +90,7 @@ export function createD1Runtime(d1: D1Like, options: D1RuntimeOptions): Runtime 
       } else if (identity.organizationId !== null && identity.organizationId !== options.organizationId) {
         throw new ForeignOrganizationError()
       }
-      const qc = queryContext('d1', maxSetSize)
+      const qc = queryContext('d1', maxSetSize, options.maxCascadeSetSize)
       const meta: unknown[] = []
       const planned = await planUnit(prepared, qc, async (reads) => {
         // One batch so several reads describe one snapshot.

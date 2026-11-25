@@ -290,7 +290,7 @@ describe('deals.delete cascades its live edges (D13/D14)', () => {
   })
 
   it('over the set limit is 400 set_limit_exceeded and nothing changes', async () => {
-    const small = await openD1Engine({ maxSetSize: 2 })
+    const small = await openD1Engine({ maxCascadeSetSize: 2 })
     try {
       const k = assocKit(small)
       const p = await k.call('pipelines.create', { body: { name: 'P' } })

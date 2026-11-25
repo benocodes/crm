@@ -49,7 +49,9 @@ const messageTo = (to: string, at: string) =>
   })
 /** A (contacted at T_A), B (T_B), C and D never. Returns ids by name. */
 async function seed(): Promise<Record<'A' | 'B' | 'C' | 'D', string>> {
-  await must(FULL, 'POST', '/api/v1/identities', { kind: 'email', value: OWNER, own: true })
+  // [[CORE573]] D12: `own` is set by a person, so the owner address is created as the user.
+  const own = await s.call(t, 'user', FULL, 'POST', '/api/v1/identities', { kind: 'email', value: OWNER, own: true })
+  expect(own.status).toBe(201)
   const ids: Record<string, string> = {}
   for (const n of ['A', 'B', 'C', 'D']) {
     const c = await must(FULL, 'POST', '/api/v1/contacts', { name: n })

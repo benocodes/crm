@@ -23,7 +23,15 @@ export const readOne = (query: QueryLike): Read => ({ query, mode: 'one' })
 export const readMaybe = (query: QueryLike): Read => ({ query, mode: 'maybe' })
 export const readAll = (query: QueryLike): Read => ({ query, mode: 'all' })
 /** A bounded set (D7): refused above the runtime's cap before anything is built or written. */
-export const readSet = (query: QueryLike): Read => ({ query, mode: 'set' })
+export const readSet = (query: QueryLike, cap?: 'cascade'): Read => ({
+  query,
+  mode: 'set',
+  ...(cap ? { cap } : {}),
+})
+
+/** The cap that bounds a set read: the cascade cap for `readSet(q, 'cascade')`, else `maxSetSize`. */
+export const capOf = (qc: QueryContext, read: { readonly cap?: 'cascade' }): number =>
+  read.cap === 'cascade' ? qc.maxCascadeSetSize : qc.maxSetSize
 
 export const toCompiled = (query: QueryLike): CompiledQuery<unknown> => ('compile' in query ? query.compile() : query)
 
@@ -65,7 +73,7 @@ export function compileReads(reads: Readonly<Record<string, Read>>, qc: QueryCon
   return Object.entries(reads).map(([key, read]) => {
     const c = toCompiled(read.query)
     if (read.mode !== 'set') return { key, mode: read.mode, sql: c.sql, parameters: c.parameters }
-    const limit = qc.maxSetSize + 1
+    const limit = capOf(qc, read) + 1
     const placeholder = qc.dialect === 'postgres' ? `$${c.parameters.length + 1}` : '?'
     return {
       key,
@@ -73,6 +81,7 @@ export function compileReads(reads: Readonly<Record<string, Read>>, qc: QueryCon
       sql: `select * from (${c.sql}) as "bounded" limit ${placeholder}`,
       parameters: [...c.parameters, limit],
       limit,
+      ...(read.cap ? { cap: read.cap } : {}),
     }
   })
 }
@@ -128,7 +137,7 @@ export async function planUnit<T>(
   const rows = reads.length > 0 ? await runReads(reads) : {}
   for (const read of reads) {
     const got = rows[read.key] ?? []
-    if (read.mode === 'set' && got.length > qc.maxSetSize) throw new SetLimitExceeded(qc.maxSetSize, got.length)
+    if (read.mode === 'set' && got.length > capOf(qc, read)) throw new SetLimitExceeded(capOf(qc, read), got.length)
   }
   const found = Found.ofRows(rows)
   return { unit: prepared.build(found, qc), found, reads: reads.length }

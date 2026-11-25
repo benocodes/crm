@@ -71,7 +71,9 @@ const T_B = '2026-10-15T12:00:00.000Z' // B: outbound
 const T_D = '2026-09-01T00:00:00.000Z' // D: old outbound
 /** A inbound-only, B outbound, C never, D old outbound. Returns the ids by name. */
 async function seedFour(): Promise<Record<'A' | 'B' | 'C' | 'D', string>> {
-  await must(FULL, 'POST', '/api/v1/identities', { kind: 'email', value: OWNER, own: true })
+  // [[CORE573]] D12: `own` is set by a person, so the owner address is created as the user.
+  const own = await s.call(t, 'user', FULL, 'POST', '/api/v1/identities', { kind: 'email', value: OWNER, own: true })
+  expect(own.status).toBe(201)
   const ids = {
     A: await addContact('A', 'a@x.test'),
     B: await addContact('B', 'b@x.test'),

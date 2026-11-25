@@ -639,6 +639,7 @@ export function updateOperation<R extends { id: string }>(
   const at = codecs.timestamp.write(env.now)
   const prepared = { ...values, ...(def.prepare?.({ values, meta: { op: 'update', now: env.now } }) ?? {}) }
   const conflictsOf = (qc: QueryContext) => def.conflicts?.({ qc, env, op: 'update', id, values: prepared }) ?? []
+  const holdOf = (qc: QueryContext) => def.hold!({ qc, env, op: 'update', id, values: prepared })
   return defineOperation<R>({
     name: `${def.name}.update`,
     mutates: !empty,
@@ -647,6 +648,7 @@ export function updateOperation<R extends { id: string }>(
       before: beforeRead(def, qc, env, id, { derived: empty }),
       ...referenceReads(def, qc, env, prepared),
       ...(empty ? {} : conflictReads(conflictsOf(qc))),
+      ...(empty || !def.hold ? {} : { hold: holdOf(qc).read }),
     }),
     build: (found, qc) => {
       const row = found.maybe('before')
@@ -655,6 +657,8 @@ export function updateOperation<R extends { id: string }>(
       const before = toRecord(def, rest)
       // An empty patch checks existence and writes nothing (old behaviour). A same-value patch is a real update.
       if (empty) return unit({ steps: [], events: [], decode: () => before })
+      const hold = def.hold ? holdOf(qc) : undefined
+      hold?.refuse(found.maybe('hold'))
       const merged = merge ? merge(before) : {}
       if (merged === null) return unit({ steps: [], events: [], decode: () => before })
       // [[CORE318]] D4: the bag patch merges onto the before row read here, the one whose stamp guards the UPDATE (so a race is 409, and a proposal
@@ -689,6 +693,8 @@ export function updateOperation<R extends { id: string }>(
       for (const g of def.guards?.(expressionBuilder<StorageDatabase, PreparedResource['table']>(), env) ?? [])
         update = update.where(g)
       for (const g of referenceGuards(def, env, stored)) update = update.where(g)
+      const holdGuard = hold?.guard(before as Record<string, unknown>)
+      if (holdGuard) update = update.where(holdGuard)
       return unit({
         steps: [
           step(update, 'first-mutation', { expect: 'affected' }),
@@ -723,15 +729,21 @@ export function deleteOperation(def: PreparedResource, env: PreparedEnv, rawId: 
   const id = canonicalId(def, rawId)
   const eventId = env.newId()
   const at = codecs.timestamp.write(env.now)
+  const holdOf = (qc: QueryContext) => def.hold!({ qc, env, op: 'delete', id, values: {} })
   return defineOperation<void>({
     name: `${def.name}.delete`,
     mutates: true,
-    reads: (qc) => ({ before: beforeRead(def, qc, env, id) }),
+    reads: (qc) => ({
+      before: beforeRead(def, qc, env, id),
+      ...(def.hold ? { hold: holdOf(qc).read } : {}),
+    }),
     build: (found, qc) => {
       const row = found.maybe('before')
       if (!row) throw notFound(def)
       const { __stamp, ...rest } = row as Record<string, unknown>
       const before = toRecord(def, rest)
+      const hold = def.hold ? holdOf(qc) : undefined
+      hold?.refuse(found.maybe('hold'))
       let update = loose(qc)
         .updateTable(def.table)
         .set({ deleted_at: at, updated_at: at })
@@ -741,6 +753,8 @@ export function deleteOperation(def: PreparedResource, env: PreparedEnv, rawId: 
         .where(sql<SqlBool>`${ts.exact(qc, `${def.table}.updated_at`)} = ${String(__stamp)}`)
       for (const g of def.guards?.(expressionBuilder<StorageDatabase, PreparedResource['table']>(), env) ?? [])
         update = update.where(g)
+      const holdGuard = hold?.guard(before as Record<string, unknown>)
+      if (holdGuard) update = update.where(holdGuard)
       const proof = loose(qc)
         .selectNoFrom(sql<number>`1`.as('applied'))
         .where(sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${eventId})`)

@@ -44,6 +44,8 @@ export function classifyPostgresError(err: unknown): ConstraintKind | null {
 export interface PostgresRuntimeOptions {
   /** The cap on any bounded set (D7). A policy of this runtime, not of any domain program. Default 100. */
   maxSetSize?: number
+  /** The cap of a cascade's set reads ([[CORE573]] D15). Default `CASCADE_MAX_SET_SIZE`. */
+  maxCascadeSetSize?: number
 }
 
 export function createPostgresRuntime(db: Kysely<Database>, options: PostgresRuntimeOptions = {}): Runtime {
@@ -52,7 +54,7 @@ export function createPostgresRuntime(db: Kysely<Database>, options: PostgresRun
     dialect: 'postgres',
     maxSetSize,
     async execute<T>(identity: StorageIdentity, prepared: PreparedOperation<T>): Promise<ExecutionResult<T>> {
-      const qc = queryContext('postgres', maxSetSize)
+      const qc = queryContext('postgres', maxSetSize, options.maxCascadeSetSize)
       // Refusals come before any SQL (CORE41 C1): a mutating account unit, and an internal organisation that is not a UUID.
       if (identity.kind === 'account' && prepared.mutates)
         throw new StorageError(`account units are read-only (${prepared.name})`)

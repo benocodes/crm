@@ -50,6 +50,8 @@ interface AgentRow {
   organizationId: string
   scopes: string[]
   disabled: boolean
+  /** [[CORE573]] D14: `delegated_by` is set; a delegated agent is never reachable by key. */
+  delegated: boolean
 }
 
 /** One read-only internal unit: the agent a control key names, by id (keys in control have no foreign key to the CRM's agents, [[CORE259]] D8). */
@@ -61,7 +63,7 @@ export function apiKeyAgentOperation(agentId: string): PreparedOperation<AgentRo
       [AGENT]: readMaybe(
         qc.db
           .selectFrom('agents')
-          .select(['agents.organization_id', 'agents.scopes', 'agents.disabled_at'])
+          .select(['agents.organization_id', 'agents.scopes', 'agents.disabled_at', 'agents.delegated_by'])
           .where('agents.id', '=', agentId),
       ),
     }),
@@ -72,6 +74,7 @@ export function apiKeyAgentOperation(agentId: string): PreparedOperation<AgentRo
             organizationId: row.organization_id as string,
             scopes: codecs.stringArray.read(row.scopes),
             disabled: codecs.timestamp.readNullable(row.disabled_at) !== null,
+            delegated: row.delegated_by != null,
           }
         : null
       return unit({ steps: [], events: [], decode: () => agent })
@@ -109,7 +112,8 @@ export function createApiKeyAuthenticator(opts: {
   ): Promise<Principal | null> {
     if (state.revokedAt !== null) return null
     if (state.expiresAt !== null && Date.parse(state.expiresAt) <= now.getTime()) return null
-    if (!agent || agent.disabled || agent.organizationId !== m.organizationId) return null
+    // [[CORE573]] D14: a delegated agent's key (issued before D13, or seeded) fails as a revoked one does; the key row is untouched.
+    if (!agent || agent.disabled || agent.delegated || agent.organizationId !== m.organizationId) return null
     const cutoff = now.getTime() - LAST_USED_THROTTLE_MS
     if (state.lastUsedAt === null || Date.parse(state.lastUsedAt) < cutoff)
       await port!.stampUsed({ id: m.id, now: now.toISOString() })

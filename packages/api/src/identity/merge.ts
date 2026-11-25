@@ -194,6 +194,7 @@ export function mergeOperation(
           ])
           .where(touches('contacts', sourceId))
           .orderBy(sql.ref('associations.id')),
+        'cascade',
       ),
       ...Object.fromEntries(
         catalog.flatMap((entry, i) => {
@@ -204,7 +205,7 @@ export function mergeOperation(
               .where(sql<SqlBool>`${sql.ref(`${entry.table}.${entry.column}`)} = ${holder}`)
               .where(sql<SqlBool>`${sql.ref(`${entry.table}.organization_id`)} = ${env.organizationId}`)
             if (entry.liveOnly) q = q.where(sql<SqlBool>`${sql.ref(`${entry.table}.deleted_at`)} is null`)
-            return readSet(q.orderBy(sql.ref(`${entry.table}.id`)))
+            return readSet(q.orderBy(sql.ref(`${entry.table}.id`)), 'cascade')
           }
           // A `uniqueWith` entry also reads the SURVIVOR's live rows, to find the source rows that would collide.
           return [

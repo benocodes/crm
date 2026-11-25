@@ -4,12 +4,12 @@ import { defineOperation, readMaybe, unit, type PreparedOperation } from '@vibas
 
 /**
  * The agent of the organisation, or `null` (a disabled agent exists: [[CORE27]]). `formId` is the id of the `forms` row the agent is the principal of, live or soft-deleted, else `null`:
- * a key for a form's principal is refused ([[CHN423]] D4, P2), decided from this one read before any control write.
+ * a key for a form's principal is refused ([[CHN423]] D4, P2), decided from this one read before any control write. `delegated` is whether the agent acts for a member (`delegated_by` set; [[CORE573]] D13): such an agent is refused a key the same way.
  */
 export function readAgentForKey(
   organizationId: string,
   agentId: string,
-): PreparedOperation<{ formId: string | null } | null> {
+): PreparedOperation<{ formId: string | null; delegated: boolean } | null> {
   return defineOperation({
     name: 'api_keys.read_agent',
     mutates: false,
@@ -17,7 +17,7 @@ export function readAgentForKey(
       agent: readMaybe(
         qc.db
           .selectFrom('agents')
-          .select('agents.id')
+          .select(['agents.id', 'agents.delegated_by'])
           .where('agents.id', '=', agentId)
           .where('agents.organization_id', '=', organizationId),
       ),
@@ -34,9 +34,10 @@ export function readAgentForKey(
         steps: [],
         events: [],
         decode: () => {
-          if (found.maybe('agent') === null) return null
+          const agent = found.maybe('agent')
+          if (agent === null) return null
           const form = found.maybe('form')
-          return { formId: form ? String(form.id) : null }
+          return { formId: form ? String(form.id) : null, delegated: agent.delegated_by != null }
         },
       }),
   })

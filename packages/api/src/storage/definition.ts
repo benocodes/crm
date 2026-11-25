@@ -78,6 +78,16 @@ export interface Conflict {
   readonly read: Read
   readonly refuse: (found: Row | null) => void
 }
+/**
+ * [[CORE573]] D11: a hold on a generated update or delete, decided from one extra plan read and asserted again at commit. `refuse` sees the
+ * read's row (`null` when absent) and throws the refusal; `guard` is ANDed into the write's WHERE, given the before record (null: the write
+ * changes nothing the hold protects, e.g. a no-op patch), so a row that appears between plan and commit aborts the unit.
+ */
+export interface WriteHold {
+  readonly read: Read
+  readonly refuse: (found: Row | null) => void
+  readonly guard: (before: Record<string, unknown>) => Expression<SqlBool> | null
+}
 export type Values = Record<string, unknown>
 
 /** A computed column's value: a literal of the column's type or an expression producing it. */
@@ -315,6 +325,14 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
    * input is `{ after, limit, filters }` for list, the id for get and delete, the body for create and `{ id, body }` for update.
    */
   readonly override?: Partial<Record<CrudAction, (env: PreparedEnv, input: unknown) => PreparedOperation<unknown>>>
+  /** [[CORE573]] D11: a hold on update and delete (see `WriteHold`); absent on every other definition. `values` are the prepared patch (empty for a delete). */
+  readonly hold?: (c: {
+    qc: QueryContext
+    env: PreparedEnv
+    op: 'update' | 'delete'
+    id: string
+    values: Values
+  }) => WriteHold
   /**
    * Extension 5: refusals decided from extra plan reads, after the reference checks (a company domain or an identity
    * address already taken). Synchronous and DB-free: it returns typed queries. `values` are the prepared (normalised) values.

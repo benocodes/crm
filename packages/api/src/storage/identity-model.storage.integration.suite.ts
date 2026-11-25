@@ -344,8 +344,8 @@ export function engineSuite(engineName: EngineName): void {
     let big: Engine
     const smalls: Engine[] = []
     beforeAll(async () => {
-      const capped = await openEngines([engineName], { maxSetSize: 3 })
-      const roomy = await openEngines([engineName], { maxSetSize: 10 })
+      const capped = await openEngines([engineName], { maxSetSize: 3, maxCascadeSetSize: 3 })
+      const roomy = await openEngines([engineName], { maxSetSize: 10, maxCascadeSetSize: 10 })
       smalls.push(...capped, ...roomy)
       small = capped.find((x) => x.name === name)!
       big = roomy.find((x) => x.name === name)!

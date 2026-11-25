@@ -16,6 +16,8 @@ export interface QueryContext {
   readonly db: Kysely<StorageDatabase>
   readonly dialect: Dialect
   readonly maxSetSize: number
+  /** The cap of a cascade set read ([[CORE573]] D15, `readSet(query, 'cascade')`); never below `maxSetSize` in production. */
+  readonly maxCascadeSetSize: number
 }
 
 /**
@@ -26,6 +28,8 @@ export type ReadMode = 'one' | 'maybe' | 'all' | 'set'
 export interface Read {
   readonly query: QueryLike
   readonly mode: ReadMode
+  /** A `set` read bounded by the cascade cap instead of `maxSetSize` ([[CORE573]] D15). */
+  readonly cap?: 'cascade'
 }
 
 export interface Step {

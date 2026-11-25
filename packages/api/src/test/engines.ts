@@ -147,7 +147,7 @@ const scopes = () =>
  */
 export async function openEngines(
   names: readonly EngineName[],
-  opts: { maxConnections?: number; maxSetSize?: number } = {},
+  opts: { maxConnections?: number; maxSetSize?: number; maxCascadeSetSize?: number } = {},
 ): Promise<Engine[]> {
   const out: Engine[] = []
   for (const name of names)
@@ -156,7 +156,7 @@ export async function openEngines(
 }
 
 /** The D1 engine alone, for suites of D1-only features (no Postgres table): CORE62's associations. */
-export async function openD1Engine(opts: { maxSetSize?: number } = {}): Promise<Engine> {
+export async function openD1Engine(opts: { maxSetSize?: number; maxCascadeSetSize?: number } = {}): Promise<Engine> {
   const e = await openD1(opts)
   await e.reset()
   return e
@@ -200,7 +200,7 @@ export function interceptD1(real: D1Like, pending: { hook: (() => Promise<void>)
   } as D1Like
 }
 
-async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
+async function openD1(opts: { maxSetSize?: number; maxCascadeSetSize?: number }): Promise<Engine> {
   const local: LocalD1 = await openLocalD1(['ENGINE'])
   const d1 = local.bindings.ENGINE!
   const pending: { hook: (() => Promise<void>) | null } = { hook: null }
@@ -233,6 +233,7 @@ async function openD1(opts: { maxSetSize?: number }): Promise<Engine> {
           authProvider: LINK.authProvider,
           authOrgId: LINK.authOrgId,
           ...(opts.maxSetSize === undefined ? {} : { maxSetSize: opts.maxSetSize }),
+          ...(opts.maxCascadeSetSize === undefined ? {} : { maxCascadeSetSize: opts.maxCascadeSetSize }),
         }),
       })
     },

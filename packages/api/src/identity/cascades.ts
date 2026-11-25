@@ -96,6 +96,7 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
               selectRecord(associations, qc, env)
                 .where(touches(c.parent.table, id))
                 .orderBy(sql.ref('associations.id')),
+              'cascade',
             ),
           }
         : {}),
@@ -107,6 +108,7 @@ function cascadeDelete(c: Cascade, env: PreparedEnv, rawId: string): PreparedOpe
             selectRecord(k.child, qc, env, undefined, { derived: false })
               .where(sql<SqlBool>`${sql.ref(`${k.child.table}.${k.column}`)} = ${id}`)
               .orderBy(sql.ref(`${k.child.table}.id`)),
+            'cascade',
           ),
         ]),
       ),

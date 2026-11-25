@@ -93,7 +93,7 @@ describe('the set limit', () => {
   it.each(['contacts', 'companies', 'tasks'] as const)(
     '%s.delete with more live edges than the set limit is 400 set_limit_exceeded and changes nothing',
     async (type) => {
-      const small = await openD1Engine({ maxSetSize: 2 })
+      const small = await openD1Engine({ maxCascadeSetSize: 2 })
       try {
         const k = assocKit(small)
         const p = await k.ent[type === 'contacts' ? 'contact' : type === 'companies' ? 'company' : 'task']()

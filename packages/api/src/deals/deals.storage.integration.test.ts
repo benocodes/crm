@@ -818,7 +818,7 @@ describe('delete holds (D13)', () => {
 
 describe('the set limit on a pipeline delete (D13)', () => {
   it('over the limit is 400 set_limit_exceeded and nothing changes', async () => {
-    const limited = await openD1Engine({ maxSetSize: 3 })
+    const limited = await openD1Engine({ maxCascadeSetSize: 3 })
     try {
       const k = assocKit(limited)
       const p = await k.call('pipelines.create', { body: { name: 'Big' } })
