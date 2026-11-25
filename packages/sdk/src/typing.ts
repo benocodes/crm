@@ -1,3 +1,5 @@
+import type { FilterArgs, FilterSpecs } from './filters.js'
+
 /** Helper types the generated `BuiltInOperations` is written with: openapi-typescript's `operations` entry to the flat arguments, result and item (DX603 D3, D5). */
 
 type Empty = Record<never, never>
@@ -29,3 +31,6 @@ export type ResultOf<Op, Status extends number> = Op extends {
 
 /** One item of a paginated result's `data`. */
 export type ItemOf<Result> = Result extends { data: readonly (infer I)[] } ? I : never
+
+/** The arguments with each filter parameter retyped as its `Filter` (DX608 D9); the document's own type for them is dropped. */
+export type WithFilters<Args, F extends FilterSpecs> = Simplify<FilterArgs<Args, F>>

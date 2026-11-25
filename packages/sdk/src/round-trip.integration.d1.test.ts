@@ -1,10 +1,10 @@
 import { type ApiKeyKit, openApiKeyKit } from '@vibase/api/test/api-key'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createClient, isVibaseError } from './index.js'
+import { type BuiltInOperations, type Client, createClient, isVibaseError } from './index.js'
 
 // DX608 P6: the SDK against the real app on D1, authenticated by a real API key the app verifies (control store, not a stubbed principal).
 let k: ApiKeyKit
-let vibase: ReturnType<typeof createClient>
+let vibase: Client<BuiltInOperations>
 beforeAll(async () => {
   k = await openApiKeyKit()
 })

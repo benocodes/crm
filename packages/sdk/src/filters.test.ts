@@ -89,7 +89,7 @@ describe('DX608 D9 filter serialisation', () => {
     expect(fetch.calls).toHaveLength(0)
   })
 
-  it('the cap is the parameter\'s own maxItems from the table, not a constant', async () => {
+  it("the cap is the parameter's own maxItems from the table, not a constant", async () => {
     const fetch = fakeFetch(() => jsonResponse({}))
     const vibase = createClient({
       url: BASE,

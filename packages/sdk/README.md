@@ -35,6 +35,58 @@ A method takes the operation's flat arguments (path, query and body fields in on
 `{ signal }`. It resolves to the success body; a `204` resolves `undefined`; `files.content` resolves the checked `Response`
 for the caller to stream.
 
+## Filters
+
+A list operation's column filters (`x-vibase-filter` parameters) take a bare operand (sent as `eq.<value>`, so a value such as
+`is.gd` is a literal) or an object of the field's operators, one repeated condition per key; `not` carries a second object.
+Operands are typed by the field's kind (a `timestamp` also takes a `Date`), and an operator the field lacks is a type error.
+
+```ts
+await vibase.tasks.list({
+  created_at: { gte: new Date('2026-01-01'), lt: '2026-02-01T00:00:00Z' },
+  status: { not: { in: ['done', 'cancelled'] } },
+  assignee_id: { is: null },
+  title: { ilike: 'renew*' },
+})
+```
+
+`in` items holding `,`, `(`, `)`, `"` or a backslash are quoted for you. Each parameter takes at most the conditions its
+OpenAPI schema allows (`maxItems`, 4 today), counting `not` keys; more is a `400 validation_error` thrown before anything is
+sent. Other parameters (`limit`, `sort`, `after`) are sent as given.
+
+## Pagination
+
+A method returns one page. A paginated operation also has `.all(args?, { signal? })`, an async iterable of items that
+follows `next_cursor` until it is `null` or empty. Every page keeps the other arguments (`limit` included) and the signal and
+calls `auth` once; an `after` in `args` is ignored; a repeated cursor rejects with `invalid_response`. Breaking out sends
+no further request.
+
+```ts
+for await (const task of vibase.tasks.list.all({ limit: 100, status: 'open' })) console.log(task.title)
+```
+
+## Proposals
+
+A proposable operation also has `.propose(args, proposal, { signal? })`, which calls `action_requests.create` with the
+operation id and the same flat `args` (path fields and `null`s kept), and resolves to the action request with `operation`
+narrowed and `arguments` typed. `proposal` is the request's other fields; `reason` is required.
+
+```ts
+const request = await vibase.tasks.update.propose({ id, title: 'Renamed' }, { reason: 'Matches the new naming' })
+```
+
+## Browser sessions
+
+`sessionToken({ url, fetch?, cookie? })` is a credential function for a Better Auth browser session: it exchanges the
+session cookie at `GET <origin>/auth/token` on every call (never cached) and resolves `null` when signed out (a `401`, or a
+success without a `token`), which `createClient` turns into `401 no_credential` without sending the API request. In a
+browser it sends `credentials: 'include'`; server-side, pass `cookie` (a string, or a function called once per request) to
+send that cookie header with `credentials: 'omit'`. Other failures reject with `VibaseError` as above.
+
+```ts
+const vibase = createClient({ url, auth: sessionToken({ url }) })
+```
+
 ## Errors
 
 Every failure rejects with a `VibaseError { status, code, message }`; `isVibaseError(e)` is the guard.

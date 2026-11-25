@@ -7,7 +7,11 @@ const pages = (cursors: (string | null)[]) => {
   let n = 0
   return (call: { url: string }) => {
     const i = n++
-    return jsonResponse({ data: [{ id: `r${i}` }], next_cursor: cursors[i] ?? null, _after: new URL(call.url).searchParams.get('after') })
+    return jsonResponse({
+      data: [{ id: `r${i}` }],
+      next_cursor: cursors[i] ?? null,
+      _after: new URL(call.url).searchParams.get('after'),
+    })
   }
 }
 const collect = async (iter: AsyncIterable<any>, max = 20) => {
