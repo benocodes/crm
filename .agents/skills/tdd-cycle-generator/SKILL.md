@@ -501,6 +501,12 @@ planner rules, no migration, no E2E, the same package as DX603 cycle 1. 155k / 3
 (+298 / +535 lines, 19 files), approved round 2. The Watch out "never read the generated files" cut the cost to about
 40% of DX603 cycle 1's at the same Size line: keep it in every charter that regenerates a large artifact. Three gate
 runs (two red on load-sensitive tests outside the cycle, #611) are not cycle cost.
+**CORE207** (`knowledge/specs/041-CORE207-aggregate-group-by/RETRO.md`): 6 groups (1 matrix), 8 decisions, at the limit on
+both, no migration or E2E. 179k / 53 calls in one run (+183 code / +531 test lines, +287 generated, 16 files), approved round
+0. The budget holds: a new parameter on an operation already registry-derived on every surface is cheap even at the decision
+limit. When a charter reduces a spec's scope clause ("needs no per-field scope"), grep the checks that exist first
+(`checkContentScope`, `customFilters[].requires`): 207.12 said column filters carry no per-field scope, and [[API514]]
+content fields are one (review 207.19, #618).
 
 ### Step 3: Resolve identities
 
