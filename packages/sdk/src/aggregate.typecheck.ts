@@ -92,9 +92,9 @@ export async function answerTypes() {
 
   const single = await vibase.tasks.aggregate({ group_by: 'assignee_id' })
   type _single = Expect<Equal<(typeof single)['groups'][number]['key'], { assignee_id: string | null }>>
-  const flags = await workspace.projects__c.aggregate({ group_by: ['stage', 'name'], max: 'start_date' })
+  const flags = await workspace.projects__c.aggregate({ group_by: ['stage', 'name'], max: 'name' })
   type _flag = Expect<Equal<(typeof flags)['groups'][number]['key'], { stage: string | null; name: string | null }>>
-  type _flagmax = Expect<Equal<(typeof flags)['groups'][number]['max'], { start_date: string | null }>>
+  type _flagmax = Expect<Equal<(typeof flags)['groups'][number]['max'], { name: string | null }>>
 
   // an optional group_by is the union of both answers
   const maybe: 'stage_id' | undefined = Math.random() > 0.5 ? 'stage_id' : undefined

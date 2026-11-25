@@ -65,6 +65,32 @@ no further request.
 for await (const task of vibase.tasks.list.all({ limit: 100, status: 'open' })) console.log(task.title)
 ```
 
+## Aggregates
+
+`vibase.<list>.aggregate(args?)` exists on contacts, companies, deals, tasks and every custom object. It is one method, typed
+from the `x-vibase-aggregate` extension the API publishes on each aggregate operation, so the call site names only the fields
+a function takes. `sum`, `avg`, `min` and `max` take one field or an array of them (a function with no field on the list has no
+parameter); `group_by` takes one groupable field or a tuple of one or two. Filters are typed as for `list`. A comma-joined
+string no longer type-checks; the client joins an array itself and refuses an empty one with
+`VibaseError(400, 'validation_error', '<param>: give at least one field; nothing was sent')`. It checks no names, group cap or
+duplicates: the server's own 400 comes back.
+
+The answer is typed by what was asked: ungrouped it is `{ count }` plus the functions given and `currency` for a money field;
+grouped it is `{ count, groups }` with `groups[].key` by field kind (always `| null`, the null group) and the same function keys
+in each group. An optional `group_by` gives the union of both. A workspace's generated types (`generate --schema`) carry the
+same typing for its custom objects and `__c` fields.
+
+```ts
+const total = await vibase.deals.aggregate({ status: 'open', sum: 'amount_minor' })
+total.sum.amount_minor // number | null
+total.currency.amount_minor // string | null
+
+const perStage = await vibase.deals.aggregate({ group_by: ['stage_id', 'currency'], sum: 'amount_minor' })
+for (const g of perStage.groups) console.log(g.key.stage_id, g.key.currency, g.count, g.sum.amount_minor)
+
+await vibase.deals.aggregate({ sum: 'name' }) // compile error: sum takes amount_minor
+```
+
 ## Proposals
 
 A proposable operation also has `.propose(args, proposal, { signal? })`, which calls `action_requests.create` with the

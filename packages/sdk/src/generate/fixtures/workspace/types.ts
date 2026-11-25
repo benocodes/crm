@@ -9382,6 +9382,7 @@ export type WorkspaceOperations = {
     method: 'aggregate'
     args: WithFilters<ArgsOf<ApiDocument.operations['companies.aggregate']>, { 'domain': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike']; 'id': ['uuid', 'eq' | 'neq' | 'in']; 'name': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'created_by': ['uuid', 'eq' | 'neq' | 'in']; 'created_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'updated_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in'] }>
     result: ResultOf<ApiDocument.operations['companies.aggregate'], 200>
+    aggregate: { fields: { sum: never; avg: never; min: 'name' | 'domain' | 'created_at' | 'updated_at'; max: 'name' | 'domain' | 'created_at' | 'updated_at'; group_by: 'name' | 'domain' | 'created_by' }; kinds: { 'name': 'text'; 'domain': 'text'; 'created_at': 'timestamp'; 'updated_at': 'timestamp'; 'created_by': 'uuid' }; money: {  } }
     proposable: false
     paginated: false
   }
@@ -9554,6 +9555,7 @@ export type WorkspaceOperations = {
     method: 'aggregate'
     args: WithFilters<ArgsOf<ApiDocument.operations['contacts.aggregate']>, { 'company_id': ['uuid', 'eq' | 'neq' | 'in' | 'is']; 'id': ['uuid', 'eq' | 'neq' | 'in']; 'name': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike']; 'merged_into_id': ['uuid', 'eq' | 'neq' | 'in' | 'is']; 'created_by': ['uuid', 'eq' | 'neq' | 'in']; 'created_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'updated_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'tier__c': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike'] }>
     result: ResultOf<ApiDocument.operations['contacts.aggregate'], 200>
+    aggregate: { fields: { sum: never; avg: never; min: 'name' | 'created_at' | 'updated_at' | 'tier__c'; max: 'name' | 'created_at' | 'updated_at' | 'tier__c'; group_by: 'name' | 'company_id' | 'merged_into_id' | 'created_by' | 'tier__c' }; kinds: { 'name': 'text'; 'created_at': 'timestamp'; 'updated_at': 'timestamp'; 'tier__c': 'text'; 'company_id': 'uuid'; 'merged_into_id': 'uuid'; 'created_by': 'uuid' }; money: {  } }
     proposable: false
     paginated: false
   }
@@ -9619,6 +9621,7 @@ export type WorkspaceOperations = {
     method: 'aggregate'
     args: WithFilters<ArgsOf<ApiDocument.operations['deals.aggregate']>, { 'pipeline_id': ['uuid', 'eq' | 'neq' | 'in']; 'stage_id': ['uuid', 'eq' | 'neq' | 'in']; 'owner_id': ['uuid', 'eq' | 'neq' | 'in' | 'is']; 'created_by': ['uuid', 'eq' | 'neq' | 'in']; 'currency': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike']; 'id': ['uuid', 'eq' | 'neq' | 'in']; 'name': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'amount_minor': ['integer', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'expected_close_date': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike']; 'closed_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'created_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'updated_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in'] }>
     result: ResultOf<ApiDocument.operations['deals.aggregate'], 200>
+    aggregate: { fields: { sum: 'amount_minor'; avg: 'amount_minor'; min: 'name' | 'amount_minor' | 'currency' | 'expected_close_date' | 'closed_at' | 'created_at' | 'updated_at'; max: 'name' | 'amount_minor' | 'currency' | 'expected_close_date' | 'closed_at' | 'created_at' | 'updated_at'; group_by: 'name' | 'pipeline_id' | 'stage_id' | 'amount_minor' | 'currency' | 'expected_close_date' | 'owner_id' | 'created_by' }; kinds: { 'amount_minor': 'integer'; 'name': 'text'; 'currency': 'text'; 'expected_close_date': 'text'; 'closed_at': 'timestamp'; 'created_at': 'timestamp'; 'updated_at': 'timestamp'; 'pipeline_id': 'uuid'; 'stage_id': 'uuid'; 'owner_id': 'uuid'; 'created_by': 'uuid' }; money: { 'amount_minor': 'currency' } }
     proposable: false
     paginated: false
   }
@@ -10055,6 +10058,7 @@ export type WorkspaceOperations = {
     method: 'aggregate'
     args: WithFilters<ArgsOf<ApiDocument.operations['projects__c.aggregate']>, { 'id': ['uuid', 'eq' | 'neq' | 'in']; 'created_by': ['uuid', 'eq' | 'neq' | 'in']; 'created_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'updated_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'name': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'budget': ['integer', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'stage': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike'] }>
     result: ResultOf<ApiDocument.operations['projects__c.aggregate'], 200>
+    aggregate: { fields: { sum: 'budget'; avg: 'budget'; min: 'created_at' | 'updated_at' | 'name' | 'budget' | 'stage'; max: 'created_at' | 'updated_at' | 'name' | 'budget' | 'stage'; group_by: 'created_by' | 'name' | 'budget' | 'stage' }; kinds: { 'budget': 'integer'; 'created_at': 'timestamp'; 'updated_at': 'timestamp'; 'name': 'text'; 'stage': 'text'; 'created_by': 'uuid' }; money: {  } }
     proposable: false
     paginated: false
   }
@@ -10161,6 +10165,7 @@ export type WorkspaceOperations = {
     method: 'aggregate'
     args: WithFilters<ArgsOf<ApiDocument.operations['tasks.aggregate']>, { 'status': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'assignee_id': ['uuid', 'eq' | 'neq' | 'in' | 'is']; 'id': ['uuid', 'eq' | 'neq' | 'in']; 'title': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'notes': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike']; 'due_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'completed_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'created_by': ['uuid', 'eq' | 'neq' | 'in']; 'created_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'updated_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in'] }>
     result: ResultOf<ApiDocument.operations['tasks.aggregate'], 200>
+    aggregate: { fields: { sum: never; avg: never; min: 'title' | 'notes' | 'status' | 'due_at' | 'completed_at' | 'created_at' | 'updated_at'; max: 'title' | 'notes' | 'status' | 'due_at' | 'completed_at' | 'created_at' | 'updated_at'; group_by: 'title' | 'notes' | 'status' | 'assignee_id' | 'created_by' }; kinds: { 'title': 'text'; 'notes': 'text'; 'status': 'text'; 'due_at': 'timestamp'; 'completed_at': 'timestamp'; 'created_at': 'timestamp'; 'updated_at': 'timestamp'; 'assignee_id': 'uuid'; 'created_by': 'uuid' }; money: {  } }
     proposable: false
     paginated: false
   }

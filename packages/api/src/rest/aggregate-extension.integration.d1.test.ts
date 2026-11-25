@@ -40,7 +40,13 @@ describe('x-vibase-aggregate (D1)', () => {
       for (const op of Object.values<any>(item)) if (op?.operationId) ops[op.operationId] = op
     const carriers = Object.keys(ops).filter((id) => ops[id]['x-vibase-aggregate'] !== undefined)
     expect(carriers.sort()).toEqual(
-      [`contacts.aggregate`, 'companies.aggregate', 'deals.aggregate', 'tasks.aggregate', `${PROJECTS_KEY}.aggregate`].sort(),
+      [
+        `contacts.aggregate`,
+        'companies.aggregate',
+        'deals.aggregate',
+        'tasks.aggregate',
+        `${PROJECTS_KEY}.aggregate`,
+      ].sort(),
     )
     for (const id of carriers) {
       const list = id.slice(0, -'.aggregate'.length)

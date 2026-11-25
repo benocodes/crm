@@ -161,6 +161,13 @@ function place(entry: OperationEntry, args: Record<string, unknown>) {
         for (const condition of serialiseFilter(name, value, filter)) query.push([name, condition])
         continue
       }
+      if (entry.aggregateParams?.includes(name) && Array.isArray(value)) {
+        // DX616 D5: an array is one comma-joined value; an empty one would change the answer's shape, so it is refused before anything is sent.
+        if (value.length === 0)
+          throw new VibaseError(400, 'validation_error', `${name}: give at least one field; nothing was sent`)
+        query.push([name, value.join(',')])
+        continue
+      }
       for (const item of Array.isArray(value) ? value : [value])
         if (item !== undefined && item !== null) query.push([name, String(item)])
     } else if (entry.body) body[name] = value

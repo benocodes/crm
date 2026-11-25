@@ -85,7 +85,7 @@ describe('DX616 D2 the generator reads the extension', () => {
     expect(without.types).not.toContain('\n    aggregate: {')
     expect(without.operations).not.toContain('aggregateParams')
     const removeAdditions = (text: string) =>
-      text.replace(/\n    aggregate: \{[^\n]*/g, '').replace(/\n\s+"aggregateParams": \[[^\]]*\],/g, '')
+      text.replace(/\n {4}aggregate: \{[^\n]*/g, '').replace(/,\n\s+"aggregateParams": \[[^\]]*\]/g, '')
     expect(removeAdditions(withExt.types)).toBe(without.types)
     expect(removeAdditions(withExt.operations)).toBe(without.operations)
     expect(withExt.types).toContain('\n    aggregate: {')

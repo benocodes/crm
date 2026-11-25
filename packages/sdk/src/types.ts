@@ -1,4 +1,5 @@
 import type { FilterEntry } from './filters.js'
+import type { AggregateMethod, AggregateShape } from './typing.js'
 
 /** What the generator and the client share: the operation map (types) and the operation table (data), DX603 D5 and D12. */
 
@@ -16,6 +17,8 @@ export interface OperationShape {
   item?: unknown
   proposable: boolean
   paginated: boolean
+  /** An aggregate operation's field lists, kinds and money fields (DX616 D2); absent on every other operation. */
+  aggregate?: AggregateShape
 }
 
 /** The map: operation id to its shape. The generator writes `BuiltInOperations` as a type alias (an interface has no index signature, so it would not satisfy this); DX604 writes a per-workspace one. */
@@ -41,6 +44,8 @@ export interface OperationEntry<O extends OperationShape = OperationShape> {
   readonly proposable: O['proposable']
   /** Query parameters that are column filters (`x-vibase-filter`): their kind and operators. */
   readonly filters: Readonly<Record<string, FilterEntry>>
+  /** An aggregate operation's list parameters (`sum`, `group_by`, ...): an array is sent comma-joined, an empty one refused (DX616 D5). */
+  readonly aggregateParams?: readonly string[]
 }
 
 /** The runtime table, typed by the map it was generated with, so `createClient` infers the map from it. */
@@ -51,8 +56,9 @@ export interface CallOptions {
 }
 
 /** A method: the flat arguments (omitted when none is required) and an optional `{ signal }`. */
-export type Method<O extends OperationShape> =
-  Record<never, never> extends O['args']
+export type Method<O extends OperationShape> = O extends { aggregate: infer S extends AggregateShape }
+  ? AggregateMethod<O['args'], S>
+  : Record<never, never> extends O['args']
     ? (args?: O['args'], options?: CallOptions) => Promise<O['result']>
     : (args: O['args'], options?: CallOptions) => Promise<O['result']>
 

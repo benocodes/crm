@@ -1306,7 +1306,12 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
         ],
         "max": 4
       }
-    }
+    },
+    "aggregateParams": [
+      "group_by",
+      "max",
+      "min"
+    ]
   },
   'companies.create': {
     "namespace": "companies",
@@ -2127,7 +2132,12 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
         ],
         "max": 4
       }
-    }
+    },
+    "aggregateParams": [
+      "group_by",
+      "max",
+      "min"
+    ]
   },
   'contacts.create': {
     "namespace": "contacts",
@@ -2533,7 +2543,14 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
         ],
         "max": 4
       }
-    }
+    },
+    "aggregateParams": [
+      "avg",
+      "group_by",
+      "max",
+      "min",
+      "sum"
+    ]
   },
   'deals.create': {
     "namespace": "deals",
@@ -4621,7 +4638,14 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
         ],
         "max": 4
       }
-    }
+    },
+    "aggregateParams": [
+      "avg",
+      "group_by",
+      "max",
+      "min",
+      "sum"
+    ]
   },
   'projects__c.create': {
     "namespace": "projects__c",
@@ -5139,7 +5163,12 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
         ],
         "max": 4
       }
-    }
+    },
+    "aggregateParams": [
+      "group_by",
+      "max",
+      "min"
+    ]
   },
   'tasks.create': {
     "namespace": "tasks",
