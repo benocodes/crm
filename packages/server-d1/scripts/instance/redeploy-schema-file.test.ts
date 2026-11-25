@@ -157,6 +157,31 @@ describe('group 2: the place and the staging (D26, D27, P3, P7)', () => {
     expect(w.fetchUrls).toEqual([])
     expect(readFileSync(w.settingsPath, 'utf8')).toBe(before)
   })
+  it.each(['count', 'sum', 'avg', 'min', 'max', 'group_by'])(
+    '[[CORE615]] D6: a custom field named %s is exit 2 with reserved_name before any call',
+    async (name) => {
+      const s = extSim()
+      const w = extWorld(s, HEALTH)
+      const before = readFileSync(w.settingsPath, 'utf8')
+      const code = await runRedeploy(
+        [
+          '--env',
+          'demo',
+          '--schema',
+          extFile(
+            'reserved.json',
+            JSON.stringify({ version: 1, define: { projects__c: { fields: { [name]: { kind: 'integer' } } } } }),
+          ),
+        ],
+        w.deps,
+      )
+      expect(code).toBe(2)
+      expect(w.err.join('\n')).toMatch(new RegExp(`reserved_name at define.projects__c.fields.${name}`))
+      expect(w.wrangler).toEqual([])
+      expect(w.fetchUrls).toEqual([])
+      expect(readFileSync(w.settingsPath, 'utf8')).toBe(before)
+    },
+  )
   it('a real run records the absolute path; a later run without the flag stages the recorded file, byte-equal', async () => {
     const s = extSim()
     const p = extFile('a.json', ext.a())

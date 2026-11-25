@@ -6,6 +6,7 @@ import type { Bag } from '../storage/additional-props.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withPropertyBag } from '../storage/bag-filter.js'
 import { withColumnSorts } from '../storage/sorts.js'
+import { withAggregate } from '../storage/aggregate.js'
 import { withColumnFilters } from '../storage/column-filters.js'
 import { defaultBuiltIns, type BuiltInLookup } from './built-ins.js'
 import { contactActivityFilters, contactDerived } from './contact-activity.js'
@@ -60,7 +61,7 @@ export function defineContacts(ext: ExtensionFields | undefined, builtIns: () =>
     ),
   )
   /** [[CORE549]] D10: the list takes the bag filter, `additional_props=<key>.<condition>`. */
-  return withPropertyBag(contactsBase)
+  return withPropertyBag(withAggregate(contactsBase))
 }
 
 export const contacts = defineContacts(undefined, defaultBuiltIns)

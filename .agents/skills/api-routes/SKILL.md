@@ -710,6 +710,15 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   numeric limit must be computed in a type that cannot overflow (`total()`) or the engine error mapped (#208). The cost
   sentence in the operation description is generated, names no index, and is checked against `EXPLAIN QUERY PLAN`
   (`storage/aggregate-cost.integration.d1.test.ts`): keep it that way when a second list opts in.
+  **Who opts in** ([[CORE615]] D1): the declared objects only. That is `EXTENSIBLE_OBJECTS` (contacts, companies,
+  deals, tasks) plus every custom object, because `defineCustomObject` wraps them all. A test holds that set equal
+  in both directions, and `notes` is the "excluded by design" negative. **A function with no field on a list is
+  not a parameter of it** (D5): `aggregateParams` leaves it out of the query schema, and so out of the MCP tool and
+  the CLI flags. Naming it is `400` `<fn>: <list> has no <kinds> field`. `schema.get` keeps the key as `[]`. An
+  integer `__c` field brings `sum`/`avg` back for that workspace. The six aggregate parameter names
+  (`group_by` included) are custom object `RESERVED_NAMES` (D6), so the load error above can never come from a
+  schema file. The plan check runs per aggregatable list. It picks each filter's operand by trying samples through
+  the list's own `prepare` (domain, enum and boolean filters refuse generic samples), not through `parseCondition`.
 - **A repeated query parameter is refused on REST unless its declared schema accepts a list** (`readInput` in
   `src/rest/app.ts`, [[CORE129]] D10a, [[CORE602]] D3): Hono's `c.req.query()` keeps the first value, so `readInput` asks
   `acceptsList(schema)` (`storage/column-filters.ts`) of each query parameter's declared schema and reads those with

@@ -60,7 +60,7 @@ const ENUM_VALUE_MAX = 100
 
 /**
  * D19: a declaration may not name a bookkeeping column or any reserved name. The bookkeeping columns, `additional_props` ([[CORE318]]), the list parameters (`after`, `limit`, `sort`, `order`, `q`, `tag`, `tag_id`)
- * and the CLI's reserved flags (`data`, `all`, `refresh`, `profile`, `server`, `output`, `help`): a field named like one would make the list command impossible to derive.
+ * the CLI's reserved flags (`data`, `all`, `refresh`, `profile`, `server`, `output`, `help`) and the aggregate parameters (`count`, `sum`, `avg`, `min`, `max`, `group_by`, [[CORE615]] D6): a field named like one would make the list or aggregate command impossible to derive.
  */
 export const RESERVED_NAMES: readonly string[] = [
   'id',
@@ -84,6 +84,13 @@ export const RESERVED_NAMES: readonly string[] = [
   'server',
   'output',
   'help',
+  // [[CORE615]] D6: the aggregate parameters of `<name>.aggregate` (`group_by` is reserved for CORE207).
+  'count',
+  'sum',
+  'avg',
+  'min',
+  'max',
+  'group_by',
 ]
 
 export const NAME_SHAPE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/
@@ -175,7 +182,12 @@ const fieldsSchema = z.record(z.string(), fieldSchema).superRefine((fields, ctx)
     else if (name.length > NAME_MAX)
       refuse(ctx, 'field_name_length', `a field name is at most ${NAME_MAX} characters`, at)
     else if (RESERVED_NAMES.includes(name))
-      refuse(ctx, 'reserved_name', `"${name}" is reserved (a bookkeeping column, a list parameter or a CLI flag)`, at)
+      refuse(
+        ctx,
+        'reserved_name',
+        `"${name}" is reserved (a bookkeeping column, a list or aggregate parameter or a CLI flag)`,
+        at,
+      )
   }
 })
 

@@ -36,12 +36,14 @@ describe('P3: no declarations, no change', () => {
     expect(await snapshot(createVibaseRegistry({}))).toBe(plain)
     expect(plain).not.toContain('__c')
   })
-  it('a registry with a definition differs by exactly that object: five operations, the bag read and three scopes', () => {
+  it('a registry with a definition differs by exactly that object: six operations (the aggregate, CORE615 D1), the bag read and three scopes', () => {
     const plain = createVibaseRegistry()
     const custom = createVibaseRegistry({ definitions: [projectsDefinition()] })
     const added = custom.operations().filter((o) => !plain.get(o.name))
     expect(added.map((o) => o.name).sort()).toEqual(
-      ['create', 'delete', 'get', 'list', 'property_keys', 'update'].map((x) => `${PROJECTS_KEY}.${x}`).sort(),
+      ['aggregate', 'create', 'delete', 'get', 'list', 'property_keys', 'update']
+        .map((x) => `${PROJECTS_KEY}.${x}`)
+        .sort(),
     )
     const scopes = custom.declaredScopes().filter((x) => !plain.declaredScopes().includes(x))
     expect(scopes).toEqual([`${PROJECTS_KEY}:read`, `${PROJECTS_KEY}:request_approval`, `${PROJECTS_KEY}:write`])

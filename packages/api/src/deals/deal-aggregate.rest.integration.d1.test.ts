@@ -168,18 +168,23 @@ describe('operation contract (D13)', () => {
     await refused('sum=amount_minor')
     expect([await s.countEvents(), await s.countRows('deals')]).toEqual([events, rows])
   })
-  it('a list that has not opted in has no aggregate operation or route', async () => {
+  it('a list that is not a declared object has no aggregate operation or route (CORE615 D1)', async () => {
     const registry = createVibaseRegistry()
     expect(registry.get('deals.aggregate')).toBeDefined()
     expect(
       registry
         .operations()
         .filter((o) => o.name.endsWith('.aggregate'))
-        .map((o) => o.name),
-    ).toEqual(['deals.aggregate'])
+        .map((o) => o.name)
+        .sort(),
+    ).toEqual(['companies.aggregate', 'contacts.aggregate', 'deals.aggregate', 'tasks.aggregate'])
     const doc = (await (await s.call(t, 'agent', FULL, 'GET', '/api/v1/openapi.json')).json()) as any
-    expect(Object.keys(doc.paths).filter((p) => p.endsWith('/aggregate'))).toEqual(['/api/v1/deals/aggregate'])
-    expect((await call([...FULL, 'contacts:read'], 'GET', '/api/v1/contacts/aggregate')).status).toBe(404)
+    expect(
+      Object.keys(doc.paths)
+        .filter((p) => p.endsWith('/aggregate'))
+        .sort(),
+    ).toEqual(['companies', 'contacts', 'deals', 'tasks'].map((r) => `/api/v1/${r}/aggregate`))
+    expect((await call([...FULL, 'notes:read'], 'GET', '/api/v1/notes/aggregate')).status).toBe(404)
   })
 })
 

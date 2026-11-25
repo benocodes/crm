@@ -7,6 +7,7 @@ import type { Bag } from '../storage/additional-props.js'
 import { withPropertyBag } from '../storage/bag-filter.js'
 import { definePreparedResource } from '../storage/definition.js'
 import { withColumnSorts } from '../storage/sorts.js'
+import { withAggregate } from '../storage/aggregate.js'
 import { withColumnFilters } from '../storage/column-filters.js'
 import { defaultBuiltIns, type BuiltInLookup } from './built-ins.js'
 import { tagIdFilter, tagNameFilter } from './tag-filter.js'
@@ -96,7 +97,7 @@ export function defineTasks(ext: ExtensionFields | undefined, builtIns: () => Bu
   )
 
   /** [[CORE549]] D10: the list takes the bag filter, `additional_props=<key>.<condition>`. */
-  return withPropertyBag(tasksBase)
+  return withPropertyBag(withAggregate(tasksBase))
 }
 
 export const tasks = defineTasks(undefined, defaultBuiltIns)

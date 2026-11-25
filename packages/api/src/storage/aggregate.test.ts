@@ -33,13 +33,13 @@ describe('deals declares its aggregate fields from the kind table (D14, D19)', (
   it('the money declaration is amount_minor to currency', () => {
     expect(spec.money).toEqual({ amount_minor: 'currency' })
   })
-  it('only deals opts in: no other registered resource has an aggregate declaration', () => {
+  it('only the declared objects opt in (CORE615 D1): no other registered resource has an aggregate declaration', () => {
     const others = createVibaseRegistry()
       .resources()
       .filter((d) => (d as { aggregate?: unknown }).aggregate !== undefined)
       .map((d) => d.name)
-    expect(others).toEqual(['deals'])
-    expect((contacts as { aggregate?: unknown }).aggregate).toBeUndefined()
+    expect(others.sort()).toEqual(['companies', 'contacts', 'deals', 'tasks'])
+    expect((contacts as { aggregate?: unknown }).aggregate).toBeDefined()
   })
 })
 

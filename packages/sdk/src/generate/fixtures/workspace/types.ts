@@ -24,6 +24,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tasks/aggregate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count tasks, and sum, average or take the minimum or maximum of their fields
+         * @description Counts the live tasks that match the filters, which are exactly the filters of tasks.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields. The answer is { count, sum?, avg?, min?, max?, currency? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all. Cost: reads every live task that matches the filters, with no page limit; a filter schema.get marks `indexed` narrows that read through an index; any other filter, or none, reads every live task of the workspace.
+         */
+        get: operations["tasks.aggregate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tasks/property-keys": {
         parameters: {
             query?: never;
@@ -81,6 +101,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/companies/aggregate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count companies, and sum, average or take the minimum or maximum of their fields
+         * @description Counts the live companies that match the filters, which are exactly the filters of companies.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields. The answer is { count, sum?, avg?, min?, max?, currency? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all. Cost: reads every live company that matches the filters, with no page limit; a filter schema.get marks `indexed` narrows that read through an index; any other filter, or none, reads every live company of the workspace.
+         */
+        get: operations["companies.aggregate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/companies/property-keys": {
         parameters: {
             query?: never;
@@ -132,6 +172,26 @@ export interface paths {
         put?: never;
         /** Create a contact */
         post: operations["contacts.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contacts/aggregate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count contacts, and sum, average or take the minimum or maximum of their fields
+         * @description Counts the live contacts that match the filters, which are exactly the filters of contacts.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields. The answer is { count, sum?, avg?, min?, max?, currency? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all. Cost: reads every live contact that matches the filters, with no page limit; a filter schema.get marks `indexed` narrows that read through an index; any other filter, or none, reads every live contact of the workspace.
+         */
+        get: operations["contacts.aggregate"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -733,6 +793,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects__c/aggregate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count projects__c, and sum, average or take the minimum or maximum of their fields
+         * @description Counts the live projects__c that match the filters, which are exactly the filters of projects__c.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields. The answer is { count, sum?, avg?, min?, max?, currency? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all. Cost: reads every live projects__c that matches the filters, with no page limit; a filter schema.get marks `indexed` narrows that read through an index; any other filter, or none, reads every live projects__c of the workspace.
+         */
+        get: operations["projects__c.aggregate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects__c/property-keys": {
         parameters: {
             query?: never;
@@ -1119,6 +1199,76 @@ export interface operations {
             };
         };
     };
+    "tasks.aggregate": {
+        parameters: {
+            query?: {
+                /** @description Minimum of fields, comma-separated: title, notes, status, due_at, completed_at, created_at, updated_at. The answer has min as an object keyed by field. Nulls are ignored; no values gives null. */
+                min?: string;
+                /** @description Maximum of fields, comma-separated: title, notes, status, due_at, completed_at, created_at, updated_at. The answer has max as an object keyed by field. Nulls are ignored; no values gives null. */
+                max?: string;
+                /** @description Filter by status (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: status=ilike.*acme*. A range is two conditions: status=gte.a&status=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send status=eq.<value> for a literal. */
+                status?: string | string[];
+                /** @description Filter by assignee_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in, is. Example: assignee_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send assignee_id=eq.<value> for a literal. */
+                assignee_id?: string | string[];
+                /** @description Only rows linked to this tag (an association). Needs tags:read and associations:read. */
+                tag_id?: string;
+                /** @description Only rows linked to the live tag with exactly this name (trimmed, case-sensitive: unlike tags?name=, which folds ASCII case). An unknown name gives an empty page. Needs tags:read and associations:read. */
+                tag?: string;
+                /** @description Filter by one key of additional_props: additional_props=<key>.<condition>, once per request. Conditions: eq (or a bare value), neq, in, is.null, not.is.null. Example: additional_props=employees.eq.40. A stored string matches by its text and a stored number or boolean by its JSON literal (employees.eq.40 matches 40 and "40", verified.eq.true matches true and "true"), case-sensitively. An absent key matches only is.null: eq, neq and in never match it. Reads every live row of the organisation, whatever the index. Other operators and not. forms are refused; list the keys in use with the property_keys read. */
+                additional_props?: string;
+                /** @description Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal. */
+                id?: string | string[];
+                /** @description Filter by title (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: title=ilike.*acme*. A range is two conditions: title=gte.a&title=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send title=eq.<value> for a literal. */
+                title?: string | string[];
+                /** @description Filter by notes (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: notes=ilike.*acme*. A range is two conditions: notes=gte.a&notes=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send notes=eq.<value> for a literal. */
+                notes?: string | string[];
+                /** @description Filter by due_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: due_at=gte.2026-11-01. A range is two conditions: due_at=gte.2026-11-01&due_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send due_at=eq.<value> for a literal. */
+                due_at?: string | string[];
+                /** @description Filter by completed_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: completed_at=gte.2026-11-01. A range is two conditions: completed_at=gte.2026-11-01&completed_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send completed_at=eq.<value> for a literal. */
+                completed_at?: string | string[];
+                /** @description Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal. */
+                created_by?: string | string[];
+                /** @description Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. A range is two conditions: created_at=gte.2026-11-01&created_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal. */
+                created_at?: string | string[];
+                /** @description Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. A range is two conditions: updated_at=gte.2026-11-01&updated_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal. */
+                updated_at?: string | string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The live rows that match the filters. */
+                        count: number;
+                        sum?: {
+                            [key: string]: number | null;
+                        };
+                        avg?: {
+                            [key: string]: number | null;
+                        };
+                        min?: {
+                            [key: string]: number | string | null;
+                        };
+                        max?: {
+                            [key: string]: number | string | null;
+                        };
+                        /** @description For each money field a function was asked of: the one currency of its amounts, or null when there are none. */
+                        currency?: {
+                            [key: string]: string | null;
+                        };
+                    };
+                };
+            };
+        };
+    };
     "tasks.property_keys": {
         parameters: {
             query?: never;
@@ -1394,6 +1544,68 @@ export interface operations {
                         created_by: string;
                         created_at: string;
                         updated_at: string;
+                    };
+                };
+            };
+        };
+    };
+    "companies.aggregate": {
+        parameters: {
+            query?: {
+                /** @description Minimum of fields, comma-separated: name, domain, created_at, updated_at. The answer has min as an object keyed by field. Nulls are ignored; no values gives null. */
+                min?: string;
+                /** @description Maximum of fields, comma-separated: name, domain, created_at, updated_at. The answer has max as an object keyed by field. Nulls are ignored; no values gives null. */
+                max?: string;
+                /** @description Filter by domain (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: domain=ilike.*acme*. A range is two conditions: domain=gte.a&domain=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send domain=eq.<value> for a literal. */
+                domain?: string | string[];
+                /** @description Only rows linked to this tag (an association). Needs tags:read and associations:read. */
+                tag_id?: string;
+                /** @description Only rows linked to the live tag with exactly this name (trimmed, case-sensitive: unlike tags?name=, which folds ASCII case). An unknown name gives an empty page. Needs tags:read and associations:read. */
+                tag?: string;
+                /** @description Filter by one key of additional_props: additional_props=<key>.<condition>, once per request. Conditions: eq (or a bare value), neq, in, is.null, not.is.null. Example: additional_props=employees.eq.40. A stored string matches by its text and a stored number or boolean by its JSON literal (employees.eq.40 matches 40 and "40", verified.eq.true matches true and "true"), case-sensitively. An absent key matches only is.null: eq, neq and in never match it. Reads every live row of the organisation, whatever the index. Other operators and not. forms are refused; list the keys in use with the property_keys read. */
+                additional_props?: string;
+                /** @description Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal. */
+                id?: string | string[];
+                /** @description Filter by name (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: name=ilike.*acme*. A range is two conditions: name=gte.a&name=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send name=eq.<value> for a literal. */
+                name?: string | string[];
+                /** @description Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal. */
+                created_by?: string | string[];
+                /** @description Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. A range is two conditions: created_at=gte.2026-11-01&created_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal. */
+                created_at?: string | string[];
+                /** @description Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. A range is two conditions: updated_at=gte.2026-11-01&updated_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal. */
+                updated_at?: string | string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The live rows that match the filters. */
+                        count: number;
+                        sum?: {
+                            [key: string]: number | null;
+                        };
+                        avg?: {
+                            [key: string]: number | null;
+                        };
+                        min?: {
+                            [key: string]: number | string | null;
+                        };
+                        max?: {
+                            [key: string]: number | string | null;
+                        };
+                        /** @description For each money field a function was asked of: the one currency of its amounts, or null when there are none. */
+                        currency?: {
+                            [key: string]: string | null;
+                        };
                     };
                 };
             };
@@ -1691,6 +1903,84 @@ export interface operations {
                         /** @description When the latest interaction, in either direction, with any of the contact's identities happened; null if none. Derived, read-only; present only with interactions:read. */
                         last_interacted_at?: string | null;
                         tier__c: string | null;
+                    };
+                };
+            };
+        };
+    };
+    "contacts.aggregate": {
+        parameters: {
+            query?: {
+                /** @description Minimum of fields, comma-separated: name, created_at, updated_at, tier__c. The answer has min as an object keyed by field. Nulls are ignored; no values gives null. */
+                min?: string;
+                /** @description Maximum of fields, comma-separated: name, created_at, updated_at, tier__c. The answer has max as an object keyed by field. Nulls are ignored; no values gives null. */
+                max?: string;
+                /** @description Filter by company_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in, is. Example: company_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send company_id=eq.<value> for a literal. */
+                company_id?: string | string[];
+                /** @description Only rows linked to this tag (an association). Needs tags:read and associations:read. */
+                tag_id?: string;
+                /** @description Only rows linked to the live tag with exactly this name (trimmed, case-sensitive: unlike tags?name=, which folds ASCII case). An unknown name gives an empty page. Needs tags:read and associations:read. */
+                tag?: string;
+                /** @description Only contacts last contacted at or after this ISO-8601 time (Z or an offset). Needs interactions:read. */
+                contacted_since?: string;
+                /** @description Only contacts last contacted before this ISO-8601 time (Z or an offset), including those never last. Needs interactions:read. */
+                not_contacted_since?: string;
+                /** @description true: only contacts never contacted; false: only contacts contacted at least once. Needs interactions:read. */
+                never_contacted?: "true" | "false";
+                /** @description Only contacts last interacted with at or after this ISO-8601 time (Z or an offset). Needs interactions:read. */
+                interacted_since?: string;
+                /** @description Only contacts last interacted with before this ISO-8601 time (Z or an offset), including those never last interacted with. Needs interactions:read. */
+                not_interacted_since?: string;
+                /** @description true: only contacts never interacted with; false: only contacts interacted with at least once. Needs interactions:read. */
+                never_interacted?: "true" | "false";
+                /** @description Filter by one key of additional_props: additional_props=<key>.<condition>, once per request. Conditions: eq (or a bare value), neq, in, is.null, not.is.null. Example: additional_props=employees.eq.40. A stored string matches by its text and a stored number or boolean by its JSON literal (employees.eq.40 matches 40 and "40", verified.eq.true matches true and "true"), case-sensitively. An absent key matches only is.null: eq, neq and in never match it. Reads every live row of the organisation, whatever the index. Other operators and not. forms are refused; list the keys in use with the property_keys read. */
+                additional_props?: string;
+                /** @description Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal. */
+                id?: string | string[];
+                /** @description Filter by name (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: name=ilike.*acme*. A range is two conditions: name=gte.a&name=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send name=eq.<value> for a literal. */
+                name?: string | string[];
+                /** @description Filter by merged_into_id (uuid, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in, is. Example: merged_into_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send merged_into_id=eq.<value> for a literal. */
+                merged_into_id?: string | string[];
+                /** @description Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal. */
+                created_by?: string | string[];
+                /** @description Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. A range is two conditions: created_at=gte.2026-11-01&created_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal. */
+                created_at?: string | string[];
+                /** @description Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. A range is two conditions: updated_at=gte.2026-11-01&updated_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal. */
+                updated_at?: string | string[];
+                /** @description Filter by tier__c (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: tier__c=ilike.*acme*. A range is two conditions: tier__c=gte.a&tier__c=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send tier__c=eq.<value> for a literal. */
+                tier__c?: string | string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The live rows that match the filters. */
+                        count: number;
+                        sum?: {
+                            [key: string]: number | null;
+                        };
+                        avg?: {
+                            [key: string]: number | null;
+                        };
+                        min?: {
+                            [key: string]: number | string | null;
+                        };
+                        max?: {
+                            [key: string]: number | string | null;
+                        };
+                        /** @description For each money field a function was asked of: the one currency of its amounts, or null when there are none. */
+                        currency?: {
+                            [key: string]: string | null;
+                        };
                     };
                 };
             };
@@ -4192,6 +4482,70 @@ export interface operations {
                         name: string;
                         budget: number | null;
                         stage: string | null;
+                    };
+                };
+            };
+        };
+    };
+    "projects__c.aggregate": {
+        parameters: {
+            query?: {
+                /** @description Sum of fields, comma-separated: budget. The answer has sum as an object keyed by field. Nulls are ignored; no values gives null. */
+                sum?: string;
+                /** @description Average of fields, comma-separated: budget. The answer has avg as an object keyed by field. Nulls are ignored; no values gives null. */
+                avg?: string;
+                /** @description Minimum of fields, comma-separated: created_at, updated_at, name, budget, stage. The answer has min as an object keyed by field. Nulls are ignored; no values gives null. */
+                min?: string;
+                /** @description Maximum of fields, comma-separated: created_at, updated_at, name, budget, stage. The answer has max as an object keyed by field. Nulls are ignored; no values gives null. */
+                max?: string;
+                /** @description Filter by one key of additional_props: additional_props=<key>.<condition>, once per request. Conditions: eq (or a bare value), neq, in, is.null, not.is.null. Example: additional_props=employees.eq.40. A stored string matches by its text and a stored number or boolean by its JSON literal (employees.eq.40 matches 40 and "40", verified.eq.true matches true and "true"), case-sensitively. An absent key matches only is.null: eq, neq and in never match it. Reads every live row of the organisation, whatever the index. Other operators and not. forms are refused; list the keys in use with the property_keys read. */
+                additional_props?: string;
+                /** @description Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal. */
+                id?: string | string[];
+                /** @description Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal. */
+                created_by?: string | string[];
+                /** @description Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. A range is two conditions: created_at=gte.2026-11-01&created_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal. */
+                created_at?: string | string[];
+                /** @description Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. A range is two conditions: updated_at=gte.2026-11-01&updated_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal. */
+                updated_at?: string | string[];
+                /** @description Filter by name (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: name=ilike.*acme*. A range is two conditions: name=gte.a&name=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send name=eq.<value> for a literal. */
+                name?: string | string[];
+                /** @description Filter by budget (integer, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: budget=gt.500000. A range is two conditions: budget=gte.100&budget=lt.500. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send budget=eq.<value> for a literal. */
+                budget?: string | string[];
+                /** @description Filter by stage (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: stage=ilike.*acme*. A range is two conditions: stage=gte.a&stage=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send stage=eq.<value> for a literal. */
+                stage?: string | string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The live rows that match the filters. */
+                        count: number;
+                        sum?: {
+                            [key: string]: number | null;
+                        };
+                        avg?: {
+                            [key: string]: number | null;
+                        };
+                        min?: {
+                            [key: string]: number | string | null;
+                        };
+                        max?: {
+                            [key: string]: number | string | null;
+                        };
+                        /** @description For each money field a function was asked of: the one currency of its amounts, or null when there are none. */
+                        currency?: {
+                            [key: string]: string | null;
+                        };
                     };
                 };
             };
@@ -8886,6 +9240,14 @@ export type WorkspaceOperations = {
     proposable: false
     paginated: true
   }
+  'companies.aggregate': {
+    namespace: 'companies'
+    method: 'aggregate'
+    args: WithFilters<ArgsOf<ApiDocument.operations['companies.aggregate']>, { 'domain': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike']; 'id': ['uuid', 'eq' | 'neq' | 'in']; 'name': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'created_by': ['uuid', 'eq' | 'neq' | 'in']; 'created_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'updated_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in'] }>
+    result: ResultOf<ApiDocument.operations['companies.aggregate'], 200>
+    proposable: false
+    paginated: false
+  }
   'companies.create': {
     namespace: 'companies'
     method: 'create'
@@ -9049,6 +9411,14 @@ export type WorkspaceOperations = {
     item: ItemOf<ResultOf<ApiDocument.operations['contact_files.list'], 200>>
     proposable: false
     paginated: true
+  }
+  'contacts.aggregate': {
+    namespace: 'contacts'
+    method: 'aggregate'
+    args: WithFilters<ArgsOf<ApiDocument.operations['contacts.aggregate']>, { 'company_id': ['uuid', 'eq' | 'neq' | 'in' | 'is']; 'id': ['uuid', 'eq' | 'neq' | 'in']; 'name': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike']; 'merged_into_id': ['uuid', 'eq' | 'neq' | 'in' | 'is']; 'created_by': ['uuid', 'eq' | 'neq' | 'in']; 'created_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'updated_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'tier__c': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike'] }>
+    result: ResultOf<ApiDocument.operations['contacts.aggregate'], 200>
+    proposable: false
+    paginated: false
   }
   'contacts.create': {
     namespace: 'contacts'
@@ -9543,6 +9913,14 @@ export type WorkspaceOperations = {
     proposable: true
     paginated: false
   }
+  'projects__c.aggregate': {
+    namespace: 'projects__c'
+    method: 'aggregate'
+    args: WithFilters<ArgsOf<ApiDocument.operations['projects__c.aggregate']>, { 'id': ['uuid', 'eq' | 'neq' | 'in']; 'created_by': ['uuid', 'eq' | 'neq' | 'in']; 'created_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'updated_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'name': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'budget': ['integer', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'stage': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike'] }>
+    result: ResultOf<ApiDocument.operations['projects__c.aggregate'], 200>
+    proposable: false
+    paginated: false
+  }
   'projects__c.create': {
     namespace: 'projects__c'
     method: 'create'
@@ -9639,6 +10017,14 @@ export type WorkspaceOperations = {
     args: ArgsOf<ApiDocument.operations['tags.update']>
     result: ResultOf<ApiDocument.operations['tags.update'], 200>
     proposable: true
+    paginated: false
+  }
+  'tasks.aggregate': {
+    namespace: 'tasks'
+    method: 'aggregate'
+    args: WithFilters<ArgsOf<ApiDocument.operations['tasks.aggregate']>, { 'status': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'assignee_id': ['uuid', 'eq' | 'neq' | 'in' | 'is']; 'id': ['uuid', 'eq' | 'neq' | 'in']; 'title': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'notes': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike']; 'due_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'completed_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'created_by': ['uuid', 'eq' | 'neq' | 'in']; 'created_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'updated_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in'] }>
+    result: ResultOf<ApiDocument.operations['tasks.aggregate'], 200>
+    proposable: false
     paginated: false
   }
   'tasks.create': {

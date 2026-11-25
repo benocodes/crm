@@ -137,6 +137,12 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   cannot pass for the wrong reason; say "green on first run, control is the discriminator" in `RESULT.md`. Prove such
   a premise in a cycle before any page code depends on it ([[UI449]] cycle 1, group 3 of
   `packages/server-d1/src/oauth-default-scope-workerd.test.ts`).
+- **A test of an ordering rule uses values whose orders disagree.** "min/max of an enum compare stored values in
+  byte order" is not proven by values that sort the same under the plausible alternative too (`active` < `done`
+  in byte order and in declared order). Pick the pair where the two orders give opposite answers (`planned`/`done`
+  for `['planned','active','done']`), and say in the test which alternative it rules out ([[CORE615]] review 1,
+  `packages/api/src/resources/aggregate-lists.integration.d1.test.ts`). The same holds for case folding, collation
+  and numeric versus text comparison.
 - **An accept/refuse pair differs only in the field under test.** Both halves send a request the route would accept
   in full, and only the checked value changes; otherwise a later check (body validation, a missing header) can refuse
   the "refused" half for another reason, or keep the "accepted" half from reaching success. Assert the success answer
