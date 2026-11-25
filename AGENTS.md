@@ -133,14 +133,15 @@ Next Action) and tells the user before any of these, and never works around one:
 It also stops when the fix loop exhausts its two coder rounds, when an agent is blocked on something no other
 agent can resolve, and when the backlog is empty.
 
-**When a commit to `knowledge/` is refused** (the permission check denies `git -C knowledge commit` or
-`push` on `main`), the sprint does not wait on it and does not retry on `main`. The orchestrator creates a
-branch in the knowledge repo (`kb/<issue#>-<slug>`, never touching `main`), commits the pending files there,
-pushes it, and notifies the user (the `PushNotification` tool, which skips while the terminal is active, and
-always `scripts/notify-owner.sh "<subject>" "<body>"`, an AgentMail email to the owner) with the branch name
-and the files. It records the branch in SPRINT.md (Open questions) and
-carries on with work that does not need those files on `main`; the user merges the branch. Never use another
-route to land the commit on `main`. (User ruling: 2026-11-25.)
+**Knowledge-repo commits are the orchestrator's job.** It commits and pushes the sprint's knowledge edits
+(SPRINT.md, decisions, specs, retros, milestones) to `knowledge/`'s `main` itself; the user is not asked to
+merge them. **Only when the permission check refuses that commit or push** does the orchestrator fall back,
+once, without retrying on `main` or using another route to it: it creates a branch in the knowledge repo
+(`kb/<issue#>-<slug>`), commits the pending files there, pushes it, opens a PR against `main`
+(`gh pr create -R benocodes/crm-knowledge`), and emails the owner the PR link and the files
+(`scripts/notify-owner.sh "<subject>" "<body>"`; the `PushNotification` tool skips while the terminal is
+active). It records the PR in SPRINT.md (Open questions) and carries on with work that does not need those
+files on `main`; the user merges the PR. (User ruling: 2026-11-25.)
 
 **A sprint is one milestone** (milestones live in `knowledge/milestones/<seq>-<letter>-<slug>/`: the seq is
 the rank, set by the user; the letter is the identifier). The orchestrator builds the top-ranked milestone and
