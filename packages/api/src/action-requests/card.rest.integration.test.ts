@@ -109,6 +109,23 @@ describe('the summary per operation class (D8)', () => {
     )
   })
 
+  it('a reply by a proposer without message metadata read names the thread by id, never its subject (588.34)', async () => {
+    const c = await prereq(k).connection()
+    const thread = uuidv7()
+    await k.d1
+      .prepare(
+        "insert into threads (id, organization_id, created_by, created_at, channel, subject) values (?, ?, ?, ?, 'email', ?)",
+      )
+      .bind(thread, k.organizationId, owner.id, '2026-11-06T09:00:00.000Z', 'Confidential deal terms')
+      .run()
+    const blind = await k.actor('blind-reply', 'agent', ['messages:request_approval', 'action_requests:read'])
+    const reply = { connection_id: c, mode: 'reply', thread_id: thread, to: ['ann@example.test'], body: 'ok' }
+    const r = await k.call(blind, 'POST', AR, { operation: 'messages.send', arguments: reply, reason: 'because' })
+    // A reply already needs messages:read (requireReplyRead), which includes the metadata: a proposer below it is refused before any summary exists.
+    expect([r.status, r.body.error?.code]).toEqual([403, 'insufficient_scope'])
+    expect(JSON.stringify(r.body)).not.toContain('Confidential deal terms')
+  })
+
   it('create reads the label from the arguments; update names the record and the changed fields; delete names the record', async () => {
     expect(await summaryOf('tasks.create', { title: 'Call Ann' })).toBe('Create tasks record "Call Ann"')
     expect(await summaryOf('contacts.create', { name: 'Ann' })).toBe('Create contacts record "Ann"')

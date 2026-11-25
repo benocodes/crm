@@ -441,7 +441,10 @@ function buildCreate(
           ? {
               send: {
                 mailbox: (found.maybe('ar:mailbox')?.mailbox as string | null | undefined) ?? null,
-                threadSubject: (found.maybe('ar:thread-subject')?.subject as string | null | undefined) ?? null,
+                // The thread's subject is message metadata: named only to a proposer who may read it, else the thread's id (588.34).
+                threadSubject: env.scopes.has({ resource: 'messages', action: 'read_metadata' })
+                  ? ((found.maybe('ar:thread-subject')?.subject as string | null | undefined) ?? null)
+                  : null,
               },
             }
           : {}),
