@@ -32,7 +32,8 @@ describe('the four calls on the wire (P3)', () => {
     expect(seen[0]!.method).toBe('GET')
     const u = new URL(seen[0]!.url)
     expect(u.origin + u.pathname).toBe(`${API}/api/v1/action-requests`)
-    expect(u.searchParams.get('status')).toBe('pending')
+    // The SDK sends a filter parameter's bare operand as `eq.<v>` (DX603 D9), which the vault reads as the bare value did.
+    expect(u.searchParams.get('status')).toBe('eq.pending')
     expect(u.searchParams.get('limit')).toBe('100')
     expect(u.searchParams.has('after')).toBe(false)
     expect(seen[0]!.body).toBeUndefined()
@@ -103,7 +104,7 @@ describe('the list follows cursors and caps at 2,000 items (P1)', () => {
       'GET /api/v1/action-requests': (req: Seen) => {
         const after = new URL(req.url).searchParams.get('after')
         const i = after === null ? 0 : Number(after)
-        return Response.json(page(i * 100, 100, String(i + 1)))
+        return Response.json(page(i * 100, 100, i + 1 < 25 ? String(i + 1) : null))
       },
     })
     const items = await api.list('pending')
