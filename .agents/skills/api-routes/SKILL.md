@@ -538,7 +538,17 @@ a route or an MCP tool that bypasses the registry.
   runs for long (`--follow`) resolves its credential **per request** (a `Credential` function: `ensureFresh`, one refresh
   and retry on `401`), never once at start, or an OAuth profile expires mid-run (D20).
 - There is no Hono RPC (`hc`) typing: a registry built in a loop gives no static route types. A TypeScript
-  consumer that needs typed calls should generate a client from `/api/v1/openapi.json` and `/meta/v1/openapi.json` ([[CORE15]], [[API32]]).
+  consumer that needs typed calls uses `@vibase/sdk` (`packages/sdk`, [[DX603]]), generated from `/api/v1/openapi.json`
+  and `/meta/v1/openapi.json` ([[CORE15]], [[API32]]).
+- **Any change to an operation regenerates the SDK.** Its id, path, parameters, request or response schema, or any
+  description that reaches the documents, changes `packages/sdk/src/generated/{operations,types}.ts`: run
+  `pnpm -C packages/sdk generate` and commit the result, or `packages/sdk/src/generate/drift.test.ts` fails in the
+  default suite (it names the command). Name it as a rider in the charter beside the wire snapshot
+  (`knowledge/specs/038-DX603-typescript-sdk/RETRO.md`). The generator runs `openapi-typescript` 7.x, which cannot load
+  under the workspace's TypeScript 7, so `@vibase/sdk` pins `typescript` 5.9.3 as its own devDependency (603.21).
+- **workerd rejects `fetch(..., { redirect: 'error' })`** with a TypeError before sending. Client code that must run on
+  Workers and never follow a redirect falls back to `redirect: 'manual'` and refuses a 3xx or `opaqueredirect` response
+  itself, as the SDK does (`unexpected_redirect`, [[DX603]] D6, 603.23).
 
 ## Enqueued operations and the execution rail (AGT165)
 
