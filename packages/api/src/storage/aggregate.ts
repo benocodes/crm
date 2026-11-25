@@ -24,6 +24,12 @@ const KIND_PHRASE: Readonly<Record<AggregateFunction, string>> = {
   min: 'an integer, timestamp or text',
   max: 'an integer, timestamp or text',
 }
+const NO_FIELD: Readonly<Record<AggregateFunction, string>> = {
+  sum: 'integer',
+  avg: 'integer',
+  min: 'integer, timestamp or text',
+  max: 'integer, timestamp or text',
+}
 /** D13: at most this many field terms across the four functions. */
 export const MAX_TERMS = 10
 /** D14: a sum beyond this is not an exact JSON number. Spelled out as a literal in SQL, so no bind can round it. */
@@ -111,6 +117,8 @@ export function parseAggregateTerms(
   for (const fn of AGGREGATE_FUNCTIONS) {
     const parts = text[fn]
     if (!parts) continue
+    // [[CORE615]] D5: a function that takes no field on this list is not one of its parameters.
+    if (spec.fields[fn].length === 0) throw refuse(`${fn}: ${def.name} has no ${NO_FIELD[fn]} field`)
     const takes = `${fn} takes: ${spec.fields[fn].join(', ')}`
     if (parts.length === 1 && parts[0] === '') throw refuse(`${fn} needs at least one field; ${takes}`)
     const seen = new Set<string>()
@@ -142,11 +150,11 @@ const described = (def: Aggregatable, fn: AggregateFunction): string => {
   return `${verb} of fields, comma-separated: ${spec.fields[fn].join(', ')}. The answer has ${fn} as an object keyed by field. Nulls are ignored; no values gives null.`
 }
 
-/** The `sum`, `avg`, `min` and `max` query parameters, described from the same field lists that validate them (D19). */
-export function aggregateParams(def: Aggregatable): Record<AggregateFunction, z.ZodType> {
+/** The `sum`, `avg`, `min` and `max` query parameters (a function with no field on the list is left out, D5), described from the same field lists that validate them (D19). */
+export function aggregateParams(def: Aggregatable): Partial<Record<AggregateFunction, z.ZodType>> {
   return Object.fromEntries(
-    AGGREGATE_FUNCTIONS.map((fn) => [fn, z.string().describe(described(def, fn)).optional()]),
-  ) as unknown as Record<AggregateFunction, z.ZodType>
+    AGGREGATE_FUNCTIONS.filter((fn) => def.aggregate!.fields[fn].length > 0).map((fn) => [fn, z.string().describe(described(def, fn)).optional()]),
+  ) as unknown as Partial<Record<AggregateFunction, z.ZodType>>
 }
 
 /** The answer of `<list>.aggregate` (D13): `count` always, each requested function as an object keyed by field, and `currency` beside money fields. */

@@ -7,6 +7,7 @@ import { ApiError } from '../errors.js'
 import type { AnyResource } from '../registry.js'
 import { additionalPropsInput, additionalPropsRecord } from '../storage/additional-props.js'
 import { withPropertyBag } from '../storage/bag-filter.js'
+import { withAggregate } from '../storage/aggregate.js'
 import { withColumnFilters } from '../storage/column-filters.js'
 import type { Conflict, PreparedResource, ReferenceTarget } from '../storage/definition.js'
 import {
@@ -134,7 +135,7 @@ export function defineCustomObject(key: string, declaration: ObjectDeclaration):
   }
   // D33: every record field is a column filter of its kind (a reference as a uuid); the custom list declares no sort.
   // [[CORE549]] D10: the bag filter, a custom filter named `additional_props`.
-  return withPropertyBag(withColumnFilters(def)) as unknown as AnyResource
+  return withPropertyBag(withAggregate(withColumnFilters(def))) as unknown as AnyResource
 }
 
 /** D21: what a reference field points at: a live row of the target (a principal needs only to exist, P3), or a custom object's. */
