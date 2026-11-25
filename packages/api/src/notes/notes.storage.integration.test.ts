@@ -164,7 +164,7 @@ describe('notes.delete cascades the edges (D15)', () => {
   })
 
   it('more live edges than the set limit is 400 set_limit_exceeded and changes nothing', async () => {
-    const small = await openD1Engine({ maxSetSize: 2 })
+    const small = await openD1Engine({ maxCascadeSetSize: 2 })
     try {
       const k = assocKit(small)
       const note = await k.ent.note()

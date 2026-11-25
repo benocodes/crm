@@ -53,6 +53,7 @@ const EXPECTED_QUERIES: Record<string, number> = {
   'interactions-list-contact': 2,
   'merge-100-links': 3, // auth read, operation read batch, operation write batch
   'contact-delete-100-with-links': 3,
+  'contact-delete-4000': 3, // [[CORE573]] D15: 4,000 identities in one delete, exactly the cascade cap (5,000 hit SQLITE_TOOBIG); the same three (auth read, operation read batch, operation write batch), whatever the set's size
   'capture-chunk-1': 2, // read batch, write batch (no route: the unit is run directly, CORE68 D55)
   'capture-chunk-100': 2, // the same two, at the cap: 100 messages, 100 distinct addresses, 100 stored attachments
   'pipeline-batch-25': 4, // CORE69 D16: pre-check read, CORE574 574.14: the chunk's fresh fingerprint re-read before content is stored, then the unit's read batch and write batch (25 new messages, one chunk; objects are R2, not D1)
@@ -132,6 +133,7 @@ const SCENARIOS = [
   'interactions-list-contact',
   'merge-100-links',
   'contact-delete-100-with-links',
+  'contact-delete-4000',
   'capture-chunk-1',
   'capture-chunk-100',
   'pipeline-batch-25',
@@ -152,6 +154,7 @@ const EXPECTED_STATUS: Record<(typeof SCENARIOS)[number], number> = {
   'interactions-list-contact': 200,
   'merge-100-links': 200,
   'contact-delete-100-with-links': 204,
+  'contact-delete-4000': 204,
   'capture-chunk-1': 200,
   'capture-chunk-100': 200,
   'pipeline-batch-25': 200,
@@ -273,6 +276,35 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
     for (const f of moreFiles) await send('POST', '/api/v1/contact-files', { contact_id: linked.id, file_id: f })
     await measure('contact-delete-100-with-links', () => send('DELETE', `/api/v1/contacts/${linked.id}`))
 
+    // CORE573 D15: a contact with HUGE live identities (HUGE is CASCADE_MAX_SET_SIZE: a 5,000 set failed on D1 with SQLITE_TOOBIG, the event set's 2,268,891 bound bytes, so the cap is 4,000 (573.15)), seeded by batched direct inserts on the unmetered D1, deleted in one request.
+    const HUGE = 4000
+    const huge = (await send('POST', '/api/v1/contacts', { name: 'Huge' })).json
+    const stamp = now.toISOString()
+    const insertIdentity = w.d1.prepare(
+      'insert into identities (id, created_at, updated_at, organization_id, created_by, kind, value, contact_id, own) values (?, ?, ?, ?, ?, ?, ?, ?, 0)',
+    )
+    for (let from = 0; from < HUGE; from += 100)
+      await w.d1.batch(
+        Array.from({ length: 100 }, (_, j) =>
+          insertIdentity.bind(uuidv7(now), stamp, stamp, orgId, creator, 'email', `h${from + j}@huge.test`, huge.id),
+        ),
+      )
+    await measure('contact-delete-4000', () => send('DELETE', `/api/v1/contacts/${huge.id}`))
+
+    // One past the cap is refused and nothing changes.
+    const over = (await send('POST', '/api/v1/contacts', { name: 'Over' })).json
+    for (let from = 0; from <= HUGE; from += 100)
+      await w.d1.batch(
+        Array.from({ length: Math.min(100, HUGE + 1 - from) }, (_, j) =>
+          insertIdentity.bind(uuidv7(now), stamp, stamp, orgId, creator, 'email', `o${from + j}@over.test`, over.id),
+        ),
+      )
+    const refused = await send('DELETE', `/api/v1/contacts/${over.id}`)
+    expect([refused.status, refused.json.error.code]).toEqual([400, 'set_limit_exceeded'])
+    expect(
+      await count(`select count(*) as n from identities where contact_id = '${over.id}' and deleted_at is null`),
+    ).toBe(HUGE + 1)
+
     // CORE68 D55: the capture unit at 1 and at the cap (100 messages, 100 distinct addresses, 100 stored attachments), run through the metered binding.
     const binding = d1Binding(meter.d1, { organizationId: orgId, authProvider: 'clerk', authOrgId: 'org_acme' })
     // CHN140 D27: the sources name a connection, so the measured captures name one that exists.
@@ -372,6 +404,16 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
         "select count(*) as n from identities where deleted_at is not null and own = 0 and value like 'own%'",
       ),
     ).toBe(100)
+  })
+
+  it('the large cascade really ran: every identity and its event is tombstoned (CORE573 D15)', async () => {
+    expect(
+      await count("select count(*) as n from identities where value like '%@huge.test' and deleted_at is not null"),
+    ).toBe(4000)
+    expect(
+      await count("select count(*) as n from identities where value like '%@huge.test' and deleted_at is null"),
+    ).toBe(0)
+    expect(await count("select count(*) as n from events where type = 'identity.deleted'")).toBeGreaterThanOrEqual(4000)
   })
 
   it('the messaging scenarios really ran at their sizes', async () => {

@@ -76,8 +76,18 @@ export function coldDb(dialect: Dialect): Kysely<StorageDatabase> {
 /** The cap every runtime starts with (spec D7); a runtime sets its own. */
 export const DEFAULT_MAX_SET_SIZE = 100
 
-export function queryContext(dialect: Dialect, maxSetSize: number = DEFAULT_MAX_SET_SIZE): QueryContext {
-  return { db: coldDb(dialect), dialect, maxSetSize }
+/**
+ * The cap of a cascade's set reads ([[CORE573]] D15): the deletes of a parent and `contacts.merge` read their dependants as one set each, and a holder of
+ * `associations:write` sizes those. One `memberOf` JSON parameter keeps each set one statement, so the unit stays atomic.
+ */
+export const CASCADE_MAX_SET_SIZE = 4000
+
+export function queryContext(
+  dialect: Dialect,
+  maxSetSize: number = DEFAULT_MAX_SET_SIZE,
+  maxCascadeSetSize: number = CASCADE_MAX_SET_SIZE,
+): QueryContext {
+  return { db: coldDb(dialect), dialect, maxSetSize, maxCascadeSetSize }
 }
 
 export interface CompiledRead {
@@ -87,6 +97,8 @@ export interface CompiledRead {
   readonly parameters: readonly unknown[]
   /** Set reads are limited to the cap plus one, so a larger set is detected, not truncated. */
   readonly limit?: number
+  /** The cap family a set read is bounded by (see `capOf`). */
+  readonly cap?: 'cascade'
 }
 export interface CompiledStatement {
   readonly label?: StatementLabel
@@ -111,9 +123,9 @@ export function compileOperation<T>(
   prepared: PreparedOperation<T>,
   dialect: Dialect,
   found: FoundInput = {},
-  opts: { maxSetSize?: number } = {},
+  opts: { maxSetSize?: number; maxCascadeSetSize?: number } = {},
 ): CompiledOperation {
-  const qc = queryContext(dialect, opts.maxSetSize)
+  const qc = queryContext(dialect, opts.maxSetSize, opts.maxCascadeSetSize)
   const reads = compileReads(prepared.reads(qc), qc)
   const foundRows = Found.from(found)
   const unit = prepared.build(foundRows, qc)

@@ -5,10 +5,17 @@ import { createOwnerTestDb, createTestDb, seedAgent, seedOrganization, seedUser,
 import { postgresBinding } from '@vibase/storage-postgres'
 import { LINK, SEED_AT, decodeRow, kindsOf, shared, withDefaults, type Engine, type RawRow } from './engines.js'
 
-export async function openPostgres(opts: { maxConnections?: number; maxSetSize?: number }): Promise<Engine> {
+export async function openPostgres(opts: {
+  maxConnections?: number
+  maxSetSize?: number
+  maxCascadeSetSize?: number
+}): Promise<Engine> {
   const app = createTestDb({ max: opts.maxConnections ?? 6 })
   const owner = createOwnerTestDb()
-  const binding = postgresBinding(app, opts.maxSetSize === undefined ? {} : { maxSetSize: opts.maxSetSize })
+  const binding = postgresBinding(app, {
+    ...(opts.maxSetSize === undefined ? {} : { maxSetSize: opts.maxSetSize }),
+    ...(opts.maxCascadeSetSize === undefined ? {} : { maxCascadeSetSize: opts.maxCascadeSetSize }),
+  })
   const e: Engine = {
     name: 'postgres',
     binding,

@@ -67,6 +67,12 @@ async function createKey(
   if (!agent) throw new ApiError(400, 'invalid_reference', 'a referenced record does not exist')
   if (agent.formId !== null)
     throw new ApiError(409, 'form_principal', `managed by form ${agent.formId}; change the form`)
+  if (agent.delegated)
+    throw new ApiError(
+      409,
+      'delegated_agent',
+      "a delegated agent acts through its member's OAuth grant; create an agent of its own to hold a key",
+    )
   const id = env.newId()
   const now = env.now.toISOString()
   const made = await port.create({
@@ -215,7 +221,7 @@ export function apiKeyOperations(port: ApiKeyStorePort | null): ControlOperation
       name: 'api_keys.create',
       summary: 'Issue an API key for an agent; the key is shown once',
       description:
-        "The key is returned once and never again. Issuing it is recorded in the audit log, not in the event feed: read it with audit.list (audit:read). 409 form_principal for the agent of a form (live or deleted): a form's agent holds no key; change the form instead.",
+        "The key is returned once and never again. Issuing it is recorded in the audit log, not in the event feed: read it with audit.list (audit:read). 409 form_principal for the agent of a form (live or deleted): a form's agent holds no key; change the form instead. 409 delegated_agent for a delegated agent (live or disabled): it acts through its member's OAuth grant, so create an agent of its own to hold a key.",
       method: 'post',
       path: '/api-keys',
       scope: { resource: 'agents', action: 'write' },

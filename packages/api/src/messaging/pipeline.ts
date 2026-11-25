@@ -1,6 +1,7 @@
 import { sql } from 'kysely'
 import type { BuiltIns } from '../resources/built-ins.js'
 import {
+  CASCADE_MAX_SET_SIZE,
   boundIds,
   coldDb,
   defineOperation,
@@ -224,6 +225,7 @@ export async function captureMessages(
       db: coldDb(binding.runtime.dialect),
       dialect: binding.runtime.dialect,
       maxSetSize: binding.runtime.maxSetSize,
+      maxCascadeSetSize: CASCADE_MAX_SET_SIZE,
     }
     assertNoCollision(
       Object.keys(

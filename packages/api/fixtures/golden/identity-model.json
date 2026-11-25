@@ -2053,50 +2053,14 @@
           "request": {
             "contact_id": "{x}"
           },
-          "status": 200,
+          "status": 403,
           "response": {
-            "id": "0190b2c4-0000-7000-8000-000001000005",
-            "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-            "kind": "email",
-            "value": "ori@example.com",
-            "contact_id": "0190b2c4-0000-7000-8000-000001000001",
-            "own": false,
-            "created_by": "0190b2c4-0000-7000-8000-00000000b001",
-            "created_at": "2026-10-22T09:02:00.000Z",
-            "updated_at": "2026-10-22T09:12:00.000Z"
-          },
-          "events": [
-            {
-              "type": "identity.updated",
-              "resource_type": "identity",
-              "resource_id": "0190b2c4-0000-7000-8000-000001000005",
-              "actor_id": "0190b2c4-0000-7000-8000-00000000c001",
-              "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-              "created_at": "2026-10-22T09:12:00.000Z",
-              "before": {
-                "id": "0190b2c4-0000-7000-8000-000001000005",
-                "own": true,
-                "kind": "email",
-                "value": "ori@example.com",
-                "contact_id": null,
-                "created_at": "2026-10-22T09:02:00.000Z",
-                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
-                "updated_at": "2026-10-22T09:11:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
-              },
-              "after": {
-                "id": "0190b2c4-0000-7000-8000-000001000005",
-                "own": false,
-                "kind": "email",
-                "value": "ori@example.com",
-                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
-                "created_at": "2026-10-22T09:02:00.000Z",
-                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
-                "updated_at": "2026-10-22T09:12:00.000Z",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
-              }
+            "error": {
+              "code": "user_required",
+              "message": "saying which addresses are ours needs a signed-in person"
             }
-          ]
+          },
+          "events": []
         },
         {
           "as": "user",
@@ -2110,11 +2074,11 @@
             "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
             "kind": "email",
             "value": "ori@example.com",
-            "contact_id": "0190b2c4-0000-7000-8000-000001000001",
-            "own": false,
+            "contact_id": null,
+            "own": true,
             "created_by": "0190b2c4-0000-7000-8000-00000000b001",
             "created_at": "2026-10-22T09:02:00.000Z",
-            "updated_at": "2026-10-22T09:12:00.000Z"
+            "updated_at": "2026-10-22T09:11:00.000Z"
           },
           "events": []
         },
@@ -2167,11 +2131,11 @@
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
                 "kind": "email",
                 "value": "ori@example.com",
-                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
-                "own": false,
+                "contact_id": null,
+                "own": true,
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
                 "created_at": "2026-10-22T09:02:00.000Z",
-                "updated_at": "2026-10-22T09:12:00.000Z"
+                "updated_at": "2026-10-22T09:11:00.000Z"
               }
             ],
             "next_cursor": null
@@ -2203,6 +2167,17 @@
           "response": {
             "data": [
               {
+                "id": "0190b2c4-0000-7000-8000-000001000005",
+                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
+                "kind": "email",
+                "value": "ori@example.com",
+                "contact_id": null,
+                "own": true,
+                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
+                "created_at": "2026-10-22T09:02:00.000Z",
+                "updated_at": "2026-10-22T09:11:00.000Z"
+              },
+              {
                 "id": "0190b2c4-0000-7000-8000-000001000007",
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
                 "kind": "email",
@@ -2226,19 +2201,7 @@
           "request": null,
           "status": 200,
           "response": {
-            "data": [
-              {
-                "id": "0190b2c4-0000-7000-8000-000001000005",
-                "organization_id": "0190b2c4-0000-7000-8000-00000000a001",
-                "kind": "email",
-                "value": "ori@example.com",
-                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
-                "own": false,
-                "created_by": "0190b2c4-0000-7000-8000-00000000b001",
-                "created_at": "2026-10-22T09:02:00.000Z",
-                "updated_at": "2026-10-22T09:12:00.000Z"
-              }
-            ],
+            "data": [],
             "next_cursor": null
           },
           "events": []
@@ -2261,13 +2224,13 @@
               "created_at": "2026-10-22T09:20:00.000Z",
               "before": {
                 "id": "0190b2c4-0000-7000-8000-000001000005",
-                "own": false,
+                "own": true,
                 "kind": "email",
                 "value": "ori@example.com",
-                "contact_id": "0190b2c4-0000-7000-8000-000001000001",
+                "contact_id": null,
                 "created_at": "2026-10-22T09:02:00.000Z",
                 "created_by": "0190b2c4-0000-7000-8000-00000000b001",
-                "updated_at": "2026-10-22T09:12:00.000Z",
+                "updated_at": "2026-10-22T09:11:00.000Z",
                 "organization_id": "0190b2c4-0000-7000-8000-00000000a001"
               },
               "after": null

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { sql, type SqlBool } from 'kysely'
 import { readMaybe } from '@vibase/storage'
 import { ApiError } from '../errors.js'
 import { normalizeIdentityValue, type IdentityKind } from '../identity/normalize.js'
@@ -48,6 +49,22 @@ function ownerColumns(input: Record<string, unknown>): { contact_id: string | nu
   return own ? { contact_id: null, own: true } : { contact_id: contactId!, own: false }
 }
 
+const OWN_MESSAGE = 'saying which addresses are ours needs a signed-in person'
+const HELD_MESSAGE = 'a connected mailbox uses this identity; disconnect the mailbox first'
+
+/**
+ * [[CORE573]] D12, D11: an identity write that decides which addresses are "ours" needs a human, and an identity a live channel connection
+ * references (whatever its status) is held. `values` are the prepared patch: `{ own: true, contact_id: null }`, `{ contact_id, own: false }` or `{}`.
+ * The 403 is decided before the 409, and a patch that leaves the stored `contact_id` and `own` as they are is not held.
+ */
+const changesOwner = (row: { own: unknown; contact_id: unknown }, values: Record<string, unknown>): boolean => {
+  if (values.own === undefined) return false
+  const own = row.own === true || row.own === 1
+  return own !== values.own || (row.contact_id ?? null) !== (values.contact_id ?? null)
+}
+const heldBy = (id: string, organizationId: string) =>
+  sql<SqlBool>`exists (select 1 from "channel_connections" where "channel_connections"."identity_id" = ${id} and "channel_connections"."organization_id" = ${organizationId} and "channel_connections"."deleted_at" is null)`
+
 /**
  * Identities on the prepared path ([[CORE36]]). Pure preparation: the owner rule, then the normalised value (the
  * ASCII rule included, P6); the contact must be live (plan read and commit guard); a live address refuses a create in
@@ -64,6 +81,14 @@ export const identities = withColumnFilters(
       record,
       create,
       update,
+      descriptions: {
+        create:
+          'Record an address, for a contact (contact_id) or as one of our own (own: true; a signed-in person only, 403 user_required for an agent). 409 identity_exists when the address is already live.',
+        update:
+          'Change which contact an address belongs to (contact_id), or mark it as one of our own (own: true). Marking an address own, or giving an own address a contact_id, needs a signed-in person: 403 user_required for an agent. 409 identity_in_use when a connected mailbox uses the identity and the change would alter its contact or own; disconnect the mailbox first.',
+        delete:
+          'Soft-delete an address. 409 identity_in_use while a connected mailbox uses the identity (any status); disconnect the mailbox first.',
+      },
       references: { contact_id: { table: 'contacts', live: true } },
       filters: {
         kind: { schema: z.enum(['email', 'phone']) },
@@ -82,7 +107,35 @@ export const identities = withColumnFilters(
         const owner = ownerColumns(values)
         return { value: normalizeIdentityValue(values.kind as IdentityKind, values.value as string), ...owner }
       },
+      hold: ({ qc, env, op, id, values }) => ({
+        read: readMaybe(
+          qc.db
+            .selectFrom('identities')
+            .select(['identities.own', 'identities.contact_id', heldBy(id, env.organizationId).as('held')])
+            .where('identities.id', '=', id)
+            .where('identities.organization_id', '=', env.organizationId)
+            .where('identities.deleted_at', 'is', null),
+        ),
+        refuse: (row) => {
+          if (!row) return
+          const own = row.own === true || row.own === 1
+          if (
+            op === 'update' &&
+            env.actor.kind !== 'user' &&
+            (values.own === true || (own && typeof values.contact_id === 'string'))
+          )
+            throw new ApiError(403, 'user_required', OWN_MESSAGE)
+          const changes = op === 'delete' || changesOwner(row as never, values)
+          if (changes && (row.held === true || row.held === 1)) throw new ApiError(409, 'identity_in_use', HELD_MESSAGE)
+        },
+        guard: (before) =>
+          op === 'delete' || changesOwner(before as never, values)
+            ? sql<SqlBool>`not ${heldBy(id, env.organizationId)}`
+            : null,
+      }),
       conflicts: ({ qc, env, op, values }) => {
+        if (op === 'create' && values.own === true && env.actor.kind !== 'user')
+          throw new ApiError(403, 'user_required', OWN_MESSAGE)
         if (op !== 'create') return []
         const q = qc.db
           .selectFrom('identities')
