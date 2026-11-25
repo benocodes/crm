@@ -1,9 +1,6 @@
-import { mkdir, writeFile } from 'node:fs/promises'
-import { generateSdk, loadDocuments } from './index.js'
+import { run } from './cli.js'
 
-const directory = new URL('../generated/', import.meta.url)
-const generated = await generateSdk(await loadDocuments())
-await mkdir(directory, { recursive: true })
-await writeFile(new URL('operations.ts', directory), generated.operations)
-await writeFile(new URL('types.ts', directory), generated.types)
-console.log('Generated src/generated/operations.ts and src/generated/types.ts')
+const result = await run(process.argv.slice(2))
+process.stdout.write(result.stdout)
+process.stderr.write(result.stderr)
+process.exitCode = result.code

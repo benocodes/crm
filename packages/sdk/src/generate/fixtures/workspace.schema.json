@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "define": {
+    "projects__c": {
+      "label": "Projects",
+      "fields": {
+        "name": { "kind": "text", "required": true },
+        "budget": { "kind": "integer" },
+        "stage": { "kind": "enum", "values": ["planned", "active", "done"], "default": "planned" }
+      }
+    }
+  },
+  "extend": {
+    "contacts": {
+      "fields": {
+        "tier__c": { "kind": "enum", "values": ["bronze", "gold"] }
+      }
+    }
+  }
+}

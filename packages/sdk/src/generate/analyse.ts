@@ -23,13 +23,17 @@ const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !
 const METHODS = ['get', 'put', 'post', 'patch', 'delete'] as const
 const RESERVED_METHODS = ['all', 'propose']
 
-/** D4: an id splits at its first dot; both parts are camelCased (`deals.move_stage` is `deals.moveStage`). */
+/** D4: an id splits at its first dot; both parts are camelCased (`deals.move_stage` is `deals.moveStage`). DX604 D5: a namespace ending in `__c` is a custom object's key and stays verbatim (`projects__c.list` is `projects__c.list`). */
 export function memberNames(operationId: string): { namespace: string; method: string } {
   const dot = operationId.indexOf('.')
   if (dot <= 0 || dot === operationId.length - 1)
     throw new Error(`operation id "${operationId}" must be <namespace>.<method>`)
   const camel = (s: string) => s.replace(/[_.]+([a-zA-Z0-9])/g, (_, c: string) => c.toUpperCase())
-  return { namespace: camel(operationId.slice(0, dot)), method: camel(operationId.slice(dot + 1)) }
+  const namespace = operationId.slice(0, dot)
+  return {
+    namespace: namespace.endsWith('__c') ? namespace : camel(namespace),
+    method: camel(operationId.slice(dot + 1)),
+  }
 }
 
 /** Follows local `#/...` references. */
@@ -57,6 +61,11 @@ function analyseOperation(
   shared: unknown[],
 ): Analysed {
   const id = op.operationId as string
+  // DX604 D4: a path is origin-relative (one leading slash): the client sends the credential to the origin it was given.
+  if (!/^\/(?!\/)/.test(path))
+    throw new Error(
+      `operation ${id}: the path "${path}" must start with a single "/" (an absolute URL or a // host is refused, DX604 D4)`,
+    )
   const { namespace, method } = memberNames(id)
   const fields: Record<string, FieldPlace> = {}
   const filters: Analysed['filters'] = {}

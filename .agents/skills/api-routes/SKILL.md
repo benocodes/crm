@@ -543,7 +543,13 @@ a route or an MCP tool that bypasses the registry.
 - **Any change to an operation regenerates the SDK.** Its id, path, parameters, request or response schema, or any
   description that reaches the documents, changes `packages/sdk/src/generated/{operations,types}.ts`: run
   `pnpm -C packages/sdk generate` and commit the result, or `packages/sdk/src/generate/drift.test.ts` fails in the
-  default suite (it names the command). Name it as a rider in the charter beside the wire snapshot
+  default suite (it names the command). The workspace-map fixture the SDK's type tests compile
+  (`packages/sdk/src/generate/fixtures/workspace/`, [[DX604]]) is generated from the same documents and has its own
+  drift check in `workspace.test.ts`: regenerate it too, from the repo root, with the command in `packages/sdk/README.md`
+  (`... generate --schema packages/sdk/src/generate/fixtures/workspace.schema.json --out packages/sdk/src/generate/fixtures/workspace`).
+  The documents type enum filter parameters and enum response fields as `string` (only request bodies carry the enum),
+  so an SDK type negative on an enum belongs on a write. In `@vibase/sdk` only `src/generate/` may import `@vibase/api`
+  (`src/boundary.test.ts`). Name it as a rider in the charter beside the wire snapshot
   (`knowledge/specs/038-DX603-typescript-sdk/RETRO.md`). The generator runs `openapi-typescript` 7.x, which cannot load
   under the workspace's TypeScript 7, so `@vibase/sdk` pins `typescript` 5.9.3 as its own devDependency (603.21).
 - **workerd rejects `fetch(..., { redirect: 'error' })`** with a TypeError before sending. Client code that must run on

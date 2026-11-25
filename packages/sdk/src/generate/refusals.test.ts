@@ -90,3 +90,36 @@ describe('DX603 generation refusals', () => {
     expect(generated.types).toContain("'other_things.get'")
   })
 })
+
+describe('DX604 D5 __c namespaces', () => {
+  it.each([
+    ['projects__c.list', 'projects__c', 'list'],
+    ['projects__c.move_stage', 'projects__c', 'moveStage'],
+    ['action_requests.approve', 'actionRequests', 'approve'],
+    ['deals.move_stage', 'deals', 'moveStage'],
+    ['contacts.property_keys', 'contacts', 'propertyKeys'],
+  ])('%s maps to %s.%s', (id, namespace, method) => {
+    expect(memberNames(id)).toEqual({ namespace, method })
+  })
+
+  it('a method part ending in __c is still camelCased: only the namespace keeps its key', () => {
+    expect(memberNames('contacts.set_tier__c')).toEqual({ namespace: 'contacts', method: 'setTierC' })
+  })
+})
+
+describe('DX604 D4 origin-relative paths', () => {
+  it('accepts a path with a single leading slash', async () => {
+    await expect(generateSdk(documents({ '/api/v1/a': get('a.list') }))).resolves.toBeDefined()
+  })
+
+  it.each([
+    ['an absolute URL', 'https://evil.example/api/v1/a'],
+    ['a // host', '//evil.example/api/v1/a'],
+    ['a relative path', 'api/v1/a'],
+  ])('refuses %s, naming the operation', async (_label, path) => {
+    const error = await generateSdk(documents({ [path]: get('a.list') })).catch((e) => e)
+    expect(error).toBeInstanceOf(Error)
+    expect(String(error.message)).toContain('a.list')
+    expect(String(error.message)).toContain(path)
+  })
+})
