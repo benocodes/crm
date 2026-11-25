@@ -10,6 +10,7 @@ import {
   readSet,
   step,
   unit,
+  UnitDriftError,
   type EventReceipt,
   type Found,
   type PreparedOperation,
@@ -79,10 +80,15 @@ export interface CaptureMessage {
   content_key: string | null
   sent_by_connection: boolean
   /**
-   * [[CHN421]] D11/D12: `'inbound'` captures the message as inbound whatever its `from` identity's `own` is (a form submission is
-   * always inbound, even from an own address). Absent, [[CORE25]] D9's rule holds. Decision 421.32: a field of the message, not of the chunk.
+   * The caller's say on direction ([[CHN421]] D11/D12, 421.32: a field of the message, not of the chunk): a form submission is always `'inbound'`.
+   * Absent, the message is outbound only when `sent_by_connection`; a From that is an own identity says nothing ([[CORE574]] D5).
    */
-  direction?: 'inbound'
+  direction?: 'inbound' | 'outbound'
+  /**
+   * [[CORE574]] D6/D7: the content fingerprint the connection pipeline computes (lowercase hex SHA-256). Absent or null: a reaction, a form
+   * submission, or a message the pipeline judged existing; it is stored as null and matches any stored fingerprint.
+   */
+  content_sha256?: string | null
   /** Normalised; at least one `from`. */
   participants: readonly CaptureParticipant[]
   attachments: readonly CaptureAttachment[]
@@ -123,7 +129,14 @@ const KEY = (p: { kind: string; value: string }) => `${p.kind}:${p.value}`
 
 /** Programmer errors, thrown before anything is read: the pipeline guarantees these, so a breach is a bug, not data. */
 function validate(input: CaptureInput): void {
+  const chunkFingerprints = new Map<string, string | null | undefined>()
   for (const m of input.messages) {
+    const earlier = chunkFingerprints.get(m.external_id)
+    if (!sameContent(earlier, m.content_sha256))
+      throw new Error(
+        'a chunk holds one external id with two different fingerprints: the pipeline gives the second its fallback id',
+      )
+    chunkFingerprints.set(m.external_id, m.content_sha256 ?? earlier)
     if (m.channel !== input.channel) throw new Error("a message's channel must equal its chunk's channel")
     if (m.thread_hints.length > 20) throw new Error('thread_hints holds at most 20 entries')
     if (m.kind === 'message' && m.content_key === null) throw new Error('a message needs a content_key')
@@ -133,6 +146,8 @@ function validate(input: CaptureInput): void {
         throw new Error('an attachment has a file if and only if it is stored')
     }
     if (!m.participants.some((p) => p.role === 'from')) throw new Error('a message needs a from participant')
+    if (m.content_sha256 != null && !/^[0-9a-f]{64}$/.test(m.content_sha256))
+      throw new Error('content_sha256 must be a lowercase hex SHA-256')
     for (const p of m.participants) {
       let normalised: string
       try {
@@ -144,6 +159,10 @@ function validate(input: CaptureInput): void {
     }
   }
 }
+
+/** [[CORE574]] D6: two fingerprints are the same mail unless both are known and differ. */
+const sameContent = (a: string | null | undefined, b: string | null | undefined): boolean =>
+  a == null || b == null || a === b
 
 const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
@@ -219,7 +238,6 @@ export function recordMessages(
     aliases: 'capture:aliases',
     ancestors: 'capture:ancestors',
     files: 'capture:files',
-    identities: 'capture:identities',
   } as const
 
   return {
@@ -230,7 +248,7 @@ export function recordMessages(
       const hintRows = sorted.flatMap(({ m }) => rankedHints(m).map((hint, rk) => ({ msg: m.external_id, rk, hint })))
       const hints = jsonRows(qc, 'h', { msg: 'text', rk: 'integer', hint: 'text' }, hintRows)
       const existing = sql`
-        select "messages"."id" as "id", "messages"."thread_id" as "thread_id", "messages"."external_id" as "external_id" from "messages"
+        select "messages"."id" as "id", "messages"."thread_id" as "thread_id", "messages"."external_id" as "external_id", "messages"."content_sha256" as "content_sha256" from "messages"
         where "messages"."organization_id" = ${org} and "messages"."channel" = ${CH} and ${memberOf(qc, 'messages', 'external_id', keys)}`.compile(
         qc.db,
       )
@@ -251,21 +269,12 @@ export function recordMessages(
         select "files"."sha256" as "sha256", min("files"."storage_key") as "storage_key" from "files"
         where "files"."organization_id" = ${org} and ${memberOf(qc, 'files', 'sha256', storedShas)}
         group by "files"."sha256"`.compile(qc.db)
-      const identities = sql`
-        select "identities"."id" as "id", "identities"."kind" as "kind", "identities"."value" as "value", "identities"."own" as "own" from "identities"
-        where "identities"."organization_id" = ${org} and "identities"."deleted_at" is null and ${memberOf(
-          qc,
-          'identities',
-          'value',
-          [...addresses.values()].map((a) => a.value),
-        )}`.compile(qc.db)
       return {
         ...resolve.reads(qc),
         [READ.existing]: readSet(existing),
         [READ.aliases]: readSet(aliases),
         [READ.ancestors]: readSet(ancestors),
         [READ.files]: readSet(knownFiles),
-        [READ.identities]: readSet(identities),
       }
     },
 
@@ -274,9 +283,21 @@ export function recordMessages(
       const resolved = resolve.build(found, qc)
       const resolveSteps: Step[] = resolved.steps.filter((s) => s.label !== 'result')
 
-      const dbMessages = new Map<string, { id: string; thread_id: string }>()
+      const dbMessages = new Map<string, { id: string; thread_id: string; sha: string | null }>()
       for (const r of found.all(READ.existing))
-        dbMessages.set(r.external_id as string, { id: r.id as string, thread_id: r.thread_id as string })
+        dbMessages.set(r.external_id as string, {
+          id: r.id as string,
+          thread_id: r.thread_id as string,
+          sha: (r.content_sha256 as string | null) ?? null,
+        })
+      // [[CORE574]] D6: the pipeline decided each message's id from a read that is now stale when a stored message with this id carries
+      // another fingerprint than the one the message was judged against. The content is already stored under that id, so the plan is dropped:
+      // the pipeline's retry decides again.
+      for (const { m } of sorted) {
+        const stored = dbMessages.get(m.external_id)
+        if (stored !== undefined && !sameContent(stored.sha, m.content_sha256))
+          throw new UnitDriftError('capture.record')
+      }
       const dbAliases = new Map<string, string>()
       for (const r of found.all(READ.aliases)) dbAliases.set(r.provider_thread_id as string, r.thread_id as string)
       const dbAncestors = new Map<string, { rank: number; thread_id: string }>()
@@ -284,12 +305,6 @@ export function recordMessages(
         dbAncestors.set(r.msg as string, { rank: Number(r.rk), thread_id: r.thread_id as string })
       const dbFiles = new Map<string, string>()
       for (const r of found.all(READ.files)) dbFiles.set(r.sha256 as string, r.storage_key as string)
-      const dbIdentities = new Map<string, { id: string; own: boolean }>()
-      for (const r of found.all(READ.identities))
-        dbIdentities.set(KEY({ kind: r.kind as string, value: r.value as string }), {
-          id: r.id as string,
-          own: r.own === true || r.own === 1,
-        })
 
       // Threads (D3).
       const resolution = resolveThreads(
@@ -398,13 +413,9 @@ export function recordMessages(
         }
       }
 
-      // Direction (D9): the connection said so, else the sender's planned identity is one of ours.
-      const direction = (m: CaptureMessage): 'inbound' | 'outbound' => {
-        if (m.direction === 'inbound') return 'inbound'
-        if (m.sent_by_connection) return 'outbound'
-        const from = m.participants.find((p) => p.role === 'from')!
-        return dbIdentities.get(KEY(from))?.own ? 'outbound' : 'inbound'
-      }
+      // Direction ([[CORE574]] D5): the caller said so, else the connection sent it. A From that is an own identity proves nothing: anyone can write it.
+      const direction = (m: CaptureMessage): 'inbound' | 'outbound' =>
+        m.direction ?? (m.sent_by_connection ? 'outbound' : 'inbound')
 
       // Participants (D24): one row per (interaction, role, kind, value).
       const participantRows = fresh.flatMap((r) => {
@@ -462,12 +473,9 @@ export function recordMessages(
         )}
         where coalesce((select cast("thread_sources"."thread_id" as text) from "thread_sources"
           where "thread_sources"."organization_id" = ${org} and ${sourceRef('thread_sources')} = ${source.id} and "thread_sources"."provider_thread_id" = "a"."pt"), '') <> coalesce("a"."thread_id", ''))`
-      const plannedIdentities = [...dbIdentities.values()]
-      const identitiesAsPlanned = sql<SqlBool>`(select count(*) from ${jsonRows(qc, 'p', { id: 'uuid', own: 'boolean' }, plannedIdentities)}
-        join "identities" on "identities"."id" = "p"."id" and "identities"."organization_id" = ${org} and "identities"."deleted_at" is null and "identities"."own" = "p"."own") = ${sql.lit(plannedIdentities.length)}`
       const assertion = assertStep(
         qc,
-        sql<SqlBool>`${noneStillPresent('messages', 'external_id', resolution.absent)} and ${aliasesAsPlanned} and ${noneStillPresent('files', 'sha256', newBlobShas)} and ${identitiesAsPlanned}`,
+        sql<SqlBool>`${noneStillPresent('messages', 'external_id', resolution.absent)} and ${aliasesAsPlanned} and ${noneStillPresent('files', 'sha256', newBlobShas)}`,
       )
 
       const firstMutation = resolveSteps.length === 0 ? ('first-mutation' as const) : undefined
@@ -498,6 +506,7 @@ export function recordMessages(
           occurred_at: 'timestamp',
           preview: 'text',
           content_key: 'text',
+          content_sha256: 'text',
         },
         fresh.map((r) => ({
           id: r.message_id,
@@ -509,6 +518,7 @@ export function recordMessages(
           occurred_at: r.occurred,
           preview: r.m.preview,
           content_key: r.m.content_key,
+          content_sha256: r.m.content_sha256 ?? null,
         })),
       )
       const attachmentSet = jsonRows(
@@ -585,8 +595,8 @@ export function recordMessages(
         ...exactly(
           qc,
           step(
-            sql`insert into "messages" ("id", "created_at", "organization_id", "created_by", "thread_id", "channel", "kind", "external_id", "in_reply_to", "author", "occurred_at", "preview", "content_key", "version", "retracted_at")
-              select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${R('thread_id')}, ${CH}, ${R('kind')}, ${R('external_id')}, ${R('in_reply_to')}, ${R('author')}, ${R('occurred_at')}, ${R('preview')}, ${R('content_key')}, ${bind(qc, 'integer', 1)}, ${bind(qc, 'timestamp', null)}
+            sql`insert into "messages" ("id", "created_at", "organization_id", "created_by", "thread_id", "channel", "kind", "external_id", "in_reply_to", "author", "occurred_at", "preview", "content_key", "content_sha256", "version", "retracted_at")
+              select ${R('id')}, ${stamp()}, ${orgP()}, ${actorP()}, ${R('thread_id')}, ${CH}, ${R('kind')}, ${R('external_id')}, ${R('in_reply_to')}, ${R('author')}, ${R('occurred_at')}, ${R('preview')}, ${R('content_key')}, ${R('content_sha256')}, ${bind(qc, 'integer', 1)}, ${bind(qc, 'timestamp', null)}
               from ${messageSet} where true order by ${R('ord')}
               on conflict ("organization_id", "channel", "external_id") do nothing`.compile(qc.db),
           ),

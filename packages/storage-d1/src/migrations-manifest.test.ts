@@ -72,6 +72,7 @@ describe('migrations manifest (D5)', () => {
       '0025_capture_defaults.sql',
       '0026_additional_props.sql',
       '0027_form_challenge.sql',
+      '0028_content_sha256.sql',
     ])
   })
   it('catches one edited byte', () => {

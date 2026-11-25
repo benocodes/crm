@@ -17,6 +17,7 @@ import {
 import type { ChannelMessage, ChannelPort, ConnectionRef } from '../channels/port.js'
 import { operationOf, type Program } from '../identity/program.js'
 import type { ObjectStore } from '../objects/store.js'
+import { stringifyMarkdown } from '../channels/markdown.js'
 import { ScopeSet } from '../scopes.js'
 import type { PreparedEnv } from '../storage/definition.js'
 import {
@@ -31,7 +32,7 @@ import {
 import { captureChunks, normalizeParticipants } from './capture-chunks.js'
 import { messagePreview } from './preview.js'
 import { fileBlobKey, messageContentPrefix } from './r2-keys.js'
-import { ATTACHMENT_MAX_BYTES, storeMessageContent } from './store-content.js'
+import { ATTACHMENT_MAX_BYTES, storeMessageContent, type StoredContent } from './store-content.js'
 import type { StreamPrimitives } from './streams.js'
 
 /** The pipeline's explicit context ([[CORE69]] D12). Every unit runs as a `tenant` identity whose actor is `actorId`. */
@@ -84,10 +85,66 @@ export interface PipelineOptions {
 const MAX_DRIFT_RETRIES = 2
 const RESERVED_PREFIXES = ['capture:', 'resolve:']
 
+/** One message of the batch. `read` is as the port returned it; `channel` and `capture` carry the id the batch decided for it ([[CORE574]] D6). */
 interface Entry {
+  read: ChannelMessage
+  /** What storage sees: `read`, or `read` with the fallback id as its external id. */
   channel: ChannelMessage
+  /** The capture message under its Message-ID with its fingerprint (null for a reaction). */
+  base: CaptureMessage
+  /** The adapter's fallback id, null when it has none or it is the Message-ID itself. */
+  fallback: string | null
   capture: CaptureMessage
   existing: boolean
+  /** The content stored for this entry, and the id it was stored under. */
+  stored: { id: string; content: StoredContent } | null
+}
+
+/** [[CORE574]] D6: two fingerprints are the same mail unless both are known and differ. */
+const sameContent = (a: string | null, b: string | null): boolean => a === null || b === null || a === b
+
+const hex = (bytes: ArrayBuffer): string =>
+  [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')
+
+/**
+ * [[CORE574]] D7, P1: the fingerprint of a captured message, from what the pipeline stores. The SHA-256 of the UTF-8 of
+ * `JSON.stringify([subject, from, body])`: JSON tells a null subject from an empty one and cannot be split another way; `from` is the
+ * first normalised from address, `body` is `stringifyMarkdown(formatted)`, the text stored as `body.md`. Lowercase hex.
+ */
+export async function contentFingerprint(subject: string | null, from: string, body: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([subject, from, body])))
+  return hex(digest)
+}
+
+/** Where a message of the batch goes: the id it is recorded under, and whether a stored message already answers for it. */
+interface Decision {
+  id: string
+  existing: boolean
+  /** The fingerprint to store: null unless the message is new (an existing one stores nothing). */
+  fingerprint: string | null
+}
+
+/**
+ * [[CORE574]] D6, P4: the one fingerprint rule, applied wherever the pipeline decides a message exists. `known` is what the database holds
+ * (external id to stored fingerprint), `seen` what earlier new messages of this pass will store. The Message-ID is an existing message when it
+ * is known and the fingerprints are the same (or either is unknown). When they differ the mail is recorded under its fallback id, and when
+ * that id is already known the mail is existing whatever the fingerprints say: within one connection a provider id is one mail.
+ */
+function decide(e: Entry, known: ReadonlyMap<string, string | null>, seen: Map<string, string | null>): Decision {
+  const x = e.base.external_id
+  const sha = e.base.content_sha256 ?? null
+  const stored = known.has(x)
+  const have = stored ? known.get(x)! : seen.has(x) ? seen.get(x)! : undefined
+  if (have === undefined) {
+    seen.set(x, sha)
+    return { id: x, existing: false, fingerprint: sha }
+  }
+  if (sameContent(have, sha) || e.fallback === null) return { id: x, existing: stored, fingerprint: null }
+  const f = e.fallback
+  if (known.has(f)) return { id: f, existing: true, fingerprint: null }
+  if (seen.has(f)) return { id: f, existing: false, fingerprint: null }
+  seen.set(f, sha)
+  return { id: f, existing: false, fingerprint: sha }
 }
 
 /**
@@ -206,47 +263,76 @@ export async function captureMessages(
       continue
     }
     const reaction = facts.kind === 'reaction'
-    entries.push({
-      channel: read,
-      existing: false,
-      capture: {
-        channel: facts.channel,
-        kind: facts.kind,
-        external_id: facts.external_id,
-        in_reply_to: facts.in_reply_to,
-        thread_hints: facts.thread_hints.slice(0, 20),
-        provider_message_id: facts.provider_message_id,
-        provider_thread_id: facts.provider_thread_id,
-        occurred_at: facts.occurred_at,
-        subject: facts.subject,
-        author: {
-          user_id: message.author.userId,
-          user_name: message.author.userName,
-          full_name: message.author.fullName,
-          is_bot: message.author.isBot === true,
-        },
-        preview: messagePreview(message, facts.kind),
-        content_key: null,
-        sent_by_connection: facts.sent_by_connection,
-        participants: norm.participants,
-        attachments: reaction ? [] : pendingAttachments(read),
+    const base: CaptureMessage = {
+      channel: facts.channel,
+      kind: facts.kind,
+      external_id: facts.external_id,
+      in_reply_to: facts.in_reply_to,
+      thread_hints: facts.thread_hints.slice(0, 20),
+      provider_message_id: facts.provider_message_id,
+      provider_thread_id: facts.provider_thread_id,
+      occurred_at: facts.occurred_at,
+      subject: facts.subject,
+      author: {
+        user_id: message.author.userId,
+        user_name: message.author.userName,
+        full_name: message.author.fullName,
+        is_bot: message.author.isBot === true,
       },
+      preview: messagePreview(message, facts.kind),
+      content_key: null,
+      sent_by_connection: facts.sent_by_connection,
+      content_sha256: reaction
+        ? null
+        : await contentFingerprint(
+            facts.subject,
+            norm.participants.find((p) => p.role === 'from')!.value,
+            stringifyMarkdown(message.formatted),
+          ),
+      participants: norm.participants,
+      attachments: reaction ? [] : pendingAttachments(read),
+    }
+    entries.push({
+      read,
+      channel: read,
+      base,
+      fallback:
+        facts.fallback_external_id === undefined || facts.fallback_external_id === facts.external_id
+          ? null
+          : facts.fallback_external_id,
+      capture: base,
+      existing: false,
+      stored: null,
     })
   }
 
-  // (3) One pre-check for the whole batch: which (channel, external_id) already exist.
-  const known = await existingExternalIds(ctx, identity, [...new Set(entries.map((e) => e.capture.external_id))], cap)
-  for (const e of entries) {
-    e.existing = known.has(e.capture.external_id)
-    if (e.existing)
-      e.capture = {
-        ...e.capture,
-        content_key:
-          e.capture.kind === 'reaction'
-            ? null
-            : await messageContentPrefix(ctx.organizationId, e.capture.channel, e.capture.external_id),
-      }
+  // (3) One pre-check for the whole batch: which ids already exist, with their stored fingerprints (the Message-ID and the fallback id of
+  // every message). Each message is then decided in input order by the one fingerprint rule ([[CORE574]] D6): a reused Message-ID with
+  // other content, in the database or earlier in this batch, is captured under its fallback id.
+  const known = await existingFingerprints(
+    ctx,
+    identity,
+    [...new Set(entries.flatMap((e) => [e.base.external_id, ...(e.fallback === null ? [] : [e.fallback])]))],
+    cap,
+  )
+  const apply = async (e: Entry, d: Decision): Promise<void> => {
+    e.existing = d.existing
+    e.channel =
+      d.id === e.read.facts.external_id ? e.read : { ...e.read, facts: { ...e.read.facts, external_id: d.id } }
+    e.capture = {
+      ...e.base,
+      external_id: d.id,
+      content_sha256: d.fingerprint,
+      ...(d.existing
+        ? {
+            content_key:
+              e.base.kind === 'reaction' ? null : await messageContentPrefix(ctx.organizationId, e.base.channel, d.id),
+          }
+        : {}),
+    }
   }
+  const seen = new Map<string, string | null>()
+  for (const e of entries) await apply(e, decide(e, known, seen))
 
   // (4) Chunk by what each message will store: an existing message stores nothing (its attachments stay pending).
   const { chunks, skipped } = captureChunks(entries, cap, (e) => ({
@@ -258,11 +344,81 @@ export async function captureMessages(
   }))
   for (const s of skipped) skip(s.reason)
 
-  // (5) Per chunk: store, record (drift retried in place), delete duplicates.
-  const record = async (build: (env: PreparedEnv) => Program<CaptureResult>): Promise<CaptureResult> => {
-    for (let attempt = 0; ; attempt++) {
+  // Content stored for an entry whose decision then changed is no longer wanted: its attachment blobs go (the body and original sit at
+  // keys derived from the id the entry no longer takes, and may now be another message's).
+  const discardStored = async (e: Entry): Promise<void> => {
+    if (e.stored === null) return
+    for (const a of e.stored.content.attachments) {
+      if (a.file === null) continue
       try {
-        return (await execute(binding, identity, operationOf('capture.record', build(makeEnv())))).value
+        await ctx.objects.delete(fileBlobKey(a.file.storage_key))
+      } catch {
+        result.orphaned_objects++
+      }
+    }
+    e.stored = null
+  }
+
+  // (5) Per chunk: store, record (drift retried in place, deciding the chunk's messages again), delete duplicates.
+  const record = async (
+    chunk: readonly Entry[],
+    build: (env: PreparedEnv, messages: CaptureMessage[]) => Program<CaptureResult>,
+  ): Promise<{ out: CaptureResult; messages: CaptureMessage[] }> => {
+    for (let attempt = 0; ; attempt++) {
+      if (attempt > 0 || chunk.some((e) => !e.existing)) {
+        // [[CORE574]] D6: the database may have moved since the batch was decided (a drift says it did): a message may have landed with the
+        // id a chunk message is about to take, and content stored under that id would overwrite it. So before any content is stored, and
+        // again on every retry, the fingerprint rule runs against what is there now.
+        const fresh = await existingFingerprints(
+          ctx,
+          identity,
+          [...new Set(chunk.flatMap((e) => [e.base.external_id, ...(e.fallback === null ? [] : [e.fallback])]))],
+          cap,
+        )
+        const again = new Map<string, string | null>()
+        for (const e of chunk) {
+          const d = decide(e, fresh, again)
+          if (d.id === e.capture.external_id && d.existing === e.existing) continue
+          await discardStored(e)
+          await apply(e, d)
+        }
+      }
+      const messages: CaptureMessage[] = []
+      for (const e of chunk) {
+        if (e.existing) {
+          messages.push(e.capture)
+          continue
+        }
+        if (e.stored === null || e.stored.id !== e.capture.external_id) {
+          await discardStored(e)
+          const content = await storeMessageContent(
+            {
+              organizationId: ctx.organizationId,
+              objects: ctx.objects,
+              streams: ctx.streams,
+              newId: ctx.newId,
+              attachmentMaxBytes: maxBytes,
+            },
+            port,
+            conn,
+            e.channel,
+          )
+          result.orphaned_objects += content.orphaned_objects
+          e.stored = { id: e.capture.external_id, content }
+        }
+        const { content } = e.stored
+        messages.push({
+          ...e.capture,
+          content_key: content.content_key,
+          preview: content.preview,
+          attachments: content.attachments,
+        })
+      }
+      try {
+        return {
+          out: (await execute(binding, identity, operationOf('capture.record', build(makeEnv(), messages)))).value,
+          messages,
+        }
       } catch (err) {
         if (err instanceof UnitDriftError && attempt < MAX_DRIFT_RETRIES) continue
         throw err
@@ -270,44 +426,18 @@ export async function captureMessages(
     }
   }
   for (const [index, chunk] of chunks.entries()) {
-    const messages: CaptureMessage[] = []
-    for (const e of chunk) {
-      if (e.existing) {
-        messages.push(e.capture)
-        continue
-      }
-      const stored = await storeMessageContent(
-        {
-          organizationId: ctx.organizationId,
-          objects: ctx.objects,
-          streams: ctx.streams,
-          newId: ctx.newId,
-          attachmentMaxBytes: maxBytes,
-        },
-        port,
-        conn,
-        e.channel,
-      )
-      result.orphaned_objects += stored.orphaned_objects
-      messages.push({
-        ...e.capture,
-        content_key: stored.content_key,
-        preview: stored.preview,
-        attachments: stored.attachments,
-      })
-    }
-    const input: CaptureInput = {
-      source: { kind: 'connection', id: conn.id },
-      channel: 'email',
-      messages,
-      ...(opts.contactCreation ? { contact_creation: opts.contactCreation } : {}),
-    }
     const last = index === chunks.length - 1
-    const out = await record((env) =>
-      last && opts.final
+    const { out, messages } = await record(chunk, (env, messages) => {
+      const input: CaptureInput = {
+        source: { kind: 'connection', id: conn.id },
+        channel: 'email',
+        messages,
+        ...(opts.contactCreation ? { contact_creation: opts.contactCreation } : {}),
+      }
+      return last && opts.final
         ? withFinal(recordMessages(env, input, ctx.builtIns?.contacts), opts.final)
-        : recordMessages(env, input, ctx.builtIns?.contacts),
-    )
+        : recordMessages(env, input, ctx.builtIns?.contacts)
+    })
 
     result.captured += out.captured.length
     result.existing += out.existing.length
@@ -362,24 +492,27 @@ function pendingAttachments(cm: ChannelMessage): CaptureAttachment[] {
   })
 }
 
-/** The batch's one pre-check ([[CORE69]] D8 step 3): split by the cap only so an oversize page cannot throw `SetLimitExceeded`. */
-async function existingExternalIds(
+/**
+ * The batch's one pre-check ([[CORE69]] D8 step 3, [[CORE574]] D6): which `(channel, external_id)` already exist and the fingerprint each
+ * stores (null when it has none). Split by the cap only so an oversize page cannot throw `SetLimitExceeded`.
+ */
+async function existingFingerprints(
   ctx: PipelineContext,
   identity: StorageIdentity,
   externalIds: readonly string[],
   cap: number,
-): Promise<Set<string>> {
-  const found = new Set<string>()
+): Promise<Map<string, string | null>> {
+  const found = new Map<string, string | null>()
   for (let at = 0; at < externalIds.length; at += cap) {
     const ids = externalIds.slice(at, at + cap)
-    const op = defineOperation<string[]>({
+    const op = defineOperation<Array<readonly [string, string | null]>>({
       name: 'capture.precheck',
       mutates: false,
       reads: (qc) => {
         boundIds(qc, ids)
         return {
           existing: readSet(
-            sql`select "messages"."external_id" as "external_id" from "messages"
+            sql`select "messages"."external_id" as "external_id", "messages"."content_sha256" as "content_sha256" from "messages"
               where "messages"."organization_id" = ${ctx.organizationId} and "messages"."channel" = ${sql.lit('email')} and ${memberOf(qc, 'messages', 'external_id', ids)}`.compile(
               qc.db,
             ),
@@ -387,9 +520,19 @@ async function existingExternalIds(
         }
       },
       build: (f) =>
-        unit({ steps: [], events: [], decode: () => f.all('existing').map((r) => r.external_id as string) }),
+        unit({
+          steps: [],
+          events: [],
+          decode: () =>
+            f
+              .all('existing')
+              .map((r) => [r.external_id as string, (r.content_sha256 as string | null) ?? null] as const),
+        }),
     })
-    for (const id of (await execute(ctx.binding, identity, op)).value) found.add(id)
+    for (const [id, sha] of (await execute(ctx.binding, identity, op)).value as unknown as Array<
+      readonly [string, string | null]
+    >)
+      found.set(id, sha)
   }
   return found
 }

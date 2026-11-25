@@ -16,6 +16,11 @@ export interface ChannelFacts {
   channel: ChannelName
   kind: 'message' | 'reaction'
   external_id: string
+  /**
+   * [[CORE574]] D6: an id this adapter can mint for this very provider message (Gmail: `gmail:<connection id>:<provider message id>`). When a mail reuses
+   * a known `external_id` with different content, the pipeline captures it under this id instead. Absent: such a mail is treated as a copy.
+   */
+  fallback_external_id?: string
   in_reply_to: string | null
   /** At most 20, nearest first. */
   thread_hints: string[]

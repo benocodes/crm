@@ -22,6 +22,7 @@ const A: FakeMessageScript = {
   subject: 'Quarterly numbers',
   markdown: 'The first mail',
   from: 'jane@acme.test',
+  to: ['a1@x.test'],
   occurredAt: '2026-10-22T09:00:00.000Z',
 }
 /** Reuses A's Message-ID with other content. */
@@ -31,6 +32,7 @@ const B: FakeMessageScript = {
   subject: 'Something else entirely',
   markdown: 'A different mail with a reused id',
   from: 'mallory@evil.test',
+  to: ['b1@x.test'],
   occurredAt: '2026-10-22T09:01:00.000Z',
 }
 
@@ -217,10 +219,23 @@ describe('capture integrity on d1', () => {
     it('(d) the first landed after the unit planned, seen only by the commit assertion: the retry decides again', async () => {
       const objects = memoryObjectStore()
       const first = setup([A], { objects })
-      const t = setup([B], { objects })
-      e.betweenPlanAndCommit(async () => {
-        await first.run(['pid-a'], C2)
-      })
+      let landed = false
+      const wrapped: StorageBinding = {
+        ...e.binding,
+        runtime: {
+          ...e.binding.runtime,
+          execute: (async (identity: any, op: any) => {
+            if (op.name === 'capture.record' && !landed) {
+              landed = true
+              e.betweenPlanAndCommit(async () => {
+                await first.run(['pid-a'], C2)
+              })
+            }
+            return e.binding.runtime.execute(identity, op)
+          }) as typeof e.binding.runtime.execute,
+        },
+      }
+      const t = setup([B], { objects }, wrapped)
       const out = await t.run(['pid-b'])
       expect(out).toMatchObject({ captured: 1, existing: 0 })
       const rows = await messages()

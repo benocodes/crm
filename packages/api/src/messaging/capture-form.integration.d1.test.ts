@@ -135,12 +135,12 @@ describe('the two source kinds never cross (group 4, P1)', () => {
 })
 
 describe('direction (group 5, D11)', () => {
-  it('the override captures a message from an own address as inbound; without it, an own from is outbound', async () => {
+  it('a message from an own address is inbound with the override and without it: an own from no longer makes it outbound (CORE574 D5)', async () => {
     const own = [{ kind: 'email' as const, value: OWNER, role: 'from' as const }]
     await capForm([formMsg({ participants: own, provider_thread_id: 'email:o1' })])
     expect(await e.rows('interactions')).toEqual([expect.objectContaining({ direction: 'inbound', channel: 'form' })])
     await capForm([formMsg({ participants: own, provider_thread_id: 'email:o2', direction: undefined })])
-    expect((await e.rows('interactions')).map((r) => r.direction).sort()).toEqual(['inbound', 'outbound'])
+    expect((await e.rows('interactions')).map((r) => r.direction).sort()).toEqual(['inbound', 'inbound'])
   })
 })
 

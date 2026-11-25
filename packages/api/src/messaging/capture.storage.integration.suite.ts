@@ -706,10 +706,10 @@ export function engineSuite(engineName: EngineName): void {
           expect((await participantsOf(m)).rows.find((p) => p.role === 'from')!.identity_id).toBe(live.id)
         })
 
-        it('a planned identity was swapped with the count kept: the new identity is the participant on retry', async () => {
+        it('a planned identity was swapped with the count kept: the new identity is the participant ([[CORE574]] P5: no identities guard left, the participant join reads it live)', async () => {
           const m = next()
           let replacement: RawRow
-          await drift([m], async () => {
+          e.betweenPlanAndCommit(async () => {
             await e.update('identities', jane.id, { deleted_at: NOW })
             replacement = await e.insert('identities', {
               kind: 'email',
@@ -722,9 +722,9 @@ export function engineSuite(engineName: EngineName): void {
           expect((await participantsOf(m)).rows.find((p) => p.role === 'from')!.identity_id).toBe(replacement!.id)
         })
 
-        it('the sender became own: the retry is still inbound ([[CORE574]] D5)', async () => {
+        it('the sender became own: not drift, and still inbound ([[CORE574]] D5, P5)', async () => {
           const m = next()
-          await drift([m], async () => {
+          e.betweenPlanAndCommit(async () => {
             await e.update('identities', jane.id, { own: true, contact_id: null })
           })
           await cap([m])
@@ -748,7 +748,7 @@ export function engineSuite(engineName: EngineName): void {
 
   // Pinned from the first green run: a chunk whose addresses and messages all exist sends the plan read batch plus the
   // unit's fixed statements and none of resolve's four.
-  const ALL_EXISTING_STATEMENTS: Record<'postgres' | 'd1', number> = { postgres: 20, d1: 21 }
+  const ALL_EXISTING_STATEMENTS: Record<'postgres' | 'd1', number> = { postgres: 19, d1: 20 }
 
   describe.each([engineName])('recordMessages caps on %s', (name) => {
     let capped: Engine[]
