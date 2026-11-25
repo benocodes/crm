@@ -478,6 +478,13 @@ into one rule, plus nine absence mutations. When a charter changes a dedup rule 
 from the deduplicated id (R2 content at the external id), Watch out says the write happens before commit, and asks for
 the decision to be re-taken right before it; CORE574's coder found that only through the (d) mutation. A cycle that adds
 or removes a D1 query on an operation or the capture pipeline names `measured-limits.test.ts` as a rider.
+**AGT588** cycle b (`knowledge/specs/035-AGT588-hostile-content-approval-card/RETRO.md`): 6 groups (1 matrix), 6
+decisions + 1 planner rule, 1 migration, 1 E2E leg. ~257k / 118+ calls first run (+450 / +703 lines, 22 files), then a
+free gate-fix round and two review rounds. The budget holds; the rounds were spec gaps, not size. A charter that adds a
+field to a resource record names the wire snapshot as a rider (writing-tests §1). A charter (or spec) that has the
+server read a stored value into a response for a caller who may hold only `request_approval` states the read scope each
+value needs (api-routes, "Owner-granted resource authority"); AGT588 found the label and then the thread subject one
+review round apart.
 
 ### Step 3: Resolve identities
 
