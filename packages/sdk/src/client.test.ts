@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createClient } from './index.js'
+import { createClient, type OperationTable } from './index.js'
 import { BASE, fakeFetch, jsonResponse } from './testing.js'
 
 // DX603 D5: the call. Flat arguments placed by the generated table.
@@ -42,11 +42,46 @@ describe('DX603 D5 the call', () => {
     expect(new Headers(fetch.calls[0].init.headers).get('content-type')).toBe('application/json')
   })
 
-  it('sends a query field of a body operation in the query, not the body', async () => {
-    const { vibase, fetch } = make()
-    await vibase.contacts.create({ name: 'Ada' })
-    expect(new URL(fetch.calls[0].url).search).toBe('')
+  it('sends a query field of a body operation in the query, not the body (synthetic table)', async () => {
+    type Shape = {
+      namespace: 'a'
+      method: 'make'
+      args: { dry_run?: boolean; name: string }
+      result: unknown
+      proposable: false
+      paginated: false
+    }
+    const operations: OperationTable<{ 'a.make': Shape }> = {
+      'a.make': {
+        namespace: 'a',
+        method: 'make',
+        http: 'POST',
+        path: '/api/v1/things',
+        fields: { dry_run: 'query', name: 'body' },
+        body: true,
+        output: 'json',
+        paginated: false,
+        proposable: false,
+        filters: {},
+      },
+    }
+    const fetch = fakeFetch(() => jsonResponse({}))
+    const vibase = createClient({ url: BASE, auth: 't', fetch, operations })
+    await vibase.a.make({ name: 'Ada', dry_run: true })
+    expect(new URL(fetch.calls[0].url).searchParams.get('dry_run')).toBe('true')
     expect(JSON.parse(String(fetch.calls[0].init.body))).toEqual({ name: 'Ada' })
+  })
+
+  it('sends a null body field as null (it clears a nullable field) and drops undefined (603.30)', async () => {
+    const { vibase, fetch } = make()
+    await vibase.contacts.update({ id: 'c1', company_id: null, name: undefined })
+    expect(JSON.parse(String(fetch.calls[0].init.body))).toEqual({ company_id: null })
+  })
+
+  it('drops a null query value', async () => {
+    const { vibase, fetch } = make()
+    await vibase.tasks.list({ status: null as never, limit: 3 })
+    expect(new URL(fetch.calls[0].url).search).toBe('?limit=3')
   })
 
   it('passes an undeclared field of a body operation through to the body', async () => {

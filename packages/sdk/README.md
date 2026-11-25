@@ -47,6 +47,8 @@ Every failure rejects with a `VibaseError { status, code, message }`; `isVibaseE
 | 2xx whose JSON does not parse | the response's | `invalid_response` |
 | `auth` returned `null` | `401` | `no_credential` |
 | A path that leaves the origin | `0` | `origin_mismatch` |
+| A 3xx answer (never followed) | the 3xx status | `unexpected_redirect` |
+| A path argument is missing | `0` | `invalid_argument` |
 
 An abort rethrows the `AbortError` untouched.
 

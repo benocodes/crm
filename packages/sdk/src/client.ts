@@ -114,12 +114,12 @@ function place(entry: OperationEntry, args: Record<string, unknown>) {
   const query: [string, string][] = []
   const body: Record<string, unknown> = {}
   for (const [name, value] of Object.entries(args)) {
-    if (value === undefined || value === null) continue
+    if (value === undefined) continue
     const place = entry.fields[name]
     if (place === 'path') continue
     if (place === 'query') {
       for (const item of Array.isArray(value) ? value : [value])
-        if (item !== undefined) query.push([name, String(item)])
+        if (item !== undefined && item !== null) query.push([name, String(item)])
     } else if (entry.body) body[name] = value
   }
   return { path, query, body: entry.body ? body : undefined }
