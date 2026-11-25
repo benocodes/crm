@@ -2421,6 +2421,7 @@
                   "path": "/api/v1/companies",
                   "operations": [
                     "companies.list",
+                    "companies.aggregate",
                     "companies.property_keys",
                     "companies.get",
                     "companies.create",
@@ -2525,7 +2526,13 @@
                       "description": "Filter by one key of additional_props: additional_props=<key>.<condition>, once per request. Conditions: eq (or a bare value), neq, in, is.null, not.is.null. Example: additional_props=employees.eq.40. A stored string matches by its text and a stored number or boolean by its JSON literal (employees.eq.40 matches 40 and \"40\", verified.eq.true matches true and \"true\"), case-sensitively. An absent key matches only is.null: eq, neq and in never match it. Reads every live row of the organisation, whatever the index. Other operators and not. forms are refused; list the keys in use with the property_keys read. no index serves a bag key (the bag is a JSON column): the filter reads the organisation's live rows; promote a key that is filtered often to a typed field"
                     }
                   ],
-                  "aggregate": null
+                  "aggregate": {
+                    "sum": [],
+                    "avg": [],
+                    "min": ["name", "domain", "created_at", "updated_at"],
+                    "max": ["name", "domain", "created_at", "updated_at"],
+                    "money": {}
+                  }
                 },
                 "columns": [
                   {
@@ -3384,6 +3391,7 @@
                   "path": "/api/v1/contacts",
                   "operations": [
                     "contacts.list",
+                    "contacts.aggregate",
                     "contacts.property_keys",
                     "contacts.get",
                     "contacts.create",
@@ -3554,7 +3562,13 @@
                       "description": "Filter by one key of additional_props: additional_props=<key>.<condition>, once per request. Conditions: eq (or a bare value), neq, in, is.null, not.is.null. Example: additional_props=employees.eq.40. A stored string matches by its text and a stored number or boolean by its JSON literal (employees.eq.40 matches 40 and \"40\", verified.eq.true matches true and \"true\"), case-sensitively. An absent key matches only is.null: eq, neq and in never match it. Reads every live row of the organisation, whatever the index. Other operators and not. forms are refused; list the keys in use with the property_keys read. no index serves a bag key (the bag is a JSON column): the filter reads the organisation's live rows; promote a key that is filtered often to a typed field"
                     }
                   ],
-                  "aggregate": null
+                  "aggregate": {
+                    "sum": [],
+                    "avg": [],
+                    "min": ["name", "created_at", "updated_at"],
+                    "max": ["name", "created_at", "updated_at"],
+                    "money": {}
+                  }
                 },
                 "columns": [
                   {
@@ -7901,6 +7915,7 @@
                   "path": "/api/v1/tasks",
                   "operations": [
                     "tasks.list",
+                    "tasks.aggregate",
                     "tasks.property_keys",
                     "tasks.get",
                     "tasks.create",
@@ -8042,7 +8057,13 @@
                       "description": "Filter by one key of additional_props: additional_props=<key>.<condition>, once per request. Conditions: eq (or a bare value), neq, in, is.null, not.is.null. Example: additional_props=employees.eq.40. A stored string matches by its text and a stored number or boolean by its JSON literal (employees.eq.40 matches 40 and \"40\", verified.eq.true matches true and \"true\"), case-sensitively. An absent key matches only is.null: eq, neq and in never match it. Reads every live row of the organisation, whatever the index. Other operators and not. forms are refused; list the keys in use with the property_keys read. no index serves a bag key (the bag is a JSON column): the filter reads the organisation's live rows; promote a key that is filtered often to a typed field"
                     }
                   ],
-                  "aggregate": null
+                  "aggregate": {
+                    "sum": [],
+                    "avg": [],
+                    "min": ["title", "notes", "status", "due_at", "completed_at", "created_at", "updated_at"],
+                    "max": ["title", "notes", "status", "due_at", "completed_at", "created_at", "updated_at"],
+                    "money": {}
+                  }
                 },
                 "columns": [
                   {

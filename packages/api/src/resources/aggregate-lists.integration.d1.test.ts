@@ -49,7 +49,8 @@ const paged = async (list: string, query: string) => {
     after = `&after=${encodeURIComponent(r.body.next_cursor)}`
   }
 }
-const agg = (list: string, query = '', actor = owner) => k.call(actor, 'GET', `${path(list)}/aggregate${query ? `?${query}` : ''}`)
+const agg = (list: string, query = '', actor = owner) =>
+  k.call(actor, 'GET', `${path(list)}/aggregate${query ? `?${query}` : ''}`)
 const mcp = async (method: string, params: unknown, scopes = registry.declaredScopes()) => {
   const res = await k.app.request('/mcp', {
     method: 'POST',
@@ -101,6 +102,34 @@ describe.each(LISTS)('$list aggregates (D1)', ({ list, key, body, noun }) => {
     expect(op.description).toContain(`reads every live ${noun} that matches the filters, with no page limit`)
     expect(op.description).toContain(`reads every live ${noun} of the workspace`)
     expect(op.description).not.toMatch(/idx_|_idx\b/)
+  })
+})
+
+describe('schema.get per list (D7)', () => {
+  it('each declared object carries D14 applied to its column filters, money empty off deals; every other list null', async () => {
+    const doc = (await k.call(owner, 'GET', '/meta/v1/schema')).body
+    const table = (n: string) => doc.tables.find((t: any) => t.name === n)
+    for (const { list } of LISTS) {
+      const r = table(list).resource
+      const cols = r.filters.filter((f: any) => !f.custom && f.name !== 'additional_props')
+      const by = (kinds: string[]) => cols.filter((f: any) => kinds.includes(f.kind)).map((f: any) => f.name)
+      expect(r.aggregate, list).toEqual({
+        sum: by(['integer']),
+        avg: by(['integer']),
+        min: by(['integer', 'timestamp', 'text']),
+        max: by(['integer', 'timestamp', 'text']),
+        money: {},
+      })
+      expect(r.aggregate.min.length, list).toBeGreaterThan(0)
+      expect(r.operations).toContain(`${list}.aggregate`)
+    }
+    expect(table(OBJECT).resource.aggregate.sum).toEqual(['budget', 'seq'])
+    expect(table(OBJECT).resource.aggregate.min).toEqual(expect.arrayContaining(['name', 'stage', 'start_date']))
+    expect(table(OBJECT).resource.aggregate.min).not.toContain('company')
+    expect(table(OBJECT).resource.aggregate.min).not.toContain('additional_props')
+    expect(table('deals').resource.aggregate.money).toEqual({ amount_minor: 'currency' })
+    for (const t of doc.tables.filter((t: any) => t.resource))
+      if (![...EXTENSIBLE_OBJECTS, OBJECT].includes(t.name)) expect(t.resource.aggregate, t.name).toBeNull()
   })
 })
 
@@ -169,24 +198,27 @@ describe('no parameter without a field (D5)', () => {
     ['contacts', 'sum', 'avg'],
     ['companies', 'sum', 'avg'],
     ['tasks', 'sum', 'avg'],
-  ])('%s has no sum or avg parameter anywhere; naming one is a 400 with the per-function message', async (list, ...fns) => {
-    const doc = (await k.call(owner, 'GET', '/api/v1/openapi.json')).body
-    const params = doc.paths[`/api/v1/${list}/aggregate`].get.parameters.map((p: any) => p.name)
-    const tool = (await mcp('tools/list', {})).result.tools.find((t: any) => t.name === `${list}_aggregate`)
-    for (const fn of fns) {
-      expect(params, fn).not.toContain(fn)
-      expect(Object.keys(tool.inputSchema.properties), fn).not.toContain(fn)
-      const r = await agg(list, `${fn}=x`)
-      expect(r.status).toBe(400)
-      expect(JSON.stringify(r.body)).toContain(`${fn}: ${list} has no integer field`)
-      expect(JSON.stringify(r.body)).not.toContain('unknown filter')
-    }
-    for (const fn of ['min', 'max']) expect(params).toContain(fn)
-    const schema = (await k.call(owner, 'GET', '/meta/v1/schema')).body
-    const a = schema.tables.find((t: any) => t.name === list).resource.aggregate
-    expect(a.sum).toEqual([])
-    expect(a.avg).toEqual([])
-  })
+  ])(
+    '%s has no sum or avg parameter anywhere; naming one is a 400 with the per-function message',
+    async (list, ...fns) => {
+      const doc = (await k.call(owner, 'GET', '/api/v1/openapi.json')).body
+      const params = doc.paths[`/api/v1/${list}/aggregate`].get.parameters.map((p: any) => p.name)
+      const tool = (await mcp('tools/list', {})).result.tools.find((t: any) => t.name === `${list}_aggregate`)
+      for (const fn of fns) {
+        expect(params, fn).not.toContain(fn)
+        expect(Object.keys(tool.inputSchema.properties), fn).not.toContain(fn)
+        const r = await agg(list, `${fn}=x`)
+        expect(r.status).toBe(400)
+        expect(JSON.stringify(r.body)).toContain(`${fn}: ${list} has no integer field`)
+        expect(JSON.stringify(r.body)).not.toContain('unknown filter')
+      }
+      for (const fn of ['min', 'max']) expect(params).toContain(fn)
+      const schema = (await k.call(owner, 'GET', '/meta/v1/schema')).body
+      const a = schema.tables.find((t: any) => t.name === list).resource.aggregate
+      expect(a.sum).toEqual([])
+      expect(a.avg).toEqual([])
+    },
+  )
 })
 
 describe('an integer __c field on contacts brings sum and avg back (D5, D4)', () => {

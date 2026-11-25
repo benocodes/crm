@@ -182,7 +182,12 @@ const fieldsSchema = z.record(z.string(), fieldSchema).superRefine((fields, ctx)
     else if (name.length > NAME_MAX)
       refuse(ctx, 'field_name_length', `a field name is at most ${NAME_MAX} characters`, at)
     else if (RESERVED_NAMES.includes(name))
-      refuse(ctx, 'reserved_name', `"${name}" is reserved (a bookkeeping column, a list or aggregate parameter or a CLI flag)`, at)
+      refuse(
+        ctx,
+        'reserved_name',
+        `"${name}" is reserved (a bookkeeping column, a list or aggregate parameter or a CLI flag)`,
+        at,
+      )
   }
 })
 

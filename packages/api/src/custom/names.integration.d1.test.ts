@@ -42,7 +42,7 @@ describe('REST', () => {
       .map((o) => o.name)
       .filter((n) => n.startsWith(PROJECTS_KEY))
     expect(names.sort()).toEqual(
-      ['create', 'delete', 'get', 'list', 'property_keys', 'update'].map((x) => `${PROJECTS_KEY}.${x}`).sort(),
+      ['aggregate', 'create', 'delete', 'get', 'list', 'property_keys', 'update'].map((x) => `${PROJECTS_KEY}.${x}`).sort(),
     )
   })
 })

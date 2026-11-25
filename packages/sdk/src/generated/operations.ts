@@ -1206,6 +1206,106 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
       }
     }
   },
+  'companies.aggregate': {
+    "namespace": "companies",
+    "method": "aggregate",
+    "http": "GET",
+    "path": "/api/v1/companies/aggregate",
+    "fields": {
+      "min": "query",
+      "max": "query",
+      "domain": "query",
+      "tag_id": "query",
+      "tag": "query",
+      "additional_props": "query",
+      "id": "query",
+      "name": "query",
+      "created_by": "query",
+      "created_at": "query",
+      "updated_at": "query"
+    },
+    "body": false,
+    "output": "json",
+    "paginated": false,
+    "proposable": false,
+    "filters": {
+      "domain": {
+        "kind": "text",
+        "operators": [
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "in",
+          "is",
+          "like",
+          "ilike"
+        ],
+        "max": 4
+      },
+      "id": {
+        "kind": "uuid",
+        "operators": [
+          "eq",
+          "neq",
+          "in"
+        ],
+        "max": 4
+      },
+      "name": {
+        "kind": "text",
+        "operators": [
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "in",
+          "like",
+          "ilike"
+        ],
+        "max": 4
+      },
+      "created_by": {
+        "kind": "uuid",
+        "operators": [
+          "eq",
+          "neq",
+          "in"
+        ],
+        "max": 4
+      },
+      "created_at": {
+        "kind": "timestamp",
+        "operators": [
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "in"
+        ],
+        "max": 4
+      },
+      "updated_at": {
+        "kind": "timestamp",
+        "operators": [
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "in"
+        ],
+        "max": 4
+      }
+    }
+  },
   'companies.create': {
     "namespace": "companies",
     "method": "create",
@@ -1857,6 +1957,118 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
           "eq",
           "neq",
           "in"
+        ],
+        "max": 4
+      },
+      "created_by": {
+        "kind": "uuid",
+        "operators": [
+          "eq",
+          "neq",
+          "in"
+        ],
+        "max": 4
+      },
+      "created_at": {
+        "kind": "timestamp",
+        "operators": [
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "in"
+        ],
+        "max": 4
+      },
+      "updated_at": {
+        "kind": "timestamp",
+        "operators": [
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "in"
+        ],
+        "max": 4
+      }
+    }
+  },
+  'contacts.aggregate': {
+    "namespace": "contacts",
+    "method": "aggregate",
+    "http": "GET",
+    "path": "/api/v1/contacts/aggregate",
+    "fields": {
+      "min": "query",
+      "max": "query",
+      "company_id": "query",
+      "tag_id": "query",
+      "tag": "query",
+      "contacted_since": "query",
+      "not_contacted_since": "query",
+      "never_contacted": "query",
+      "interacted_since": "query",
+      "not_interacted_since": "query",
+      "never_interacted": "query",
+      "additional_props": "query",
+      "id": "query",
+      "name": "query",
+      "merged_into_id": "query",
+      "created_by": "query",
+      "created_at": "query",
+      "updated_at": "query"
+    },
+    "body": false,
+    "output": "json",
+    "paginated": false,
+    "proposable": false,
+    "filters": {
+      "company_id": {
+        "kind": "uuid",
+        "operators": [
+          "eq",
+          "neq",
+          "in",
+          "is"
+        ],
+        "max": 4
+      },
+      "id": {
+        "kind": "uuid",
+        "operators": [
+          "eq",
+          "neq",
+          "in"
+        ],
+        "max": 4
+      },
+      "name": {
+        "kind": "text",
+        "operators": [
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "in",
+          "is",
+          "like",
+          "ilike"
+        ],
+        "max": 4
+      },
+      "merged_into_id": {
+        "kind": "uuid",
+        "operators": [
+          "eq",
+          "neq",
+          "in",
+          "is"
         ],
         "max": 4
       },
@@ -4425,6 +4637,163 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
     "paginated": false,
     "proposable": true,
     "filters": {}
+  },
+  'tasks.aggregate': {
+    "namespace": "tasks",
+    "method": "aggregate",
+    "http": "GET",
+    "path": "/api/v1/tasks/aggregate",
+    "fields": {
+      "min": "query",
+      "max": "query",
+      "status": "query",
+      "assignee_id": "query",
+      "tag_id": "query",
+      "tag": "query",
+      "additional_props": "query",
+      "id": "query",
+      "title": "query",
+      "notes": "query",
+      "due_at": "query",
+      "completed_at": "query",
+      "created_by": "query",
+      "created_at": "query",
+      "updated_at": "query"
+    },
+    "body": false,
+    "output": "json",
+    "paginated": false,
+    "proposable": false,
+    "filters": {
+      "status": {
+        "kind": "text",
+        "operators": [
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "in",
+          "like",
+          "ilike"
+        ],
+        "max": 4
+      },
+      "assignee_id": {
+        "kind": "uuid",
+        "operators": [
+          "eq",
+          "neq",
+          "in",
+          "is"
+        ],
+        "max": 4
+      },
+      "id": {
+        "kind": "uuid",
+        "operators": [
+          "eq",
+          "neq",
+          "in"
+        ],
+        "max": 4
+      },
+      "title": {
+        "kind": "text",
+        "operators": [
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "in",
+          "like",
+          "ilike"
+        ],
+        "max": 4
+      },
+      "notes": {
+        "kind": "text",
+        "operators": [
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "in",
+          "is",
+          "like",
+          "ilike"
+        ],
+        "max": 4
+      },
+      "due_at": {
+        "kind": "timestamp",
+        "operators": [
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "in",
+          "is"
+        ],
+        "max": 4
+      },
+      "completed_at": {
+        "kind": "timestamp",
+        "operators": [
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "in",
+          "is"
+        ],
+        "max": 4
+      },
+      "created_by": {
+        "kind": "uuid",
+        "operators": [
+          "eq",
+          "neq",
+          "in"
+        ],
+        "max": 4
+      },
+      "created_at": {
+        "kind": "timestamp",
+        "operators": [
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "in"
+        ],
+        "max": 4
+      },
+      "updated_at": {
+        "kind": "timestamp",
+        "operators": [
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "in"
+        ],
+        "max": 4
+      }
+    }
   },
   'tasks.create': {
     "namespace": "tasks",

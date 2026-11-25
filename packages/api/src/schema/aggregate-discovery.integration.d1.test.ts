@@ -52,12 +52,14 @@ describe('schema.get says which lists aggregate (D19)', () => {
     })
     expect(tableOf(r.body, 'deals').resource.operations).toContain('deals.aggregate')
   })
-  it('every other list has aggregate null, so null on all resources but deals', async () => {
+  it('every list outside the declared objects has aggregate null (CORE615 D1, D7)', async () => {
     const r = await get('/meta/v1/schema')
     const resources = r.body.tables.filter((t: any) => t.resource !== null)
     expect(resources.length).toBeGreaterThan(15)
     for (const t of resources)
-      expect(t.resource.aggregate, t.name).toBe(t.name === 'deals' ? tableOf(r.body, 'deals').resource.aggregate : null)
+      if (['contacts', 'companies', 'deals', 'tasks'].includes(t.name))
+        expect(t.resource.aggregate, t.name).not.toBeNull()
+      else expect(t.resource.aggregate, t.name).toBeNull()
   })
   it('without a money declaration the discovery has no money fields (the declaration is what discovery reads)', () => {
     const without = { ...(deals as object), aggregate: { ...(deals as any).aggregate, money: {} } }
@@ -113,7 +115,7 @@ describe('the operation in OpenAPI and MCP (D13, D16)', () => {
       for (const f of agg[fn]) expect(text, `${fn} ${f}`).toContain(f)
     }
   })
-  it('the MCP tool deals_aggregate takes flat string arguments and answers structured content; contacts has no such tool', async () => {
+  it('the MCP tool deals_aggregate takes flat string arguments and answers structured content; notes has no such tool', async () => {
     const pipeline = await e.insert('pipelines', { name: 'Sales' })
     const stage = await e.insert('pipeline_stages', {
       pipeline_id: pipeline.id,
@@ -135,7 +137,7 @@ describe('the operation in OpenAPI and MCP (D13, D16)', () => {
     const list = await rpc('tools/list', {})
     const names = list.result.tools.map((t: any) => t.name)
     expect(names).toContain('deals_aggregate')
-    expect(names).not.toContain('contacts_aggregate')
+    expect(names).not.toContain('notes_aggregate')
     const tool = list.result.tools.find((t: any) => t.name === 'deals_aggregate')
     for (const n of ['sum', 'avg', 'min', 'max', 'tag']) expect(tool.inputSchema.properties[n].type, n).toBe('string')
     // [[CORE602]] D4: a column filter is a string or a list of conditions

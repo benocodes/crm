@@ -19,7 +19,9 @@ const place = (surface: Surface, resource: string, actions: string[]) => {
 }
 const CRUD = ['list', 'get', 'create', 'update', 'delete']
 for (const r of ['tasks', 'companies', 'contacts', 'notes', 'tags', 'deals']) place('api', r, CRUD)
-place('api', 'deals', ['move_stage', 'aggregate'])
+place('api', 'deals', ['move_stage'])
+// [[CORE615]] D1: the aggregate of every declared object (the extensible built-ins).
+for (const r of ['tasks', 'companies', 'contacts', 'deals']) place('api', r, ['aggregate'])
 // [[CORE549]] D11: the bag read of the four objects that have one.
 for (const r of ['tasks', 'companies', 'contacts', 'deals']) place('api', r, ['property_keys'])
 for (const r of ['pipelines', 'pipeline_stages']) place('meta', r, CRUD)
@@ -120,7 +122,7 @@ describe('placement (D6)', () => {
         'webhooks.update',
       ].sort(),
     )
-    expect(ops.length).toBe(129)
+    expect(ops.length).toBe(132)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)

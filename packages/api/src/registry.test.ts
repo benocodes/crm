@@ -20,9 +20,12 @@ const op = (over: Partial<Operation> = {}): Operation =>
     ...over,
   }) as Operation
 
+// [[CORE615]]: `tasks` now aggregates; these tests are about the generated CRUD of a definition without an aggregate, so they take it without.
+const plainTasks = { ...tasks, aggregate: undefined } as typeof tasks
+
 describe('resourceOperations', () => {
   it('generates five and the bag read', () => {
-    const ops = resourceOperations(tasks)
+    const ops = resourceOperations(plainTasks)
     expect(ops.map((o) => o.name)).toEqual([
       'tasks.list',
       'tasks.property_keys',
@@ -60,7 +63,7 @@ describe('resourceOperations', () => {
   })
   it('subset', () => {
     const ro = {
-      ...tasks,
+      ...plainTasks,
       name: 'task_views',
       operations: ['list', 'get'],
       create: undefined,
@@ -71,7 +74,7 @@ describe('resourceOperations', () => {
     expect(ops.map((o) => o.path)).toEqual(['/task-views', '/task-views/property-keys', '/task-views/{id}'])
   })
   it('scope resource', () => {
-    const ops = resourceOperations({ ...tasks, name: 'task_notes', scopeResource: 'tasks' })
+    const ops = resourceOperations({ ...plainTasks, name: 'task_notes', scopeResource: 'tasks' })
     expect(ops.map((o) => `${o.scope!.resource}:${o.scope!.action}`)).toEqual([
       'tasks:read',
       'tasks:read',

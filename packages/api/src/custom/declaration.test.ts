@@ -115,9 +115,12 @@ describe('the reserved names (D19)', () => {
   ])('refuses a field named %s', (name) => {
     expect(rule('projects__c', ok({ [name]: field }))).toBe('reserved_name')
   })
-  it.each(['count', 'sum', 'avg', 'min', 'max', 'group_by'])('[[CORE615]] D6: the refusal of %s names the field', (name) => {
-    expect(() => parseObjectDeclaration('projects__c', ok({ [name]: field }))).toThrow(new RegExp(`"${name}"`))
-  })
+  it.each(['count', 'sum', 'avg', 'min', 'max', 'group_by'])(
+    '[[CORE615]] D6: the refusal of %s names the field',
+    (name) => {
+      expect(() => parseObjectDeclaration('projects__c', ok({ [name]: field }))).toThrow(new RegExp(`"${name}"`))
+    },
+  )
 })
 
 describe('a field (D18)', () => {

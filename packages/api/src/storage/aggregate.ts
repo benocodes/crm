@@ -153,7 +153,10 @@ const described = (def: Aggregatable, fn: AggregateFunction): string => {
 /** The `sum`, `avg`, `min` and `max` query parameters (a function with no field on the list is left out, D5), described from the same field lists that validate them (D19). */
 export function aggregateParams(def: Aggregatable): Partial<Record<AggregateFunction, z.ZodType>> {
   return Object.fromEntries(
-    AGGREGATE_FUNCTIONS.filter((fn) => def.aggregate!.fields[fn].length > 0).map((fn) => [fn, z.string().describe(described(def, fn)).optional()]),
+    AGGREGATE_FUNCTIONS.filter((fn) => def.aggregate!.fields[fn].length > 0).map((fn) => [
+      fn,
+      z.string().describe(described(def, fn)).optional(),
+    ]),
   ) as unknown as Partial<Record<AggregateFunction, z.ZodType>>
 }
 
