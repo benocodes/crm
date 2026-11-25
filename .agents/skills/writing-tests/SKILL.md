@@ -512,7 +512,11 @@ One program, two engines: the same assertions run on Postgres and D1.
     are `grantableScopes(declaredScopes())`, so a cycle that declares a scope regenerates `auth.json` by exactly those
     lines ([[CORE25]]). `schema.json` records the whole `GET /meta/v1/schema` document ([[CORE187]]), so any migration,
     catalog text, registered resource, sort or stated sort cost regenerates it. Operation descriptions are not in any
-    golden (the fixtures are scenario transcripts), so a description-only change regenerates nothing ([[CHN423]] 423.11).
+    golden (the fixtures are scenario transcripts), so a description-only change regenerates nothing ([[CHN423]] 423.11). A *parameter*
+    description is different: a filter's text reaches `schema.get`, so it regenerates `schema.json` and moves the
+    `openapi-api`, `openapi-meta`, `mcp-tools`, `golden` and `schema-get` wire digests. Prove such a text-only change by
+    comparing `main` and the branch with every `description` key stripped (equal on each surface), and quote that in
+    RESULT.md (`knowledge/specs/037-CORE605-cli-filter-ranges/RESULT.md`).
     The OpenAPI record schemas are in no golden either. A record-schema change (a field made optional) regenerates
     `schema.json` only if the schema document itself changes ([[API514]]).
     Before claiming "golden unchanged",
