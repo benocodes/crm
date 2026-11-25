@@ -5,6 +5,8 @@ import { uuidv7 } from '@vibase/storage'
 import { apiKeyStore, openControlDb, type D1Like } from '@vibase/storage-d1'
 import { clearD1, openLocalD1, type LocalD1 } from '@vibase/storage-d1/test'
 import { generateApiKey } from '../auth/api-keys.js'
+import type { ExtendDeclarations } from '../custom/extend.js'
+import type { AnyResource } from '../registry.js'
 import { createVibaseRegistry } from '../operations.js'
 import { createApp } from '../rest/app.js'
 import { openD1Engine, type Engine } from './engines.js'
@@ -59,13 +61,23 @@ export interface ApiKeyKit {
   reset(): Promise<void>
 }
 
-export async function openApiKeyKit(): Promise<ApiKeyKit> {
+/** `definitions` and `extend` give the registry (and so the documents and the routes) a workspace's custom objects and `__c` fields; the caller applies their tables and columns to `kit.e.d1` ([[DX604]]). */
+export interface ApiKeyKitOptions {
+  definitions?: readonly AnyResource[]
+  extend?: ExtendDeclarations
+}
+
+export async function openApiKeyKit(options: ApiKeyKitOptions = {}): Promise<ApiKeyKit> {
   const e = await openD1Engine()
   const local: LocalD1 = await openLocalD1(['control'], { control: ['control'] })
   const control = local.bindings.control!
   const store = apiKeyStore(openControlDb(control))
   const clock = { now: NOW }
-  const registry = createVibaseRegistry({ apiKeys: store } as never)
+  const registry = createVibaseRegistry({
+    apiKeys: store,
+    ...(options.definitions ? { definitions: options.definitions } : {}),
+    ...(options.extend ? { extend: options.extend } : {}),
+  } as never)
   const kit = {} as ApiKeyKit
   const build = () =>
     createApp({
