@@ -211,6 +211,37 @@ describe('POST /inbound/gmail through the composition', () => {
     expect((await push(worker, { authorization: 'Bearer nope' })).status).toBe(401)
     expect(calls).toEqual([])
   })
+  it("CORE577 D21: verified pushes through one composed Worker share one fetch of Google's keys (a cache per isolate); another Worker fetches its own", async () => {
+    await boot()
+    const calls: string[] = []
+    const verified = async () => {
+      const iat = Math.floor(Date.now() / 1000)
+      const token = await google.signToken({
+        iss: 'https://accounts.google.com',
+        aud: `${BASE}/inbound/gmail`,
+        email: PUSH_ENV.GMAIL_PUSH_SERVICE_ACCOUNT,
+        email_verified: true,
+        iat,
+        exp: iat + 3600,
+      })
+      return {
+        authorization: `Bearer ${token}`,
+        body: JSON.stringify({ subscription: PUSH_ENV.GMAIL_PUSH_SUBSCRIPTION, message: { data: 'bm90LWpzb24' } }),
+      }
+    }
+    const send = async (worker: ReturnType<typeof composeD1Worker>) => {
+      const { body, ...headers } = await verified()
+      return worker.fetch(new Request(`${BASE}/inbound/gmail`, { method: 'POST', headers, body }))
+    }
+    const worker = composeD1Worker(env(PUSH_ENV), { fetch: fake(new FakeGmail(), calls) })
+    expect((await send(worker)).status).toBe(204)
+    expect((await send(worker)).status).toBe(204)
+    expect((await send(worker)).status).toBe(204)
+    expect(calls).toHaveLength(1)
+    const other = composeD1Worker(env(PUSH_ENV), { fetch: fake(new FakeGmail(), calls) })
+    expect((await send(other)).status).toBe(204)
+    expect(calls).toHaveLength(2)
+  })
   it('a database behind its migrations answers 503 migrations_pending first (CORE61 gate, D43)', async () => {
     await boot()
     await createMigrationTracker(w.d1)

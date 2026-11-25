@@ -225,7 +225,13 @@ export {
   type InvitationRole,
   type NewInvitation,
 } from './control-store.js'
-export { SWEEP_CONTROL_READ, SWEEP_CRM_READ, runAuthSweep, type AuthSweepOutcome } from './control-store.js'
+export {
+  SWEEP_CONTROL_READ,
+  SWEEP_CRM_READ,
+  SWEEP_HOUSEKEEPING_CAP,
+  runAuthSweep,
+  type AuthSweepOutcome,
+} from './control-store.js'
 export {
   ORPHAN_AGE_MS,
   classifySweep,

@@ -1,7 +1,7 @@
 // The Better Auth composition for the D1 Worker ([[CORE243]] D1, D3, D4, D13, D21). Better Auth is the vault's built-in sign-in and OAuth authorisation server; this module
 // only configures it: the plugins (`jwt`, `oauthProvider`, `oauthDeviceAuthorization`, nothing else), the vault's table and column names, UUIDv7 ids, the PBKDF2 hasher, and a
 // fail-closed admission policy while the vault has no invitations ([[CORE245]]) and no client-registration policy ([[CORE244]]).
-import { oauthDeviceAuthorization, oauthProvider } from '@better-auth/oauth-provider'
+import { oauthDeviceAuthorization, oauthProvider, type OAuthOptions } from '@better-auth/oauth-provider'
 import { betterAuth, type BetterAuthOptions } from 'better-auth'
 import { APIError, addOAuthServerContext, createAuthMiddleware, getOAuthState } from 'better-auth/api'
 import { getAuthTables } from 'better-auth/db'
@@ -198,6 +198,16 @@ export function registrationScopes(
       ...(defaults ?? grantable).filter((x) => vaultScopes.includes(x) && allowed.includes(x)),
     ],
   }
+}
+
+/** The hook Better Auth calls before every OAuth client action ([[CORE577]] D10). */
+export type ClientPrivileges = NonNullable<OAuthOptions['clientPrivileges']>
+
+/** STUB (red commit): allows everything, as the library does with no hook. */
+export function ownerOnlyClientPrivileges(
+  _isOwner: ((subject: string) => Promise<boolean>) | undefined,
+): ClientPrivileges {
+  return async () => true
 }
 
 function composePlugins(

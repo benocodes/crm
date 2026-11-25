@@ -20,6 +20,8 @@ export {
   SESSION_TOKEN_CLAIM,
   SESSION_TOKEN_VALUE,
   authOptions,
+  ownerOnlyClientPrivileges,
+  type ClientPrivileges,
   createAuth,
   createAuthHandler,
   RESET_PASSWORD_TTL_SECONDS,

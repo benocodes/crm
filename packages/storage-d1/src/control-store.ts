@@ -482,7 +482,13 @@ export interface AuthSweepOutcome {
   revoked: number
   /** Orphan accounts deleted. */
   deleted: number
+  /** Device codes past their expiry deleted ([[CORE577]] D20). */
+  expiredDeviceCodes: number
+  /** Dynamically registered clients that were never used deleted ([[CORE577]] D20). */
+  unusedClients: number
 }
+/** The most rows of each housekeeping table one sweep deletes, oldest first ([[CORE577]] P5). STUB (red commit). */
+export const SWEEP_HOUSEKEEPING_CAP = 500
 
 /** Subject ids per statement: one JSON-array bind each (`json_each`), so D1's 100-parameter cap never applies, and the text stays small. */
 const SWEEP_CHUNK = 500
@@ -526,7 +532,12 @@ function sweepStatements(d1: D1Like, plan: SweepPlan, a: { now: string; credenti
  * One sweep ([[CORE259]] D10, [[CORE289]]): control facts, then the CRM's, then ONE control batch. A failed read throws before anything is written; a failed batch writes nothing; the next tick
  * retries. Writes no audit row and nothing in the CRM database. `crm` is only read.
  */
-export async function runAuthSweep(c: ControlDb, crm: D1Like, clock: () => Date): Promise<AuthSweepOutcome> {
+export async function runAuthSweep(
+  c: ControlDb,
+  crm: D1Like,
+  clock: () => Date,
+  _o: { firstPartyClientId: string } = { firstPartyClientId: 'vibase-cli' },
+): Promise<AuthSweepOutcome> {
   const d1 = raw(c)
   const now = clock().toISOString()
   const control = parseSweepControlRows(((await d1.prepare(SWEEP_CONTROL_READ).all()).results ?? []) as unknown[])
@@ -534,7 +545,8 @@ export async function runAuthSweep(c: ControlDb, crm: D1Like, clock: () => Date)
   const credentialsBefore = clock().toISOString()
   const facts = parseSweepCrmRows(((await crm.prepare(SWEEP_CRM_READ).all()).results ?? []) as unknown[])
   const plan = classifySweep({ now, control, crm: facts })
-  if (plan.revoke.length === 0 && plan.orphans.length === 0) return { revoked: 0, deleted: 0 }
+  if (plan.revoke.length === 0 && plan.orphans.length === 0)
+    return { revoked: 0, deleted: 0, expiredDeviceCodes: 0, unusedClients: 0 }
   await d1.batch(sweepStatements(d1, plan, { now, credentialsBefore }))
   // The batch's own change counts include cascaded rows, so the deletions are counted by what is gone.
   let remaining = 0
@@ -547,7 +559,12 @@ export async function runAuthSweep(c: ControlDb, crm: D1Like, clock: () => Date)
           .first()) ?? { n: 0 }
       ).n,
     )
-  return { revoked: plan.revoke.length, deleted: plan.orphans.length - remaining }
+  return {
+    revoked: plan.revoke.length,
+    deleted: plan.orphans.length - remaining,
+    expiredDeviceCodes: 0,
+    unusedClients: 0,
+  }
 }
 
 // ---- Webhooks in the control plane ([[CORE327]], [[CORE259]] D3, D5, D8, D9 (c), D12; dormant until [[CORE337]]). The four tables of control 0004. The store stores: ids, `now`, the sealed secret and every fact that
