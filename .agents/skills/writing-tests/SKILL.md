@@ -367,6 +367,13 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   [[CORE561]] test said the JSON Schema "accepts the sample `extend` file" and only checked equality. The fix
   `safeParse`s the sample (true) and an out-of-set key (false); dropping `extend` from the schema then turned 3
   tests red (`packages/server-d1/src/schema-file-json.test.ts`).
+- **A token ban proves a renamed name is gone, not a renamed key.** A rename guard (a source scan with a literal
+  allow-list, `packages/storage/src/schema-file-name.test.ts`) cannot ban an ordinary word such as `objects`. Prove the
+  docs stopped teaching an old key by parsing their samples with the shipped parser: in [[CORE569]] review,
+  `self-hosting.md` still showed `{"version":1,"objects":{}}`, and the guard was green. The check that caught it is in
+  `packages/server-d1/scripts/instance/docs.test.ts`. A test proving the old name is *refused* must contain the
+  banned token: give that line an allow-list entry with its reason, never build the string by concatenation to dodge
+  the guard.
 - **An assertion that must hold "in every test" runs on its own, not by a call each test remembers.** Have
   the harness record what each test produced (every run's stdout and stderr, every request) and check it in
   `afterEach`. For example: no issued secret appears in any output. A per-test helper reached 11 of 47 tests;
