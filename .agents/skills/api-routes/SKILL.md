@@ -688,10 +688,16 @@ The definition is `definePreparedResource` (next section). Rules that hold for e
   numeric limit must be computed in a type that cannot overflow (`total()`) or the engine error mapped (#208). The cost
   sentence in the operation description is generated, names no index, and is checked against `EXPLAIN QUERY PLAN`
   (`storage/aggregate-cost.integration.d1.test.ts`): keep it that way when a second list opts in.
-- **A repeated query parameter is refused on REST** (`readInput` in `src/rest/app.ts`, [[CORE129]] D10a): Hono's
-  `c.req.query()` keeps the first value, so `?x=a&x=b` is `400 validation_error` naming `x`. MCP refuses an array argument
-  through the schema. The first operation that declares an array query parameter must exempt that parameter there and read
-  it with `c.req.queries()`.
+- **A repeated query parameter is refused on REST unless its declared schema accepts a list** (`readInput` in
+  `src/rest/app.ts`, [[CORE129]] D10a, [[CORE602]] D3): Hono's `c.req.query()` keeps the first value, so `readInput` asks
+  `acceptsList(schema)` (`storage/column-filters.ts`) of each query parameter's declared schema and reads those with
+  `c.req.queries()`; any other `?x=a&x=b` is `400 validation_error` naming `x`. MCP's `splitArguments` (`mcp/tools.ts`)
+  uses the same check: an array on a list-accepting argument passes through item by item, any other array is `400`
+  (`argument <name> takes one value, not a list`). Today only column filters accept a list
+  (`anyOf [string, array 1..4]`, `x-vibase-filter` on `.meta({ param })`, which the MCP tool schema strips). A new array
+  parameter needs no exemption list: declare the schema. When a refusal moves from one layer to another (here from
+  `parseListQuery` to `splitArguments`), grep the package's tests for the old message: tests in unrelated folders pin it
+  (`deal-linking`, `tags` storage suites, [[CORE602]] gate-fix).
 - **Derived fields** ([[CORE131]], `derived: { name: { kind, expression(qc, parent), requires?, filters? } }` on a
   definition; contacts' `last_contacted_at` / `last_interacted_at` in `src/resources/contact-activity.ts`): a read-only
   value computed by a correlated subquery, rendered by the crud core's `projection` only when the caller holds every

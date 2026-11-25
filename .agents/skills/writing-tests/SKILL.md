@@ -535,7 +535,9 @@ One program, two engines: the same assertions run on Postgres and D1.
     moved digest by diffing `WIRE_DUMP_DIR=<dir>` dumps from `main` and the branch, keep `errors.json` as committed unless an
     error body changed (the writer emits it unformatted: 3,000 lines of churn), then `pnpm format` ([[CORE556]] gate-fix).
     A new field on any resource's record moves four digests (OpenAPI, MCP tools, golden, `schema.get`): a charter that adds
-    one names the wire snapshot as a rider, or the gate goes red once ([[AGT588]] gate-fix).
+    one names the wire snapshot as a rider, or the gate goes red once ([[AGT588]] gate-fix). A changed **query
+    parameter** schema moves it too (both OpenAPI digests and `mcp-tools`; golden and `schema.get` stay), though no golden
+    carries a parameter schema ([[CORE602]] gate-fix).
   - A **dormant general mechanism** (kept with no production caller, e.g. the per-type `owner` predicate in the
     event-type map after CORE347) is proven through a test-only registration on the test kit's registry, plus one
     assertion against the real registry that no production entry uses it, so a later caller is a deliberate choice
