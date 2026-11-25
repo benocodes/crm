@@ -648,6 +648,7 @@ describe('the messaging slice (CORE25 C1)', () => {
         occurred_at: true,
         preview: true,
         content_key: false,
+        content_sha256: false, // 0028, CORE574 D6
         version: true,
         retracted_at: false,
       },
@@ -756,6 +757,7 @@ describe('the messaging slice (CORE25 C1)', () => {
         'messages_channel',
         'messages_kind',
         'messages_content_key',
+        'messages_content_sha256', // 0028, CORE574 D6
         'messages_preview_length',
         'messages_version_positive',
       ],
