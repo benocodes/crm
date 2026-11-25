@@ -153,16 +153,17 @@ describe('the set of aggregatable definitions (D1)', () => {
 describe('fields by kind on a custom object (D2, D3, D4)', () => {
   it('sum/avg of the integer, min/max of text and enum and timestamp, no currency; a reference is refused naming the allowed fields', async () => {
     const co = await make('companies', { name: 'Acme' })
-    await make(OBJECT, { name: 'a', budget: 5, stage: 'done', start_date: '2026-01-01T00:00:00Z', company: co.id })
-    await make(OBJECT, { name: 'b', budget: 7, stage: 'active', start_date: '2026-03-01T00:00:00Z' })
+    await make(OBJECT, { name: 'a', budget: 5, stage: 'planned', start_date: '2026-01-01T00:00:00Z', company: co.id })
+    await make(OBJECT, { name: 'b', budget: 7, stage: 'done', start_date: '2026-03-01T00:00:00Z' })
     const r = await agg(OBJECT, 'sum=budget&avg=budget&min=stage,name&max=stage,start_date')
     expect(r.status, JSON.stringify(r.body)).toBe(200)
     expect(r.body).toEqual({
       count: 2,
       sum: { budget: 12 },
       avg: { budget: 6 },
-      min: { stage: 'active', name: 'a' },
-      max: { stage: 'done', start_date: '2026-03-01T00:00:00.000Z' },
+      // byte order of the stored values (declared order planned < active < done would give the opposite)
+      min: { stage: 'done', name: 'a' },
+      max: { stage: 'planned', start_date: '2026-03-01T00:00:00.000Z' },
     })
     expect(r.body.currency).toBeUndefined()
     const bad = await agg(OBJECT, 'min=company')
