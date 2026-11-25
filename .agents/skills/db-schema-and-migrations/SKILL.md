@@ -357,7 +357,10 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   - a statement is at most 100 KB.
 - **The D1 migration test is red before the migration exists.** `packages/storage-d1/src/schema.integration.test.ts`
   inspects `sqlite_master`/PRAGMA. `packages/storage-d1/src/schema-parity.integration.test.ts` and `packages/storage-postgres/src/schema-parity.integration.postgres.test.ts` (one per engine) tie the
-  physical columns to `COLUMN_KINDS` in `@vibase/storage`, so a new column changes all three together.
+  physical columns to `COLUMN_KINDS` in `@vibase/storage`, so a new column changes all three together. On contacts,
+  companies, deals and tasks a column also changes the table's declaration (`packages/api/src/declarations/`):
+  `drift.integration.d1.test.ts` fails on a column, type, nullability, foreign key or unique index the declaration
+  does not state, in both directions ([[CORE554]]).
 - **Each implementation cycle adds one numbered file** (`0002_identity_model.sql`: companies, contacts,
   identities). Copy every constraint the Postgres table has: composite intra-org FKs, partial unique indexes,
   owner and tombstone CHECKs, the email CHECK `value = lower(value) AND value NOT GLOB '*[^ -~]*'`. Add the new

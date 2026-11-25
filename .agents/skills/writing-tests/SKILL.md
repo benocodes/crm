@@ -505,7 +505,13 @@ One program, two engines: the same assertions run on Postgres and D1.
     Before claiming "golden unchanged",
     check for such derived values. To prove a change leaves the default registry identical, hash its derived surfaces
     (both OpenAPI documents, the MCP tool list, declared scopes, operation and event-type names) in a throwaway test
-    before the first change and again at the end, and quote both hashes in RESULT.md ([[CORE315]] P3). Until #323 is fixed, `golden:check` fails on a clean `main` (committed fixtures are
+    before the first change and again at the end, and quote both hashes in RESULT.md ([[CORE315]] P3). For a refactor
+    that rebuilds a resource's schemas, commit the snapshot test and its fixtures as the cycle's first commit, on
+    `main`'s code, and keep it in the branch so review can rerun it: digests for the large parts, the error bodies of a
+    fixed set of refused inputs whole (ids masked), and an env var that dumps every part whole so a moved digest can
+    be diffed (`packages/api/src/resources/wire-snapshot.rest.integration.d1.test.ts`, [[CORE554]]; it caught a
+    filter reorder the goldens alone would not have named). That commit is the cycle's red-first evidence; builders
+    written with the refactor are proven by absence mutations instead. Until #323 is fixed, `golden:check` fails on a clean `main` (committed fixtures are
     Biome-formatted, the generator's output is not): judge drift by `golden:generate`, then `pnpm format`, then
     `git diff -- packages/api/fixtures/golden`, and say so in RESULT.md (CORE347).
     The **wire snapshot** (`packages/api/fixtures/wire-core554/`, `src/resources/wire-snapshot.rest.integration.d1.test.ts`,
