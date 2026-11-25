@@ -1346,6 +1346,7 @@ try {
   await bootstrapD1(pd1, { organizationName: 'Pipeline', authOrgId: 'org_pipeline' })
   const pBodies = (await pipelineMf.getR2Bucket('BODIES')) as unknown as {
     list(o: { prefix: string }): Promise<{ objects: Array<{ key: string; size: number }> }>
+    get(key: string): Promise<{ text(): Promise<string> } | null>
   }
   const pRows = async (sqlText: string) =>
     ((await pd1.prepare(sqlText).all()).results ?? []) as Array<Record<string, unknown>>
@@ -1420,7 +1421,7 @@ try {
   )
 
   // 38-42: the Gmail channel in workerd ([[CHN5]] cycle 1): `GmailChannel` over `FakeGmail`'s wire form through the same pipeline.
-  // The fake serves JSON with one base64url member in uneven chunks, so the real streaming decoder, `hast-util-from-html` and
+  // The fake serves JSON with one base64url member in uneven chunks, so the real streaming decoder, `parse5`, `hast-util-from-parse5` and
   // `hast-util-to-mdast` all run in workerd, and the original is stored from a stream of unknown length.
   const gmailRun = await fetch(new URL('/gmail', pipelineBase))
   const gmailResult = (await gmailRun.json()) as {
@@ -1529,6 +1530,60 @@ try {
     'P4 the capture pages in workerd: no token or client secret in any runtime log line',
     (pages.secrets ?? []).length > 2 && (pages.secrets ?? []).every((s) => !pageLogText.includes(s)),
     { lines: pipelineLogLines.length },
+  )
+  // X1-X4: one poison email in workerd ([[CORE571]]): a history page holding a message whose mapping throws, a 5,000-deep HTML message and an
+  // ordinary one. The page completes, the cursor moves, the others are captured, and the log line holds ids only.
+  const poisonRun = await fetch(new URL('/gmail-poison', pipelineBase))
+  const poison = (await poisonRun.json()) as {
+    result?: { outcome: string; captured: number; skipped: number; history_id: string }
+    connectionId?: string
+    error?: string
+  }
+  const poisonCursor = (await pd1
+    .prepare('select history_id, page_token from mail_sync_cursors where connection_id = ?')
+    .bind(poison.connectionId ?? '')
+    .first()) as Record<string, unknown> | null
+  check(
+    'X1 a poison email in workerd: the history page completes (outcome page, two captured, one skipped) and the cursor holds its history id',
+    poisonRun.status === 200 &&
+      poison.result?.outcome === 'page' &&
+      poison.result.captured === 2 &&
+      poison.result.skipped === 1 &&
+      poisonCursor?.history_id === '1002' &&
+      poisonCursor?.page_token === null,
+    { status: poisonRun.status, poison, poisonCursor },
+  )
+  const xSources = await pRows(
+    "select provider_message_id as p from message_sources where provider_message_id like 'x-%' order by provider_message_id",
+  )
+  const xMessages = await pRows(
+    "select m.external_id as e, m.content_key as k, (select count(*) from events ev where ev.type = 'message.created' and ev.resource_id = m.id) as n from messages m where m.external_id like 'x-%'",
+  )
+  check(
+    'X2 a poison email in workerd: the deep and the ordinary message have a message, a source and a message.created event; the unreadable one has no source',
+    xSources.map((r) => r.p).join() === 'x-deep,x-fine' &&
+      xMessages
+        .map((r) => r.e)
+        .sort()
+        .join() === 'x-deep@acme.test,x-fine@acme.test' &&
+      xMessages.every((r) => Number(r.n) === 1),
+    { xSources, xMessages },
+  )
+  const deepKey = String(xMessages.find((r) => r.e === 'x-deep@acme.test')?.k ?? '')
+  const deepBody = deepKey === '' ? null : await pBodies.get(`${deepKey}/v1/body.md`)
+  check(
+    'X3 a poison email in workerd: the 5,000-deep message is stored with its innermost text',
+    deepBody !== null && (await deepBody.text()).includes('smoke innermost words'),
+    { deepKey },
+  )
+  const unreadable = pipelineLogLines.filter((l) => l.includes('[gmail-capture] unreadable message'))
+  check(
+    'X4 a poison email in workerd: exactly one log line for the unreadable message, with the connection id, the provider id and the error name only',
+    unreadable.length === 1 &&
+      unreadable[0]!.includes(`connection=${poison.connectionId}`) &&
+      unreadable[0]!.includes('provider_message_id=x-bad') &&
+      /error=\w+\s*$/.test(unreadable[0]!),
+    { unreadable },
   )
 } catch (err) {
   failures++

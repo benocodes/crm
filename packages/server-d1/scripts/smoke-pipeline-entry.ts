@@ -7,6 +7,7 @@
 import { uuidv7 } from '@vibase/storage'
 import { d1Binding, type D1Like } from '@vibase/storage-d1'
 import {
+  captureHistoryPage,
   captureMessages,
   r2ObjectStore,
   ScopeSet,
@@ -39,12 +40,8 @@ const withId = (m: MessageSpec, id: string): MessageSpec => ({
 
 // The scripted page: a normal attachment, a length mismatch, and an original of unknown size over 5 MiB (multipart).
 
-/**
- * `/gmail-pages` ([[CHN149]]): the capture pages in workerd. A connection is seeded through the real connect unit (Web Crypto seals the refresh
- * token), `runGmailSync` backfills and then reads a history page over `FakeGmail`, and the access token comes from a fake token endpoint reached
- * through the injected `fetch`. The fetch refuses every host but Google's token host, and reports the hosts it saw.
- */
-async function gmailPages(env: Env): Promise<Response> {
+/** The seeded connection, the fake token endpoint and the sync deps the two page routes share. */
+async function pagesKit(env: Env, p: { mailbox: string; sub: string; gmail: (now: Date) => FakeGmail }) {
   const now = new Date('2026-11-05T10:00:00.000Z')
   const org = String(((await env.DB.prepare('select organization_id as o from deployment').first()) as { o: string }).o)
   const actor = (
@@ -83,19 +80,9 @@ async function gmailPages(env: Env): Promise<Response> {
       run: (op) => execute(binding, { kind: 'tenant', actorId: actor, organizationId: org }, op),
       d1: env.DB,
     },
-    { key, refreshToken, mailbox: 'pages@smoke.test', sub: 'sub-pages', historyId: '1000' },
+    { key, refreshToken, mailbox: p.mailbox, sub: p.sub, historyId: '1000' },
   )
-  const recent = now.getTime() - 3600_000
-  const gmail = new FakeGmail(
-    [
-      gmailFixture('plain', (m) => ({ ...withId(m, 'p-in'), internalDate: recent })),
-      gmailFixture('plain', (m) => ({ ...withId(m, 'p-sent'), labels: ['SENT'], internalDate: recent - 1000 })),
-      gmailFixture('plain', (m) => ({ ...withId(m, 'p-new'), internalDate: now.getTime() })),
-    ],
-    { chunk: (i) => 300 + ((i * 313) % 5000) },
-  )
-  gmail.history.push({ id: '1001', added: [{ id: 'p-new', labels: ['INBOX'] }] })
-  gmail.profile.historyId = '1002'
+  const gmail = p.gmail(now)
   const deps: GmailSyncDeps = {
     binding,
     organizationId: org,
@@ -115,20 +102,83 @@ async function gmailPages(env: Env): Promise<Response> {
     fetch: fakeFetch,
     clientFor: (accessToken) => gmail.withToken(accessToken, (t) => accessTokens.includes(t)),
   }
-  const run = await runGmailSync(deps, connectionId)
+  return { deps, connectionId, hosts, secrets: () => [refreshToken, ...accessTokens, 'smoke-client-secret'] }
+}
+
+/**
+ * `/gmail-pages` ([[CHN149]]): the capture pages in workerd. A connection is seeded through the real connect unit (Web Crypto seals the refresh
+ * token), `runGmailSync` backfills and then reads a history page over `FakeGmail`, and the access token comes from a fake token endpoint reached
+ * through the injected `fetch`. The fetch refuses every host but Google's token host, and reports the hosts it saw.
+ */
+async function gmailPages(env: Env): Promise<Response> {
+  const kit = await pagesKit(env, {
+    mailbox: 'pages@smoke.test',
+    sub: 'sub-pages',
+    gmail: (now) => {
+      const recent = now.getTime() - 3600_000
+      const gmail = new FakeGmail(
+        [
+          gmailFixture('plain', (m) => ({ ...withId(m, 'p-in'), internalDate: recent })),
+          gmailFixture('plain', (m) => ({ ...withId(m, 'p-sent'), labels: ['SENT'], internalDate: recent - 1000 })),
+          gmailFixture('plain', (m) => ({ ...withId(m, 'p-new'), internalDate: now.getTime() })),
+        ],
+        { chunk: (i) => 300 + ((i * 313) % 5000) },
+      )
+      gmail.history.push({ id: '1001', added: [{ id: 'p-new', labels: ['INBOX'] }] })
+      gmail.profile.historyId = '1002'
+      return gmail
+    },
+  })
+  const run = await runGmailSync(kit.deps, kit.connectionId)
   return Response.json({
     run,
-    connectionId,
-    hosts: [...hosts],
-    secrets: [refreshToken, ...accessTokens, 'smoke-client-secret'],
+    connectionId: kit.connectionId,
+    hosts: [...kit.hosts],
+    secrets: kit.secrets(),
   })
+}
+
+/**
+ * `/gmail-poison` ([[CORE571]]): one history page holding a message whose mapping throws, a 5,000-deep HTML message and an ordinary one, through the
+ * real capture page in workerd. The page must complete and move its cursor.
+ */
+async function gmailPoison(env: Env): Promise<Response> {
+  const kit = await pagesKit(env, {
+    mailbox: 'poison@smoke.test',
+    sub: 'sub-poison',
+    gmail: (now) => {
+      const poison = gmailFixture('plain', (m) => ({ ...withId(m, 'x-bad'), internalDate: now.getTime() }))
+      poison.resource.payload!.body!.data = '!!not base64!!'
+      const deep = gmailFixture('htmlOnly', (m) => ({
+        ...withId(m, 'x-deep'),
+        internalDate: now.getTime(),
+        payload: {
+          ...m.payload,
+          text: `<html><body>${'<div>'.repeat(5_000)}<p>smoke innermost words</p>${'</div>'.repeat(5_000)}</body></html>`,
+        },
+      }))
+      const gmail = new FakeGmail(
+        [poison, deep, gmailFixture('plain', (m) => ({ ...withId(m, 'x-fine'), internalDate: now.getTime() }))],
+        { chunk: (i) => 300 + ((i * 313) % 5000) },
+      )
+      gmail.history.push({
+        id: '1001',
+        added: ['x-bad', 'x-deep', 'x-fine'].map((id) => ({ id, labels: ['INBOX'] })),
+      })
+      gmail.profile.historyId = '1002'
+      return gmail
+    },
+  })
+  const result = await captureHistoryPage(kit.deps, kit.connectionId)
+  return Response.json({ result, connectionId: kit.connectionId })
 }
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
-    if (new URL(req.url).pathname === '/gmail-pages') {
+    const path = new URL(req.url).pathname
+    if (path === '/gmail-pages' || path === '/gmail-poison') {
       try {
-        return await gmailPages(env)
+        return await (path === '/gmail-poison' ? gmailPoison(env) : gmailPages(env))
       } catch (err) {
         return Response.json(
           { error: err instanceof Error ? `${err.name}: ${err.message}` : String(err) },

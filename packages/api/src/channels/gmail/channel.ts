@@ -73,12 +73,21 @@ export class GmailChannel implements ChannelPort<GmailConnection> {
       throw err
     }
     if (this.opts.accept && !this.opts.accept(resource.labelIds)) return { skip: 'label' }
-    return mapGmailMessage({
-      conn,
-      resource,
-      openRaw: async () =>
-        (await this.client.getMessageRaw(providerMessageId)).pipeThrough(base64UrlMemberDecoder('raw')),
-    })
+    // Only the mapping is inside this catch: the lazy `openRaw` and the attachment fetches run later and keep their classification ([[CORE571]] D2).
+    try {
+      return mapGmailMessage({
+        conn,
+        resource,
+        openRaw: async () =>
+          (await this.client.getMessageRaw(providerMessageId)).pipeThrough(base64UrlMemberDecoder('raw')),
+      })
+    } catch (err) {
+      // A content failure skips this message so the page and its cursor move on. Ids and the error's name only: never its message, a header or the body ([[CORE571]] D3).
+      console.warn(
+        `[gmail-capture] unreadable message connection=${conn.id} provider_message_id=${providerMessageId} error=${err instanceof Error ? err.name : 'error'}`,
+      )
+      return { skip: 'unreadable' }
+    }
   }
 
   async fetchAttachment(
