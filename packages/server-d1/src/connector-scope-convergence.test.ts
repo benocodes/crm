@@ -198,7 +198,7 @@ const setStored = (clientId: string, scopes: string[] | null) =>
 describe('1. a connector reconnects with its own client after an object is declared (D9)', () => {
   it('a scope-less authorize, the same client and delegated agent, the wider consent reaches the record, so the new scope is usable on the same token', async () => {
     const o = await owner()
-    const ownerTok = await o.session()
+    await o.session()
     const a = workerA()
     const b = workerB()
     const client = await register(a, grantableA)
@@ -222,7 +222,6 @@ describe('1. a connector reconnects with its own client after an object is decla
     // [[CORE666]] D1, D10: the wider consent reaches the record by itself, so the new scope is usable on the same token with no owner grant.
     const used = await api(b, 'GET', '/api/v1/projects__c', secondTok)
     expect(used.status, JSON.stringify(used.json)).toBe(200)
-    expect(ownerTok).toBeTruthy()
   })
 
   it('the same authorize with the scopes named (the protected-resource list) passes too', async () => {
