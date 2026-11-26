@@ -43,13 +43,13 @@ vibase contacts create --name "Ada Lovelace"
 vibase contacts list --limit 5
 ```
 
-`vibase --help` lists every resource the instance offers, and `vibase <resource> --help` its actions. The [command line guide](/guides/cli/) covers profiles, API keys and agent accounts.
+`vibase --help` lists every resource the instance offers, and `vibase <resource> --help` its actions. The [command line guide](/guides/cli/) covers profiles and sign-in; [invite agents and manage permissions](/guides/agents/) covers agent accounts and API keys.
 
 ## 4. Connect an agent
 
 Add `https://api.example.com/mcp` to a remote MCP client with OAuth support. Complete the browser consent flow, then see the connected agent on the instance's Agents page (`https://api.example.com/app/agents`) and grant its permissions with the [CLI](/guides/cli/) (the page shows the grant command; it does not edit permissions). OAuth consent is bounded by Vibase's stored agent grants.
 
-For a standalone automation with its own account, follow the [agent-account device login guide](/guides/cli/#give-an-agent-its-own-identity). Give each agent the scopes it needs; [read, proposal, and write permissions](/concepts/permissions/) are separate choices.
+For a standalone automation with its own account, follow [invite agents and manage permissions](/guides/agents/). Give each agent the scopes it needs; [read, proposal, and write permissions](/concepts/permissions/) are separate choices.
 
 ## Troubleshooting
 

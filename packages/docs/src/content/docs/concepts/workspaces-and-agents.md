@@ -36,4 +36,4 @@ Use a separate identity for each automation you want to grant, audit, or disable
 
 An owner can update an agent's scopes or disable it. OAuth authentication establishes identity; Vibase still checks its stored grants when each operation runs.
 
-See [permissions and approvals](/concepts/permissions/) for the authority model and the [CLI guide](/guides/cli/) for commands.
+See [permissions and approvals](/concepts/permissions/) for the authority model and [invite agents and manage permissions](/guides/agents/) for the commands.

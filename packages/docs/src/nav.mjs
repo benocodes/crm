@@ -23,14 +23,24 @@ export const sections = [
   {
     label: 'Connect your agents',
     items: [
+      { label: 'Invite agents and manage permissions', slug: 'guides/agents' },
       { label: 'Command line', slug: 'guides/cli' },
       { label: 'MCP and REST', slug: 'guides/mcp-and-rest' },
+    ],
+  },
+  {
+    label: 'Build apps and workflows',
+    items: [
+      { label: 'Build apps on your instance', slug: 'guides/build-apps' },
       { label: 'TypeScript SDK', slug: 'guides/sdk' },
       { label: 'OAuth clients for your apps', slug: 'guides/oauth-clients' },
       { label: 'Webhooks', slug: 'guides/webhooks' },
       { label: 'Website forms', slug: 'guides/forms' },
-      { label: 'Custom objects and fields', slug: 'guides/schema' },
     ],
+  },
+  {
+    label: 'Customize your data',
+    items: [{ label: 'Custom objects and fields', slug: 'guides/schema' }],
   },
   { label: 'API reference', api: true, items: [{ label: 'About the reference', slug: 'api-reference/overview' }] },
   {
