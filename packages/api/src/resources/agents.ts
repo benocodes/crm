@@ -41,7 +41,7 @@ export type AgentUpdateRecord = z.infer<typeof agentUpdateRecord>
  * The notice for the scopes `added` to `agent`. An agent account's token lists only what its record held when it signed in ([[CORE630]] D11), so the notice is unconditional. A delegated agent's tokens live in the control database,
  * which no operation reads, so it is conditional in words: the connector holds the scope only if it consented to it before.
  */
-export function signInNotice(agent: AgentRecord, added: readonly string[]): string | null {
+function signInNotice(agent: AgentRecord, added: readonly string[]): string | null {
   if (added.length === 0) return null
   const list = added.join(', ')
   if (agent.auth_subject !== null)
