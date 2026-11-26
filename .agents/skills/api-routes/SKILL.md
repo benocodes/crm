@@ -558,7 +558,7 @@ a route or an MCP tool that bypasses the registry.
   operation ([[DX616]] D1). The aggregate one is operation-level: emitted in `rest/openapi.ts` beside
   `x-vibase-proposal` from the optional `aggregate` (`AggregateSpec`) on the `Operation` (set in `registry.ts`), through
   `aggregateDocument(spec)` in `storage/aggregate.ts`, the same function `schema.get`'s `resource.aggregate` uses
-  (616.11), so the two cannot drift. Operation-level extensions do not reach MCP tool input schemas: the wire snapshot's
+  (616.11), so the two cannot drift. Operation-level `x-` fields do not reach MCP tool input schemas: the wire snapshot's
   `mcp-tools` digest stays put and only `openapi-api` moves. A new extension the generator reads also needs a fallback
   for a document without it (an older deployment), emitted exactly as before ([[DX616]] D2). A generic SDK method whose
   argument is optional is two call signatures (a no-argument one and a generic one): an optional-argument generic
