@@ -261,7 +261,8 @@ describe('group 5: composition, end to end in workerd', () => {
     const second = await refresh(id, first.refresh_token)
     expect(second.status, JSON.stringify(second)).toBe(200)
     expect(
-      (await meta('PATCH', `/meta/v1/oauth-clients/${id}`, { redirect_uris: [REDIRECT, 'https://two.test/cb'] })).status,
+      (await meta('PATCH', `/meta/v1/oauth-clients/${id}`, { redirect_uris: [REDIRECT, 'https://two.test/cb'] }))
+        .status,
     ).toBe(200)
     const third = await refresh(id, second.refresh_token)
     expect(third.status, JSON.stringify(third)).toBe(200)

@@ -90,14 +90,34 @@ const CASES: Array<[string, string[], string[], string[]]> = [
   ['wildcard match', ['https://*.app.test'], ['https://x.app.test/cb'], []],
   ['wildcard does not match the bare host', ['https://*.app.test'], ['https://app.test/cb'], ['https://app.test']],
   ['unlisted https origin', ['https://other.test'], ['https://app.test/cb'], ['https://app.test']],
-  ['loopback, port differs from the list', ['http://localhost:5199'], ['http://localhost:3000/cb'], ['http://localhost:3000']],
-  ['loopback with a port, list has none', ['http://localhost'], ['http://localhost:3000/cb'], ['http://localhost:3000']],
+  [
+    'loopback, port differs from the list',
+    ['http://localhost:5199'],
+    ['http://localhost:3000/cb'],
+    ['http://localhost:3000'],
+  ],
+  [
+    'loopback with a port, list has none',
+    ['http://localhost'],
+    ['http://localhost:3000/cb'],
+    ['http://localhost:3000'],
+  ],
   ['loopback without a port, list has one', ['http://localhost:5199'], ['http://localhost/cb'], ['http://localhost']],
   ['loopback, list matches', ['http://localhost:5199'], ['http://localhost:5199/cb'], []],
   ['two URIs on one origin: one entry', [], ['https://a.test/1', 'https://a.test/2'], ['https://a.test']],
   ['the API own origin is never warned', [], [`${API_ORIGIN}/cb`], []],
-  ['empty list: every non-API origin', [], ['https://a.test/cb', `${API_ORIGIN}/cb`, 'http://127.0.0.1:1/cb'], ['https://a.test', 'http://127.0.0.1:1']],
-  ['order of first appearance', [], ['https://b.test/cb', 'https://a.test/cb', 'https://b.test/x'], ['https://b.test', 'https://a.test']],
+  [
+    'empty list: every non-API origin',
+    [],
+    ['https://a.test/cb', `${API_ORIGIN}/cb`, 'http://127.0.0.1:1/cb'],
+    ['https://a.test', 'http://127.0.0.1:1'],
+  ],
+  [
+    'order of first appearance',
+    [],
+    ['https://b.test/cb', 'https://a.test/cb', 'https://b.test/x'],
+    ['https://b.test', 'https://a.test'],
+  ],
   ['case in the URI: the origin is the lower-cased URL origin', ['https://app.test'], ['https://APP.test/cb'], []],
 ]
 
@@ -141,7 +161,16 @@ describe('origin warning matrix (D11, P2, P3)', () => {
     const m = memoryPort()
     const o = ops(runtime(m.port, []))
     const made = await o.create({ name: 'A', redirect_uris: ['https://a.test/cb'] })
-    const keys = ['client_id', 'created_at', 'name', 'redirect_uris', 'scopes', 'skip_consent', 'updated_at', 'warnings']
+    const keys = [
+      'client_id',
+      'created_at',
+      'name',
+      'redirect_uris',
+      'scopes',
+      'skip_consent',
+      'updated_at',
+      'warnings',
+    ]
     expect(Object.keys(made).sort()).toEqual(keys)
     expect(Object.keys(await o.update(made.client_id, { name: 'B' })).sort()).toEqual(keys)
   })
