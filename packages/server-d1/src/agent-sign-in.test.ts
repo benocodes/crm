@@ -193,6 +193,15 @@ describe('1. an agent account signs in with what its record holds (D11)', () => 
     expect(vault(r.page)).toEqual(['contacts:read'])
   })
 
+  it('a grant closes like the authenticator closes it: contacts:write holds contacts:request_approval, so a login asking only for that keeps it', async () => {
+    const wk = worker()
+    const a = await agentAccount(['contacts:write'])
+    const r = await login(wk, a.cookie, CLI_CLIENT_ID, 'openid offline_access contacts:request_approval')
+    expect(vault(r.claims.scope)).toEqual(['contacts:request_approval'])
+    expect(vault(r.page)).toEqual(['contacts:request_approval'])
+    expect(await meScopes(wk, r.token)).toContain('contacts:request_approval')
+  })
+
   it('an agent with no grant gets no vault scope; me lists none', async () => {
     const wk = worker()
     const a = await agentAccount([])

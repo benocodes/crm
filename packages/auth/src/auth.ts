@@ -407,7 +407,7 @@ type NarrowCtx = {
  * pending request) when the page claims it and again at approval, before the library reads it: the claim binds the code to the first session that reads it, so narrowing earlier would be too late. The consent page's accept
  * narrows the `scope` of its body (the library only ever accepts a subset of what was requested). A person's approval, or anything unclaimed by this session, is untouched. A lookup that throws refuses the request.
  */
-async function narrowAgentApproval(
+export async function narrowAgentApproval(
   ctx: NarrowCtx,
   agentGrant: (subject: string) => Promise<readonly string[] | null>,
 ): Promise<{ context: { body: Record<string, unknown> } } | undefined> {

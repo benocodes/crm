@@ -122,7 +122,8 @@ describe('the CLI of an agent account (D4, D8, D11)', () => {
     expect(me.principal.id).toBe(a.id)
     expect(me.active_organization.scopes).toEqual([])
     expect(res.stderr).toContain('has no scopes yet')
-    expect(res.stderr).toContain('then sign in again with `vibase login`')
+    // the line names the command to run once granted, after saying the agent has no scopes (its wording is the coder's, not pinned)
+    expect(res.stderr.slice(res.stderr.indexOf('has no scopes yet'))).toContain('`vibase login`')
   })
 
   it('a default login holds the record only, and a refusal for a scope granted later prints the hint with the exact command on stderr', async () => {
