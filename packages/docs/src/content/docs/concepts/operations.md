@@ -28,4 +28,4 @@ Resource writes record events alongside the change, retaining actor attribution 
 
 Operations that support approval can be submitted as action requests using the same operation name and arguments. Authorized asynchronous work creates an action execution for retries and final outcomes.
 
-See [MCP and REST](/guides/mcp-and-rest/) to connect a client, and [permissions and approvals](/concepts/permissions/) to understand when an operation can run.
+See [MCP and REST](/guides/mcp-and-rest/) to connect a client, [invite agents and manage permissions](/guides/agents/) to give it an identity, and [permissions and approvals](/concepts/permissions/) to understand when an operation can run.

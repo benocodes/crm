@@ -1,6 +1,6 @@
 ---
 title: Command line
-description: Sign in, discover commands, and manage agent access with the Vibase CLI.
+description: Sign in, discover commands, and work with records from the Vibase CLI.
 ---
 
 The CLI discovers operations from the instance you connect to. The examples use `pnpm vibase` from the repository root.
@@ -35,33 +35,7 @@ Output is JSON, or one record per line for lists. Errors go to stderr. Exit code
 
 ## Give an agent its own identity
 
-A device login by an owner holds the owner's permissions, and the CLI says so on stderr after login. Anything that uses that profile acts as the owner, so an agent should not share it.
-
-For an agent account using device login:
-
-1. As an owner, create an invitation with the agent role. The link is shown once; hand it to the agent over any channel.
-2. The agent opens the link in a browser and signs up with an email address to claim the invitation.
-3. The agent runs `pnpm vibase --profile agent login --server https://api.example.com`. Device login needs no human approval.
-4. Use the agent ID printed at login to grant scopes from an owner session:
-
-```bash
-pnpm vibase agents update <agent-id> \
-  --data '{"scopes":["contacts:read","contacts:write"]}'
-```
-
-New agent accounts start without scopes (permissions) until an owner grants them. On a Clerk instance, invite the agent in your Clerk application with public metadata `{"vibase_role":"agent"}` instead of creating an invitation; device login then works the same way. An owner can add or remove individual grants:
-
-```bash
-pnpm vibase agents update <agent-id> \
-  --add-scopes '["tasks:read"]' \
-  --remove-scopes '["contacts:write"]'
-```
-
-To stop an agent's access:
-
-```bash
-pnpm vibase agents update <agent-id> --data '{"disabled":true}'
-```
+A device login by an owner holds the owner's permissions, and the CLI says so on stderr after login. Anything that uses that profile acts as the owner, so an agent should not share it. Give each agent its own account, or its own API key, and grant it only the scopes it needs: see [invite agents and manage permissions](/guides/agents/).
 
 ## Use profiles and sign out
 
