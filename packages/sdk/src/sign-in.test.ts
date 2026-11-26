@@ -67,7 +67,7 @@ function deployment(o: DeploymentOptions = {}) {
         code_challenge_methods_supported: ['S256'],
       },
     }))
-  const fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const handler = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = String(input)
     const kind: Seen['kind'] =
       url === `${origin}/.well-known/vibase`
@@ -90,7 +90,7 @@ function deployment(o: DeploymentOptions = {}) {
   return {
     origin,
     issuer,
-    fetch,
+    fetch: handler,
     seen,
     of: (kind: Seen['kind']) => seen.filter((s) => s.kind === kind),
     /** Requests that went to an authorize or token endpoint (or anywhere that is not a discovery document). */
@@ -119,8 +119,10 @@ function rig(over: Partial<BrowserSignInOptions> = {}, dep: ReturnType<typeof de
   }
   const s = browserSignIn(options)
   const start = async (o?: { returnTo?: string }) => {
+    const before = navigated.length
     void s.signIn(o).catch(() => {})
-    await vi.waitFor(() => expect(navigated.length).toBeGreaterThan(0), { timeout: 2000 })
+    for (let i = 0; i < 500 && navigated.length === before; i++) await new Promise((r) => setTimeout(r, 2))
+    expect(navigated.length, 'signIn did not navigate').toBe(before + 1)
     return new URL(navigated[navigated.length - 1])
   }
   const callback = (q: Record<string, string>, path = '/cb', origin = APP) => {
@@ -239,8 +241,8 @@ describe('DX624 group 1: discovery refusals (D2)', () => {
   it('a successful discovery is fetched once across verbs; a failed one is retried on the next call', async () => {
     const dep = deployment()
     const r = rig({}, dep)
-    const url = await r.start()
     await r.start()
+    const url = await r.start()
     r.callback({ code: 'c', state: url.searchParams.get('state')!, iss: dep.issuer })
     await r.s.handleRedirect()
     expect(dep.of('vibase')).toHaveLength(1)
