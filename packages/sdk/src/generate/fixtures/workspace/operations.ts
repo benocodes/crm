@@ -4259,6 +4259,24 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
     "proposable": false,
     "filters": {}
   },
+  'oauth_clients.update': {
+    "namespace": "oauthClients",
+    "method": "update",
+    "http": "PATCH",
+    "path": "/meta/v1/oauth-clients/{client_id}",
+    "fields": {
+      "client_id": "path",
+      "name": "body",
+      "redirect_uris": "body",
+      "scopes": "body",
+      "skip_consent": "body"
+    },
+    "body": true,
+    "output": "json",
+    "paginated": false,
+    "proposable": false,
+    "filters": {}
+  },
   'pipeline_stages.create': {
     "namespace": "pipelineStages",
     "method": "create",

@@ -25,6 +25,19 @@ export interface OAuthClientInsert {
   now: string
   newId: () => string
 }
+export interface OAuthClientChange {
+  organizationId: string
+  clientId: string
+  /** The calling principal ([[CORE627]] P5). */
+  actorId: string
+  now: string
+  newId: () => string
+  /** Any subset of the four owner fields; a list replaces whole. */
+  name?: string
+  redirectUris?: string[]
+  scopes?: string[]
+  skipConsent?: boolean
+}
 export interface OAuthClientsPort {
   /** `exists`: the client id is taken; nothing was written. */
   create(a: OAuthClientInsert): Promise<OAuthClientRow | 'exists'>
@@ -32,6 +45,8 @@ export interface OAuthClientsPort {
   list(a: { organizationId: string }): Promise<OAuthClientRow[]>
   /** `null` for any id that is not a first-party client. */
   get(a: { organizationId: string; clientId: string }): Promise<OAuthClientRow | null>
+  /** The client after the edit; `null`, nothing written, when no first-party client has the id ([[CORE628]] D1). */
+  update(a: OAuthClientChange): Promise<OAuthClientRow | null>
   /** `false`, nothing written, when no first-party client has the id. */
   delete(a: {
     organizationId: string
@@ -50,4 +65,8 @@ export interface OAuthClientsRuntime {
   allowedScopes: readonly string[]
   defaultScopes: readonly string[]
   resources: readonly string[]
+  /** [[CORE628]] P1: the parsed `CORS_ALLOWED_ORIGINS`, the same value the REST app gets as `corsOrigins`; the origin warning (D11) reads this list and no other. */
+  corsOrigins: readonly string[]
+  /** [[CORE628]] P3: the API's own origin (`PUBLIC_BASE_URL`'s): a redirect on it needs no CORS and is never warned. */
+  apiOrigin: string
 }

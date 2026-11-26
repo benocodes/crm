@@ -525,6 +525,13 @@ surface, names the wire snapshot as a rider** (writing-tests §1): the meta oper
 that admits several classes of value (https and loopback http redirects) needs one obligation per class carried through
 the library that checks the value again (writing-tests §1). Group 5 ran only https, and the E2E found Better Auth refusing
 loopback http.
+**CORE628** (`knowledge/specs/045-CORE628-oauth-client-update-origin-warning/RETRO.md`, [[CORE623]] cycle 3 of 3): 5
+groups (1 matrix), 7 decisions + 6 planner rules, no migration, 1 local E2E part, riders named (wire snapshot, SDK
+generate, changeset). 161k / 43 calls in one run (+134 code / +490 test lines, +190 generated, 16 files), gate green
+first run, E2E pass first run, approved round 0. Same Size line as CORE627 at about 70% of its tokens: the two CORE627
+gaps (wire-snapshot rider, one library round trip per redirect class, both directions in workerd) were in the charter,
+and each cost a free round when absent. A Watch out naming the existing assertions a new response field turns red
+(exact-keys on the create answer) let the coder move them in the red commit instead of finding them in the gate.
 
 ### Step 3: Resolve identities
 

@@ -338,6 +338,27 @@ describe('update keeps the shape (P4)', () => {
     for (const k of D4) expect(after[k]).toEqual(before[k])
   })
 
+  it('a redirect_uris change recomputes application_type in the same statement (native when any URI is http, else web); other edits leave it alone ([[CORE628]] D4, 623.41)', async () => {
+    const upd = (change: Partial<Parameters<typeof updateOAuthClient>[1]>) =>
+      updateOAuthClient(c, { organizationId: ORG, clientId: ID, actorId: ACTOR, now: T1, newId, ...change })
+    const type = async () => (await clientRow(ID))!.application_type
+    await mk(ID)
+    expect(await type()).toBe('web')
+    await upd({ redirectUris: ['https://a.test/cb', 'http://localhost:5199/cb'] })
+    expect(await type()).toBe('native')
+    await upd({ name: 'Renamed', scopes: ['openid'] })
+    expect(await type()).toBe('native')
+    await upd({ redirectUris: ['https://a.test/cb'] })
+    expect(await type()).toBe('web')
+    await upd({ redirectUris: ['HTTP://127.0.0.1:1/cb'] })
+    expect(await type()).toBe('native')
+    expect(await upd({ name: 'x' })).not.toBeNull()
+    // not found: nothing written, no audit row for the missed id
+    const audits = await allAudit()
+    expect(await upd({ clientId: 'nope', redirectUris: ['http://localhost/cb'] })).toBeNull()
+    expect(await allAudit()).toBe(audits)
+  })
+
   it('an empty change writes nothing, no audit row, and answers the current record', async () => {
     await mk(ID)
     const before = JSON.stringify(await clientRow(ID))
