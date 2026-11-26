@@ -55,8 +55,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   [[CORE188]]'s mutation session reverted the uncommitted green `executions/definition.ts` this way and the coder had
   to rewrite it (`knowledge/specs/013-CORE188-execution-sort/RETRO.md`). Commit green first and restore from that
   commit. If you cannot, save the green file before mutating (a copy in the scratchpad that you copy back, or
-  `git stash push -m <unique tag> -- <file>` followed at once by `git stash apply`, so the tagged stash stays as the
-  backup). Never bare-checkout a file that holds uncommitted changes you mean to keep. The rule is not
+  `git stash push -m <unique tag> -- <file>` followed at once by `git stash apply "stash^{/<unique tag>}"`, so the
+  tagged stash stays as the backup; never a positional `apply` or `pop`, since worktrees share one stash list,
+  [[CORE639]]). Never bare-checkout a file that holds uncommitted changes you mean to keep. The rule is not
   mutation-only: [[CORE199]]'s coder lost uncommitted work the same way mid-run, outside a mutation (see
   `execute-cycle` §3, "Setting work aside").
 - **A mutation is an edit of the code or the page under test, never a test case.** A test that matches a pattern

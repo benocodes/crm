@@ -155,6 +155,11 @@ For every **Must be tested** obligation in the charter, write the test(s) that p
   would blur them), or copy the file to the scratchpad. To look at `main`'s version use `git show main:<path>`
   or a throwaway worktree, never a checkout over your edits. Check `git status --short` before any
   checkout or restore.
+- **No bare `git stash` / `stash pop` in a worktree.** The stash list belongs to the repository, not the
+  worktree: every cycle worktree and the main checkout share it, so `pop` or `apply` without a name takes
+  whoever pushed last. [[CORE639]]'s coder popped another session's stash into its branch (a conflict and a
+  stray file to repair by hand). Use a WIP commit or a scratchpad copy; if you stash at all, give it a unique
+  message and apply it by that message (`git stash apply "stash^{/<tag>}"`), never by position.
 - A migration's test goes red against the old schema **before** the migration exists (vitest runs
   untyped, so missing generated types don't block the run). Only then write the migration, run codegen
   and change the seeds ([[CORE3]] cycle 1).
@@ -185,7 +190,11 @@ one decision recorded twice; [[CHN432]] 432.13 and 432.16 repeated it, so this i
 repo from any worktree; an earlier cycle's rows are `node scripts/decisions.mjs find <issue or spec ID>`.
 **A decision that adds a branch needs a test that takes each side of it**, with an
 absence mutation per side: a recorded but untested decision is a review round ([[CHN149]] D-b: records
-without `labelIds` fetched and judged after the fetch, untested until round 2). Where the gap changes a contract another spec relies on, or a behaviour the spec states,
+without `labelIds` fetched and judged after the fetch, untested until round 2).
+**A field your change leaves unread goes in this cycle.** When the cycle stops reading a field, parameter or
+option, grep its readers before RESULT.md; if none remain, remove it with its fixtures now (keep a twin that
+something else still reads). "Left for a later cleanup" is dead code and a review round: [[CORE639]] kept
+`OAuthClientsRuntime.defaultScopes` after D4 stopped reading it, and review sent it back. Where the gap changes a contract another spec relies on, or a behaviour the spec states,
 don't guess: stop and report `blocked` with the question.
 
 ## 5. Gate
