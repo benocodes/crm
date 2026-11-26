@@ -19,9 +19,12 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 
 ## A backend for marketing, sales and customer success
 
-Start with <a href="/deployment/self-hosting/">setting up an instance</a>, the <a href="/concepts/overview/">core concepts</a> or the <a href="/api-reference/overview/">API reference</a>.
-
 <CardGrid>
+  <Card title="Deploy your instance" icon="rocket">
+    Run one workspace on Cloudflare Workers and D1 in your own account, with your own domain and authentication.
+
+    [Deploy Vibase](/deployment/self-hosting/)
+  </Card>
   <Card title="Bring your own agents" icon="star">
     Connect through MCP, the command line, or REST. Onboard any agent: Claude Code, Instinct, Dots, Grok Bot. Your workflows run where you choose; Vibase keeps the business records.
 
@@ -31,11 +34,6 @@ Start with <a href="/deployment/self-hosting/">setting up an instance</a>, the <
     Grant reads, proposals, or direct writes per resource. Keep provider credentials inside Vibase and review actions when needed.
 
     [How permissions work](/concepts/permissions/)
-  </Card>
-  <Card title="Own your deployment" icon="setting">
-    Run one workspace on Cloudflare Workers and D1 in your own account, with your own API URL and authentication.
-
-    [Deploy Vibase](/deployment/self-hosting/)
   </Card>
   <Card title="Build your own experience" icon="pencil">
     Use your agents conversationally or build dashboards and internal tools on the same API. There is no required CRM frontend.
