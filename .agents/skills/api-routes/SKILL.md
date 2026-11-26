@@ -320,7 +320,11 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     delegated agent (token ∩ stored cap ∩ role ∩ grantable); role `agent` is an agent account (Clerk: grants ∩ token for
     OAuth, grants for a session token; built-in provider: record ∩ grantable, ∩ token only with `limited_login`, D4). The
     marker is read from the raw token scope list (the authenticator keeps only declared scopes for its own use) and is in
-    no default list: `AUTH_SCOPES` feeds the defaults, so it lives beside it (`LIMITED_LOGIN_SCOPE`). Kinds never convert (`403 organization_forbidden`); a disabled agent is
+    no default list: `AUTH_SCOPES` feeds the defaults, so it lives beside it (`LIMITED_LOGIN_SCOPE`). Whatever decides
+    "this is the CLI" compares with the configured id, never the literal `vibase-cli`: the authenticator's `cliClientId`
+    (`AUTH_CLI_CLIENT_ID`), and in a browser page discovery's `auth.cli_client_id` (`getCliClientId` in
+    `packages/server-d1/src/ui/auth-api.ts`). [[CORE630]]'s device page first keyed its full-access statement on the
+    literal, which understates the grant on an instance with another CLI id (review finding, 630.32). Kinds never convert (`403 organization_forbidden`); a disabled agent is
     `401`. First sight inserts `ON CONFLICT DO NOTHING`, gates the event on the insert, then asserts the stored id
     (the race loser re-looks up once, else `409`). The profile (`fetchProfile`, with `role`) is cached per isolate
     for 60 s by `env.now`; a `404` is cached as a refusal, any other failure is `500` and uncached. The client

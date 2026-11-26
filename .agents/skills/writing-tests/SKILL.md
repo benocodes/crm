@@ -125,7 +125,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   count: [[UI504]]'s red run had the clerk rows of `packages/server-d1/src/assets-serving.test.ts` red because the
   test's Worker env lacked `CONTROL_DB`, not because the asset path was served; the helper was fixed in the green
   commit. A test that is red for a harness reason would pass for the wrong reason once the harness is fixed, so fix
-  the harness before recording the red run, and say so in `RESULT.md`.
+  the harness before recording the red run, and say so in `RESULT.md`. When every test fails at a prerequisite that the
+  same change supplies (a provider that must first accept a new scope: [[CORE630]]'s red commit died at client
+  registration with `invalid_scope`), apply the prerequisite alone, record that assertion-level red run as well, and
+  name both in `RESULT.md`.
 - **A refusal the real producer cannot emit is proven on crafted inputs at the unit.** Better Auth signs with a key
   encrypted by `AUTH_SECRET`, so it cannot mint a token with a wrong `iss` or `aud`; [[CORE244]] proved those refusals
   (and their absence mutations) at the adapter on hand-signed Ed25519 tokens (`packages/api/src/auth/better-auth.test.ts`)
