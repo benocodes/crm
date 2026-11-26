@@ -76,7 +76,7 @@ const scopesField = z.array(z.string()).max(100)
 /**
  * Agents, on the prepared path ([[CORE40]]). No delete (a table without `deleted_at`, P4). `disabled` is a hook
  * input only (P5): it drives `disabled_at` in `computed` and is never written as a column. The scope rule is
- * pure, so it runs in `prepare`; a scope change applies at once because the next request reads the stored list.
+ * pure, so it runs in `prepare`; the stored list is read on every request, so a removal applies at once and a grant does too for an API key, while an agent account's sign-in lists what it held when it signed in ([[CORE662]]).
  */
 export const agents = withColumnFilters(
   withColumnSorts(
@@ -90,7 +90,7 @@ export const agents = withColumnFilters(
       operations: ['list', 'get', 'create', 'update'],
       descriptions: {
         update:
-          'Change an agent: its name, scopes (the whole list, or add_scopes and remove_scopes) or disabled flag. 409 form_principal for the agent of a form (live or deleted): that agent is managed by its form, so rename, disable or delete the form instead. Example: vibase agents update <id> --disabled true',
+          'Change an agent: its name, scopes (the whole list, or add_scopes and remove_scopes) or disabled flag. 409 form_principal for the agent of a form (live or deleted): that agent is managed by its form, so rename, disable or delete the form instead. When the call adds a scope to an agent that signs in, sign_in_notice says when the added scope reaches it (an agent account: when it signs in again with vibase login; a connector: only if it already consented, else reconnect it); it is null for an API-key agent, which applies at once, and when nothing was added. Example: vibase agents update <id> --disabled true',
       },
       record: agentRecord,
       updateRecord: agentUpdateRecord,

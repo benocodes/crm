@@ -5743,7 +5743,7 @@ export interface paths {
         head?: never;
         /**
          * Update a agent
-         * @description Change an agent: its name, scopes (the whole list, or add_scopes and remove_scopes) or disabled flag. 409 form_principal for the agent of a form (live or deleted): that agent is managed by its form, so rename, disable or delete the form instead. Example: vibase agents update <id> --disabled true
+         * @description Change an agent: its name, scopes (the whole list, or add_scopes and remove_scopes) or disabled flag. 409 form_principal for the agent of a form (live or deleted): that agent is managed by its form, so rename, disable or delete the form instead. When the call adds a scope to an agent that signs in, sign_in_notice says when the added scope reaches it (an agent account: when it signs in again with vibase login; a connector: only if it already consented, else reconnect it); it is null for an API-key agent, which applies at once, and when nothing was added. Example: vibase agents update <id> --disabled true
          */
         patch: operations["agents.update"];
         trace?: never;
@@ -7775,6 +7775,7 @@ export interface operations {
                         auth_client_id: string | null;
                         /** Format: uuid */
                         delegated_by: string | null;
+                        sign_in_notice: string | null;
                     };
                 };
             };

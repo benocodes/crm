@@ -1376,6 +1376,9 @@ or an operation (`control-boundary.test.ts`, [[CORE259]] D5).
     old, no token or consent names them; [[CORE577]] D20). It writes no
     `control_audit` row and nothing in the CRM database; its counts are read-only `SELECT`s from the two
     status commands;
+  - Better Auth's own adapter inside the `/auth` before-hook, narrowing an agent account's pending device code (`auth_device_codes.scope`) when the device page claims it and again at approval, to its scopes met with its record in
+    the CRM (read live through the `agentGrant` port, closed on a failing read). No event, no `control_audit` row (machinery that grants nothing: the token only lists what the record already holds); the consent page's
+    narrowing edits the request and writes nothing of its own. It never writes the agent's record ([[CORE662]], [[CORE630]] D11, ruling 630.87);
   - later, [[OPS250]]'s migration tool.
 - **`control_deployment`**, the control marker: written only by `bootstrap`.
 - **`invitations` and `control_audit`** (control migration 0002, [[CORE245]], [[CORE259]] D12): written only

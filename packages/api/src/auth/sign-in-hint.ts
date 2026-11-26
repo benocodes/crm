@@ -8,7 +8,7 @@ import type { Principal } from './types.js'
 export function signInHint(principal: Pick<Principal, 'signIn'>, scope: Scope): string | null {
   const signIn = principal.signIn
   const name = formatScope(scope)
-  if (!signIn || !signIn.missing.includes(name)) return null
+  if (!signIn?.missing.includes(name)) return null
   switch (signIn.kind) {
     case 'cli':
       return `this sign-in does not include ${name}, which your role holds: run \`vibase login\` to sign in again`

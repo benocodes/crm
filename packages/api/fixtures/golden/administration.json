@@ -154,7 +154,8 @@
             "auth_provider": null,
             "auth_subject": null,
             "auth_client_id": null,
-            "delegated_by": null
+            "delegated_by": null,
+            "sign_in_notice": null
           },
           "events": [
             {
@@ -216,7 +217,8 @@
             "auth_provider": null,
             "auth_subject": null,
             "auth_client_id": null,
-            "delegated_by": null
+            "delegated_by": null,
+            "sign_in_notice": null
           },
           "events": [
             {
@@ -278,7 +280,8 @@
             "auth_provider": null,
             "auth_subject": null,
             "auth_client_id": null,
-            "delegated_by": null
+            "delegated_by": null,
+            "sign_in_notice": null
           },
           "events": [
             {
@@ -340,7 +343,8 @@
             "auth_provider": null,
             "auth_subject": null,
             "auth_client_id": null,
-            "delegated_by": null
+            "delegated_by": null,
+            "sign_in_notice": null
           },
           "events": [
             {
@@ -402,7 +406,8 @@
             "auth_provider": null,
             "auth_subject": null,
             "auth_client_id": null,
-            "delegated_by": null
+            "delegated_by": null,
+            "sign_in_notice": null
           },
           "events": [
             {
@@ -462,7 +467,8 @@
             "auth_provider": null,
             "auth_subject": null,
             "auth_client_id": null,
-            "delegated_by": null
+            "delegated_by": null,
+            "sign_in_notice": null
           },
           "events": []
         },
@@ -784,7 +790,8 @@
             "auth_provider": null,
             "auth_subject": null,
             "auth_client_id": null,
-            "delegated_by": null
+            "delegated_by": null,
+            "sign_in_notice": null
           },
           "events": [
             {
@@ -846,7 +853,8 @@
             "auth_provider": null,
             "auth_subject": null,
             "auth_client_id": null,
-            "delegated_by": null
+            "delegated_by": null,
+            "sign_in_notice": null
           },
           "events": [
             {
@@ -909,7 +917,8 @@
             "auth_provider": null,
             "auth_subject": null,
             "auth_client_id": null,
-            "delegated_by": null
+            "delegated_by": null,
+            "sign_in_notice": null
           },
           "events": [
             {
@@ -971,7 +980,8 @@
             "auth_provider": null,
             "auth_subject": null,
             "auth_client_id": null,
-            "delegated_by": null
+            "delegated_by": null,
+            "sign_in_notice": null
           },
           "events": []
         },
@@ -996,7 +1006,8 @@
             "auth_provider": null,
             "auth_subject": null,
             "auth_client_id": null,
-            "delegated_by": null
+            "delegated_by": null,
+            "sign_in_notice": null
           },
           "events": []
         },
@@ -1022,7 +1033,8 @@
             "auth_provider": null,
             "auth_subject": null,
             "auth_client_id": null,
-            "delegated_by": null
+            "delegated_by": null,
+            "sign_in_notice": null
           },
           "events": [
             {
@@ -1404,7 +1416,8 @@
             "auth_provider": null,
             "auth_subject": null,
             "auth_client_id": null,
-            "delegated_by": null
+            "delegated_by": null,
+            "sign_in_notice": null
           },
           "events": [
             {
