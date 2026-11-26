@@ -61,13 +61,14 @@ beforeEach(async () => {
   otherClient = await kit.registerClient('Claude Desktop')
 })
 
-const worker = (control: D1WorkerEnv['CONTROL_DB'] = w.control) =>
+const worker = (control: D1WorkerEnv['CONTROL_DB'] = w.control, extra: Partial<D1WorkerEnv> = {}) =>
   composeD1Worker({
     DB: w.d1,
     CONTROL_DB: control,
     AUTH_PROVIDER: 'better-auth',
     AUTH_SECRET,
     PUBLIC_BASE_URL: AUTH_BASE,
+    ...extra,
   })
 type Res = { status: number; json: any; text: string }
 const call = async (
@@ -144,6 +145,9 @@ const REDIRECT = 'https://app.test/cb'
 const body = (over: Record<string, unknown> = {}) => ({ name: 'Deals board', redirect_uris: [REDIRECT], ...over })
 const create = (wk: ReturnType<typeof worker>, tok: string, b: unknown = body()) => call(wk, 'POST', PATH, tok, b)
 const RECORD_KEYS = ['client_id', 'created_at', 'name', 'redirect_uris', 'scopes', 'skip_consent', 'updated_at']
+/** [[CORE628]] D11: create and update answer D12's record plus `warnings`; list, get and delete do not. */
+const ANSWER_KEYS = [...RECORD_KEYS, 'warnings'].sort()
+const withoutWarnings = ({ warnings: _w, ...rec }: Record<string, any>) => rec
 /** A first-party client written through the store, at a chosen id and time. */
 const seedClient = async (clientId: string, now = '2026-11-01T10:00:00.000Z') =>
   createOAuthClient(openControlDb(w.control), {
@@ -166,7 +170,7 @@ describe('group 3: create input and refusals (D7, P3, P4)', () => {
     const tok = await owner.session()
     const a = await create(wk, tok)
     expect(a.status, a.text).toBe(201)
-    expect(Object.keys(a.json).sort()).toEqual(RECORD_KEYS)
+    expect(Object.keys(a.json).sort()).toEqual(ANSWER_KEYS)
     expect(a.json).toMatchObject({ name: 'Deals board', redirect_uris: [REDIRECT], skip_consent: true })
     expect(a.json.client_id).toMatch(/^[A-Za-z0-9_-]{32}$/)
     expect(a.json.scopes).toEqual(
@@ -305,7 +309,7 @@ describe('group 4: first-party visibility and the record (D5, D12, D13)', () => 
     const id = made.json.client_id
     const got = await call(wk, 'GET', `${PATH}/${id}`, tok)
     expect(got.status).toBe(200)
-    expect(got.json).toEqual(made.json)
+    expect(got.json).toEqual(withoutWarnings(made.json))
     const del = await call(wk, 'DELETE', `${PATH}/${id}`, tok)
     expect(del.status).toBe(204)
     expect(del.text).toBe('')
@@ -323,7 +327,7 @@ describe('group 4: first-party visibility and the record (D5, D12, D13)', () => 
 
 describe('group 2: the authority matrix, operation x credential (D3)', () => {
   const who = ['owner session', 'member session', 'agent API key', 'DCR-registered client'] as const
-  const ops = ['create', 'list', 'get', 'delete'] as const
+  const ops = ['create', 'list', 'get', 'delete', 'update'] as const
   const cells = ops.flatMap((op) => who.map((w2) => [op, w2] as const))
 
   it.each(cells)('%s as %s', async (op, which) => {
@@ -352,7 +356,9 @@ describe('group 2: the authority matrix, operation x credential (D3)', () => {
           ? await call(wk, 'GET', PATH, tok)
           : op === 'get'
             ? await call(wk, 'GET', `${PATH}/${'t'.repeat(32)}`, tok)
-            : await call(wk, 'DELETE', `${PATH}/${'t'.repeat(32)}`, tok)
+            : op === 'update'
+              ? await call(wk, 'PATCH', `${PATH}/${'t'.repeat(32)}`, tok, { name: 'renamed' })
+              : await call(wk, 'DELETE', `${PATH}/${'t'.repeat(32)}`, tok)
     if (which === 'owner session') {
       expect(res.status, res.text).toBe(op === 'create' ? 201 : op === 'delete' ? 204 : 200)
       return
@@ -378,7 +384,7 @@ describe('group 2: the authority matrix, operation x credential (D3)', () => {
     }
   })
 
-  it('MCP: the four tools are listed for the owner only', async () => {
+  it('MCP: the five tools are listed for the owner only', async () => {
     const owner = await human('owner')
     const member = await human('member', 'm2@x.test')
     const agent = await agentAccount()
@@ -396,6 +402,7 @@ describe('group 2: the authority matrix, operation x credential (D3)', () => {
       'oauth_clients_delete',
       'oauth_clients_get',
       'oauth_clients_list',
+      'oauth_clients_update',
     ])
     expect(await names(await member.session())).toEqual([])
     expect(await names(await agent.session())).toEqual([])
@@ -411,7 +418,7 @@ describe('group 1 (no runtime): a composition without the built-in provider', ()
   })
   afterAll(() => single.dispose())
 
-  it('on Clerk the four operations refuse with 501 provider_not_configured', async () => {
+  it('on Clerk the five operations refuse with 501 provider_not_configured', async () => {
     const issuer = clerk.issuer.issuer
     await single.d1.batch([
       single.d1
@@ -439,9 +446,176 @@ describe('group 1 (no runtime): a composition without the built-in provider', ()
       await req('GET', PATH),
       await req('GET', `${PATH}/abc`),
       await req('DELETE', `${PATH}/abc`),
+      await req('PATCH', `${PATH}/abc`, { name: 'x' }),
     ]) {
       expect(res.status).toBe(501)
       expect(((await res.json()) as any).error.code).toBe('provider_not_configured')
     }
+  })
+})
+
+// ---- [[CORE628]]: update (groups 1, 2), the origin warning through composition (group 5)
+const patch = (wk: ReturnType<typeof worker>, tok: string, id: string, b: unknown) =>
+  call(wk, 'PATCH', `${PATH}/${id}`, tok, b)
+const clientRows = (id: string) => rows(w.control, 'select * from auth_oauth_clients where client_id = ?', id)
+const linkRows = (id: string) => rows(w.control, 'select * from auth_oauth_client_resources where client_id = ?', id)
+const auditFor = (id: string) => rows(w.control, 'select * from control_audit where target_id = ? order by at, id', id)
+const sleepSecond = () => new Promise((r) => setTimeout(r, 1100))
+
+describe('CORE628 group 2: update input, refusals and visibility (D1, D7, D8, D13, P4, P5)', () => {
+  it('edits each field alone and together: lists replace, updated_at moves, created_at and client_id do not; one audit row per edit with the state after and the owner as actor', async () => {
+    const owner = await human('owner')
+    const wk = worker()
+    const tok = await owner.session()
+    const made = await create(wk, tok)
+    const id = made.json.client_id
+    await sleepSecond()
+    const names = await patch(wk, tok, id, { name: '  Renamed  ' })
+    expect(names.status, names.text).toBe(200)
+    expect(Object.keys(names.json).sort()).toEqual(ANSWER_KEYS)
+    expect(names.json).toMatchObject({ client_id: id, name: 'Renamed', created_at: made.json.created_at })
+    expect(names.json.redirect_uris).toEqual(made.json.redirect_uris)
+    expect(names.json.scopes).toEqual(made.json.scopes)
+    expect(names.json.updated_at > made.json.updated_at).toBe(true)
+    const uris = await patch(wk, tok, id, { redirect_uris: ['https://one.test/cb', 'https://two.test/cb'] })
+    expect(uris.json.redirect_uris).toEqual(['https://one.test/cb', 'https://two.test/cb'])
+    expect(uris.json.name).toBe('Renamed')
+    const dup = await patch(wk, tok, id, { redirect_uris: ['https://one.test/cb', 'https://one.test/cb'] })
+    expect(dup.json.redirect_uris).toEqual(['https://one.test/cb'])
+    const scopes = await patch(wk, tok, id, { scopes: ['openid', 'contacts:read'] })
+    expect(scopes.json.scopes).toEqual(['openid', 'contacts:read'])
+    expect(scopes.json.redirect_uris).toEqual(['https://one.test/cb'])
+    const consent = await patch(wk, tok, id, { skip_consent: true })
+    expect(consent.status).toBe(200)
+    const all = await patch(wk, tok, id, {
+      name: 'All',
+      redirect_uris: ['https://all.test/cb'],
+      scopes: ['openid'],
+      skip_consent: true,
+    })
+    expect(withoutWarnings(all.json)).toMatchObject({
+      client_id: id,
+      name: 'All',
+      redirect_uris: ['https://all.test/cb'],
+      scopes: ['openid'],
+      skip_consent: true,
+      created_at: made.json.created_at,
+    })
+    expect((await call(wk, 'GET', `${PATH}/${id}`, tok)).json).toEqual(withoutWarnings(all.json))
+    const audit = await auditFor(id)
+    expect(audit.map((a) => a.action)).toEqual(['oauth_client.created', ...Array(6).fill('oauth_client.updated')])
+    const last = audit.at(-1)!
+    expect(last.actor_id).toBe(owner.id)
+    expect(JSON.parse(last.detail)).toEqual({
+      name: 'All',
+      redirect_uris: ['https://all.test/cb'],
+      scopes: ['openid'],
+      skip_consent: true,
+    })
+  })
+
+  it('refuses each D7 rule one past its edge on update, an empty body, unknown fields (client_id too), skip_consent false and a scope outside the ceiling; nothing is written', async () => {
+    const owner = await human('owner')
+    const wk = worker()
+    const tok = await owner.session()
+    const id = (await create(wk, tok)).json.client_id
+    const before = await authState()
+    const refused: Array<[string, Record<string, unknown>]> = [
+      ['empty body', {}],
+      ['name empty', { name: '' }],
+      ['name blank', { name: '   ' }],
+      ['name 101', { name: 'x'.repeat(101) }],
+      ['no uris', { redirect_uris: [] }],
+      ['11 uris', { redirect_uris: Array.from({ length: 11 }, (_, i) => `https://app${i}.test/cb`) }],
+      ['http non-loopback', { redirect_uris: ['http://example.com/cb'] }],
+      ['fragment', { redirect_uris: ['https://app.test/cb#frag'] }],
+      ['empty fragment', { redirect_uris: ['https://app.test/cb#'] }],
+      ['user info', { redirect_uris: ['https://user:pw@app.test/cb'] }],
+      ['star', { redirect_uris: ['https://*.app.test/cb'] }],
+      ['not a url', { redirect_uris: ['nope'] }],
+      ['custom scheme', { redirect_uris: ['myapp://cb'] }],
+      ['scopes empty', { scopes: [] }],
+      ['scope outside the ceiling', { scopes: ['openid', 'nope:read'] }],
+      ['human-only scope', { scopes: ['members:write'] }],
+      ['client_id given', { client_id: 'mine' }],
+      ['unknown field', { extra: 1 }],
+      ['skip_consent a string', { skip_consent: 'no' }],
+      ['a null field', { name: null }],
+    ]
+    for (const [what, b] of refused) {
+      const res = await patch(wk, tok, id, b)
+      expect(res.status, `${what}: ${res.text}`).toBe(400)
+      expect(res.json.error.code, what).toBe('validation_error')
+    }
+    expect((await patch(wk, tok, id, { scopes: ['nope:read'] })).json.error.message).toContain('nope:read')
+    expect(await authState()).toBe(before)
+  })
+
+  it('skip_consent false answers the exact message, alone and beside a valid field, and writes nothing; true is accepted', async () => {
+    const owner = await human('owner')
+    const wk = worker()
+    const tok = await owner.session()
+    const id = (await create(wk, tok)).json.client_id
+    const before = await authState()
+    for (const b of [{ skip_consent: false }, { name: 'Changed', skip_consent: false }]) {
+      const res = await patch(wk, tok, id, b)
+      expect(res.status).toBe(400)
+      expect(res.json.error.code).toBe('validation_error')
+      expect(res.json.error.message).toBe('skip_consent = false is not implemented yet')
+    }
+    expect(await authState()).toBe(before)
+    expect((await call(wk, 'GET', `${PATH}/${id}`, tok)).json.name).toBe('Deals board')
+    expect((await patch(wk, tok, id, { skip_consent: true })).status).toBe(200)
+  })
+
+  it('answers 404 not_found for a DCR client, vibase-cli and an unknown id, and an invalid body on an unknown id is 400 (P4); nothing is written', async () => {
+    const owner = await human('owner')
+    const cli = await kit.registerClient('CLI')
+    await renameClient(w.control, cli, 'vibase-cli')
+    const wk = worker()
+    const tok = await owner.session()
+    const before = await authState()
+    for (const id of [otherClient, 'vibase-cli', 'no-such-client']) {
+      const res = await patch(wk, tok, id, { name: 'x' })
+      expect(res.status, id).toBe(404)
+      expect(res.json.error.code).toBe('not_found')
+      const bad = await patch(wk, tok, id, { name: '' })
+      expect(bad.status, `${id} invalid`).toBe(400)
+    }
+    expect(await authState()).toBe(before)
+  })
+
+  it('a refused edit leaves the client row, its resource links and the audit log unchanged', async () => {
+    const owner = await human('owner')
+    const wk = worker()
+    const tok = await owner.session()
+    const id = (await create(wk, tok)).json.client_id
+    const snap = async () => JSON.stringify([await clientRows(id), await linkRows(id), await auditFor(id)])
+    const before = await snap()
+    await patch(wk, tok, id, { name: 'ok', skip_consent: false })
+    await patch(wk, tok, id, { scopes: ['nope:read'] })
+    await patch(wk, tok, id, {})
+    expect(await snap()).toBe(before)
+  })
+})
+
+describe('CORE628 group 5: the warning through the real composition (P1)', () => {
+  it('the runtime list is the REST app corsOrigins: a configured wildcard suppresses the warning on a real POST and PATCH; unset it warns', async () => {
+    const owner = await human('owner')
+    const tok = await owner.session()
+    const configured = worker(w.control, { CORS_ALLOWED_ORIGINS: 'https://*.apps.test,http://localhost:5199' })
+    const ok = await create(configured, tok, body({ redirect_uris: ['https://deals.apps.test/cb'] }))
+    expect(ok.status, ok.text).toBe(201)
+    expect(ok.json.warnings).toEqual([])
+    const p1 = await patch(configured, tok, ok.json.client_id, { redirect_uris: ['http://localhost:5199/cb'] })
+    expect(p1.json.warnings).toEqual([])
+    const p2 = await patch(configured, tok, ok.json.client_id, { redirect_uris: ['https://apps.test/cb'] })
+    expect(p2.json.warnings.map((x: any) => x.origin)).toEqual(['https://apps.test'])
+    const bare = worker()
+    const warned = await create(bare, tok, body({ redirect_uris: ['https://deals.apps.test/cb'] }))
+    expect(warned.status).toBe(201)
+    expect(warned.json.warnings.map((x: any) => x.origin)).toEqual(['https://deals.apps.test'])
+    const own = await create(bare, tok, body({ redirect_uris: [`${AUTH_BASE}/cb`] }))
+    expect(own.json.warnings).toEqual([])
   })
 })

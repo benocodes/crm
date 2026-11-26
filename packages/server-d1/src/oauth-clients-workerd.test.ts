@@ -8,7 +8,7 @@ import { seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { authKitOver } from './test/auth-kit.js'
 
-// [[CORE627]] group 5: through the REAL composition in workerd (`better-auth`, the paired databases, a signed-in owner), an owner's POST /meta/v1/oauth-clients yields a client that completes Better Auth's
+// [[CORE627]] group 5 and [[CORE628]] group 3: through the REAL composition in workerd (`better-auth`, the paired databases, a signed-in owner), an owner's POST /meta/v1/oauth-clients yields a client that completes Better Auth's
 // authorize with no consent screen, a PKCE token and a call to /api; the audit row names the owner; DELETE then makes refresh fail and authorize refuse the id.
 const ENTRY = fileURLToPath(new URL('./test/entry-mint.ts', import.meta.url))
 const declared = createVibaseRegistry().declaredScopes()
@@ -186,5 +186,89 @@ describe('group 5: composition, end to end in workerd', () => {
       redirect_uris: ['http://example.com/cb'],
     })
     expect(refused.status).toBe(400)
+  })
+  // [[CORE628]] group 3: application_type follows the redirect list on update, and an edit revokes nothing.
+  const typeOf = async (cid: string) =>
+    (
+      await w.controlRows<{ t: string }>('select application_type t from auth_oauth_clients where client_id = ?', cid)
+    )[0]!.t
+  const LOOPBACK = 'http://localhost:5199/cb'
+  const flow = async (id: string, redirect: string) => {
+    const a = await authorize(id, BASE, redirect)
+    const code = a.url?.searchParams.get('code') ?? null
+    if (!code) return { a, tokens: null }
+    const tokens = await token({
+      grant_type: 'authorization_code',
+      code,
+      code_verifier: verifier,
+      redirect_uri: redirect,
+      client_id: id,
+      resource: BASE,
+    })
+    return { a, tokens }
+  }
+  const refresh = (id: string, refreshToken: string) =>
+    token({ grant_type: 'refresh_token', refresh_token: refreshToken, client_id: id, resource: BASE })
+  const make = async (redirects: string[]) => {
+    const res = await meta('POST', '/meta/v1/oauth-clients', { name: 'Edited', redirect_uris: redirects })
+    const rec = (await res.json()) as Record<string, any>
+    expect(res.status, JSON.stringify(rec)).toBe(201)
+    return rec.client_id as string
+  }
+
+  it('a client created https-only and updated to a loopback http URI is stored native and completes authorize (no consent), token and refresh on it; updated back to https it is web and the loopback URI is refused', async () => {
+    const id = await make([REDIRECT])
+    expect(await typeOf(id)).toBe('web')
+    const upd = await meta('PATCH', `/meta/v1/oauth-clients/${id}`, { redirect_uris: [LOOPBACK] })
+    expect(upd.status, await upd.text()).toBe(200)
+    expect(await typeOf(id)).toBe('native')
+    const { a, tokens } = await flow(id, LOOPBACK)
+    expect(a.url, `authorize answered ${a.status} ${a.text}`).not.toBeNull()
+    expect(a.url!.origin + a.url!.pathname).toBe(LOOPBACK)
+    expect(tokens?.status, JSON.stringify(tokens)).toBe(200)
+    const again = await refresh(id, tokens!.refresh_token)
+    expect(again.status, JSON.stringify(again)).toBe(200)
+    expect(
+      (await w.call('/api/v1/contacts', { headers: { authorization: `Bearer ${again.access_token}` } })).status,
+    ).toBe(200)
+    const back = await meta('PATCH', `/meta/v1/oauth-clients/${id}`, { redirect_uris: [REDIRECT] })
+    expect(back.status).toBe(200)
+    expect(await typeOf(id)).toBe('web')
+    expect((await flow(id, REDIRECT)).tokens?.status).toBe(200)
+  })
+
+  it('a loopback-only client updated to https-only is stored web, and authorize with the old loopback URI is refused', async () => {
+    const id = await make([LOOPBACK])
+    expect(await typeOf(id)).toBe('native')
+    expect((await meta('PATCH', `/meta/v1/oauth-clients/${id}`, { redirect_uris: [REDIRECT] })).status).toBe(200)
+    expect(await typeOf(id)).toBe('web')
+    const old = await authorize(id, BASE, LOOPBACK)
+    expect(old.url?.searchParams.get('code') ?? null).toBeNull()
+    expect((await flow(id, REDIRECT)).tokens?.status).toBe(200)
+  })
+
+  it('an update that leaves redirect_uris alone leaves application_type alone', async () => {
+    const id = await make([LOOPBACK])
+    expect((await meta('PATCH', `/meta/v1/oauth-clients/${id}`, { name: 'Renamed' })).status).toBe(200)
+    expect(await typeOf(id)).toBe('native')
+  })
+
+  it('a refresh token issued before a name-only edit, and before a redirect edit, still refreshes after it (D8); the audit rows name the owner', async () => {
+    const id = await make([REDIRECT])
+    const first = (await flow(id, REDIRECT)).tokens!
+    expect(first.status, JSON.stringify(first)).toBe(200)
+    expect((await meta('PATCH', `/meta/v1/oauth-clients/${id}`, { name: 'Renamed' })).status).toBe(200)
+    const second = await refresh(id, first.refresh_token)
+    expect(second.status, JSON.stringify(second)).toBe(200)
+    expect(
+      (await meta('PATCH', `/meta/v1/oauth-clients/${id}`, { redirect_uris: [REDIRECT, 'https://two.test/cb'] })).status,
+    ).toBe(200)
+    const third = await refresh(id, second.refresh_token)
+    expect(third.status, JSON.stringify(third)).toBe(200)
+    const audit = await w.controlRows<Record<string, any>>(
+      "select actor_id from control_audit where target_id = ? and action = 'oauth_client.updated'",
+      id,
+    )
+    expect(audit).toEqual([{ actor_id: owner }, { actor_id: owner }])
   })
 })
