@@ -9,7 +9,8 @@
     "dev": "pnpm openapi:generate && astro dev",
     "build": "pnpm openapi:generate && astro build",
     "preview": "astro preview",
-    "typecheck": "pnpm openapi:generate && astro check"
+    "typecheck": "pnpm openapi:generate && astro check",
+    "og:generate": "tsx scripts/generate-og-image.ts"
   },
   "dependencies": {
     "@astrojs/markdown-satteri": "^0.4.10",
@@ -21,6 +22,7 @@
     "@astrojs/check": "0.9.12",
     "@types/node": "^22",
     "@vibase/api": "workspace:*",
+    "sharp": "^0.35.5",
     "tsx": "4.23.15",
     "typescript": "5.9.3"
   }

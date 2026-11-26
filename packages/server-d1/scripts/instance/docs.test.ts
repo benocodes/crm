@@ -1,7 +1,7 @@
 // [[OPS237]] D20, P4: the two pages of the docs site tell the truth about the programs. Every `vibase-server` line names a subcommand and only flags the shipped
 // parsers accept (asked of the parsers themselves, one flag at a time, not a hand list); every `vibase` line names a real client command (the commands derived
 // from the API's own OpenAPI documents, plus the hand commands of the client's help); the tarball names are D2's; the repo-script path is under "From source".
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { createApp, openApiPath, SURFACES } from '@vibase/api'
@@ -16,6 +16,16 @@ import { parseSchemaFile } from '../../../api/src/custom/schema-file.js'
 
 const DOCS = fileURLToPath(new URL('../../../docs/src/content/docs/', import.meta.url))
 const page = (p: string) => readFileSync(`${DOCS}${p}.md`, 'utf8')
+// The deployment section is several pages (#645, #647): Deploy Vibase is the happy path, the edge cases are pages of their own.
+const DEPLOYMENT = readdirSync(`${DOCS}deployment/`)
+  .filter((f) => f.endsWith('.md') && f !== 'docs-site.md')
+  .map((f) => `deployment/${f.slice(0, -3)}`)
+const deployment = () => DEPLOYMENT.map((p) => ({ name: p, md: page(p) }))
+/** Every deployment page's text, for a statement that may live on any of them. */
+const allDeployment = () =>
+  deployment()
+    .map((d) => d.md)
+    .join('\n')
 
 interface Line {
   line: string
@@ -87,7 +97,8 @@ function accepts(command: string, flag: string): Promise<boolean> {
 
 async function serverProblems(rest: string[], where: string): Promise<string[]> {
   const [command, ...args] = rest
-  if (command === '--version') return args.length ? [`${where}: --version takes no arguments`] : []
+  if (command === '--version' || command === '--help')
+    return args.length ? [`${where}: ${command} takes no arguments`] : []
   if (!command || !SERVER_COMMANDS.includes(command))
     return [`${where}: "${command ?? ''}" is not a vibase-server command`]
   const out: string[] = []
@@ -173,8 +184,12 @@ export async function pageProblems(md: string, name: string): Promise<string[]> 
     for (const t of line.match(/\S*\.tgz/g) ?? [])
       if (!/^\.\/vibase-(cli|server-d1)-<version>\.tgz$/.test(t))
         out.push(`${where}: tarball ${t} is not D2's name vibase-cli-<version>.tgz / vibase-server-d1-<version>.tgz`)
-    if (/packages\/server-d1|setup:remote|db:migrate:remote|deploy:remote/.test(line) && heading !== 'From source')
-      out.push(`${where}: the repository-script path belongs under "From source"`)
+    if (
+      /packages\/server-d1|setup:remote|db:migrate:remote|deploy:remote/.test(line) &&
+      heading !== 'From source' &&
+      !name.endsWith('from-source')
+    )
+      out.push(`${where}: the repository-script path belongs on the "Deploy from source" page`)
     let m: RegExpExecArray | null
     if ((m = /^npx @vibase\/server-d1@(\S+) (.*)$/.exec(cmd))) {
       if (m[1] !== '<version>') out.push(`${where}: the version must be the literal <version>`)
@@ -182,7 +197,10 @@ export async function pageProblems(md: string, name: string): Promise<string[]> 
     } else if ((m = /^npx --package \.\/vibase-server-d1-<version>\.tgz vibase-server (.*)$/.exec(cmd)))
       out.push(...(await serverProblems(m[1]!.split(/\s+/), where)))
     else if ((m = /^vibase-server (.*)$/.exec(cmd))) out.push(...(await serverProblems(m[1]!.split(/\s+/), where)))
-    else if (/vibase-server|@vibase\/server-d1/.test(cmd))
+    else if ((m = /^npm i(?:nstall)? -g (\S+)$/.exec(cmd)) && /server-d1/.test(m[1]!)) {
+      if (!/^(@vibase\/server-d1(@<version>)?|\.\/vibase-server-d1-<version>\.tgz)$/.test(m[1]!))
+        out.push(`${where}: the server installs as @vibase/server-d1[@<version>] or ./vibase-server-d1-<version>.tgz`)
+    } else if (/vibase-server|@vibase\/server-d1/.test(cmd))
       out.push(`${where}: a line that names the server package but is not one of its forms`)
     else if ((m = /^npm i(?:nstall)? -g (\S+)$/.exec(cmd))) {
       if (!/^(@vibase\/cli@<version>|\.\/vibase-cli-<version>\.tgz)$/.test(m[1]!))
@@ -193,7 +211,7 @@ export async function pageProblems(md: string, name: string): Promise<string[]> 
   return out
 }
 
-const PAGES = ['getting-started/quickstart', 'deployment/self-hosting'] as const
+const PAGES = ['getting-started/quickstart', ...DEPLOYMENT]
 
 describe('the docs name only what the programs have (D20, P4)', () => {
   it.each(PAGES)('%s: every command line is a real command with real flags', async (p) => {
@@ -205,29 +223,32 @@ describe('the docs name only what the programs have (D20, P4)', () => {
     expect(q).toContain('npm i -g @vibase/cli@<version>')
     expect(q).toContain('npm i -g ./vibase-cli-<version>.tgz')
   })
-  it('self-hosting has the registry form and, after it, the tarball form, marked "until the packages are on npm"', () => {
+  it('the install is the registry form on Deploy Vibase and the tarball form, checked against SHA256SUMS, on its own page; the other pages cover the rest', () => {
     const s = page('deployment/self-hosting')
-    expect(s).toMatch(/npx @vibase\/server-d1@<version> setup --env \S+ .*--dry-run/s)
-    expect(s).toContain('npx --package ./vibase-server-d1-<version>.tgz vibase-server')
-    expect(s).toMatch(/until the packages are on npm/i)
-    expect(s).toMatch(/SHA256SUMS/)
-    expect(s).toMatch(/^## From source$/m)
-    for (const sub of ['setup', 'status', 'upgrade', 'redeploy'])
-      expect(s).toMatch(new RegExp(`@vibase/server-d1@<version> ${sub} `))
+    expect(s).toMatch(/^npm install -g @vibase\/server-d1$/m)
+    expect(s).toMatch(/vibase-server setup --env \S+\n/)
+    expect(s).toMatch(/--dry-run/)
+    const t = page('deployment/release-tarball')
+    expect(t).toContain('npm install -g ./vibase-server-d1-<version>.tgz')
+    expect(t).toMatch(/SHA256SUMS/)
+    expect(t).toMatch(/instead of fetching the package from npm/i)
+    expect(page('deployment/from-source')).toContain('pnpm -C packages/server-d1 setup:remote')
+    for (const sub of ['setup', 'status', 'upgrade', 'redeploy', 'owner-reset', 'init'])
+      expect(allDeployment(), sub).toMatch(new RegExp(`^vibase-server ${sub}\\b`, 'm'))
     for (const w of ['vibase_role', 'device', 'dynamic client registration'])
-      expect(s.toLowerCase()).toContain(w.toLowerCase())
+      expect(page('deployment/clerk').toLowerCase()).toContain(w.toLowerCase())
   })
   it('names where versions are listed and has no Deploy to Cloudflare section (P5)', () => {
-    for (const p of PAGES) expect(page(p)).not.toMatch(/Deploy to Cloudflare/i)
+    for (const p of PAGES) expect(page(p), p).not.toMatch(/Deploy to Cloudflare/i)
     expect(page('getting-started/quickstart')).toMatch(/Releases page/)
   })
 
   describe('mutations (the check must see a wrong line)', () => {
-    const s = () => page('deployment/self-hosting')
-    it('a misspelled flag (--secret-file) in self-hosting is reported', async () => {
+    const s = () => page('deployment/manual-setup')
+    it('a misspelled flag (--secret-file) in manual-setup is reported', async () => {
       const bad = s().replace('--secrets-file', '--secret-file')
       expect(bad).not.toEqual(s())
-      expect((await pageProblems(bad, 'self-hosting')).join('\n')).toMatch(/does not accept --secret-file/)
+      expect((await pageProblems(bad, 'manual-setup')).join('\n')).toMatch(/does not accept --secret-file/)
     })
     it('an unknown subcommand, a pinned version, a tarball of another name and a repo script outside "From source" are reported', async () => {
       const lines =
@@ -236,7 +257,7 @@ describe('the docs name only what the programs have (D20, P4)', () => {
       expect(p).toMatch(/"frobnicate" is not a vibase-server command/)
       expect(p).toMatch(/literal <version>/)
       expect(p).toMatch(/not D2's name/)
-      expect(p).toMatch(/belongs under "From source"/)
+      expect(p).toMatch(/belongs on the "Deploy from source" page/)
       expect(p).toMatch(/"vibase contacts nope" is not a client command/)
     })
   })
@@ -246,75 +267,70 @@ describe('the docs name only what the programs have (D20, P4)', () => {
 const read = (url: string) => readFileSync(fileURLToPath(new URL(url, import.meta.url)), 'utf8')
 // The release and remote command lines moved from AGENTS.md to the ship-branch skill's command reference (#332).
 const COMMANDS = () => read('../../../../.agents/skills/ship-branch/SKILL.md')
-const FREE_PLAN =
-  "one password hash may exceed the Workers Free plan's 10 ms CPU limit; Workers Paid is the safe plan for password sign-in until it is measured on Cloudflare"
+// The docs' own caveat (Deploy Vibase, Before you start): said in the docs' words, not a program constant.
+const FREE_PLAN = ["exceed the Free plan's 10 ms CPU limit", 'has not been measured on Cloudflare']
 const has = (md: string, text: string) =>
   md.replace(/\s+/g, ' ').toLowerCase().includes(text.replace(/\s+/g, ' ').toLowerCase())
 const setupLines = (md: string) =>
   shellLines(md).filter((l) => / setup(:remote)? /.test(l.line) || /setup:remote/.test(l.line))
-const CLERK_HEADING = /clerk/i
+const NON_CLERK = () => deployment().filter((d) => d.name !== 'deployment/clerk')
 
 describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
   const s = () => page('deployment/self-hosting')
-  it('self-hosting: the first setup command has no --auth clerk, and no setup command before the Clerk section has it', () => {
+  it('self-hosting: the first setup command has no --auth clerk, and no setup command on any page but the Clerk page has it', () => {
     const lines = setupLines(s())
     expect(lines.length).toBeGreaterThan(0)
     expect(lines[0]!.line).not.toContain('--auth clerk')
-    for (const l of lines.filter((x) => !CLERK_HEADING.test(x.heading)))
-      expect(l.line, l.heading).not.toContain('--auth clerk')
+    for (const d of NON_CLERK()) for (const l of setupLines(d.md)) expect(l.line, d.name).not.toContain('--auth clerk')
   })
-  it('self-hosting: every setup command in the Clerk section carries --auth clerk, and there is one', () => {
-    const lines = setupLines(s()).filter((x) => CLERK_HEADING.test(x.heading))
+  it('the Clerk page: every setup command carries --auth clerk, and there are some', () => {
+    const lines = setupLines(page('deployment/clerk'))
     expect(lines.length).toBeGreaterThan(0)
     for (const l of lines) expect(l.line, l.heading).toContain('--auth clerk')
   })
-  it('self-hosting: the Better Auth path comes before the Clerk section, and Clerk is not required to prepare', () => {
+  it('self-hosting: the Better Auth path is the page, no Clerk flag or key is on it and Clerk is a link in its closing list, and Clerk is not required to prepare', () => {
     const md = s()
     const heads = [...md.matchAll(/^##\s+(.*)$/gm)].map((m) => m[1]!)
-    const clerk = heads.findIndex((h) => CLERK_HEADING.test(h))
-    const betterAuth = heads.findIndex((h) => /better auth|owner invitation|claim/i.test(h))
-    expect(betterAuth).toBeGreaterThanOrEqual(0)
-    expect(clerk).toBeGreaterThan(betterAuth)
-    expect(md.split(/^## Prepare your accounts$/m)[1]!.split(/^## /m)[0]).not.toMatch(/Clerk/)
+    expect(heads.some((h) => /claim/i.test(h))).toBe(true)
+    const [beforeMore, more] = md.split(/^## More$/m)
+    expect(more, 'a More section').toBeDefined()
+    expect(beforeMore).not.toMatch(/--auth clerk|CLERK_/)
+    expect(more).toMatch(/\]\(\/deployment\/clerk\/\)/)
+    expect(md.split(/^## Before you start$/m)[1]!.split(/^## /m)[0]).not.toMatch(/Clerk/)
   })
-  it.each([['self-hosting', () => s()]])(
-    "%s: the no-email statement is the program's constant, the Google redirect URI form and the Free-plan sentence are there",
-    (_n, md) => {
-      expect(has(md(), NO_EMAIL_STATEMENT)).toBe(true)
-      expect(md()).toContain('/auth/callback/google')
-      expect(has(md(), FREE_PLAN)).toBe(true)
-    },
-  )
+  it("the no-email statement is the program's constant (on the sign-in page), the Google redirect URI form is there, and Deploy Vibase has the Free-plan caveat", () => {
+    const si = page('deployment/sign-in-and-email')
+    expect(has(si, NO_EMAIL_STATEMENT)).toBe(true)
+    expect(si).toContain('/auth/callback/google')
+    for (const part of FREE_PLAN) expect(has(s(), part), part).toBe(true)
+  })
   it('self-hosting names the owner invitation link printed once', () => {
     expect(s()).toMatch(/shown once|printed once/i)
   })
-  it.each([['self-hosting', () => s()]])(
-    '%s: an owner-reset section gives the command, says what it prints once, and why the secrets file must be kept (OPS307 D13)',
-    (_n, md) => {
-      const text = md()
-      const section = /^#{2,3}\s+.*(owner-reset|recover).*$/im.exec(text)
-      expect(section, 'a heading naming owner-reset or recovery').not.toBeNull()
-      const body = text.slice(section!.index).split(/^## /m)[0]!
-      expect(body).toContain('owner-reset --env <name>')
-      expect(body).toMatch(/--email/)
-      expect(has(body, 'reset link')).toBe(true)
-      expect(has(body, 'invitation')).toBe(true)
-      expect(has(body, 'printed once')).toBe(true)
-      expect(has(body, 'AUTH_SECRET')).toBe(true)
-      expect(has(body, 'keep')).toBe(true)
-      expect(has(body, 'Cloudflare credentials')).toBe(true)
-      expect(body).toMatch(/--dry-run/)
-    },
-  )
-  it('self-hosting: the source path under "From source" carries the bootstrap --owner-reset command line', () => {
-    const lines = shellLines(s()).filter((l) => l.line.includes('--owner-reset'))
+  it('the recover-owner page gives the command, says what it prints once, and why the secrets file must be kept (OPS307 D13)', () => {
+    const body = page('deployment/recover-owner')
+    expect(body).toContain('owner-reset --env <name>')
+    expect(body).toMatch(/--email/)
+    expect(has(body, 'reset link')).toBe(true)
+    expect(has(body, 'invitation')).toBe(true)
+    expect(has(body, 'printed once')).toBe(true)
+    expect(has(body, 'AUTH_SECRET')).toBe(true)
+    expect(has(body, 'keep')).toBe(true)
+    expect(has(body, 'Cloudflare credentials')).toBe(true)
+    expect(body).toMatch(/--dry-run/)
+  })
+  it('the source path on the Deploy from source page carries the bootstrap --owner-reset command line, and no other page has one', () => {
+    const lines = shellLines(page('deployment/from-source')).filter((l) => l.line.includes('--owner-reset'))
     expect(lines.length).toBeGreaterThan(0)
-    for (const l of lines) {
-      expect(l.heading).toBe('From source')
+    for (const l of lines)
       expect(l.line).toContain(
         'CONFIRM_REMOTE=1 pnpm -C packages/server-d1 bootstrap -- --remote --env <name> --owner-reset',
       )
-    }
+    for (const d of deployment().filter((x) => x.name !== 'deployment/from-source'))
+      expect(
+        shellLines(d.md).filter((l) => l.line.includes('bootstrap -- --remote')),
+        d.name,
+      ).toEqual([])
   })
   it('the ship-branch command reference lists the owner-reset command line', () => {
     const line = COMMANDS()
@@ -338,20 +354,19 @@ describe('the docs agree with the program on Better Auth (OPS306 D13)', () => {
 
 // [[OPS308]] obligation 6 (D13, the workers.dev part): the docs, both usage lines and release:check's help assertions agree with the program.
 describe('the docs and help agree with the program on workers.dev (OPS308 D13)', () => {
-  const s = () => page('deployment/self-hosting')
   const USAGE = '(--api-host <host> | --workers-dev)'
   /** [[OPS501]] D6: on `vibase-server setup` the pair is optional (a recorded host is the default); `setup:remote` still requires it. */
   const SERVER_USAGE = '[--api-host <host> | --workers-dev]'
-  it("self-hosting has the no-domain path with --workers-dev, the registration flag as the operator's one-time step, and the move section with its consequences", () => {
-    const md = s()
-    expect(md).toMatch(/npx @vibase\/server-d1@<version> setup --env \S+ --workers-dev /)
+  it("the domains page has the no-domain path with --workers-dev, the registration flag as the operator's one-time step, and the move section with its consequences", () => {
+    const md = page('deployment/domains')
+    expect(md).toMatch(/vibase-server setup --env \S+ --workers-dev /)
     expect(has(md, '--register-workers-subdomain')).toBe(true)
     expect(has(md, 'one-time')).toBe(true)
     const heads = [...md.matchAll(/^##\s+(.*)$/gm)].map((m) => m[1]!)
-    expect(heads.some((h) => /moving to a custom domain/i.test(h))).toBe(true)
-    const body = md.slice(md.search(/^##\s+Moving to a custom domain/im)).split(/^## /m)[1] ?? ''
-    expect(md).toMatch(/--api-host \S+ --change-host/)
-    for (const w of ['sign in again', 'vibase login', 'reconnect', 'redirect URI']) expect(has(md, w), w).toBe(true)
+    expect(heads.some((h) => /move to a custom domain/i.test(h))).toBe(true)
+    const body = md.split(/^##\s+Move to a custom domain.*$/im)[1] ?? ''
+    expect(body).toMatch(/--api-host \S+ --change-host/)
+    for (const w of ['sign in again', 'vibase login', 'reconnect', 'redirect URI']) expect(has(body, w), w).toBe(true)
     expect(body.length).toBeGreaterThan(0)
   })
   it("the ship-branch command reference's setup:remote line takes the host flag pair", () => {
@@ -399,10 +414,10 @@ describe('OPS493 D6, D7: vibase-server lines carry no CONFIRM_REMOTE; the :remot
     md
       .split('\n')
       .filter((l) => /CONFIRM_REMOTE/.test(l) && server.test(l) && !/:remote|bootstrap -- --remote|pnpm -C/.test(l))
-  it('self-hosting: no vibase-server or npx @vibase/server-d1 line names CONFIRM_REMOTE, the :remote lines still do, and the question is explained', () => {
-    const md = page('deployment/self-hosting')
-    expect(offenders(md)).toEqual([])
-    expect(md).toMatch(/CONFIRM_REMOTE=1 pnpm -C packages\/server-d1 setup:remote/)
+  it('no deployment page has a vibase-server line naming CONFIRM_REMOTE, the :remote lines on the source page still do, and the question is explained', () => {
+    for (const d of deployment()) expect(offenders(d.md), d.name).toEqual([])
+    expect(page('deployment/from-source')).toMatch(/CONFIRM_REMOTE=1 pnpm -C packages\/server-d1 setup:remote/)
+    const md = page('deployment/manual-setup')
     expect(md).toMatch(/proceed\? \[Y\/n\]/)
     expect(md).toMatch(/--yes/)
   })
@@ -430,19 +445,18 @@ describe('OPS493 D6, D7: vibase-server lines carry no CONFIRM_REMOTE; the :remot
 // [[OPS496]] D7: setup's verify goes through the Cloudflare API and reads `/health` once; no page claims a wait or a retried read for `vibase-server setup`.
 describe('OPS496: the verify description', () => {
   const pages = (): [string, string][] => [
-    ['self-hosting.md', page('deployment/self-hosting')],
+    ['the deployment pages', allDeployment()],
     ['the server README template', read('../../../release/templates/server-d1-README.md')],
   ]
   it.each([0, 1])('page %i: no 300 s, five minute or retries claim about verify', (i) => {
     const [name, md] = pages()[i]!
     expect(md, name).not.toMatch(/300\s?s\b|five minute|verify retries|retries inside/i)
   })
-  it('self-hosting.md describes the API checks, the single read and the DNS note', () => {
+  it('Deploy Vibase names the not-reachable-yet verify outcome as a DNS wait', () => {
+    // The page no longer describes the verify's API checks and its single /health read (trimmed in #647); it must not contradict them.
     const md = page('deployment/self-hosting')
-    expect(md).toMatch(/Verify asks the Cloudflare API, not your host/)
-    expect(md).toMatch(/one request to `https:\/\/<your host>\/health`/)
     expect(md).toMatch(/not reachable yet/)
-    expect(md).toMatch(/DNS propagation/)
+    expect(md).toMatch(/DNS/)
   })
 })
 
@@ -459,10 +473,15 @@ describe('OPS494 D8: init in the help and the docs', () => {
     expect(serverHelpProblems(INSTANCE_HELP)).toEqual([])
   })
   it.each([
-    ['the server README template', () => read('../../../release/templates/server-d1-README.md')],
-    ['self-hosting', () => page('deployment/self-hosting')],
-  ])('%s gives the vibase-server init command', (_n, md) => {
-    expect(md()).toMatch(/vibase-server init --env/)
+    [
+      'the server README template',
+      () => read('../../../release/templates/server-d1-README.md'),
+      /vibase-server init --env/,
+    ],
+    ['self-hosting', () => page('deployment/self-hosting'), /^vibase-server init$/m],
+    ['manual-setup', () => page('deployment/manual-setup'), /vibase-server init --env/],
+  ])('%s gives the vibase-server init command', (_n, md, re) => {
+    expect(md()).toMatch(re)
   })
   const RECIPE = '../../../../knowledge/recipes/deploy-a-new-instance.md'
   it.skipIf(!existsSync(fileURLToPath(new URL(RECIPE, import.meta.url))))(
@@ -491,11 +510,11 @@ describe('OPS501 D7: the short form in the help and the docs', () => {
     expect(md).toMatch(/setup --env <name> \[--dry-run\]\n/)
     expect(md).toMatch(/writes the settings file \(the API host, the auth provider and the owner email/)
   })
-  it('self-hosting: init writes the settings file, and the Better Auth section opens on `setup --env mycompany`', () => {
+  it('self-hosting: init writes the settings file and the secrets file; manual-setup says `setup --env mycompany` is the whole command after it', () => {
     const md = page('deployment/self-hosting')
-    expect(md).toMatch(/write the instance's two files, the settings file and the secrets file/)
-    expect(md).toMatch(/`setup --env mycompany` is the whole command/)
-    expect(md).toMatch(/printing the command to run next: `setup --env <name>`/)
+    expect(md).toMatch(/writes two files outside the package/)
+    expect(md).toMatch(/the settings file \(.*\) and the secrets file/)
+    expect(page('deployment/manual-setup')).toMatch(/`setup --env mycompany` is the whole command/)
   })
   const RECIPE = '../../../../knowledge/recipes/deploy-a-new-instance.md'
   it.skipIf(!existsSync(fileURLToPath(new URL(RECIPE, import.meta.url))))(
@@ -516,9 +535,13 @@ describe('the schema-file samples in the docs parse', () => {
     ...[...md.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => m[1]!),
     ...[...md.matchAll(/`(\{[^`]*\})`/g)].map((m) => m[1]!),
   ]
-  it.each(['deployment/self-hosting', 'guides/schema'])('%s', (p) => {
-    const found = samples(page(p)).filter((s) => /"version"\s*:\s*1/.test(s))
+  it('guides/schema has samples, and all parse', () => {
+    const found = samples(page('guides/schema')).filter((s) => /"version"\s*:\s*1/.test(s))
     expect(found.length).toBeGreaterThan(0)
     for (const s of found) expect(() => parseSchemaFile(s), s).not.toThrow()
+  })
+  it.each(DEPLOYMENT)('%s: any schema sample on it parses', (p) => {
+    for (const s of samples(page(p)).filter((x) => /"version"\s*:\s*1/.test(x)))
+      expect(() => parseSchemaFile(s), s).not.toThrow()
   })
 })
