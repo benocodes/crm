@@ -113,6 +113,105 @@ send that cookie header with `credentials: 'omit'`. Other failures reject with `
 const vibase = createClient({ url, auth: sessionToken({ url }) })
 ```
 
+## Browser sign-in
+
+`browserSignIn(options)` signs a person in to a browser app that lives on its own origin (a dashboard, a deals board), with the OAuth
+authorization-code flow and PKCE (`S256`), and hands `createClient` an access token. It serves Better Auth deployments only
+(`unsupported_provider` otherwise), uses only `fetch`, Web Crypto and the page's own storage, and reads no browser global until a
+verb runs. It sends no cookie: every request is `credentials: 'omit'`.
+
+```ts
+import { browserSignIn, createClient } from '@vibase/sdk'
+
+const signIn = browserSignIn({
+  url: 'https://api.acme.example',
+  clientId: 'the-client-id',
+  redirectUri: `${location.origin}/callback`,
+  scopes: ['contacts.read'], // optional
+})
+const vibase = createClient({ url: 'https://api.acme.example', auth: signIn.token })
+
+// On the callback page, once on load:
+const done = await signIn.handleRedirect() // { returnTo } after a sign-in, else null
+if (done) history.replaceState(null, '', done.returnTo)
+else if (!signIn.isSignedIn()) await signIn.signIn() // the browser leaves for the sign-in page
+```
+
+### The verbs
+
+- **`signIn({ returnTo? })`** stores one pending record (state, PKCE verifier, redirect URI and a same-origin `returnTo`, which defaults to the current page) in `sessionStorage` and navigates to the authorize endpoint. Its promise never resolves: the page is leaving. A `returnTo` on another origin rejects `invalid_return_to`.
+- **`handleRedirect()`** answers `null` when the current URL is not the callback. On the callback it deletes the pending record first, checks `state` and `iss`, exchanges the code (no cookie, no client secret), stores the token record, removes the callback parameters from the address bar and resolves `{ returnTo }`. It does not navigate.
+- **`token()`** is the `auth` function `createClient` takes. It returns the stored access token, refreshes it when less than 60 seconds remain (see Refresh), and resolves `null` when signed out.
+- **`isSignedIn()`** is synchronous: true while a token record exists. It does not check expiry or the server.
+- **`signOut()`** forgets the token and pending records on this device and sends nothing (see Sign-out).
+
+### Options
+
+| Option | Meaning |
+|---|---|
+| `url` | The deployment; only its origin is used. |
+| `clientId` | The first-party client's id. |
+| `redirectUri` | A redirect URI registered on that client, on the page's origin. |
+| `scopes` | Omitted: no `scope` is sent and the instance grants its default set. Given: `openid offline_access` followed by these. |
+| `storage` | Where the token record lives: `'session'` (default), `'local'`, `'memory'`, or an object with `getItem`, `setItem` and `removeItem`. The pending record is always in `sessionStorage`. |
+| `fetch`, `location`, `navigate`, `replaceUrl`, `sessionStorage` | Injection points for tests and unusual hosts. |
+
+Records are keyed by the deployment's origin and the client id, so two clients on one page do not see each other. If the chosen
+storage throws or is absent (a private window, blocked site data), the SDK falls back to memory for the life of the page.
+
+### What the app needs
+
+- **A first-party client**, created by an owner with `oauth_clients.create`, whose `redirect_uris` include the exact `redirectUri`. A client of this kind signs people in without a consent screen.
+- **The app's origin in `CORS_ALLOWED_ORIGINS`** on the deployment (not `AUTH_TRUSTED_ORIGINS`): the token endpoint and `/api` answer the browser's cross-origin requests only for listed origins.
+- **On a Better Auth deployment** the signed-in person acts as themselves: within their own role and the app's scopes. An app whose scopes are left to the default gains new scopes as they are declared. The SDK decodes no token and assumes no principal.
+
+### Storage and tabs
+
+`sessionStorage` (the default) keeps the sign-in to one tab: a new tab signs in again. `'local'` shares it across tabs, and then two tabs
+can refresh at the same time. Single-flight (below) is per sign-in object, so it does not coordinate tabs; when a refresh token is
+rotated, the tab that loses the race can find its token refused and be signed out. Use `'session'` unless you need the shared sign-in.
+`'memory'` survives only the page.
+
+### Refresh
+
+When less than 60 seconds remain, `token()` refreshes once at the token endpoint (`grant_type=refresh_token`, with `client_id` and
+`resource`) and stores the answer. A new `refresh_token` replaces the old one; an answer without one keeps it. Concurrent calls share one
+request and one answer, and a refresh that finishes after `signOut()` (or after another sign-in stored a different record) stores
+nothing and resolves `null`. An expired token with no refresh token resolves `null` and clears the record.
+
+A failed refresh is one of two kinds, and they need different handling:
+
+- **The grant is gone** (the server answered `400` or `401`): the record is cleared and `token()` resolves `null`. The app is signed out; show the sign-in button.
+- **The refresh could not be completed** (`fetch` threw: `network_error`; a `5xx` or another status: rejects with that status; an unusable `200`: `invalid_response`): `token()` rejects and the record is kept, so the next call tries again. The app can retry or tell the person to try later.
+
+### Sign-out and revocation
+
+`signOut()` is local. It calls no revoke or end-session endpoint (neither answers a browser app's cross-origin request), so a token that was
+already issued stays valid until it expires. The owner's revocation is deleting the client (`oauth_clients.delete`): the next refresh is refused and the app is signed out.
+
+### A 401 from the API
+
+The SDK never retries. A `401` from `/api` for a token `token()` returned rejects as `VibaseError 401` and leaves the record alone. It means the token is no longer accepted, chiefly because the owner deleted the app (refused within about a minute). Call `signOut()` and show the sign-in button. A removed person gets `403 organization_forbidden` and a narrowed app gets `403 insufficient_scope` for operations outside its list; refresh cures neither.
+
+### Errors
+
+Every failure is a `VibaseError { status, code, message }`.
+
+| Code | status | When |
+|---|---|---|
+| `unsupported_provider` | 0 | The deployment is not Better Auth. |
+| `discovery_failed` | 0 | A discovery document is missing, not `200`, or lacks what is needed (including S256). |
+| `issuer_mismatch` | 0 | The metadata, or the callback's `iss`, names another issuer. |
+| `endpoint_origin` | 0 | An endpoint is not a URL or is not on the issuer's origin. |
+| `insecure_issuer` | 0 | The issuer is not `https` (`http` is allowed on `localhost` and `127.0.0.1`). |
+| `invalid_return_to` | 0 | `returnTo` is not a URL on the page's origin. |
+| `state_mismatch` | 0 | The callback matches no sign-in this page started (or it was already used). |
+| `authorization_failed` | 0 | The callback carries an `error`; the message holds it and its description. |
+| `invalid_response` | the response's | A `200` from the token endpoint without an access token and a numeric `expires_in`. |
+| `network_error` | 0 | `fetch` rejected. |
+| the OAuth `error` (`invalid_grant`, `invalid_client`, ...) | the response's | The token endpoint refused the code exchange, or a refresh failed with a status other than `400`/`401` and a body naming one. |
+| `http_<status>` | the response's | The token endpoint answered a failed refresh with no OAuth `error`. |
+
 ## Errors
 
 Every failure rejects with a `VibaseError { status, code, message }`; `isVibaseError(e)` is the guard.

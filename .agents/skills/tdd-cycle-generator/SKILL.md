@@ -795,3 +795,13 @@ Writing and pushing the charter is where this skill ends. Implementation follows
    fresh one: in [[OPS237]] the continuation took 210k tokens against the initial run's 140k. Give any fixture the
    revision introduces the same "what moves it" check (`writing-tests` §4); OPS237's only review finding came from
    one (`knowledge/specs/014-OPS237-release-ci-docs/RETRO.md`).
+10. **Never charter a test of docs wording.** The user ruling in `writing-tests` ("Never write a test that expects a
+    string of text in a docs or README file", #531) binds the charter too: an obligation that a README or guide
+    "names each code", "names each method" or "contains no sentence X" is that test. Charter the behaviour the prose
+    describes (the codes the module throws, the scripts the package has) and a **structural** property of a shipped
+    file if one can break a release (the page is in `nav.mjs`); the wording, completeness and every claim the prose
+    makes about another spec are the reviewer's job, and the charter says "checked by review". Before writing a claim
+    about another spec into a planner rule that prose will quote (a status code, a cause), read that spec's decision
+    rows. [[DX636]]'s charter asked for a README completeness test (its method check passed on common words, and the
+    review removed the file under the ruling) and gave the README the wrong `401` causes (CORE639 answers `403` for a removed
+    person and a narrowed app): one review round for both (`knowledge/specs/046-DX636-sdk-token-refresh/RETRO.md`).

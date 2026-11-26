@@ -700,7 +700,9 @@ One program, two engines: the same assertions run on Postgres and D1.
   behaviour (the program's constant, the command's flags, the generated file). A test may still check a **structural
   property** of a file that is a shipped artefact, such as "the staged README is the root one" or "every link is
   absolute" (`stage.test.ts`), because that can break a release; it asserts no wording. Delete a text-presence test
-  you meet; do not repoint it to the file the text moved to.
+  you meet; do not repoint it to the file the text moved to. A charter that asks for one is wrong; say so in review
+  rather than build it: [[DX636]]'s README test was chartered, built and reviewed twice before anyone applied this rule, and
+  its `toContain('token')` passed on any README that said "token" (`knowledge/specs/046-DX636-sdk-token-refresh/RETRO.md`).
 - **Synthetic Google recordings redact by length** (`xxxxx@xxxxx.xxxx`). Renaming a test host or address changes the
   recorded fixtures: rerun `recordings:generate` and update the expected redacted strings; the diff should be
   email-shaped hunks only (`knowledge/specs/015-OPS265-remaining-vibase-names/RETRO.md`).

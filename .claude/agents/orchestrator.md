@@ -35,6 +35,11 @@ Your context is the scarcest thing in the sprint. You coordinate; you do not do 
    standing exception merged after the worktree was cut is invisible to them: [[CORE77]]'s first E2E was refused
    the Clerk dev-instance exception that PR #81 had already added. A session started before the pull keeps
    the old text; tell the user if the main session itself needs a restart.
+   After every such merge, run `pnpm install --frozen-lockfile` in the worktree before the gate: a merge that
+   changes the lockfile leaves `node_modules` stale, and [[DX636]]'s gate went red on a stale native dependency
+   (`sharp`), not on the cycle's code. A red gate right after a merge of `main` is checked against `main` first
+   (human docs PRs #641, #643, #645 and #647, merged on lint alone, broke gate tests under [[DX636]]); a breakage
+   already on `main` is a free gate-fix round, and the report to the user names the PR that caused it.
 2. **Spec.** If the spec is a stub or `draft`: planner, mode `spec`. It drafts, decides, marks
    `approved`, and records each material decision in the decisions log itself.
 3. **Plan.** planner, mode `plan`: it runs `tdd-cycle-generator` and writes a short charter: what this
