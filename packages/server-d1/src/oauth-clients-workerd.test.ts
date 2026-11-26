@@ -98,6 +98,11 @@ describe('group 5: composition, end to end in workerd', () => {
     expect(made.status, JSON.stringify(rec)).toBe(201)
     const id = rec.client_id as string
     expect(rec.skip_consent).toBe(true)
+    expect(
+      (
+        await w.controlRows<{ t: string }>('select application_type t from auth_oauth_clients where client_id = ?', id)
+      )[0]!.t,
+    ).toBe('web')
     expect(rec.scopes).toContain('offline_access')
 
     const a = await authorize(id, BASE)
@@ -147,6 +152,11 @@ describe('group 5: composition, end to end in workerd', () => {
     const rec = (await made.json()) as Record<string, any>
     expect(made.status, JSON.stringify(rec)).toBe(201)
     const id = rec.client_id as string
+    const typeOf = async (cid: string) =>
+      (
+        await w.controlRows<{ t: string }>('select application_type t from auth_oauth_clients where client_id = ?', cid)
+      )[0]!.t
+    expect(await typeOf(id)).toBe('native')
     const a = await authorize(id, BASE, LOOP)
     expect(a.url, `authorize answered ${a.status} ${a.text}`).not.toBeNull()
     expect(a.url!.origin + a.url!.pathname).toBe(LOOP)

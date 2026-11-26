@@ -1647,6 +1647,13 @@ const readOAuthClient = async (
   return row ? toOAuthClientRecord(row as Record<string, unknown>) : null
 }
 
+/**
+ * Better Auth allows an `http:` loopback redirect only for a non-web client, and `application_type` is read for nothing else on the authorize and token paths. A client whose redirect list holds an `http:` URI
+ * (the operations admit only loopback ones, [[CORE627]] D7) is stored `native`; every other client stays `web`, so https-only holds for non-loopback hosts and dynamically registered clients are untouched.
+ */
+const oauthApplicationType = (redirectUris: readonly string[]): 'web' | 'native' =>
+  redirectUris.some((u) => u.toLowerCase().startsWith('http:')) ? 'native' : 'web'
+
 /** Creates a first-party client, its resource links and its `oauth_client.created` audit row in one batch; `exists` (nothing written but absent resource rows) when the client id is taken. */
 export async function createOAuthClient(c: ControlDb, a: NewOAuthClient): Promise<OAuthClientRecord | 'exists'> {
   const d1 = raw(c)
@@ -1666,7 +1673,7 @@ export async function createOAuthClient(c: ControlDb, a: NewOAuthClient): Promis
       .prepare(
         `insert into auth_oauth_clients (id, client_id, client_secret, disabled, skip_consent, scopes, client_credentials_scopes, user_id, created_at, updated_at, name, redirect_uris,
            token_endpoint_auth_method, application_type, grant_types, response_types, require_pkce, dpop_bound_access_tokens, reference_id)
-         select ?, ?, null, 0, ?, ?, '[]', null, ?, ?, ?, ?, 'none', 'web', '["authorization_code","refresh_token"]', '["code"]', 1, 0, ?
+         select ?, ?, null, 0, ?, ?, '[]', null, ?, ?, ?, ?, 'none', ?, '["authorization_code","refresh_token"]', '["code"]', 1, 0, ?
          where not exists (select 1 from auth_oauth_clients where client_id = ?)`,
       )
       .bind(
@@ -1678,6 +1685,7 @@ export async function createOAuthClient(c: ControlDb, a: NewOAuthClient): Promis
         at,
         a.name,
         JSON.stringify(a.redirectUris),
+        oauthApplicationType(a.redirectUris),
         a.organizationId,
         a.clientId,
       ),
