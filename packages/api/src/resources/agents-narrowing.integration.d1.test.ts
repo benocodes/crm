@@ -74,11 +74,21 @@ describe('1. D5: the update stays within the consent (matrix: form x bound sourc
       STORED,
       [
         { form: 'add_scopes outside', body: { add_scopes: ['notes:read'] }, offender: 'notes:read' },
-        { form: 'add_scopes back inside', body: { add_scopes: ['deals:read'] }, offender: null, after: ['contacts:read', 'deals:read'] },
+        {
+          form: 'add_scopes back inside',
+          body: { add_scopes: ['deals:read'] },
+          offender: null,
+          after: ['contacts:read', 'deals:read'],
+        },
         { form: 'remove_scopes', body: { remove_scopes: ['contacts:read'] }, offender: null, after: [] },
         { form: 'scopes outside', body: { scopes: ['contacts:read', 'notes:read'] }, offender: 'notes:read' },
         { form: 'scopes mixing in and out', body: { scopes: ['deals:read', 'notes:read'] }, offender: 'notes:read' },
-        { form: 'scopes put back inside', body: { scopes: ['contacts:read', 'tags:read'] }, offender: null, after: ['contacts:read', 'tags:read'] },
+        {
+          form: 'scopes put back inside',
+          body: { scopes: ['contacts:read', 'tags:read'] },
+          offender: null,
+          after: ['contacts:read', 'tags:read'],
+        },
       ],
     ],
     [
@@ -159,7 +169,7 @@ describe('2. D5 on the surfaces', () => {
   })
 
   it('the operation description names scope_not_consented', async () => {
-    const doc = await call('GET', '/api/v1/openapi.json')
+    const doc = await call('GET', '/meta/v1/openapi.json')
     const op = doc.body.paths['/meta/v1/agents/{id}'].patch
     expect(op.description).toContain('scope_not_consented')
     expect(op.description).not.toContain('reconnect it')

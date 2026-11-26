@@ -50,6 +50,8 @@ See Clerk's [session-token customization guide](https://clerk.com/docs/guides/se
 
 Clerk also acts as the OAuth provider for Vibase clients. This is what allows the CLI to show a browser verification code and an MCP client to request consent.
 
+On Clerk the consent screen is accept or deny of exactly what the client asks for, so a connector's scope list is its request. `vibase agents update` is the only way to narrow it, and the narrowing lasts until the client asks for a different list.
+
 Run the read-only setup plan, then read what it prints. The dry run reads configuration and the Clerk keys, and changes nothing:
 
 ```bash
