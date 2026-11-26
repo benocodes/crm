@@ -4202,6 +4202,63 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
     "proposable": true,
     "filters": {}
   },
+  'oauth_clients.create': {
+    "namespace": "oauthClients",
+    "method": "create",
+    "http": "POST",
+    "path": "/meta/v1/oauth-clients",
+    "fields": {
+      "name": "body",
+      "redirect_uris": "body",
+      "scopes": "body",
+      "skip_consent": "body"
+    },
+    "body": true,
+    "output": "json",
+    "paginated": false,
+    "proposable": false,
+    "filters": {}
+  },
+  'oauth_clients.delete': {
+    "namespace": "oauthClients",
+    "method": "delete",
+    "http": "DELETE",
+    "path": "/meta/v1/oauth-clients/{client_id}",
+    "fields": {
+      "client_id": "path"
+    },
+    "body": false,
+    "output": "empty",
+    "paginated": false,
+    "proposable": false,
+    "filters": {}
+  },
+  'oauth_clients.get': {
+    "namespace": "oauthClients",
+    "method": "get",
+    "http": "GET",
+    "path": "/meta/v1/oauth-clients/{client_id}",
+    "fields": {
+      "client_id": "path"
+    },
+    "body": false,
+    "output": "json",
+    "paginated": false,
+    "proposable": false,
+    "filters": {}
+  },
+  'oauth_clients.list': {
+    "namespace": "oauthClients",
+    "method": "list",
+    "http": "GET",
+    "path": "/meta/v1/oauth-clients",
+    "fields": {},
+    "body": false,
+    "output": "json",
+    "paginated": false,
+    "proposable": false,
+    "filters": {}
+  },
   'pipeline_stages.create': {
     "namespace": "pipelineStages",
     "method": "create",

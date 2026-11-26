@@ -32,7 +32,7 @@ describe('scope areas (UI449 D1, D2)', () => {
       ['messages', ['interactions', 'messages', 'files', 'connections', 'blocked_senders', 'forms']],
       ['activity', ['events', 'action_requests']],
       ['integrations', ['webhooks', 'schema']],
-      ['admin', ['members', 'agents', 'invitations', 'audit']],
+      ['admin', ['members', 'agents', 'invitations', 'oauth_clients', 'audit']],
       ['custom', []],
     ])
   })

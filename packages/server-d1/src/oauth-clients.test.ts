@@ -169,7 +169,9 @@ describe('group 3: create input and refusals (D7, P3, P4)', () => {
     expect(Object.keys(a.json).sort()).toEqual(RECORD_KEYS)
     expect(a.json).toMatchObject({ name: 'Deals board', redirect_uris: [REDIRECT], skip_consent: true })
     expect(a.json.client_id).toMatch(/^[A-Za-z0-9_-]{32}$/)
-    expect(a.json.scopes).toEqual(registrationScopes(declared, grantableScopes(declared), defaultGrantScopes(declared)).defaults)
+    expect(a.json.scopes).toEqual(
+      registrationScopes(declared, grantableScopes(declared), defaultGrantScopes(declared)).defaults,
+    )
     expect(a.json.scopes).toContain('offline_access')
     expect(a.json.created_at).toBe(a.json.updated_at)
     const b = await create(wk, tok)
@@ -224,6 +226,7 @@ describe('group 3: create input and refusals (D7, P3, P4)', () => {
       ['star path', { redirect_uris: ['https://app.test/*'] }],
       ['not a url', { redirect_uris: ['nope'] }],
       ['custom scheme', { redirect_uris: ['myapp://cb'] }],
+      ['scopes empty', { scopes: [] }],
       ['scope outside the ceiling', { scopes: ['openid', 'nope:read'] }],
       ['human-only scope', { scopes: ['openid', 'members:write'] }],
       ['oauth_clients scope', { scopes: ['oauth_clients:write'] }],
@@ -331,7 +334,13 @@ describe('group 2: the authority matrix, operation x credential (D3)', () => {
       'owner session': () => owner.session(),
       'member session': async () => (await human('member', 'm@x.test')).session(),
       'agent API key': async () => bootKey,
-      'DCR-registered client': async () => (await human('owner', 'delegator@x.test')).oauth(otherClient),
+      // asks for the oauth_clients scopes too: the client's ceiling excludes them, so whatever it is given must still be refused
+      'DCR-registered client': async () => {
+        const delegator = await human('owner', 'delegator@x.test')
+        return delegator
+          .oauth(otherClient, 'openid contacts:read oauth_clients:read oauth_clients:write')
+          .catch(() => delegator.oauth(otherClient))
+      },
     }
     const wk = worker()
     const before = await authState()

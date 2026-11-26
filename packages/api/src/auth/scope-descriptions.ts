@@ -54,5 +54,8 @@ export const SCOPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'agents:write': 'Create, change and revoke agents and their API keys',
   'invitations:read': 'View the workspace invitations and whether each is pending, accepted, revoked or expired',
   'audit:read': 'Read the workspace audit log: who invited, revoked or removed whom, and when reset links were issued',
+  'oauth_clients:read': 'View the first-party apps registered to sign people in to the workspace',
+  'oauth_clients:write':
+    'Register and delete first-party apps that sign people in to the workspace (owners, signed in)',
   'invitations:write': 'Invite people to the workspace and revoke invitations (the invitation link is shown once)',
 }

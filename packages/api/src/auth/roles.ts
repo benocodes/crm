@@ -72,6 +72,9 @@ export const SCOPE_POLICY: ScopePolicy = {
   // Invitations ([[CORE245]] P1): owner-held and human-only, like agents:write. They live in the control plane; no agent ever holds them, and a member cannot read who was invited.
   'invitations:read': { member: false, agentGrantable: false },
   'invitations:write': { member: false, agentGrantable: false },
+  // First-party OAuth clients ([[CORE627]] D3): owner-held and human-only, like invitations. They live in the control plane; no agent and no dynamically registered client ever holds them.
+  'oauth_clients:read': { member: false, agentGrantable: false },
+  'oauth_clients:write': { member: false, agentGrantable: false },
   // The control-plane audit log ([[CORE261]] P2): owner-held, never a member scope; an owner may grant it to an agent, but it is not in any default grant (`NOT_DEFAULT_GRANT`). No write scope: only the control store writes the log.
   'audit:read': { member: false, agentGrantable: true },
 }

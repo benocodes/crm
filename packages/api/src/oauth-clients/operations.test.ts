@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createVibaseRegistry } from '../operations.js'
 import { ApiError } from '../errors.js'
+import { createApp } from '../rest/app.js'
+import { coldStorage } from '../test/storage.js'
 import type { ControlOperation } from '../registry.js'
 
 // [[CORE627]] group 1: the four operations are registered on every composition with the contract's shape, and answer 501 without a runtime.
@@ -23,7 +25,7 @@ describe('oauth_clients operations', () => {
       { resource: 'oauth_clients', action: 'read' },
       { resource: 'oauth_clients', action: 'write' },
     ])
-    for (const o of ops) expect(o!.proposal).toBeUndefined()
+    for (const o of ops) expect('proposal' in o!).toBe(false)
   })
 
   it('carry the D14 sentences', () => {
@@ -38,5 +40,24 @@ describe('oauth_clients operations', () => {
     const err = await op.run({} as never, { params: { client_id: 'x' }, body: {}, query: {} } as never).catch((e) => e)
     expect(err).toBeInstanceOf(ApiError)
     expect(err).toMatchObject({ status: 501, code: 'provider_not_configured' })
+  })
+
+  it('the meta OpenAPI document carries the four operations (paths, statuses, tag, descriptions) and the CRM document none of them', async () => {
+    const app = createApp({ storage: coldStorage() })
+    const meta = (await (await app.request('/meta/v1/openapi.json')).json()) as any
+    const crm = (await (await app.request('/api/v1/openapi.json')).json()) as any
+    const list = meta.paths['/meta/v1/oauth-clients']
+    const one = meta.paths['/meta/v1/oauth-clients/{client_id}']
+    expect(Object.keys(list).sort()).toEqual(['get', 'post'])
+    expect(Object.keys(one).sort()).toEqual(['delete', 'get'])
+    expect(list.post.operationId).toBe('oauth_clients.create')
+    expect(Object.keys(list.post.responses)).toContain('201')
+    expect(Object.keys(list.get.responses)).toContain('200')
+    expect(Object.keys(one.get.responses)).toContain('200')
+    expect(Object.keys(one.delete.responses)).toContain('204')
+    for (const o of [list.post, list.get, one.get, one.delete]) expect(o.tags).toEqual(['oauth_clients'])
+    expect(list.post.description).toContain('skip_consent = false is not implemented yet')
+    expect(one.delete.description).toMatch(/at most one hour/)
+    expect(JSON.stringify(crm)).not.toContain('oauth-clients')
   })
 })

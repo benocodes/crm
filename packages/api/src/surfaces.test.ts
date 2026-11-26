@@ -42,6 +42,7 @@ place('meta', 'forms', CRUD)
 place('meta', 'api_keys', [...CRUD, 'revoke'])
 place('meta', 'audit', ['list'])
 place('meta', 'invitations', ['create', 'list', 'revoke'])
+place('meta', 'oauth_clients', ['create', 'list', 'get', 'delete'])
 place('meta', 'memberships', ['list', 'get', 'update', 'delete'])
 place('meta', 'users', ['list', 'get', 'issue_reset_link'])
 place('meta', 'me', ['get'])
@@ -108,6 +109,10 @@ describe('placement (D6)', () => {
         'memberships.get',
         'memberships.list',
         'memberships.update',
+        'oauth_clients.create',
+        'oauth_clients.delete',
+        'oauth_clients.get',
+        'oauth_clients.list',
         ...['pipelines', 'pipeline_stages'].flatMap((r) => CRUD.map((a) => `${r}.${a}`)),
         'schema.get',
         'users.get',
@@ -122,7 +127,7 @@ describe('placement (D6)', () => {
         'webhooks.update',
       ].sort(),
     )
-    expect(ops.length).toBe(132)
+    expect(ops.length).toBe(136)
   })
   it('names stay unique across both surfaces', () => {
     expect(new Set(ops.map((o) => o.name)).size).toBe(ops.length)

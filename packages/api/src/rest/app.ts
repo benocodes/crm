@@ -24,6 +24,7 @@ import { createVibaseRegistry } from '../operations.js'
 import type { ExtendDeclarations } from '../custom/extend.js'
 import type { AuditRuntime } from '../audit/port.js'
 import type { InvitationsRuntime } from '../invitations/port.js'
+import type { OAuthClientsRuntime } from '../oauth-clients/port.js'
 import type { MembersRuntime } from '../members/port.js'
 import { webhooksConfigNotice, type WebhooksRuntime } from '../webhooks/config.js'
 import type { ObjectStore } from '../objects/store.js'
@@ -118,6 +119,8 @@ export interface AppOptions {
   webhooks?: { runtime: WebhooksRuntime; problems?: readonly string[] }
   /** [[CORE245]] P2: the control-plane port of the invitation operations (built-in auth provider only). Absent: they answer `501 provider_not_configured`. Ignored when `registry` is given. */
   invitations?: InvitationsRuntime | null
+  /** [[CORE627]]: the first-party OAuth client operations' runtime (built-in auth provider only). Absent or null: they answer `501 provider_not_configured`. Ignored when `registry` is given. */
+  oauthClients?: OAuthClientsRuntime | null
   /** [[CORE288]]: the membership writes' control-plane port (and the reset link's origin); absent or null: they answer `501 provider_not_configured`. */
   members?: MembersRuntime | null
   /** [[CORE261]]: the audit log's read port; absent or null (the parked Postgres composition only; every D1 composition has it, [[CORE326]] P3): `audit.list` answers `501 provider_not_configured`. Ignored when `registry` is given. */
@@ -337,6 +340,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
       ...(options.definitions ? { definitions: options.definitions } : {}),
       ...(options.extend ? { extend: options.extend } : {}),
       ...(options.invitations ? { invitations: options.invitations } : {}),
+      ...(options.oauthClients ? { oauthClients: options.oauthClients } : {}),
       ...(options.members ? { members: options.members } : {}),
       ...(options.audit ? { audit: options.audit } : {}),
       ...(options.apiKeys?.store ? { apiKeys: options.apiKeys.store } : {}),

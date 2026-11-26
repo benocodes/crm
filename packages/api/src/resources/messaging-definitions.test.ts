@@ -54,6 +54,8 @@ describe('messaging definitions (CORE25 C1)', () => {
       'notes:read',
       'notes:request_approval',
       'notes:write',
+      'oauth_clients:read',
+      'oauth_clients:write',
       'pipelines:read',
       'pipelines:request_approval',
       'pipelines:write',
