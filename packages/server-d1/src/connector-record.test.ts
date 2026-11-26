@@ -451,7 +451,7 @@ describe.each([
         const wide = ['contacts:read', 'tags:read']
         const rival = await p.token(client, wide)
         const fault = faultD1(driver.d1, {
-          match: /update "agents" set[^]*"consented_scopes"/,
+          match: /update "agents" set[\s\S]*"consented_scopes"/,
           // The rival request (a second request carrying the same list) commits between this request's read and its write.
           act: async () => void (await me(driver.worker(), rival)),
         })
