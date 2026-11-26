@@ -18,6 +18,10 @@ export function workspaceRole(claim: unknown): Role | null {
 export const PROFILE_CACHE_MS = 60_000
 const PROFILE_CACHE_MAX = 1000
 
+/** [[CORE639]] D5, P2: how many client reads one isolate keeps; the cache's life is `PROFILE_CACHE_MS`, its clock the request's `env.now`. */
+const CLIENT_CACHE_MAX = 1000
+type OAuthClientRead = { firstParty: boolean; scopes: string[] | null } | null
+
 const forbidden = () => new ApiError(403, 'organization_forbidden', 'not a member of that organisation')
 
 /** The cached profile read ([[CORE77]] D12), one per isolate: what the authenticator and the Gmail callback's role re-check ([[CHN5]] D33) both read. */
@@ -53,7 +57,8 @@ export function createProfileCache(adapter: AuthAdapter): ProfileCache {
  *   role `agent` is an agent account;
  * - an **OAuth access token** carries no role, so the profile supplies it (a cached Backend read, 60 s; a `404` is a refusal). A client that is
  *   `cliClientId` makes the person act as themselves (user, scopes = role ∩ token); any other client is the person's **delegated agent**, created
- *   on first sight, with scopes = token ∩ cap ∩ role ∩ agent-grantable (D15); role `agent` is the agent account whatever the client.
+ *   on first sight, with scopes = token ∩ cap ∩ role ∩ agent-grantable (D15); role `agent` is the agent account whatever the client. On the built-in provider a first-party client ([[CORE639]]) is the person as the CLI is,
+ *   its scopes = role ∩ the client's live list (or the ceiling) ∩ agent-grantable, and a client that no longer exists is `401`.
  *
  * Kinds never convert: a user with role `agent`, or an agent-linked subject with a human role, is `403 organization_forbidden`. A refused
  * token (no admissible role, unknown subject, kind mismatch) writes nothing; a disabled agent is `401`. The organisation is the deployment's
@@ -74,6 +79,18 @@ export function createWorkspaceAuthenticator(opts: {
   const grantable = declaredScopes.filter((s) => isAgentGrantable(s, policy)).sort()
 
   const profileOf = (subject: string, nowMs: number) => profiles.profileOf(subject, nowMs)
+
+  // [[CORE639]] D5, P1, P2: the client read, per isolate, by client id: an answer (a client, or null for none) is kept for the profile cache's minute; a read that throws is not cached and fails the request.
+  const clientCache = new Map<string, { until: number; client: OAuthClientRead }>()
+  const clientOf = async (id: string, nowMs: number): Promise<OAuthClientRead> => {
+    const hit = clientCache.get(id)
+    if (hit && hit.until > nowMs) return hit.client
+    const client = await adapter.fetchOAuthClient!(id)
+    if (clientCache.size >= CLIENT_CACHE_MAX)
+      for (const [k, v] of clientCache) if (v.until <= nowMs) clientCache.delete(k)
+    clientCache.set(id, { until: nowMs + PROFILE_CACHE_MS, client })
+    return client
+  }
 
   // [[AGT8]] D31: every list is closed under write => request_approval BEFORE the meet, so a request_approval token over a write cap keeps
   // request_approval only (and a write token over a request_approval cap likewise); the result is closed again by construction.
@@ -101,7 +118,12 @@ export function createWorkspaceAuthenticator(opts: {
     const { storage, env, provider, subject, clientId, tokenScopes, organizationHeader } = a
     if (storage.kind !== 'd1') throw new Error('the workspace authenticator serves a D1 deployment only')
     const organizationId = storage.organizationId
-    const delegating = clientId !== null && clientId !== cliClientId
+    // [[CORE639]] D5, D6, P3, P4: every OAuth client but the CLI is read live (an adapter without the read keeps today's rule). A client that no longer exists is refused here, before any agent lookup or creation.
+    const other = clientId !== null && clientId !== cliClientId
+    const client = other && adapter.fetchOAuthClient ? await clientOf(clientId, a.nowMs) : undefined
+    if (client === null) throw new AuthFailure('unknown_client')
+    const firstParty = client?.firstParty === true
+    const delegating = other && !firstParty
     const found = await lookupPrincipal(storage, {
       provider,
       subject,
@@ -141,7 +163,7 @@ export function createWorkspaceAuthenticator(opts: {
     }
 
     if (!delegating) {
-      // A session JWT, or the first-party CLI acting as the person (D16).
+      // A session JWT, the first-party CLI acting as the person (D16), or a first-party app's token ([[CORE639]] D2).
       const actor = { id: found.userId, kind: 'user' as const }
       const resolved = resolveActiveOrganization({ organizationId, role }, organizationHeader)
       if (resolved.organizationId === null)
@@ -153,10 +175,16 @@ export function createWorkspaceAuthenticator(opts: {
           ...(clientId ? { clientId } : {}),
         }
       const roleScopes = scopesForRole(resolved.role, declaredScopes, policy).toStrings()
+      // [[CORE639]] D3: a first-party app's scopes are the role met with the client's live list (the ceiling when it has none): the token's own list is no bound for vault scopes.
+      const scopes = firstParty
+        ? meet(roleScopes, client!.scopes ?? grantable, grantable)
+        : tokenScopes
+          ? meet(roleScopes, tokenScopes)
+          : roleScopes
       return {
         actor,
         organizationId: resolved.organizationId,
-        scopes: ScopeSet.parse(tokenScopes ? meet(roleScopes, tokenScopes) : roleScopes),
+        scopes: ScopeSet.parse(scopes),
         role: resolved.role,
         ...(clientId ? { clientId } : {}),
       }

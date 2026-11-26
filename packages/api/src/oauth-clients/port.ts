@@ -6,7 +6,8 @@ export interface OAuthClientRow {
   clientId: string
   name: string
   redirectUris: string[]
-  scopes: string[]
+  /** The owner-chosen list; `null`: the client follows the first-party ceiling ([[CORE639]] D4). */
+  scopes: string[] | null
   skipConsent: boolean
   createdAt: string
   updatedAt: string
@@ -16,7 +17,8 @@ export interface OAuthClientInsert {
   clientId: string
   name: string
   redirectUris: string[]
-  scopes: string[]
+  /** `null`: the client follows the first-party ceiling ([[CORE639]] D4). */
+  scopes: string[] | null
   skipConsent: boolean
   /** The resource identifiers the client is linked to (the runtime's). */
   resources: readonly string[]
@@ -35,7 +37,8 @@ export interface OAuthClientChange {
   /** Any subset of the four owner fields; a list replaces whole. */
   name?: string
   redirectUris?: string[]
-  scopes?: string[]
+  /** A list replaces whole; `null` switches the client to follow the ceiling ([[CORE639]] D4). */
+  scopes?: string[] | null
   skipConsent?: boolean
 }
 export interface OAuthClientsPort {

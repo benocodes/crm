@@ -15,7 +15,7 @@ export type VerifyFailure =
 /** Always 401 `unauthenticated`. `reason` is for the middleware's log line, never the response. */
 export class AuthFailure extends ApiError {
   constructor(
-    readonly reason: VerifyFailure | 'no_email' | 'disabled',
+    readonly reason: VerifyFailure | 'no_email' | 'disabled' | 'unknown_client',
     message = 'invalid or expired credentials',
   ) {
     super(401, 'unauthenticated', message)

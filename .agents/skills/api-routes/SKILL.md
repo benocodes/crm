@@ -162,8 +162,13 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     are the bare origin (set `issuer` = `<PUBLIC_BASE_URL>/auth`, `audience` = `PUBLIC_BASE_URL`); the provider refuses
     any scope it was not configured with, so the registry's declared scopes are passed in (`vaultScopes`); an access
     token is a JWT only when the client sends `resource=<PUBLIC_BASE_URL>`, otherwise it is opaque and refused. Key,
-    profile and client-name reads go through the control store (`readAuthJwks`, `readAuthProfile`,
-    `readOAuthClientName`), and its two writers, `revokeSubjectCredentials` ([[CORE288]]) and the repair sweep
+    profile, client-name and **client** reads go through the control store (`readAuthJwks`, `readAuthProfile`,
+    `readOAuthClientName`, and `readOAuthClientBound` for [[CORE639]] D5: first-party or not, and the stored scope list, `null` =
+    follows the first-party ceiling; composition passes it as the adapter's `readClient`, the authenticator caches it 60 s by
+    client id on `env.now`, and a token whose client is gone is `401`). On the built-in provider a **first-party client's
+    token is the person** (a user principal, `clientId` set, scopes = role met with the client's live list or the grantable
+    ceiling; the token's own `scope` is no bound, [[CORE639]] D2, D3), every other non-CLI client stays a delegated agent,
+    and an adapter without `fetchOAuthClient` keeps the old rule. Its two writers, `revokeSubjectCredentials` ([[CORE288]]) and the repair sweep
     `runAuthSweep` ([[CORE289]]), are the only code outside the provider that names `auth_*` tables. "Only the control
     store" means the file `packages/storage-d1/src/control-store.ts`: `packages/server-d1/src/auth-machinery.test.ts`
     greps every non-test source for the table names, so a pure helper module in `storage-d1` that holds the SQL fails

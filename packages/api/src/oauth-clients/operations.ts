@@ -49,7 +49,7 @@ const createBody = z.strictObject({
   scopes: scopesField
     .optional()
     .describe(
-      'The scopes the app may be granted; within the ceiling a dynamically registered client has. Omitted: the default scopes.',
+      'The scopes the app may be granted; within the ceiling a dynamically registered client has. Omitted: the app follows every scope a first-party app may hold, including ones declared later (the record answers null).',
     ),
   skip_consent: z.boolean().optional().describe('Omitted means true. false is refused: it is not implemented yet.'),
 })
@@ -59,7 +59,12 @@ const updateBody = z
     redirect_uris: redirectUrisField
       .optional()
       .describe('Replaces the whole list; the same rules as on create. Duplicates are removed.'),
-    scopes: scopesField.optional().describe('Replaces the whole list; within the same ceiling as on create.'),
+    scopes: scopesField
+      .nullable()
+      .optional()
+      .describe(
+        'Replaces the whole list, within the same ceiling as on create; null makes the app follow every scope a first-party app may hold, including ones declared later.',
+      ),
     skip_consent: z.boolean().optional().describe('true is accepted. false is refused: it is not implemented yet.'),
   })
   .refine((b) => Object.keys(b).length > 0, { message: 'give at least one field to change' })
@@ -69,7 +74,10 @@ const oauthClientRecord = z.object({
   client_id: z.string(),
   name: z.string(),
   redirect_uris: z.array(z.string()),
-  scopes: z.array(z.string()),
+  scopes: z
+    .array(z.string())
+    .nullable()
+    .describe('The owner-chosen scope list; null: the app follows every scope a first-party app may hold.'),
   skip_consent: z.boolean(),
   created_at: z.iso.datetime({ offset: true }),
   updated_at: z.iso.datetime({ offset: true }),
@@ -157,7 +165,7 @@ export function oauthClientOperations(runtime: OAuthClientsRuntime | null): Cont
       name: 'oauth_clients.create',
       summary: 'Register a first-party OAuth client for a web app that signs people in',
       description:
-        "Human only (owners). Registers a public OAuth client (PKCE, no secret) for an app that signs people in to this workspace; a person who signs in through it acts as themselves. The client skips the consent screen (skip_consent defaults to true): skip_consent = false is not implemented yet and is refused. Scopes must be within the ceiling a dynamically registered client has (never an administrative scope); omitted, the default scopes are used. The answer carries the client_id (there is no secret) and warnings: one entry for each redirect origin that is not in CORS_ALLOWED_ORIGINS, which means the app's browser calls will be refused until the origin is added to CORS_ALLOWED_ORIGINS; the client is created either way.",
+        "Human only (owners). Registers a public OAuth client (PKCE, no secret) for an app that signs people in to this workspace; a person who signs in through it acts as themselves, within their own role and the app's scopes, never as a separate agent. The client skips the consent screen (skip_consent defaults to true): skip_consent = false is not implemented yet and is refused. Scopes, when given, must be within the ceiling a dynamically registered client has (never an administrative scope); omitted, the app follows every scope a first-party app may hold, including ones declared later, and the record answers scopes: null. An edit to scopes and a delete take effect for live tokens within about a minute. The answer carries the client_id (there is no secret) and warnings: one entry for each redirect origin that is not in CORS_ALLOWED_ORIGINS, which means the app's browser calls will be refused until the origin is added to CORS_ALLOWED_ORIGINS; the client is created either way.",
       method: 'post',
       path: '/oauth-clients',
       scope: { resource: 'oauth_clients', action: 'write' },
@@ -167,7 +175,7 @@ export function oauthClientOperations(runtime: OAuthClientsRuntime | null): Cont
         const rt = needsStore(runtime)
         const body = input.body as z.infer<typeof createBody>
         if (body.skip_consent === false) throw new ApiError(400, 'validation_error', SKIP_CONSENT_REFUSAL)
-        const scopes = checkedScopes(rt, body.scopes ?? rt.defaultScopes)
+        const scopes = body.scopes === undefined ? null : checkedScopes(rt, body.scopes)
         const made = await rt.port.create({
           organizationId: env.organizationId,
           clientId: base64url(env.randomBytes(24)),
@@ -224,7 +232,7 @@ export function oauthClientOperations(runtime: OAuthClientsRuntime | null): Cont
       name: 'oauth_clients.delete',
       summary: 'Delete a first-party OAuth client, which revokes it',
       description:
-        'Human only (owners). Deleting is the revocation: the client, its refresh tokens and its consents go at once, so no new sign-in or refresh works. Access tokens already issued stay valid until they expire, at most one hour. An id that is not a first-party client answers 404.',
+        'Human only (owners). Deleting is the revocation: the client, its refresh tokens and its consents go at once, so no new sign-in or refresh works, and an access token already issued is refused within about a minute. An id that is not a first-party client answers 404.',
       method: 'delete',
       path: '/oauth-clients/{client_id}',
       scope: { resource: 'oauth_clients', action: 'write' },
@@ -248,7 +256,7 @@ export function oauthClientOperations(runtime: OAuthClientsRuntime | null): Cont
       name: 'oauth_clients.update',
       summary: 'Edit a first-party OAuth client',
       description:
-        "Human only (owners). Edits any of name, redirect_uris, scopes and skip_consent; the lists replace the stored ones, and the rules are create's. skip_consent = false is not implemented yet and is refused. An edit revokes no token: refresh tokens and access tokens already issued keep working (delete the client to revoke). The answer carries warnings: one entry for each redirect origin of the resulting list that is not in CORS_ALLOWED_ORIGINS, which means the app's browser calls will be refused until the origin is added to CORS_ALLOWED_ORIGINS; the edit is made either way. An id that is not a first-party client answers 404.",
+        "Human only (owners). Edits any of name, redirect_uris, scopes and skip_consent; the lists replace the stored ones, and the rules are create's; scopes: null makes the app follow every scope a first-party app may hold, including ones declared later. A person who signs in through the app acts as themselves, within their own role and the app's scopes. An edit to scopes takes effect for live tokens, access and refresh, within about a minute; no token is revoked (delete the client to revoke). skip_consent = false is not implemented yet and is refused. The answer carries warnings: one entry for each redirect origin of the resulting list that is not in CORS_ALLOWED_ORIGINS, which means the app's browser calls will be refused until the origin is added to CORS_ALLOWED_ORIGINS; the edit is made either way. An id that is not a first-party client answers 404.",
       method: 'patch',
       path: '/oauth-clients/{client_id}',
       scope: { resource: 'oauth_clients', action: 'write' },
@@ -258,7 +266,8 @@ export function oauthClientOperations(runtime: OAuthClientsRuntime | null): Cont
         const rt = needsStore(runtime)
         const body = input.body as z.infer<typeof updateBody>
         if (body.skip_consent === false) throw new ApiError(400, 'validation_error', SKIP_CONSENT_REFUSAL)
-        const scopes = body.scopes === undefined ? undefined : checkedScopes(rt, body.scopes)
+        const scopes =
+          body.scopes === undefined ? undefined : body.scopes === null ? null : checkedScopes(rt, body.scopes)
         const row = await rt.port.update({
           organizationId: env.organizationId,
           clientId: input.params.client_id as string,

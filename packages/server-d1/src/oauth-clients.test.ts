@@ -634,10 +634,10 @@ describe('CORE639 group 4: NULL scopes through the operations (D4)', () => {
     expect(followed.json.scopes).toBeNull()
     expect(listed.json.scopes).toEqual(['openid', 'contacts:read'])
     expect((await call(wk, 'GET', `${PATH}/${followed.json.client_id}`, tok)).json.scopes).toBeNull()
-    expect((await call(wk, 'GET', PATH, tok)).json.data.map((r: any) => r.scopes)).toEqual([
-      null,
-      ['openid', 'contacts:read'],
-    ])
+    const byId = Object.fromEntries(
+      (await call(wk, 'GET', PATH, tok)).json.data.map((r: any) => [r.client_id, r.scopes]),
+    )
+    expect(byId).toEqual({ [followed.json.client_id]: null, [listed.json.client_id]: ['openid', 'contacts:read'] })
     expect(JSON.parse((await auditFor(followed.json.client_id))[0]!.detail).scopes).toBeNull()
   })
 

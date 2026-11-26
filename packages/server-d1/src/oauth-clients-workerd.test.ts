@@ -108,7 +108,7 @@ describe('group 5: composition, end to end in workerd', () => {
         await w.controlRows<{ t: string }>('select application_type t from auth_oauth_clients where client_id = ?', id)
       )[0]!.t,
     ).toBe('web')
-    expect(rec.scopes).toContain('offline_access')
+    expect(rec.scopes).toBeNull() // CORE639 D4: omitted scopes follow the ceiling
 
     const a = await authorize(id, BASE)
     expect(a.url, `authorize answered ${a.status} ${a.text}`).not.toBeNull()
@@ -339,7 +339,17 @@ describe('CORE639: first-party apps act as the signed-in person, end to end in w
     expect(me.active_organization.scopes).toContain('deals:write')
     for (const human of ['members:write', 'oauth_clients:write'])
       expect(me.active_organization.scopes).not.toContain(human)
-    const agents = (await w.d1.prepare('select count(*) n from agents').first()) as { n: number }
-    expect(agents.n).toBe(0)
+    expect((await w.rows<{ n: number }>('select count(*) n from agents'))[0]!.n).toBe(0)
+    // a write through the app is the person's: the event names the owner, and no agent event exists
+    const wrote = await w.call('/api/v1/contacts', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${tokens.access_token}` },
+      body: { name: 'Ada' },
+    })
+    expect(wrote.status, await wrote.clone().text()).toBe(201)
+    const events = await w.rows<{ type: string; actor_id: string }>(
+      "select type, actor_id from events where type in ('contact.created', 'agent.created')",
+    )
+    expect(events).toEqual([{ type: 'contact.created', actor_id: owner }])
   })
 })

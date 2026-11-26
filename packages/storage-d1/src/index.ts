@@ -186,6 +186,7 @@ export {
   readAuthProfile,
   readControlMarker,
   readOAuthClientName,
+  readOAuthClientBound,
   readControlMigrations,
   recordResetLinkIssued,
   revokeSubjectCredentials,
