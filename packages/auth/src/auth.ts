@@ -282,6 +282,9 @@ function composePlugins(
       // [[UI247]] D1: the vault's own consent page, outside Better Auth's base path (the signed query rides on it).
       consentPage: CONSENT_PAGE_PATH,
       scopes,
+      // [[CORE630]] D1: the provider's own list holds the wildcard (so the CLI client, whose stored scopes are NULL, can be issued it), but nothing it publishes names it: the library's authorization-server metadata and OpenID configuration read
+      // this list, which stays equal to the static document's.
+      advertisedMetadata: { scopes_supported: [...AUTH_SCOPES, ...vaultScopes] },
       accessTokenExpiresIn: ACCESS_TOKEN_SECONDS,
       // No `allowedScopes` on a resource row: the library seeds rows once and never updates them, so a list there would go stale when a scope is added. The client's own scopes
       // (NULL = the provider's list, for the seeded first-party client) bound a grant instead.
@@ -379,13 +382,15 @@ async function presentedToken(ctx: { headers?: Headers } | null | undefined): Pr
   return typeof fromState === 'string' && fromState !== '' ? fromState : undefined
 }
 
-/** What an approval request keeps for an agent account ([[CORE630]] D11): the OIDC scopes and `offline_access` as requested, and a vault scope only when the record grants it. */
+/**
+ * What an approval request keeps for an agent account ([[CORE630]] D11): the OIDC scopes and `offline_access` as requested, and a vault scope only when the record grants it. The wildcard ([[CORE660]], D11's wildcard case) stands for every
+ * declared scope before that intersection, so it becomes the agent's whole grant, and it never survives: an agent account never holds `all_permissions`.
+ */
 function narrowToGrant(requested: string, granted: readonly string[]): string {
+  const names = requested.split(/\s+/).filter((s) => s !== '')
+  const expanded = names.flatMap((s) => (s === FULL_ACCESS_SCOPE ? granted : [s]))
   const keep = (s: string) => (AUTH_SCOPES as readonly string[]).includes(s) || granted.includes(s)
-  return requested
-    .split(/\s+/)
-    .filter((s) => s !== '' && keep(s))
-    .join(' ')
+  return [...new Set(expanded.filter(keep))].join(' ')
 }
 
 /** Better Auth's device-flow endpoint paths, relative to its `/auth` base path: library endpoints, not the vault's auth pages (the P5 scan in server-d1's `auth-page-urls.test.ts` excepts these two lines). */

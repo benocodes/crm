@@ -316,7 +316,9 @@ async function deviceLogin(server: string, name: string, scopeFlag: string | und
         'unknown_scope',
       )
   }
-  const requested = [...new Set([...scopes, 'offline_access'])].join(' ')
+  // [[CORE630]] D2: a default login asks for the wildcard when the instance names one (the built-in provider), and for today's full list when it does not; `--scope` is always a plain list.
+  const wildcard = scopeFlag === undefined && nonEmpty(auth.full_access_scope) ? auth.full_access_scope : undefined
+  const requested = [...new Set([...(wildcard ? [wildcard] : scopes), 'offline_access'])].join(' ')
   const resource = nonEmpty(auth.resource) ? auth.resource : undefined
   const grant = await deviceGrant(as, auth.cli_client_id, requested, deps, resource)
 

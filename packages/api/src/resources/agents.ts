@@ -61,7 +61,7 @@ export function normalizeAgentScopes(
   declared: readonly string[] = [],
 ): string[] {
   for (const s of scopes) {
-    // [[CORE315]] D24: a custom object's scope is known when the registry declares it (the caller's own scopes, an owner's, are every declared scope).
+    // [[CORE315]] D24: a custom object's scope is known when the registry declares it (read from the registry, [[CORE630]] D10, never from the caller's own scopes).
     if (!Object.hasOwn(policy, s) && !(isCustomScope(s) && declared.includes(s)))
       throw new ApiError(400, 'unknown_scope', `unknown scope: ${s}`)
     if (!isAgentGrantable(s, policy))
@@ -138,9 +138,8 @@ function planAgentUpdate(env: PreparedEnv, input: { id: string; body: unknown })
   const hasAdd = 'add_scopes' in values
   const hasRemove = 'remove_scopes' in values
   if (!hasAdd && !hasRemove) {
-    // [[CORE315]] D24: a full scope list is checked against the declared scopes (an owner holds every one) before the generic update's hook sorts it.
-    if (Array.isArray(values.scopes))
-      normalizeAgentScopes(values.scopes as string[], SCOPE_POLICY, env.scopes.toStrings())
+    // [[CORE315]] D24, [[CORE630]] D10: a full scope list is checked against the registry's declared scopes (not the caller's own) before the generic update's hook sorts it.
+    if (Array.isArray(values.scopes)) normalizeAgentScopes(values.scopes as string[], SCOPE_POLICY, env.declaredScopes)
     return updateOperation(agents, env, input.id, input.body) as PreparedOperation<AgentRecord>
   }
   if ('scopes' in values) {
@@ -156,7 +155,7 @@ function planAgentUpdate(env: PreparedEnv, input: { id: string; body: unknown })
   const overlap = add.find((s) => remove.has(s))
   if (overlap !== undefined)
     throw new ApiError(400, 'validation_error', `add_scopes and remove_scopes both name ${overlap}`)
-  const added = normalizeAgentScopes(add, SCOPE_POLICY, env.scopes.toStrings())
+  const added = normalizeAgentScopes(add, SCOPE_POLICY, env.declaredScopes)
   const touchesOther = 'name' in values || 'disabled' in values
   return updateOperation(agents, env, input.id, input.body, (before) => {
     const next = [...new Set([...before.scopes, ...added])].filter((s) => !remove.has(s)).sort()
@@ -217,7 +216,7 @@ export function updateAgentOperation(
  */
 export function createAgentOperation(env: PreparedEnv, input: unknown): PreparedOperation<AgentRecord> {
   const values = prepareCreate(agents, env.actor, input)
-  const scopes = normalizeAgentScopes(values.scopes as string[], SCOPE_POLICY, env.scopes.toStrings())
+  const scopes = normalizeAgentScopes(values.scopes as string[], SCOPE_POLICY, env.declaredScopes)
   const id = env.newId()
   const eventId = env.newId()
   const at = codecs.timestamp.write(env.now)

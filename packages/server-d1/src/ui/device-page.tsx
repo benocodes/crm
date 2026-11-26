@@ -10,6 +10,7 @@ import {
   type ApiFailure,
   type SessionUser,
 } from './auth-api.js'
+import { FULL_ACCESS_SCOPE } from './cli-login.js'
 import { isCompleteDeviceCode } from './device-code.js'
 import { MESSAGES, genericFailure } from './messages.js'
 import { goTo, type PageProps } from './page.js'
@@ -183,7 +184,14 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
         <p>{review.code}</p>
         <p>{MESSAGES.deviceCheckCode}</p>
         <p>{MESSAGES.deviceWarning}</p>
-        <ScopeList scopes={scopeItems(review.scopes)} />
+        {/* [[CORE630]] D7: a request carrying the wildcard is full access as whoever approves it, said in words; any other request lists its scopes. Keyed on the requested scope, never on the client. */}
+        {review.scopes.includes(FULL_ACCESS_SCOPE) ? (
+          <section aria-label="Full access">
+            <p>{MESSAGES.deviceFullAccess}</p>
+          </section>
+        ) : (
+          <ScopeList scopes={scopeItems(review.scopes)} />
+        )}
         {account}
       </Card>
     )

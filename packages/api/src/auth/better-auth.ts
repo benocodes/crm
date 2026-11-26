@@ -35,8 +35,7 @@ export interface BetterAuthAdapterConfig {
 export const SESSION_TOKEN_CLAIM = 'vibase_token'
 export const SESSION_TOKEN_VALUE = 'session'
 
-/** Mirrors `@vibase/auth`'s `FULL_ACCESS_SCOPE` (a server-d1 test holds the two equal), [[CORE630]] D5: the provider scope a person's default CLI login asks for. It is no Vibase scope; the authenticator reads it from the token's raw scope list. */
-export const FULL_ACCESS_SCOPE = 'all_permissions'
+export { FULL_ACCESS_SCOPE } from './full-access-scope.js'
 
 /** How long the keys are kept per isolate, and the least time between two reads caused by a `kid` the cache does not know ([[CORE244]] P1). */
 export const JWKS_CACHE_MS = 5 * 60_000
