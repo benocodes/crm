@@ -5,9 +5,10 @@ import {
   getOAuthClient,
   listOAuthClients,
   updateOAuthClient,
+  openControlDb,
+  type ControlDb,
   type OAuthClientRecord,
-} from './oauth-client-store.js'
-import { openControlDb, type ControlDb } from './control-store.js'
+} from './control-store.js'
 import type { D1Like } from './binding.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
 

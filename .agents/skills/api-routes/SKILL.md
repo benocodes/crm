@@ -1357,6 +1357,12 @@ or an operation (`control-boundary.test.ts`, [[CORE259]] D5).
 - **`invitations` and `control_audit`** (control migration 0002, [[CORE245]], [[CORE259]] D12): written only
   by the control store, one control batch per change and its audit row; `control_audit` is append-only by
   trigger.
+- **`auth_oauth_clients`, `auth_oauth_client_resources` and `auth_oauth_resources`: first-party OAuth clients** ([[CORE623]] D5, D6, D9): also written by the control store's `createOAuthClient`, `updateOAuthClient` and `deleteOAuthClient`
+  (`packages/storage-d1/src/control-store.ts`), hand-written SQL in Better Auth's own encodings (the resource rows only when absent, as the seed does), proven by a real authorize, token and refresh round
+  trip in workerd. A client is first-party when its `reference_id` is the organisation id and its `user_id` is null; the methods read and change only such rows, so a registered client, `vibase-cli` and another
+  organisation's row are never touched. Each change is one control batch with its `oauth_client.created` / `oauth_client.updated` / `oauth_client.deleted` `control_audit` row (`target_type` `oauth_client`,
+  `target_id` the client id, `detail` the name, redirect URIs, scopes and `skip_consent`: after for create and update, before for delete), written only when the guarded row matched; delete is the revocation (the
+  foreign keys cascade tokens, consents and links). No operation calls them yet ([[CORE623]] cycles 2 and 3).
 - **`webhook_subscriptions`, `webhook_secrets`, `webhook_dispatch_state` and `webhook_deliveries`** (control
   migration 0004, [[CORE327]], switched on by [[CORE337]], [[CORE259]] D3, D8, D9 (c), D12): written only by the
   control store's webhook methods, reached through the `WebhooksPort`. A subscription change (create, update,

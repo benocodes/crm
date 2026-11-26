@@ -169,7 +169,7 @@ export {
   type NewOAuthClient,
   type OAuthClientChange,
   type OAuthClientRecord,
-} from './oauth-client-store.js'
+} from './control-store.js'
 export {
   acceptInvitation,
   findAdoptableInvitation,
