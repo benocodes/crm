@@ -33,7 +33,15 @@ export function deployment(over: Partial<Deployment> = {}) {
     me: () => ({
       body: { principal: { id: 'p1', kind: 'user' }, user: { id: 'u1', email: 'owner@e2e.test', name: 'Owner' } },
     }),
-    contacts: () => ({ body: { data: [{ id: 'c1', name: 'Ada Lovelace' }, { id: 'c2', name: 'Grace Hopper' }], next_cursor: null } }),
+    contacts: () => ({
+      body: {
+        data: [
+          { id: 'c1', name: 'Ada Lovelace' },
+          { id: 'c2', name: 'Grace Hopper' },
+        ],
+        next_cursor: null,
+      },
+    }),
     token: (form) =>
       form.get('grant_type') === 'refresh_token'
         ? { body: { access_token: `at-refreshed-${++counter}`, refresh_token: 'rt-2', expires_in: 3600 } }
@@ -51,7 +59,8 @@ export function deployment(over: Partial<Deployment> = {}) {
       form: typeof init.body === 'string' ? new URLSearchParams(init.body) : undefined,
     })
     const path = url.slice(API.length).split('?')[0]
-    if (path === '/.well-known/vibase') return json({ body: { auth: { provider: 'better-auth', issuer: ISSUER, resource: API } } })
+    if (path === '/.well-known/vibase')
+      return json({ body: { auth: { provider: 'better-auth', issuer: ISSUER, resource: API } } })
     if (path === '/.well-known/oauth-authorization-server/auth')
       return json({
         body: {

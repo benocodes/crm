@@ -15,7 +15,10 @@ export function parseSettings(text: string): Record<string, string> {
     if (line === '' || line.startsWith('#')) continue
     const eq = line.indexOf('=')
     if (eq < 1) continue
-    out[line.slice(0, eq).trim()] = line.slice(eq + 1).trim().replace(/^(["'])(.*)\1$/, '$2')
+    out[line.slice(0, eq).trim()] = line
+      .slice(eq + 1)
+      .trim()
+      .replace(/^(["'])(.*)\1$/, '$2')
   }
   return out
 }
@@ -24,7 +27,8 @@ export function resolveConfig(env: Record<string, string | undefined>, fileText 
   const file = parseSettings(fileText)
   const get = (name: string): string => {
     const v = env[name] || file[name]
-    if (!v) throw new Error(`${name} is not set: put it in the environment or in settings.env (see settings.env.example)`)
+    if (!v)
+      throw new Error(`${name} is not set: put it in the environment or in settings.env (see settings.env.example)`)
     return v
   }
   return { vibaseUrl: new URL(get('VIBASE_URL')).origin, clientId: get('VIBASE_CLIENT_ID') }

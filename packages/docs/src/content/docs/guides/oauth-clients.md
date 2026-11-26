@@ -81,18 +81,11 @@ A malformed entry makes the instance refuse requests until fixed.
 
 ## Sign in from the app
 
-The app runs a standard authorization code flow with PKCE (`S256`) against the endpoints listed in the instance's OAuth discovery document (`/.well-known/oauth-authorization-server`).
-
-1. Send the person to the authorization endpoint with your `client_id`, a registered `redirect_uri`, a PKCE challenge, `state`, the scopes you need, and `resource` set to the API's origin. Add `offline_access` to receive a refresh token.
-2. The person signs in. A first-party client skips the consent screen, so they return to your redirect URI with a `code`.
-3. Exchange the code and PKCE verifier at the token endpoint. Send no secret.
-4. Call the API with `Authorization: Bearer <access_token>`. The [TypeScript SDK](/guides/sdk/) takes a function that returns the token.
-
-Access tokens last at most one hour. Refresh them with the refresh token while the client exists.
+The app runs a standard authorization code flow with PKCE against the endpoints in the instance's OAuth discovery document, sends no secret and calls the API with a bearer token. [Sign in from a browser app](/guides/browser-apps/) describes the flow step by step, with the TypeScript SDK's `browserSignIn()` and a troubleshooting list.
 
 ## Revoke a client
 
-Deleting a client revokes it: its refresh tokens and consents go at once, so no new sign-in or refresh works. Access tokens already issued stay valid until they expire, at most an hour.
+Deleting a client revokes it: its refresh tokens and consents go at once, so no new sign-in or refresh works. Access tokens already issued are refused within about a minute.
 
 ```bash
 vibase oauth-clients delete <client-id>

@@ -30,7 +30,7 @@ await vibase.deals.moveStage({ id, stage_id })
 The SDK sends **bearer tokens only**, because it calls the REST API, which does not accept cookies. The token can be:
 
 - an API key,
-- an OAuth access token, from an app registered as a [first-party OAuth client](/guides/oauth-clients/), or
+- an OAuth access token, from an app registered as a [first-party OAuth client](/guides/oauth-clients/) (the [browser sign-in guide](/guides/browser-apps/) shows `browserSignIn()`, which produces one), or
 - a Better Auth session token (a JWT) obtained with the `sessionToken` helper.
 
 Requests go out without credentials from the browser's cookie jar, and the SDK refuses to send a credential to any origin other than `url`.

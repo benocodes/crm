@@ -17,7 +17,7 @@ Vibase has no app of its own. Your agents work in the CRM through MCP, the CLI a
 ## How an app works
 
 1. **The app** is an ordinary web app on an origin you control: a static site, a Worker, a Pages project, or anywhere else. Vibase does not host it.
-2. **An owner registers it** as a first-party OAuth client with its redirect URI, and adds its origin to the instance's allowed origins. The app can then sign people in with authorization code and PKCE. It never holds a secret.
+2. **An owner registers it** as a first-party OAuth client with its redirect URI, and adds its origin to the instance's allowed origins. The app can then sign people in with authorization code and PKCE ([how, step by step](/guides/browser-apps/)). It never holds a secret.
 3. **A person signs in** and the app receives a bearer token. The person acts as themselves, limited to the scopes you gave that client, and every write is attributed to them.
 4. **The app calls the API**, usually through the SDK, which takes the token and gives you typed methods, typed filters, pagination and aggregation. A dashboard needs no raw queries: pipeline value per stage is one `aggregate` call.
 5. **Agents and people share the work.** An agent can propose a change and a person approves it in an app. The repository's approvals app is an example that does exactly that.
