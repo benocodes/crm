@@ -449,7 +449,11 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     exported; `(await auth.$context).isTrustedOrigin(url)` reaches it, and `packages/auth/src/origin-parity.test.ts`
     runs the shared table through both. A new entry shape the two disagree on is refused by the grammar, never
     special-cased in `originMatches`. `CORS_ALLOWED_ORIGINS` also reaches two `/auth` paths, credential-free (OAuth
-    register and token, [[API625]]); the `/auth` CORS order is in `mcp-auth-serving`.
+    register and token, [[API625]]); the `/auth` CORS order is in `mcp-auth-serving`. A new reader of the list takes
+    the composition's parsed `corsOrigins` value (by reference, as `oauth_clients`' origin warning does), never a
+    second parse of the env var, and proves it with a composition test handed `[]` ([[CORE628]] P1, M4). An origin
+    taken from a URI is `new URL(uri).origin`, never a string slice: `originMatches` is case-sensitive and `URL`
+    lower-cases scheme and host ([[CORE628]]).
   - The storage resolver runs once per request, in `app.use('*')` before auth, and never at construction. Auth,
     the operation and the webhook reuse that binding (`c.var.storage`).
   - Auth is mounted on each registry route, never on `*`. A plain route the caller adds to the returned
