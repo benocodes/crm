@@ -132,7 +132,12 @@ export function createWorkspaceAuthenticator(opts: {
     })
     const wrongOrganization =
       organizationHeader !== undefined && organizationHeader.toLowerCase() !== organizationId.toLowerCase()
-    const agentPrincipal = (agentId: string, scopes: string[]): Principal =>
+    // [[CORE662]] D8: what the live authority holds that the token's list lacks (an OAuth sign-in only), for the refusal hint.
+    const missingFrom = (kind: NonNullable<Principal['signIn']>['kind'], live: string[], held: string[]) => {
+      const missing = tokenScopes === null ? [] : live.filter((s) => !held.includes(s))
+      return missing.length === 0 ? {} : { signIn: { kind, missing } }
+    }
+    const agentPrincipal = (agentId: string, scopes: string[], signIn: Pick<Principal, 'signIn'> = {}): Principal =>
       wrongOrganization
         ? {
             actor: { id: agentId, kind: 'agent' },
@@ -146,6 +151,7 @@ export function createWorkspaceAuthenticator(opts: {
             organizationId,
             scopes: ScopeSet.parse(scopes),
             ...(clientId ? { clientId } : {}),
+            ...signIn,
           }
 
     if (found.account !== null) {
@@ -154,7 +160,12 @@ export function createWorkspaceAuthenticator(opts: {
         throw forbidden()
       }
       if (found.account.disabled) throw new AuthFailure('disabled')
-      return agentPrincipal(found.account.agentId, meet(found.account.scopes, tokenScopes ?? declaredScopes, grantable))
+      const held = meet(found.account.scopes, tokenScopes ?? declaredScopes, grantable)
+      return agentPrincipal(
+        found.account.agentId,
+        held,
+        missingFrom('agent_account', meet(found.account.scopes, declaredScopes, grantable), held),
+      )
     }
     const role = found.membershipRole ?? null
     if (found.userId === null || role === null) {
@@ -187,6 +198,7 @@ export function createWorkspaceAuthenticator(opts: {
         scopes: ScopeSet.parse(scopes),
         role: resolved.role,
         ...(clientId ? { clientId } : {}),
+        ...(firstParty ? {} : missingFrom('cli', roleScopes, scopes)),
       }
     }
 
@@ -219,7 +231,12 @@ export function createWorkspaceAuthenticator(opts: {
     }
     if (delegated.disabled) throw new AuthFailure('disabled')
     const roleScopes = scopesForRole(role, declaredScopes, policy).toStrings()
-    return agentPrincipal(delegated.agentId, meet(tokenScopes!, delegated.scopes, roleScopes, grantable))
+    const held = meet(tokenScopes!, delegated.scopes, roleScopes, grantable)
+    return agentPrincipal(
+      delegated.agentId,
+      held,
+      missingFrom('delegated', meet(delegated.scopes, roleScopes, grantable), held),
+    )
   }
 
   return {

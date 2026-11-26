@@ -525,9 +525,9 @@ describe('5. the owner is told (D10)', () => {
     const added = await patch(wk, tok, a.id, { add_scopes: ['contacts:write'] })
     expect(typeof added.json.sign_in_notice).toBe('string')
     expect(added.json.sign_in_notice.length).toBeGreaterThan(0)
-    expect((await patch(wk, tok, a.id, { scopes: ['contacts:read', 'deals:read'] })).json.sign_in_notice).toEqual(
-      added.json.sign_in_notice,
-    )
+    // a whole-list replacement that adds a scope is an addition too
+    const replaced = await patch(wk, tok, a.id, { scopes: ['contacts:read', 'contacts:write', 'deals:read'] })
+    expect(typeof replaced.json.sign_in_notice).toBe('string')
     expect((await patch(wk, tok, a.id, { remove_scopes: ['deals:read'] })).json.sign_in_notice).toBeNull()
     expect((await patch(wk, tok, a.id, { name: 'renamed' })).json.sign_in_notice).toBeNull()
   })

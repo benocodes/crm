@@ -31,6 +31,27 @@ export const agentRecord = z.object({
 export type AgentRecord = z.infer<typeof agentRecord>
 
 /**
+ * [[CORE662]] ([[CORE630]] D10): what `agents.update` answers: the record, and `sign_in_notice`, one sentence telling the owner when the agent must sign in (or reconnect) before a scope this call added reaches it. `null` for an
+ * API-key agent (it reads its record on every request) and for a call that added no scope (a removal applies at once). Only `update` carries it: `get` and `list` answer the plain record.
+ */
+export const agentUpdateRecord = agentRecord.extend({ sign_in_notice: z.string().nullable() })
+export type AgentUpdateRecord = z.infer<typeof agentUpdateRecord>
+
+/**
+ * The notice for the scopes `added` to `agent`. An agent account's token lists only what its record held when it signed in ([[CORE630]] D11), so the notice is unconditional. A delegated agent's tokens live in the control database,
+ * which no operation reads, so it is conditional in words: the connector holds the scope only if it consented to it before.
+ */
+export function signInNotice(agent: AgentRecord, added: readonly string[]): string | null {
+  if (added.length === 0) return null
+  const list = added.join(', ')
+  if (agent.auth_subject !== null)
+    return `${list} will reach this agent when it next signs in: its current sign-in keeps only the scopes it held then. Have it run \`vibase login\` as the agent.`
+  if (agent.auth_client_id !== null)
+    return `${list} reaches this agent's connection only if the connector already consented to it; otherwise reconnect the connector so the person approves it.`
+  return null
+}
+
+/**
  * Validates scopes for an agent ([[CORE3]] D9): every one must be declared and agent-grantable. The first
  * offender in input order decides the error. Returns the de-duplicated, sorted list.
  */
@@ -72,6 +93,7 @@ export const agents = withColumnFilters(
           'Change an agent: its name, scopes (the whole list, or add_scopes and remove_scopes) or disabled flag. 409 form_principal for the agent of a form (live or deleted): that agent is managed by its form, so rename, disable or delete the form instead. Example: vibase agents update <id> --disabled true',
       },
       record: agentRecord,
+      updateRecord: agentUpdateRecord,
       create: z.strictObject({ name, scopes: scopesField.default([]) }),
       update: z
         .strictObject({
@@ -150,10 +172,10 @@ function planAgentUpdate(env: PreparedEnv, input: { id: string; body: unknown })
 export function updateAgentOperation(
   env: PreparedEnv,
   input: { id: string; body: unknown },
-): PreparedOperation<AgentRecord> {
+): PreparedOperation<AgentUpdateRecord> {
   const inner = planAgentUpdate(env, input)
   const id = input.id.toLowerCase()
-  return defineOperation<AgentRecord>({
+  return defineOperation<AgentUpdateRecord>({
     ...inner,
     reads: (qc) => ({
       ...inner.reads(qc),
@@ -169,7 +191,22 @@ export function updateAgentOperation(
       const built = inner.build(found, qc) // 404 for an unknown agent comes first
       if (found.maybe('form') !== null)
         throw new ApiError(409, 'form_principal', `managed by form ${id}; change the form`)
-      return built
+      // [[CORE662]] D10: the scopes this call added, against the row the write was planned on.
+      const { __stamp, ...rest } = found.maybe('before') as Record<string, unknown>
+      const before = toRecord(agents, rest) as AgentRecord
+      return {
+        ...built,
+        decode: (rows, f) => {
+          const after = built.decode(rows, f)
+          return {
+            ...after,
+            sign_in_notice: signInNotice(
+              after,
+              after.scopes.filter((s) => !before.scopes.includes(s)),
+            ),
+          }
+        },
+      }
     },
   })
 }

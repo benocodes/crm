@@ -3,7 +3,13 @@
 // fail-closed admission policy while the vault has no invitations ([[CORE245]]) and no client-registration policy ([[CORE244]]).
 import { oauthDeviceAuthorization, oauthProvider, type OAuthOptions } from '@better-auth/oauth-provider'
 import { betterAuth, type BetterAuthOptions } from 'better-auth'
-import { APIError, addOAuthServerContext, createAuthMiddleware, getOAuthState } from 'better-auth/api'
+import {
+  APIError,
+  addOAuthServerContext,
+  createAuthMiddleware,
+  getOAuthState,
+  getSessionFromCtx,
+} from 'better-auth/api'
 import { getAuthTables } from 'better-auth/db'
 import { jwt } from 'better-auth/plugins'
 import { D1Dialect } from 'kysely-d1'
@@ -126,6 +132,12 @@ export interface CreateAuthOptions {
    * client action is refused (fail closed). It may throw: that refuses too.
    */
   clientOwner?: (subject: string) => Promise<boolean>
+  /**
+   * [[CORE662]] ([[CORE630]] D11): what an agent account holds, from the vault's live record. `null` when the Better Auth subject is not an agent account (a person, or unknown: their approval is never narrowed); otherwise
+   * the account's scopes met with what an agent may be granted (empty for a disabled one). Called where an agent account approves a sign-in (the device page's claim read and approval, the consent page's accept). It may
+   * throw: the approval is then refused, so nothing unnarrowed is ever issued to an agent account. Absent, nothing is narrowed (the other compositions).
+   */
+  agentGrant?: (subject: string) => Promise<readonly string[] | null>
 }
 
 /** The tokens `sendResetPassword` hands over, by lowercased address: a waiter is registered only around an in-process call, so nothing else can ever receive or see a token. */
@@ -355,6 +367,88 @@ async function presentedToken(ctx: { headers?: Headers } | null | undefined): Pr
   return typeof fromState === 'string' && fromState !== '' ? fromState : undefined
 }
 
+/** What an approval request keeps for an agent account ([[CORE630]] D11): the OIDC scopes and `offline_access` as requested, and a vault scope only when the record grants it. */
+function narrowToGrant(requested: string, granted: readonly string[]): string {
+  const keep = (s: string) => (AUTH_SCOPES as readonly string[]).includes(s) || granted.includes(s)
+  return requested
+    .split(/\s+/)
+    .filter((s) => s !== '' && keep(s))
+    .join(' ')
+}
+
+const refuseApproval = () =>
+  new APIError('INTERNAL_SERVER_ERROR', {
+    error: 'server_error',
+    error_description: "the sign-in could not be approved right now: the account's grant could not be read",
+  })
+
+type NarrowCtx = {
+  path?: string
+  method?: string
+  query?: Record<string, unknown>
+  body?: Record<string, unknown>
+  context: {
+    adapter: {
+      findOne(o: {
+        model: string
+        where: Array<{ field: string; value: unknown }>
+      }): Promise<Record<string, unknown> | null>
+      update(o: {
+        model: string
+        where: Array<{ field: string; value: unknown }>
+        update: Record<string, unknown>
+      }): Promise<unknown>
+    }
+  }
+}
+
+/**
+ * [[CORE662]] ([[CORE630]] D11): where an agent account approves a sign-in, its requested vault scopes become requested ∩ its grant, read live through `agentGrant`. The device flow narrows the device code's `scope` (the
+ * pending request) when the page claims it and again at approval, before the library reads it: the claim binds the code to the first session that reads it, so narrowing earlier would be too late. The consent page's accept
+ * narrows the `scope` of its body (the library only ever accepts a subset of what was requested). A person's approval, or anything unclaimed by this session, is untouched. A lookup that throws refuses the request.
+ */
+async function narrowAgentApproval(
+  ctx: NarrowCtx,
+  agentGrant: (subject: string) => Promise<readonly string[] | null>,
+): Promise<{ context: { body: Record<string, unknown> } } | undefined> {
+  const path = ctx.path
+  const device = (path === '/device' && ctx.method === 'GET') || path === '/device/approve'
+  const consent = path === '/oauth2/consent' && ctx.body?.accept === true
+  if (!device && !consent) return undefined
+  const session = (await getSessionFromCtx(ctx as never)) as { user?: { id?: string } } | null
+  const subject = session?.user?.id
+  if (typeof subject !== 'string') return undefined
+  let granted: readonly string[] | null
+  try {
+    granted = await agentGrant(subject)
+  } catch {
+    throw refuseApproval()
+  }
+  if (granted === null) return undefined
+  if (consent) {
+    const query = typeof ctx.body?.oauth_query === 'string' ? new URLSearchParams(ctx.body.oauth_query) : null
+    const requested = typeof ctx.body?.scope === 'string' ? ctx.body.scope : (query?.get('scope') ?? undefined)
+    if (requested === undefined) return undefined
+    return { context: { body: { ...ctx.body, scope: narrowToGrant(requested, granted) } } }
+  }
+  const code = String((path === '/device' ? ctx.query?.user_code : ctx.body?.userCode) ?? '')
+  const find = (value: string) =>
+    ctx.context.adapter.findOne({ model: 'deviceCode', where: [{ field: 'userCode', value }] })
+  const record = (await find(code)) ?? (await find(code.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()))
+  if (!record || record.status !== 'pending') return undefined
+  // Only a code unclaimed or already claimed by this very session: another account's pending request is never touched.
+  if (record.userId != null && record.userId !== subject) return undefined
+  const requested = typeof record.scope === 'string' ? record.scope : ''
+  const narrowed = narrowToGrant(requested, granted)
+  if (narrowed !== requested)
+    await ctx.context.adapter.update({
+      model: 'deviceCode',
+      where: [{ field: 'id', value: record.id }],
+      update: { scope: narrowed },
+    })
+  return undefined
+}
+
 /**
  * Before-hooks of every endpoint. [[CORE283]] P6: unauthenticated registration admits public clients only (`token_endpoint_auth_method: none`); an absent method defaults to a confidential one in the
  * library, so it is refused too. [[CORE287]]: email sign-up is gated before anything else runs, so an unadmitted request costs no password hash and cannot tell an existing account from an absent one.
@@ -365,8 +459,14 @@ const endpointGate = (
   captures: ResetCaptures | undefined,
   selfService: boolean,
   defaultScopes: readonly string[],
+  agentGrant: CreateAuthOptions['agentGrant'],
 ) =>
   createAuthMiddleware(async (ctx) => {
+    // [[CORE662]] D11: an agent account's approval holds its grant ([[CORE630]]).
+    if (agentGrant) {
+      const narrowed = await narrowAgentApproval(ctx as unknown as NarrowCtx, agentGrant)
+      if (narrowed) return narrowed
+    }
     // [[CORE330]]: an authorize request that names no scope (absent, empty or blank) asks for the registration default list, never the client's stored ceiling (the library's own fallback is `client.scopes`, the
     // default plus the allowed list). Filled here, before the library reads it, so the signed `oauth_query` that rides to /sign-in and /consent already carries it; a named scope is never touched.
     if (ctx.path === '/oauth2/authorize') {
@@ -513,6 +613,7 @@ export function authOptions(
         opts.resetCaptures,
         opts.deliverResetToken !== undefined,
         registrationScopes(config.vaultScopes ?? [], config.grantableScopes ?? [], config.defaultScopes).defaults,
+        opts.agentGrant,
       ),
     },
     databaseHooks: {

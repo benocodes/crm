@@ -140,5 +140,8 @@ export async function execute(
     throw new CliError(1, 'invalid_response', 'the response was not JSON')
   }
   await json(deps, 'stdout', parsed)
+  // [[CORE662]] D10: `agents update` says when the added scopes need the agent to sign in (or reconnect); printed after the record, on stderr like the other notices, and only when the server gave one.
+  const notice = (parsed as { sign_in_notice?: unknown } | null)?.sign_in_notice
+  if (typeof notice === 'string' && notice !== '') await deps.stderr.write(`${notice}\n`)
   return 0
 }

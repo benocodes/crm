@@ -528,7 +528,7 @@ export function resourceOperations(
       scope: { resource: s, action: 'write' },
       proposal: targeted(),
       request: { params: idParams, body: def.update },
-      response: { status: 200, schema: rec },
+      response: { status: 200, schema: def.updateRecord ?? rec },
       prepare: (env, input) => {
         requireHuman(def, env)
         return def.override?.update

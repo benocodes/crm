@@ -38,6 +38,7 @@ import {
   type Registry,
 } from '../registry.js'
 import { proposalHint } from '../proposal.js'
+import { signInHint } from '../auth/sign-in-hint.js'
 import { hydrateSendRecord, requireSendStore } from '../messaging/send-body.js'
 import { runExecution } from '../executions/runner.js'
 import type { TransportRegistry } from '../executions/transport.js'
@@ -270,7 +271,11 @@ async function executeOperation(
   }
   // [[CORE245]] P2: a control operation (the control plane's invitations): the same scope refusal, no storage unit, no proposal hint, no CRM event.
   if (op.kind === 'control') {
-    if (!scopes.has(op.scope)) throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(op.scope)}`)
+    if (!scopes.has(op.scope)) {
+      // [[CORE662]] D8: a caller whose live authority holds the scope and whose sign-in lacks it is told to sign in again.
+      const hint = signInHint(principal, op.scope)
+      throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(op.scope)}${hint ? `; ${hint}` : ''}`)
+    }
     return op.run(
       {
         actor,
@@ -290,7 +295,13 @@ async function executeOperation(
   if (op.scope !== null && !scopes.has(op.scope)) {
     // The one refusal path of REST and MCP alike: a caller that can propose this call is told how ([[AGT8]] D42).
     const hint = await proposalHint(op, env, input)
-    throw new ApiError(403, 'insufficient_scope', `requires ${formatScope(op.scope)}${hint ? `; ${hint}` : ''}`)
+    // [[CORE662]] D8: and, when a new sign-in would fix it, told so after any proposal hint.
+    const signIn = signInHint(principal, op.scope)
+    throw new ApiError(
+      403,
+      'insufficient_scope',
+      `requires ${formatScope(op.scope)}${hint ? `; ${hint}` : ''}${signIn ? `; ${signIn}` : ''}`,
+    )
   }
   // [[CHN5]] D29: a D1-only operation on another engine is not implemented there; refused after the scope checks, before any unit runs.
   if (op.d1Only && c.var.storage.kind !== 'd1')
