@@ -512,6 +512,11 @@ new API extension plus generator and type work across `@vibase/api` and `@vibase
 4-call fix round (+180 code / +480 test lines, +69 generated, 23 files), approved round 1. The budget holds; a type-heavy
 matrix (positive and `@ts-expect-error` cases on two clients) costs test lines, not tokens. The one round was a spec type
 narrowed without a decision row (execute-cycle §3).
+**API622 cycle 1** (`knowledge/specs/044-API622-wildcard-origins-oauth-cors/RETRO.md`, split at plan time from a
+10-decision spec): 4 groups (1 matrix), 6 decisions + 3 planner rules, no migration or E2E, three packages. 158k / 41
+calls in one run (+106 code / +334 test lines, 21 files), approved round 0. A plan-time split on decisions alone gives a
+cheap cycle; half a cycle is fine. Its grammar mutation ("drop the inner-`*` check") named a check the host regex made
+redundant, so the mutation changed nothing: name the row that must turn red, not the line to delete.
 
 ### Step 3: Resolve identities
 

@@ -437,6 +437,15 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
   - `authAdapter` builds the real authenticator over the registry's declared scopes; `userAuthenticator`
     is for tests and custom setups; `workspace` is the D1 workspace authenticator ([[CORE64]]). Passing more than one throws, so a test can't silently run the fake.
   - `corsOrigins` empty or absent: no CORS middleware and no `Access-Control-*` header.
+  - **Origin lists hold patterns** ([[API622]]): `CORS_ALLOWED_ORIGINS` and `AUTH_TRUSTED_ORIGINS` entries may be
+    `scheme://*.<host>[:port]` (any depth, never the bare host). Every reader tests membership with
+    `originMatches(entries, origin)` (`packages/api/src/origins.ts`; `early.ts` imports `@vibase/api/origins` to stay
+    off the index), never `includes`, which silently ignores wildcards, and answers with the request's own `Origin` plus
+    `Vary: Origin`. `parseOriginList` refuses `*` unless the caller passes `{ allowWildcard: true }`:
+    `CLERK_AUTHORIZED_PARTIES` must not, because Clerk compares `azp` exactly. Better Auth's own matcher is not
+    exported; `(await auth.$context).isTrustedOrigin(url)` reaches it, and `packages/auth/src/origin-parity.test.ts`
+    runs the shared table through both. A new entry shape the two disagree on is refused by the grammar, never
+    special-cased in `originMatches`.
   - The storage resolver runs once per request, in `app.use('*')` before auth, and never at construction. Auth,
     the operation and the webhook reuse that binding (`c.var.storage`).
   - Auth is mounted on each registry route, never on `*`. A plain route the caller adds to the returned
@@ -1425,7 +1434,7 @@ message bodies or addresses at info level (customer communications are personal 
   (`400` version, `401`, `403 origin_forbidden`, `405`, `413`, `415`). An `ApiError` from an operation is a tool
   result with `isError: true`.
 - **Origin** is checked in a `/mcp` middleware registered before CORS (an absent `Origin` passes, a present one
-  must be in `corsOrigins`); `MCP-Protocol-Version` is in the CORS `allowHeaders`.
+  must match `corsOrigins` through `originMatches`); `MCP-Protocol-Version` is in the CORS `allowHeaders`.
 - **The instructions text (`src/mcp/instructions.ts`) is pinned:** a test fails if it names a tool that doesn't
   exist. Renaming an operation it mentions means editing the text.
 - **The reference client is the referee.** `@modelcontextprotocol/sdk` is an exact-pinned devDependency of
