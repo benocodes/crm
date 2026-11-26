@@ -9,11 +9,14 @@ import { authKitOver } from './test/auth-kit.js'
 const ENTRY = fileURLToPath(new URL('./test/entry-mint.ts', import.meta.url))
 const APP = 'https://app.example.com'
 const BOTH = 'https://both.example.com' // a trusted app origin that is also in CORS_ALLOWED_ORIGINS (it calls /api too)
+const WILD = 'https://*.wild.example.com'
+const DEEP = 'https://a.b.wild.example.com' // depth 2, trusted only through the wildcard
+const BARE = 'https://wild.example.com' // the zone's bare host: not matched
 const BINDINGS = {
   AUTH_PROVIDER: 'better-auth',
   PUBLIC_BASE_URL: BASE,
   OPEN_ADMISSION: '1',
-  AUTH_TRUSTED_ORIGINS: `${APP},${BOTH}`,
+  AUTH_TRUSTED_ORIGINS: `${APP},${BOTH},${WILD}`,
   CORS_ALLOWED_ORIGINS: BOTH,
   AUTH_GOOGLE_CLIENT_ID: 'gid.apps.googleusercontent.com',
   AUTH_GOOGLE_CLIENT_SECRET: 'gsecret-0123456789',
@@ -152,5 +155,58 @@ describe('group 4 (server): sign-in returns a callbackURL only on a trusted orig
       body: { provider: 'google', callbackURL: 'https://evil.example/' },
     })
     expect(bad.status).toBe(403)
+  })
+})
+
+// A second instance: the sign-up rate limit of the first is spent by the groups above.
+let wild: Workerd
+beforeAll(async () => {
+  wild = await startWorkerd({ bundle, bindings: BINDINGS, paired: true })
+}, 120_000)
+afterAll(() => wild?.dispose())
+const wildAccount = async () => {
+  const email = `w${n++}@auth.test`
+  const { cookie } = await authKitOver(wild.call as never, BASE, []).signUp(email)
+  return { email, cookie }
+}
+
+describe('[[API622]] group 4: a wildcard trusted origin, end to end in workerd (D1, D8)', () => {
+  it("a cookie-bearing sign-out from a depth-2 origin passes Better Auth's origin check; the bare host is refused 403 and the session stays", async () => {
+    const { cookie } = await wildAccount()
+    const bare = await wild.call('/auth/sign-out', { body: {}, cookie, headers: { origin: BARE } })
+    expect(bare.status).toBe(403)
+    expect(
+      ((await (await wild.call('/auth/get-session', { cookie })).json()) as { user?: unknown } | null)?.user,
+    ).toBeTruthy()
+    const ok = await wild.call('/auth/sign-out', { body: {}, cookie, headers: { origin: DEEP } })
+    expect(ok.status, await ok.clone().text()).toBe(200)
+  })
+
+  it('the credentialed CORS answer echoes the depth-2 origin; the bare host gets none', async () => {
+    const pre = await real(wild, '/auth/sign-out', {
+      method: 'OPTIONS',
+      headers: {
+        origin: DEEP,
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type',
+      },
+    })
+    expect(pre.status).toBe(204)
+    expect(cors(pre)).toMatchObject({ origin: DEEP, credentials: 'true' })
+    const res = await real(wild, '/auth/get-session', { headers: { origin: DEEP } })
+    expect(cors(res)).toMatchObject({ origin: DEEP, credentials: 'true' })
+    const bare = await real(wild, '/auth/get-session', { headers: { origin: BARE } })
+    expect(bare.headers.get('access-control-allow-origin')).toBeNull()
+  })
+
+  it('D8: the session Set-Cookie has no Domain attribute with a wildcard configured', async () => {
+    const { email } = await wildAccount()
+    const res = await wild.call('/auth/sign-in/email', {
+      body: { email, password: 'a long enough password 123', callbackURL: `${DEEP}/` },
+    })
+    expect(res.status, await res.clone().text()).toBe(200)
+    const cookie = res.headers.get('set-cookie') ?? ''
+    expect(cookie).toContain('better-auth')
+    expect(cookie.toLowerCase()).not.toContain('domain=')
   })
 })

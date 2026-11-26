@@ -153,6 +153,9 @@ importers:
       '@types/node':
         specifier: ^22
         version: 22.20.5
+      '@vibase/api':
+        specifier: workspace:*
+        version: link:../api
       '@vibase/storage-d1':
         specifier: workspace:*
         version: link:../storage-d1

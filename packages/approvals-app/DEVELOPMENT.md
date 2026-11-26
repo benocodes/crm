@@ -20,7 +20,7 @@ the session cookie is sent credentialed across the two origins, which browsers a
 on `workers.dev`** (a public suffix: every `*.workers.dev` is a different site), and no code enforces this. To configure it:
 
 - on the Worker, add the app's origin to **both** `AUTH_TRUSTED_ORIGINS` (credentialed CORS on `/auth/*`, and the return target of
-  `/app/sign-in`) and `CORS_ALLOWED_ORIGINS` (the REST calls);
+  `/app/sign-in`) and `CORS_ALLOWED_ORIGINS` (the REST calls). Either variable also accepts a wildcard `https://*.<host>` that matches subdomains at any depth, never the bare host (`packages/server-d1/DEVELOPMENT.md` has the warnings);
 - build the app with `APPROVALS_API_ORIGIN=<the Worker's origin>` (the Clerk variables are not needed);
 - Sign in sends the person to the vault's `/app/sign-in` with `return_to` set to the app's URL, and back.
 

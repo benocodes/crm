@@ -1,4 +1,5 @@
 import { ApiError } from '../errors.js'
+import { parseWildcardOrigin } from '../origins.js'
 import { createClerkAdapter } from './clerk.js'
 import type { Role } from './roles.js'
 
@@ -182,15 +183,23 @@ function isOrigin(entry: string): boolean {
 
 /**
  * Comma-separated origins: trim, drop empties, strip one trailing '/'; each must be exactly an http(s) origin
- * or a Chrome extension origin ([[CORE3]] D17: the WHATWG URL origin of an extension is opaque). Throws naming `name`.
+ * or a Chrome extension origin ([[CORE3]] D17: the WHATWG URL origin of an extension is opaque), or, with `allowWildcard`, a wildcard origin ([[API622]] D2). Throws naming `name`.
  */
-export function parseOriginList(value: string | undefined, name: string): string[] {
+export function parseOriginList(
+  value: string | undefined,
+  name: string,
+  options: { allowWildcard?: boolean } = {},
+): string[] {
   const out: string[] = []
   for (const raw of (value ?? '').split(',')) {
     let entry = raw.trim()
     if (entry === '') continue
     if (entry.endsWith('/')) entry = entry.slice(0, -1)
-    if (!isOrigin(entry)) throw new Error(`${name}: "${entry}" is not an origin`)
+    // [[API622]] D2: a wildcard entry is `scheme://*.<host>[:port]`, only where the caller allows it; any other `*` is refused (`CLERK_AUTHORIZED_PARTIES` compares `azp` exactly, P1).
+    const bad = entry.includes('*')
+      ? options.allowWildcard !== true || parseWildcardOrigin(entry) === undefined
+      : !isOrigin(entry)
+    if (bad) throw new Error(`${name}: "${entry}" is not an origin`)
     out.push(entry)
   }
   return out

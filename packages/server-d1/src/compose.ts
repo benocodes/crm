@@ -31,6 +31,7 @@ import {
   membershipRoleReader,
   parseCliClientId,
   parseOriginList,
+  originMatches,
   parsePublishableKey,
   passwordResetMessage,
   passwordResetUrl,
@@ -366,7 +367,7 @@ export function composeD1Worker(
     cliClientId = parseCliClientId(vars) ?? (builtIn ? 'vibase-cli' : undefined)
     // Only with a provider: without one the key is ignored and discovery has no auth to put it in. The built-in provider has no publishable key, and its discovery is [[CORE283]]'s.
     if (authAdapter && !builtIn) publishableKey = parsePublishableKey(vars)
-    corsOrigins = parseOriginList(vars.CORS_ALLOWED_ORIGINS, 'CORS_ALLOWED_ORIGINS')
+    corsOrigins = parseOriginList(vars.CORS_ALLOWED_ORIGINS, 'CORS_ALLOWED_ORIGINS', { allowWildcard: true })
   } catch (err) {
     // The message names a variable ("AUTH_PROVIDER=clerk requires CLERK_JWT_KEY"); no adapter message carries a value.
     configError = true
@@ -1023,7 +1024,7 @@ export function composeD1Worker(
           const trusted =
             origin !== null &&
             (url.pathname === '/auth' || url.pathname.startsWith('/auth/')) &&
-            builtInConfig.trustedOrigins?.includes(origin)
+            originMatches(builtInConfig.trustedOrigins ?? [], origin)
               ? origin
               : null
           if (trusted !== null && req.method === 'OPTIONS')

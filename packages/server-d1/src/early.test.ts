@@ -194,7 +194,7 @@ describe('the early answers with an attached module (P5)', () => {
     const src = readFileSync(new URL('./early.ts', import.meta.url), 'utf8')
     const imports = [...src.matchAll(/^import[^;]*?from\s+'([^']+)'/gms)].map((m) => m[1])
     expect(imports.sort()).toEqual(
-      ['./declared-scopes.js', '@vibase/api/discovery', '@vibase/auth/static-metadata'].sort(),
+      ['./declared-scopes.js', '@vibase/api/discovery', '@vibase/api/origins', '@vibase/auth/static-metadata'].sort(),
     )
     expect(src).not.toMatch(/zod|parseSchemaFile|parseObjectDeclaration/)
   })

@@ -45,6 +45,7 @@ import { internalEnv } from '../storage/internal.js'
 import { renderError, renderNotFound } from './errors.js'
 import { contentDisposition } from './binary.js'
 import { SURFACES, SURFACE_PREFIX, SURFACE_TITLE, fullPath, openApiPath } from '../surfaces.js'
+import { originMatches } from '../origins.js'
 import { MCP_PATH, mcpMethodNotAllowed, mcpPost } from '../mcp/handler.js'
 import { documentOperation, honoPath, registerSecurityScheme } from './openapi.js'
 
@@ -381,7 +382,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
   // so an empty list refuses every browser. Before the CORS middleware, so a refused origin gets no CORS answer either.
   app.use(MCP_PATH, async (c, next) => {
     const origin = c.req.header('origin')
-    if (origin !== undefined && !corsOrigins.includes(origin))
+    if (origin !== undefined && !originMatches(corsOrigins, origin))
       return c.json({ error: { code: 'origin_forbidden', message: 'this origin may not call the MCP endpoint' } }, 403)
     await next()
   })
@@ -389,7 +390,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
     app.use(
       '*',
       cors({
-        origin: (origin) => (corsOrigins.includes(origin) ? origin : null),
+        origin: (origin) => (originMatches(corsOrigins, origin) ? origin : null),
         allowMethods: ['GET', 'POST', 'PATCH', 'DELETE'],
         allowHeaders: ['Authorization', 'X-Organization-Id', 'Content-Type', 'MCP-Protocol-Version'],
         exposeHeaders: ['WWW-Authenticate'],

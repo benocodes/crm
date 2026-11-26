@@ -6,7 +6,7 @@ import { postgresBinding } from '@vibase/storage-postgres'
 
 const db = createDb(process.env.DATABASE_URL ?? 'postgresql://vault_app@localhost/vault_dev')
 const authAdapter = createAuthAdapter(process.env)
-const corsOrigins = parseOriginList(process.env.CORS_ALLOWED_ORIGINS, 'CORS_ALLOWED_ORIGINS')
+const corsOrigins = parseOriginList(process.env.CORS_ALLOWED_ORIGINS, 'CORS_ALLOWED_ORIGINS', { allowWildcard: true })
 // Composition code: picks the Postgres runtime (enterprise tier, [[CORE36]] D22).
 const storage = postgresBinding(db)
 const app = createApp({ authAdapter, corsOrigins, storage: () => storage })
