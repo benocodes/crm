@@ -6,8 +6,8 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build": "tsx scripts/build.ts",
-    "dev": "pnpm build && wrangler dev --port 5180",
+    "build:app": "tsx scripts/build.ts",
+    "dev": "pnpm build:app && wrangler dev --port 5180",
     "test": "vitest run --config ../../vitest.config.ts",
     "typecheck": "tsc --noEmit"
   },

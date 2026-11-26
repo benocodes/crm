@@ -94,7 +94,7 @@ test.beforeAll(async ({ browser, request }) => {
     () => false,
   )
   expect(occupied, 'nothing may listen on :5180 before this script starts the example').toBe(false)
-  await run('pnpm', ['build'], { VIBASE_URL: API, VIBASE_CLIENT_ID: clientId })
+  await run('pnpm', ['build:app'], { VIBASE_URL: API, VIBASE_CLIENT_ID: clientId })
   example = spawn('pnpm', ['exec', 'wrangler', 'dev', '--port', '5180', '--inspector-port', '9231'], {
     cwd: EXAMPLE_DIR,
     env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' },

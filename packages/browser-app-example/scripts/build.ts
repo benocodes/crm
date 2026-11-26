@@ -1,4 +1,4 @@
-// pnpm -C packages/browser-app-example build -> dist/: app.js (the entry), app.css, index.html and `_headers`. Refuses, writing nothing, without VIBASE_URL and VIBASE_CLIENT_ID (DX637 P4).
+// pnpm -C packages/browser-app-example build:app -> dist/: app.js (the entry), app.css, index.html and `_headers`. Refuses, writing nothing, without VIBASE_URL and VIBASE_CLIENT_ID (DX637 P4).
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'

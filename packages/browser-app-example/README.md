@@ -16,7 +16,7 @@ A static page that signs a person in to a Vibase deployment from its own origin,
    Keep the `client_id` from the answer. The answer's `warnings` should be empty.
 2. **Allow the page's origin** on the deployment: `CORS_ALLOWED_ORIGINS` must list `http://localhost:5180`. Do not add it to `AUTH_TRUSTED_ORIGINS`.
 3. **Give the build its settings**: copy `settings.env.example` to `settings.env` (gitignored) and fill in `VIBASE_URL` (the deployment, for example `http://localhost:8787`) and `VIBASE_CLIENT_ID`. Environment variables of the same names win over the file. The build refuses, writing nothing, when either is missing.
-4. **Run it**: `pnpm -C packages/browser-app-example dev` builds the page into `dist/` and serves it with `wrangler dev` on `http://localhost:5180`. `/callback` is served by the same page. Nothing is deployed and no remote resource is used.
+4. **Run it**: `pnpm -C packages/browser-app-example dev` runs `build:app`, which builds the page into `dist/`, and serves it with `wrangler dev` on `http://localhost:5180`. `/callback` is served by the same page. Nothing is deployed and no remote resource is used.
 
 The page passes no `scopes`, so the instance's default set applies and the app keeps working when new scopes are declared.
 
