@@ -27,7 +27,7 @@ vibase --version
 
 ## Runs on Cloudflare
 
-Cloudflare is the deployment target. Vibase deploys as a Cloudflare Worker with a D1 database, one instance per organisation, and also uses R2 (message bodies), Workflows (mail sync) and scheduled triggers. You run your own instance. The quickstart needs a Cloudflare account and a wrangler login; account details are handled during setup.
+Cloudflare is the deployment target. Vibase deploys as a Cloudflare Worker with two D1 databases (one for CRM data, one for sign-in and access data), one instance per organisation, and also uses R2 (message bodies), Workflows (mail sync) and scheduled triggers. You run your own instance. The quickstart needs a Cloudflare account and a wrangler login; account details are handled during setup.
 
 ## Quickstart
 
@@ -69,7 +69,7 @@ A new agent account starts with no permissions. The owner then grants it per-res
 
 ## Status
 
-Vibase is still in alpha. We will make every effort to avoid breaking changes. It runs on Cloudflare D1, one database per organisation. The CLI, the REST and MCP interfaces, permissions and approvals, custom objects and fields, aggregation, owner-managed OAuth clients for browser apps, the TypeScript SDK, and the Gmail connection are available today. What is coming is under Roadmap below.
+Vibase is still in alpha. We will make every effort to avoid breaking changes. It runs on Cloudflare D1, with one CRM database and one control database per organisation. The CLI, the REST and MCP interfaces, permissions and approvals, custom objects and fields, aggregation, owner-managed OAuth clients for browser apps, the TypeScript SDK, and the Gmail connection are available today. What is coming is under Roadmap below.
 
 ## Roadmap
 

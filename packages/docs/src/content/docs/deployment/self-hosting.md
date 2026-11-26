@@ -3,7 +3,7 @@ title: Run an instance
 description: Set up, check and upgrade a Vibase instance in your own Cloudflare account with the vibase-server program, with built-in Better Auth sign-in.
 ---
 
-Each Vibase workspace runs in its owner's Cloudflare account. The backend is a Worker and one D1 database, with R2 for raw message bodies and files. Sign-in, OAuth consent and CLI device login are built in (Better Auth), so a new instance needs no account beyond Cloudflare. Clerk stays available as an [optional alternative](#use-clerk-instead).
+Each Vibase workspace runs in its owner's Cloudflare account. The backend is a Worker and two D1 databases, with R2 for raw message bodies and files. One D1 database holds your CRM data. The other, the control database, holds sign-in and access data such as accounts, sessions, invitations and API keys. Sign-in, OAuth consent and CLI device login are built in (Better Auth), so a new instance needs no account beyond Cloudflare. Clerk stays available as an [optional alternative](#use-clerk-instead).
 
 This page is for the person who runs the instance. If an instance already exists and you only want to use it, see [using Vibase](/getting-started/quickstart/). Running an instance needs no checkout of the repository: the release's server package, `@vibase/server-d1`, carries the Worker, the workspace app, the database migrations and the `vibase-server` program that sets up, checks and upgrades an instance. Developers who work from a clone have [a source path](#from-source) at the end of this page.
 
