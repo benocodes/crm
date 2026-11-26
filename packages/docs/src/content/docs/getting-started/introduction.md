@@ -13,11 +13,12 @@ Each organization runs its own Cloudflare Worker, its own D1 databases (one for 
 | --- | --- |
 | MCP | Connect an agent that supports remote MCP servers. |
 | CLI | Work from a terminal, write scripts, and administer agent access. |
-| REST and OpenAPI | Build your own applications and integrations. |
+| SDK | Build web apps for people on top of Vibase: a typed TypeScript client with browser sign-in. See [build apps and workflows](/guides/build-apps/). |
+| REST and OpenAPI | Build your own applications and integrations in any language. |
 
 These interfaces expose operations from a shared registry. Permissions are enforced by the backend for every client.
 
-Headless means you choose the interface: talk to your agents, use the CLI, or build a custom application. Agentic means agents can discover the CRM's operations, act within granted authority, and request review when needed. Vibase includes a small browser portal for sign-in and connections.
+Headless means you choose the interface: talk to your agents, use the CLI, or build a custom application for your team. Agentic means agents can discover the CRM's operations, act within granted authority, and request review when needed. Vibase includes a small browser portal for sign-in and connections.
 
 ## Keep authority explicit
 
