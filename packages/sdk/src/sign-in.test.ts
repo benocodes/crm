@@ -140,7 +140,10 @@ async function signedIn(over: Partial<BrowserSignInOptions> = {}, dep = deployme
   return { ...r, done }
 }
 const fail = async (p: Promise<unknown>) => {
-  const e = await p.then(
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('the promise neither resolved nor rejected')), 1500),
+  )
+  const e = await Promise.race([p, timeout]).then(
     () => undefined,
     (x) => x,
   )
