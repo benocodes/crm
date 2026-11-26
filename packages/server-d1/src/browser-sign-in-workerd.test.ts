@@ -86,7 +86,7 @@ function appFetch(sent: Sent[], mutate?: (url: string, body: string) => string) 
       headers,
       body: (body ?? undefined) as never,
     })) as unknown as Response
-    sent.push({ url, init: { ...init, headers }, status: res.status, headers: res.headers })
+    sent.push({ url, init: { ...init, headers, body: body as never }, status: res.status, headers: res.headers })
     return res
   }) as typeof fetch
 }
@@ -254,6 +254,7 @@ describe('DX636 group 5: token() refresh against the real Worker (D5)', () => {
     expect(stored.access_token).toBe(refreshed)
     // Finding (RESULT.md): whether Better Auth rotated the refresh token.
     console.info(`DX636 finding: refresh token rotated = ${stored.refresh_token !== first.refresh_token}`)
+    expect(stored.refresh_token).not.toBe(first.refresh_token) // Better Auth 1.7.22 rotates on refresh
     const apiSent: Sent[] = []
     const vibase = createClient({ url: BASE, auth: signIn.token, fetch: appFetch(apiSent) })
     expect(Array.isArray((await vibase.contacts.list()).data)).toBe(true)
@@ -264,7 +265,7 @@ describe('DX636 group 5: token() refresh against the real Worker (D5)', () => {
     expect(refreshRequests(sent)).toHaveLength(1) // the client's call used the stored token: no second refresh
   }, 60_000)
 
-  it('P1 finding: a refresh without `resource` (dropped from the refresh request only) and what /api answers for the token it returns', async () => {
+  it('P1 finding: `resource` is not load-bearing on refresh (dropped from the refresh request only, the token endpoint answers 200 and /api accepts the token)', async () => {
     const dropResource = (_url: string, body: string) => {
       const form = new URLSearchParams(body)
       if (form.get('grant_type') === 'refresh_token') form.delete('resource')
@@ -282,7 +283,9 @@ describe('DX636 group 5: token() refresh against the real Worker (D5)', () => {
       (e) => e.status,
     )
     console.info(`DX636 finding: refresh without resource: token endpoint ${request.status}, /api ${outcome}`)
-    expect(outcome).toBeDefined()
+    expect(refreshed).not.toMatch(/^rejected/)
+    expect(request.status).toBe(200)
+    expect(outcome).toBe(200)
   }, 60_000)
 
   it('a deleted client: the next refresh resolves null and the record is gone', async () => {

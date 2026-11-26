@@ -37,7 +37,11 @@ export interface BrowserSignIn {
   signIn(options?: { returnTo?: string }): Promise<never>
   /** Call on page load: finishes a sign-in when the current URL is the callback, else resolves `null`. */
   handleRedirect(): Promise<{ returnTo: string } | null>
-  /** The access token while more than 60 s remain, else `null`. Exactly the `auth` function `createClient` takes. */
+  /**
+   * The access token: the stored one while more than 60 s remain, else a refreshed one (single-flight). `null` when signed out, when
+   * the grant is gone (a refused refresh clears the record) or when there is nothing to refresh with; rejects when the refresh could
+   * not be asked or answered (network, 5xx, a malformed answer), keeping the record. Exactly the `auth` function `createClient` takes.
+   */
   token(): Promise<string | null>
   /** True when a token record exists. */
   isSignedIn(): boolean
@@ -340,6 +344,66 @@ export function browserSignIn(options: BrowserSignInOptions): BrowserSignIn {
     throw new VibaseError(res.status, error, `the token endpoint refused (${error})${description}`)
   }
 
+  /** Refreshes the sign-in whose stored record was `raw`; whatever it learns is applied only while that record is still the stored one (P3). */
+  async function refresh(record: TokenRecord & { refresh_token: string }, raw: string): Promise<string | null> {
+    const d = await discover()
+    const res = await send(d.tokenEndpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: record.refresh_token,
+        client_id: options.clientId,
+        resource: d.resource,
+      }).toString(),
+    })
+    const body: unknown = await res.json().catch(() => undefined)
+    const unchanged = tokens.getItem(tokenKey) === raw
+    if (
+      res.status === 200 &&
+      isObject(body) &&
+      text(body.access_token) &&
+      typeof body.expires_in === 'number' &&
+      Number.isFinite(body.expires_in)
+    ) {
+      if (!unchanged) return null
+      const stored: TokenRecord = {
+        access_token: body.access_token,
+        expires_at: Date.now() + body.expires_in * 1000,
+        refresh_token: text(body.refresh_token) ? body.refresh_token : record.refresh_token,
+      }
+      tokens.setItem(tokenKey, JSON.stringify(stored))
+      return stored.access_token
+    }
+    if (res.status === 400 || res.status === 401) {
+      if (unchanged) tokens.removeItem(tokenKey)
+      return null
+    }
+    if (res.status === 200)
+      throw new VibaseError(200, 'invalid_response', 'the token endpoint answered without an access token')
+    const error = isObject(body) && text(body.error) ? body.error : `http_${res.status}`
+    const description = isObject(body) && text(body.error_description) ? `: ${body.error_description}` : ''
+    throw new VibaseError(res.status, error, `the token endpoint could not refresh (${error})${description}`)
+  }
+  let refreshing: Promise<string | null> | undefined
+
+  async function token(): Promise<string | null> {
+    const record = readToken()
+    if (!record) return null
+    if (record.expires_at - Date.now() > MARGIN_MS) return record.access_token
+    if (!record.refresh_token) {
+      tokens.removeItem(tokenKey) // P2: expired and nothing to refresh with: signed out, so isSignedIn() agrees
+      return null
+    }
+    if (refreshing) return refreshing
+    const raw = tokens.getItem(tokenKey) as string
+    const attempt = refresh({ ...record, refresh_token: record.refresh_token }, raw).finally(() => {
+      if (refreshing === attempt) refreshing = undefined
+    })
+    refreshing = attempt
+    return attempt
+  }
+
   async function handleRedirect(): Promise<{ returnTo: string } | null> {
     const here = page()
     if (!here) return null
@@ -377,11 +441,7 @@ export function browserSignIn(options: BrowserSignInOptions): BrowserSignIn {
   return {
     signIn,
     handleRedirect,
-    async token() {
-      const record = readToken()
-      // DX624 P1: no refresh yet. Inside the margin the answer is `null`, nothing is sent and the record (refresh token included) stays.
-      return record && record.expires_at - Date.now() > MARGIN_MS ? record.access_token : null
-    },
+    token,
     isSignedIn: () => readToken() !== null,
     signOut() {
       tokens.removeItem(tokenKey)
