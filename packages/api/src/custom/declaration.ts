@@ -60,7 +60,7 @@ const ENUM_VALUE_MAX = 100
 
 /**
  * D19: a declaration may not name a bookkeeping column or any reserved name. The bookkeeping columns, `additional_props` ([[CORE318]]), the list parameters (`after`, `limit`, `sort`, `order`, `q`, `tag`, `tag_id`)
- * the CLI's reserved flags (`data`, `all`, `refresh`, `profile`, `server`, `output`, `help`) and the aggregate parameters (`count`, `sum`, `avg`, `min`, `max`, `group_by`, [[CORE615]] D6): a field named like one would make the list or aggregate command impossible to derive.
+ * the CLI's reserved flags (`data`, `all`, `refresh`, `profile`, `server`, `output`, `help`) and the aggregate parameters (`count`, `sum`, `avg`, `min`, `max`, `group_by`, [[CORE615]] D6) and the future grammar parameters (`or`, `and`, `not`, `select`, [[CORE570]] D1): a field named like one would make the list or aggregate command impossible to derive.
  */
 export const RESERVED_NAMES: readonly string[] = [
   'id',
@@ -91,6 +91,11 @@ export const RESERVED_NAMES: readonly string[] = [
   'min',
   'max',
   'group_by',
+  // [[CORE570]] D1: future filter-grammar parameters (`or`/`and`/`not` grouping, `select` column selection), reserved now so they stay additive.
+  'or',
+  'and',
+  'not',
+  'select',
 ]
 
 export const NAME_SHAPE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/
