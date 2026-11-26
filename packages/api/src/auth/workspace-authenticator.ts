@@ -60,6 +60,7 @@ export function createProfileCache(adapter: AuthAdapter): ProfileCache {
  *   `cliClientId` makes the person act as themselves (user, scopes = role ∩ token); any other client is the person's **delegated agent**, created
  *   on first sight, with scopes = token ∩ cap ∩ role ∩ agent-grantable (D15); role `agent` is the agent account whatever the client. On the built-in provider a first-party client ([[CORE639]]) is the person as the CLI is,
  *   its scopes = role ∩ the client's live list (or the ceiling) ∩ agent-grantable, and a client that no longer exists is `401`.
+ *   On the built-in provider a CLI person's scopes are the live role and an agent account's the live record ∩ agent-grantable ([[CORE630]] D3, D4), each met with the token's list only when the token names the provider scope `limited_login`.
  *
  * Kinds never convert: a user with role `agent`, or an agent-linked subject with a human role, is `403 organization_forbidden`. A refused
  * token (no admissible role, unknown subject, kind mismatch) writes nothing; a disabled agent is `401`. The organisation is the deployment's
