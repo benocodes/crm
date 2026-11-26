@@ -41,4 +41,8 @@ export const MIGRATIONS: readonly { readonly name: string; readonly sha256: stri
     name: '0030_action_request_target_summary.sql',
     sha256: '3bcf22299efe27787d924776240d0d9425aa0d5105c6614cfe9a8909e088e81e',
   },
+  {
+    name: '0031_connector_consented_scopes.sql',
+    sha256: '0515ce4feb90a7ab8f106194d16effe5767ad7d60cced4ba35f7728503351b8f',
+  },
 ]

@@ -158,10 +158,10 @@ describe('a delegated agent (a DCR client)', () => {
     expect(has(set, 'read')).toBe(false)
     expect(has(set, 'read_metadata')).toBe(true)
   })
-  it('the stored scopes are never rewritten by the closure', async () => {
+  it('the closure never adds to the stored scopes: the record follows the sign-in ([[CORE666]] D1), the metadata level alone, never `read`', async () => {
     await asDelegate(['contacts:read'], META)
     const [agent] = await rows('select scopes from agents where auth_client_id = ?', DCR)
-    expect(JSON.parse(agent!.scopes)).toEqual(['contacts:read'])
+    expect(JSON.parse(agent!.scopes)).toEqual([META])
   })
 })
 
@@ -179,6 +179,7 @@ describe('live: the real declared scopes (API516 group 1)', () => {
     const asPerson = await authenticate(await oauth('user_o', CLI, 'messages:read messages:read_metadata'))
     expect(asPerson.toStrings()).toEqual(['messages:read', LIVE])
     const [agent] = await rows('select scopes from agents where auth_client_id = ?', DCR)
-    expect(JSON.parse(agent!.scopes)).toEqual(['messages:read'])
+    // [[CORE666]] D1: the delegated agent's record follows its latest sign-in (the metadata level alone); the person's token (the CLI path) wrote nothing.
+    expect(JSON.parse(agent!.scopes)).toEqual([LIVE])
   })
 })

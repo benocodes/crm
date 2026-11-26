@@ -308,7 +308,8 @@ describe('a delegated agent on first sight (D15)', () => {
       created_by: human,
       disabled_at: null,
     })
-    expect(JSON.parse(agent!.scopes)).toEqual(grantable)
+    // [[CORE666]] D1: the record is the sign-in's list (closed, agent-grantable, met with the role), never every grantable scope.
+    expect(JSON.parse(agent!.scopes)).toEqual(['contacts:read', 'contacts:request_approval', 'contacts:write'])
     const events = await rows("select actor_id, resource_id, type from events where type = 'agent.created'")
     expect(events).toEqual([{ actor_id: human, resource_id: agent!.id, type: 'agent.created' }])
     expect(await rows('select kind from principals where id = ?', agent!.id)).toEqual([{ kind: 'agent' }])
@@ -325,7 +326,8 @@ describe('a delegated agent on first sight (D15)', () => {
     const second = await call(wk, 'GET', '/meta/v1/me', await oauth('user_b', DCR, 'contacts:write'))
     expect(second.json.principal.id).toBe(first.json.principal.id)
     expect(await count('agents')).toBe(1)
-    expect(await count('events')).toBe(1 /* agent.created only: first sight of a human writes no event */)
+    // agent.created, and one agent.updated: the second token lists another scope, so the record follows it ([[CORE666]] D1, D8); first sight of a human writes no event
+    expect(await count('events')).toBe(2)
     const other = await call(wk, 'GET', '/meta/v1/me', await oauth('user_c', DCR, 'contacts:read'))
     expect(other.json.principal.id).not.toBe(first.json.principal.id)
     const elsewhere = await call(wk, 'GET', '/meta/v1/me', await oauth('user_b', 'client_other', 'contacts:read'))

@@ -24,6 +24,11 @@ export type BooleanColumn = ColumnType<boolean | number, boolean, boolean>
  * that mistypes the column (`z.string()`) is a compile error; the raw D1 text never reaches a typed consumer.
  */
 export type StringArrayColumn = ColumnType<string[], readonly string[], readonly string[]>
+export type NullableStringArrayColumn = ColumnType<
+  string[] | null,
+  readonly string[] | null | undefined,
+  readonly string[] | null
+>
 
 /**
  * An integer as the DECODED number (CORE25 P5): Postgres `integer` and `bigint` (`pg` returns bigint as text, decoded in
@@ -144,6 +149,8 @@ export interface AgentsTable {
   /** A delegated agent: the OAuth client the human consented to (with `delegated_by`). */
   auth_client_id: string | null
   delegated_by: string | null
+  /** [[CORE666]] D4: a delegated agent's latest sign-in's list (closed, agent-grantable); machinery, never in the record, an answer or an event. D1 only: null for every other agent and before 0031. */
+  consented_scopes: NullableStringArrayColumn
 }
 
 // ---- the messaging model (CORE25 D44): capture tables are append-only, the two link tables are soft-deleted ----------
@@ -712,6 +719,7 @@ export const COLUMN_KINDS = {
     auth_subject: 'text',
     auth_client_id: 'text',
     delegated_by: 'uuid',
+    consented_scopes: 'string_array',
   },
   threads: {
     id: 'uuid',

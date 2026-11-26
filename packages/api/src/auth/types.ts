@@ -16,10 +16,10 @@ export type Principal = {
   /** The OAuth client of the token on the D1 workspace path ([[CORE77]] D14); absent for a session token and an API key. */
   clientId?: string
   /**
-   * [[CORE662]] ([[CORE630]] D8): set only on the built-in provider, for an OAuth sign-in whose live authority (a CLI person: the role; an agent account: its record; a delegated agent: its record met with the role) holds scopes the token's
+   * [[CORE662]] ([[CORE630]] D8): set only on the built-in provider, for an OAuth sign-in whose live authority (a CLI person: the role; an agent account: its record) holds scopes the token's
    * list lacks. `kind` says which caller it is, `missing` lists those scopes. Absent for a session, an API key, a first-party app, and when nothing is missing. It only ever feeds the refusal hint: it grants nothing.
    */
-  signIn?: { kind: 'cli' | 'agent_account' | 'delegated'; missing: readonly string[] }
+  signIn?: { kind: 'cli' | 'agent_account'; missing: readonly string[] }
 }
 
 /**

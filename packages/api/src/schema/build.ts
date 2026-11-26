@@ -159,8 +159,8 @@ function groupBy<T>(rows: readonly T[], key: (r: T) => string): Map<string, T[]>
   return out
 }
 
-/** [[CORE574]] P3: columns the schema document does not list at all, not even as `exposed: false`: a fingerprint of a message's content is no business of a reader of the schema. */
-const UNLISTED_COLUMNS: ReadonlySet<string> = new Set(['messages.content_sha256'])
+/** [[CORE574]] P3: columns the schema document does not list at all, not even as `exposed: false`: a fingerprint of a message's content is no business of a reader of the schema; [[CORE666]] D4: nor is the list a connector's latest sign-in approved. */
+const UNLISTED_COLUMNS: ReadonlySet<string> = new Set(['messages.content_sha256', 'agents.consented_scopes'])
 
 export function buildSchemaDocument(input: BuildInput): SchemaDocument {
   const catalog = input.catalog ?? CATALOG

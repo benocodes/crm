@@ -90,6 +90,9 @@
       },
       {
         "name": "0030_action_request_target_summary.sql"
+      },
+      {
+        "name": "0031_connector_consented_scopes.sql"
       }
     ],
     "success": true,
