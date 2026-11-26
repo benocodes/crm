@@ -3,7 +3,7 @@ title: Quickstart
 description: Install the Vibase client, sign in to an existing instance, read and write records, and connect an agent.
 ---
 
-Use a Vibase instance that someone has already set up: install the command line client, sign in, make your first records, and connect an agent. If you need to run the instance itself, see [running an instance](/deployment/self-hosting/).
+Use a Vibase instance that someone has already set up: install the command line client, sign in, make your first records, and connect an agent. If you need to run the instance itself, see [deploying Vibase](/deployment/self-hosting/).
 
 You need Node.js 22.12 or later, the URL of your instance (for example `https://api.example.com`), and an invitation from the instance's owner.
 
@@ -55,6 +55,6 @@ For a standalone automation with its own account, follow [invite agents and mana
 
 | Symptom | What to check |
 | --- | --- |
-| Device authorization is unavailable | The instance's owner must enable device login; see [running an instance](/deployment/self-hosting/). |
+| Device authorization is unavailable | The instance's owner must enable device login; see [deploying Vibase](/deployment/self-hosting/). |
 | `403 organization_forbidden` | Your account has no recognized role: ask the owner to check the invitation (on Clerk, its `vibase_role`). |
 | `vibase: command not found` | The npm global bin directory is not on your `PATH`. |

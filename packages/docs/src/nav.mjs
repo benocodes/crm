@@ -46,7 +46,20 @@ export const sections = [
   {
     label: 'Deploy',
     items: [
-      { label: 'Self-host Vibase', slug: 'deployment/self-hosting' },
+      { label: 'Deploy Vibase', slug: 'deployment/self-hosting' },
+      { label: 'Upgrade, redeploy and roll back', slug: 'deployment/upgrade' },
+    ],
+  },
+  {
+    label: 'Deployment recipes',
+    items: [
+      { label: 'workers.dev and custom domains', slug: 'deployment/domains' },
+      { label: 'Google sign-in and email', slug: 'deployment/sign-in-and-email' },
+      { label: 'Recover the owner', slug: 'deployment/recover-owner' },
+      { label: 'Set up without init, or in CI', slug: 'deployment/manual-setup' },
+      { label: 'Install from a release tarball', slug: 'deployment/release-tarball' },
+      { label: 'Use Clerk instead of Better Auth', slug: 'deployment/clerk' },
+      { label: 'Deploy from source', slug: 'deployment/from-source' },
       { label: 'Publish these docs', slug: 'deployment/docs-site' },
     ],
   },
