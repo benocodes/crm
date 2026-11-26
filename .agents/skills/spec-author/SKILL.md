@@ -199,6 +199,11 @@ Use these headings in order. Skip ones that don't apply — an empty section is 
 
 1. **Context** — why this spec exists; what's broken or missing today.
 2. **Concept** — the core idea, names, and relationships being introduced. Prose, not code.
+   When the spec answers a user's report or request, open the Concept with the user's purpose **in their words** and
+   the narrowest change that serves it, then check each decision against that sentence. [[CORE630]]'s first design
+   read "a new permission works without a new agent" as "a token's scopes stop limiting", was approved, built and
+   reverted (#658, #659): about a quarter of the spec's cost. The rewrite led with the user's principle ("a token's
+   claims are true") and every later ruling narrowed it.
 3. **Design** — key technical decisions, interfaces, config shapes, data flows.
    When a decision applies to a class of things ("binary operations are not tools"), state the rule by the
    declaration that defines the class (`output: 'binary'`) and name members only as "today: X", checked
