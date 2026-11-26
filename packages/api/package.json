@@ -6,8 +6,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./discovery": "./src/discovery.ts",
+    "./origins": "./src/origins.ts",
     "./scope-descriptions": "./src/auth/scope-descriptions.ts",
     "./scope-areas": "./src/auth/scope-areas.ts",
+    "./test/origin-table": "./src/test/origin-table.ts",
     "./test/golden": "./src/test/golden/index.ts",
     "./test/clerk": "./src/test/clerk.ts",
     "./test/better-auth": "./src/test/better-auth.ts",
