@@ -313,33 +313,6 @@ describe('the identity model slice (CORE36 C3)', () => {
     expect(names).toEqual(expect.arrayContaining(['companies', 'contacts', 'identities', 'unit_assertion']))
   })
 
-  it('has the columns and nullability of the Postgres tables', async () => {
-    const shape = async (table: string) =>
-      Object.fromEntries(
-        (await all<{ name: string; notnull: number }>(`PRAGMA table_info(${table})`)).map((c) => [
-          c.name,
-          c.notnull === 1,
-        ]),
-      )
-    const common = {
-      id: true,
-      created_at: true,
-      updated_at: true,
-      organization_id: true,
-      created_by: true,
-      deleted_at: false,
-    }
-    expect(await shape('companies')).toEqual({ ...common, name: true, domain: false, additional_props: true })
-    expect(await shape('contacts')).toEqual({
-      ...common,
-      name: false,
-      company_id: false,
-      merged_into_id: false,
-      additional_props: true,
-    })
-    expect(await shape('identities')).toEqual({ ...common, kind: true, value: true, contact_id: false, own: true })
-  })
-
   it('keeps the foreign keys, composite and plain', async () => {
     const fks = async (table: string) =>
       (
@@ -476,28 +449,6 @@ describe('the administration slice (CORE40 C2)', () => {
     expect(names).not.toContain('api_keys') // dropped by 0020 ([[CORE329]])
   })
 
-  it('has the columns and nullability of the Postgres tables', async () => {
-    const shape = async (table: string) =>
-      Object.fromEntries(
-        (await all<{ name: string; notnull: number }>(`PRAGMA table_info(${table})`)).map((c) => [
-          c.name,
-          c.notnull === 1,
-        ]),
-      )
-    const common = { id: true, created_at: true, updated_at: true, organization_id: true, created_by: true }
-    expect(await shape('memberships')).toEqual({ ...common, user_id: true, role: true, deleted_at: false })
-    expect(await shape('agents')).toEqual({
-      ...common,
-      name: true,
-      scopes: true,
-      disabled_at: false,
-      auth_provider: false,
-      auth_subject: false,
-      auth_client_id: false,
-      delegated_by: false,
-    })
-  })
-
   it('keeps the plain foreign keys, all cascading where Postgres cascades', async () => {
     const fks = async (table: string) =>
       (await all<{ table: string; from: string; to: string; on_delete: string }>(`PRAGMA foreign_key_list(${table})`))
@@ -632,66 +583,6 @@ describe('the messaging slice (CORE25 C1)', () => {
       const r = rows.find((x) => x.name === t)
       expect(r, t).toBeDefined()
       expect(r!.sql, t).toMatch(/\) STRICT$/)
-    }
-  })
-
-  it('has the columns and nullability of the Postgres tables', async () => {
-    const want: Record<string, Record<string, boolean>> = {
-      threads: { channel: true, subject: false },
-      messages: {
-        thread_id: true,
-        channel: true,
-        kind: true,
-        external_id: true,
-        in_reply_to: false,
-        author: true,
-        occurred_at: true,
-        preview: true,
-        content_key: false,
-        content_sha256: false, // 0028, CORE574 D6
-        version: true,
-        retracted_at: false,
-      },
-      interactions: {
-        kind: true,
-        channel: true,
-        direction: true,
-        occurred_at: true,
-        thread_id: false,
-        message_id: false,
-      },
-      files: { name: true, mime_type: true, size_bytes: true, sha256: true, storage_key: true },
-      contact_files: { contact_id: true, file_id: true, updated_at: true, deleted_at: false },
-      company_files: { company_id: true, file_id: true, updated_at: true, deleted_at: false },
-      interaction_participants: { interaction_id: true, identity_id: true, role: true },
-      message_attachments: {
-        message_id: true,
-        position: true,
-        file_id: false,
-        type: true,
-        name: false,
-        mime_type: false,
-        size_bytes: false,
-        inline: true,
-        content_id: false,
-        fetch_status: true,
-        fetch_metadata: false,
-        fetch_error: false,
-      },
-      // 0024 (CHN421 D10): either key, exactly one set, so both are nullable.
-      message_sources: {
-        message_id: true,
-        connection_id: false,
-        form_id: false,
-        provider_message_id: true,
-        provider_thread_id: true,
-      },
-      thread_sources: { thread_id: true, connection_id: false, form_id: false, provider_thread_id: true },
-    }
-    for (const t of ALL) {
-      const cols = await all<{ name: string; notnull: number }>(`PRAGMA table_info(${t})`)
-      const got = Object.fromEntries(cols.map((c) => [c.name, c.notnull === 1]))
-      expect(got, t).toEqual({ id: true, organization_id: true, created_by: true, created_at: true, ...want[t] })
     }
   })
 

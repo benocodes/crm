@@ -3,7 +3,7 @@ import type { StorageBinding } from '@vibase/storage'
 import { ScopeSet, closeScopes } from '../scopes.js'
 import { FULL_ACCESS_SCOPE } from './full-access-scope.js'
 import { AuthFailure, ProfileNotFoundError, type AuthAdapter, type AuthProfile } from './adapter.js'
-import { lookupPrincipal, provisionAgent } from './agent-principals.js'
+import { followSignIn, lookupPrincipal, provisionAgent } from './agent-principals.js'
 import { provisionUser } from './first-sight.js'
 import { resolveActiveOrganization } from './organization.js'
 import { SCOPE_POLICY, isAgentGrantable, scopesForRole, type Role, type ScopePolicy } from './roles.js'
@@ -58,7 +58,7 @@ export function createProfileCache(adapter: AuthAdapter): ProfileCache {
  *   role `agent` is an agent account;
  * - an **OAuth access token** carries no role, so the profile supplies it (a cached Backend read, 60 s; a `404` is a refusal). A client that is
  *   `cliClientId` makes the person act as themselves (user, scopes = role ∩ token); any other client is the person's **delegated agent**, created
- *   on first sight, with scopes = token ∩ cap ∩ role ∩ agent-grantable (D15); role `agent` is the agent account whatever the client. On the built-in provider a first-party client ([[CORE639]]) is the person as the CLI is,
+ *   on first sight, its record the token's list ∩ role ∩ agent-grantable and rewritten whenever a token lists something else ([[CORE666]] D1), so it holds token ∩ record ∩ role ∩ agent-grantable; role `agent` is the agent account whatever the client. On the built-in provider a first-party client ([[CORE639]]) is the person as the CLI is,
  *   its scopes = role ∩ the client's live list (or the ceiling) ∩ agent-grantable, and a client that no longer exists is `401`.
  *
  * Kinds never convert: a user with role `agent`, or an agent-linked subject with a human role, is `403 organization_forbidden`. A refused
@@ -209,7 +209,11 @@ export function createWorkspaceAuthenticator(opts: {
       }
     }
 
-    // Any other OAuth client: the person's delegated agent for this client (D15), created on first sight.
+    // Any other OAuth client: the person's delegated agent for this client (D15), created on first sight. [[CORE666]] D1: its record is its latest sign-in's list `consented` (the token's, closed, met with what an agent may
+    // hold), met with the person's role; a token whose list differs from the one last written rewrites it before what the request holds is computed.
+    const roleScopes = scopesForRole(role, declaredScopes, policy).toStrings()
+    // `listBound` is null only for a CLI person's wildcard, never for a delegated agent: the client check keeps a connector's token list its bound even if its token somehow carries the wildcard.
+    const consented = meet(listBound ?? declaredScopes, grantable)
     let delegated = found.delegated
     if (delegated === null) {
       let p: AuthProfile
@@ -231,20 +235,24 @@ export function createWorkspaceAuthenticator(opts: {
         clientId,
         kind: 'delegated',
         name,
-        scopes: grantable,
+        scopes: meet(consented, roleScopes),
+        consentedScopes: consented,
         humanId: found.userId,
         organizationId,
       })
     }
     if (delegated.disabled) throw new AuthFailure('disabled')
-    const roleScopes = scopesForRole(role, declaredScopes, policy).toStrings()
-    // `listBound` is null only for a CLI person's wildcard, never for a delegated agent: the client check keeps a connector's token list its bound even if its token somehow carries the wildcard.
-    const held = meet(listBound ?? declaredScopes, delegated.scopes, roleScopes, grantable)
-    return agentPrincipal(
-      delegated.agentId,
-      held,
-      missingFrom('delegated', meet(delegated.scopes, roleScopes, grantable), held),
-    )
+    delegated = await followSignIn(storage, env, {
+      provider,
+      subject,
+      clientId: clientId!,
+      humanId: found.userId,
+      organizationId,
+      agent: delegated,
+      consented,
+      scopes: meet(consented, roleScopes),
+    })
+    return agentPrincipal(delegated.agentId, meet(consented, delegated.scopes, roleScopes, grantable))
   }
 
   return {
@@ -395,7 +403,10 @@ export function createWorkspaceAuthenticator(opts: {
         }
       }
 
-      // Any other OAuth client: the person's delegated agent for this client (D15), created on first sight.
+      // Any other OAuth client: the person's delegated agent for this client (D15), created on first sight. [[CORE666]] D1, D3: its record is its latest sign-in's list (on Clerk, what the client asked for and the person
+      // accepted), met with the person's role; a token whose list differs from the one last written rewrites it before what the request holds is computed.
+      const roleScopes = scopesForRole(humanRole, declaredScopes, policy).toStrings()
+      const consented = meet(tokenScopes!, grantable)
       let delegated = found.userId !== null ? found.delegated : null
       if (delegated === null) {
         const p = await profileForFirstSight(verified.subject)
@@ -407,14 +418,24 @@ export function createWorkspaceAuthenticator(opts: {
           clientId,
           kind: 'delegated',
           name,
-          scopes: grantable,
+          scopes: meet(consented, roleScopes),
+          consentedScopes: consented,
           humanId: login.userId,
           organizationId,
         })
       }
       if (delegated.disabled) throw new AuthFailure('disabled')
-      const roleScopes = scopesForRole(humanRole, declaredScopes, policy).toStrings()
-      return agentPrincipal(delegated.agentId, meet(tokenScopes!, delegated.scopes, roleScopes, grantable))
+      delegated = await followSignIn(storage, env, {
+        provider,
+        subject: verified.subject,
+        clientId: clientId!,
+        humanId: login.userId,
+        organizationId,
+        agent: delegated,
+        consented,
+        scopes: meet(consented, roleScopes),
+      })
+      return agentPrincipal(delegated.agentId, meet(consented, delegated.scopes, roleScopes, grantable))
     },
   }
 }

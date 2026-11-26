@@ -75,6 +75,7 @@ describe('migrations manifest (D5)', () => {
       '0028_content_sha256.sql',
       '0029_reset_content_sha256.sql',
       '0030_action_request_target_summary.sql',
+      '0031_connector_consented_scopes.sql',
     ])
   })
   it('catches one edited byte', () => {

@@ -1101,6 +1101,11 @@ interactive transaction, no `withContext` and no `executor` marker.
     It does not guarantee "the cursor ends at the newest page": a shorter overlapping page applied first wins and
     holds the cursor until the next run converges. State test obligations that way
     (`packages/api/src/webhooks/dispatch.ts`, `knowledge/specs/007-API219-webhook-dispatch/RETRO.md`).
+  - **A compare-and-set on a JSON-array column matches the text read, so every writer must canonicalise.** The
+    connector record's guard (`consented_scopes IS NULL` or `= <JSON of the list read>`, `expect: 'affected'`) holds
+    only because the list is sorted and written with `JSON.stringify`; a writer producing other text makes the guard
+    drift on every request. The loser of a race rolls back with no event and re-reads once. Test drift from `NULL` and
+    from a stored value (`packages/api/src/auth/agent-principals.ts`, [[CORE666]] D8, row 666.30).
 - **Sets cost a constant number of statements** ([[CORE36]] D5). Bind a set as ONE parameter with
   `jsonRows(qc, alias, columns, rows)` (D1 `json_each`, Postgres `jsonb_array_elements … with ordinality`), and
   emit its events with ONE `eventSetStatement` (ids and `before` in the parameter, `after` rendered from the
@@ -1640,6 +1645,9 @@ The app and auth pages are the pattern for any page the Worker serves (one entry
 - **A column that hashes content is a content oracle.** `content_sha256` is a `SecretColumns` member and is left out
   of `schema.get` entirely by `UNLISTED_COLUMNS` (`packages/api/src/schema/build.ts`), unlike `content_key`, which is
   listed as `exposed: false`. Never add such a column to a resource's fields, filters, sorts or event payloads.
+  The same holds for a machinery column on a resource table (`agents.consented_scopes`, [[CORE666]] D4): in
+  `UNLISTED_COLUMNS`, out of the resource's zod record, so no answer, event payload or `schema.get` carries it; prove
+  it with an absence mutation that projects the column into the record.
 
 ## Testing
 

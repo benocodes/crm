@@ -303,7 +303,7 @@ const pkce = () => {
   const verifier = randomBytes(40).toString('base64url')
   return { verifier, challenge: createHash('sha256').update(verifier).digest('base64url') }
 }
-async function register(name: string): Promise<string> {
+async function register(name: string, scope = 'openid offline_access contacts:read'): Promise<string> {
   const res = await page.request.post('/auth/oauth2/register', {
     headers: { origin: BASE },
     data: {
@@ -312,7 +312,7 @@ async function register(name: string): Promise<string> {
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
       redirect_uris: [CALLBACK],
-      scope: 'openid offline_access contacts:read',
+      scope,
     },
   })
   expect(res.status(), await res.text()).toBe(201)
@@ -469,6 +469,86 @@ test('3c. /consent with no scope asked: the areas and their defaults, Write forc
   await visit(bare(pkce().challenge, 'state-again'))
   await page.waitForURL(/\/app\/consent\?/)
   await expect(swt('CRM records', 'Write')).toHaveAttribute('aria-checked', 'false')
+})
+
+test("3d. [[CORE666]] a connector's record follows its sign-in: a narrowed consent sets the record, a wider re-consent widens it with one agent.updated, a refresh changes nothing", async () => {
+  // The person is still signed in from leg 3. A fresh DCR client asking for contacts:read and messages:read; the person turns Messages Read off, then (second authorize) approves it.
+  const ASKED = 'openid offline_access contacts:read messages:read'
+  const id = await register('E2E Record Client', ASKED)
+  const swt = (area: string, action: string) => page.getByRole('switch', { name: `${area} ${action}`, exact: true })
+  const signIn = async (state: string, off: Array<[string, string]>) => {
+    const { verifier, challenge } = pkce()
+    const back = await callbackOf(async () => {
+      await visit(authorizeUrl(id, challenge, state, ASKED))
+      await page.waitForURL(/\/app\/consent\?/)
+      for (const [area, action] of off) await swt(area, action).click()
+      if (off.length === 0) await expect(swt('Messages', 'Read')).toHaveAttribute('aria-checked', 'true')
+      else await expect(swt('Messages', 'Read')).toHaveAttribute('aria-checked', 'false')
+      await page.getByRole('button', { name: 'Allow' }).click()
+    })
+    const tok = await page.request.post('/auth/oauth2/token', {
+      headers: { origin: BASE },
+      form: {
+        grant_type: 'authorization_code',
+        code: back.searchParams.get('code')!,
+        code_verifier: verifier,
+        redirect_uri: CALLBACK,
+        client_id: id,
+        resource: `${BASE}/mcp`,
+      },
+    })
+    expect(tok.status(), await tok.text()).toBe(200)
+    return (await tok.json()) as { access_token: string; refresh_token: string; scope: string }
+  }
+  const callMcp = async (access: string) => {
+    const mcp = await page.request.post('/mcp', {
+      headers: { authorization: `Bearer ${access}`, accept: 'application/json, text/event-stream' },
+      data: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+    })
+    expect(mcp.status(), await mcp.text()).toBe(200)
+  }
+  /** The connector's agents.list row and its agent.updated events, read as the owner with the session token the page itself uses. */
+  const record = async () => {
+    await visit(`${BASE}/app/home`) // the page is at the client's loopback callback after a sign-in: read from the app's own origin
+    return page.evaluate(async () => {
+      const { token } = (await (await fetch('/auth/token')).json()) as { token: string }
+      const headers = { authorization: `Bearer ${token}` }
+      const agents = (
+        (await (await fetch('/meta/v1/agents?limit=200', { headers })).json()) as {
+          data: { id: string; name: string; scopes: string[] }[]
+        }
+      ).data
+      const agent = agents.find((a) => a.name.startsWith('E2E Record Client'))
+      if (!agent) return null
+      const events = (await (
+        await fetch(`/api/v1/events?resource_id=${agent.id}&type=agent.updated&limit=50`, { headers })
+      ).json()) as { data: unknown[] }
+      return { scopes: [...agent.scopes].sort(), updated: events.data.length }
+    })
+  }
+
+  // (a) narrowed consent: Messages Read off
+  const first = await signIn('state-record-1', [['Messages', 'Read']])
+  expect(first.scope.split(' ')).not.toContain('messages:read')
+  await callMcp(first.access_token)
+  // (b) the record is exactly the approved actions' scopes, not every grantable scope
+  expect(await record()).toEqual({ scopes: ['contacts:read'], updated: 0 })
+  // (c) the same client asks for the same set again: the stored consent does not cover messages:read, so the page shows it, on; Allow
+  const second = await signIn('state-record-2', [])
+  expect(second.scope.split(' ')).toContain('messages:read')
+  await callMcp(second.access_token)
+  // (d) the record widened, with exactly one agent.updated
+  const widened = await record()
+  expect(widened!.scopes).toEqual(['contacts:read', 'messages:read', 'messages:read_metadata'])
+  expect(widened!.updated).toBe(1)
+  // (e) a refresh: the same list, nothing written
+  const refreshed = await page.request.post('/auth/oauth2/token', {
+    headers: { origin: BASE },
+    form: { grant_type: 'refresh_token', refresh_token: second.refresh_token, client_id: id, resource: `${BASE}/mcp` },
+  })
+  expect(refreshed.status(), await refreshed.text()).toBe(200)
+  await callMcp(((await refreshed.json()) as { access_token: string }).access_token)
+  expect(await record()).toEqual(widened)
 })
 
 test('4. MCP-style client: Deny reaches the callback with error=access_denied', async () => {
