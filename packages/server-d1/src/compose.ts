@@ -25,6 +25,7 @@ import {
   openApiPath,
   createBetterAuthAdapter,
   createWorkspaceAuthAdapter,
+  agentAccountGrant,
   defaultGrantScopes,
   grantableScopes,
   logEmailFailure,
@@ -595,6 +596,17 @@ export function composeD1Worker(
           const link = await readDeployment(env.DB)
           if (!link) return false
           return (await membershipRoleReader(d1Binding(env.DB, link), 'better-auth')(subject)) === 'owner'
+        },
+        // [[CORE662]] ([[CORE630]] D11): an agent account's approval is narrowed to its record, read live from the CRM database (closed on a failing read: the auth package refuses the approval).
+        agentGrant: async (subject) => {
+          const link = await readDeployment(env.DB)
+          if (!link) throw new Error('the deployment is not initialised')
+          return agentAccountGrant(
+            d1Binding(env.DB, link),
+            { provider: 'better-auth', subject },
+            dcrScopeInputs.grantableScopes,
+            discovery.declaredScopes,
+          )
         },
       },
     )

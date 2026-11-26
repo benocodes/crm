@@ -361,7 +361,7 @@ async function deviceLogin(server: string, name: string, scopeFlag: string | und
   ) {
     const id = String(me.principal.id)
     await deps.stderr.write(
-      `Signed in as the agent account ${id}, which has no scopes yet: an owner must grant them, for example\n  vibase agents update ${id} --data '{"scopes":["contacts:read","contacts:write"]}'\n`,
+      `Signed in as the agent account ${id}, which has no scopes yet: an owner must grant them, for example\n  vibase agents update ${id} --data '{"scopes":["contacts:read","contacts:write"]}'\nthen sign in again with \`vibase login\`: a login holds only what the agent was granted when it signed in.\n`,
     )
   }
   // [[DX589]]: a device login that holds the owner's write power says so, on stderr; stdout and the exit code are unchanged.

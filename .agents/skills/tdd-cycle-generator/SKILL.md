@@ -544,6 +544,14 @@ decisions + 7 planner rules, no migration, 1 local browser E2E part, a new works
 run plus a free gate-fix round (+419 code / +608 test / +132 docs lines, 29 files), E2E 7/7 first run, approved round 0.
 The budget holds. A charter whose package must refuse to build without settings says, in Watch out, that the gate's
 `pnpm -r build` runs every `build` script bare (execute-cycle, new workspace package).
+**CORE662** (`knowledge/specs/047-CORE662-agent-sign-in-grants/RETRO.md`, [[CORE630]] cycle 1 of 3): 5 groups (1 matrix), 3
+decisions, no migration, no E2E, 3 riders. 375k / 169 calls including a free gate-fix round and one review-fix round (+331
+code / +816 test lines, 30 files). The counts held; the cost did not. It hid in one obligation driven through a real device
+flow from a second package (test-kit re-exports), a contract-change rider (wire digests, goldens, SDK types, the contract
+suite's comparison) and reading the pinned library for hook points. Count a rider that changes an operation's answer shape
+as a group in the Size line. Both review findings came from the charter's silence: a gate or narrowing placed in a library
+hook states, per path, what happens when the hook **cannot read the session** (not only when a lookup fails), and a scope
+list the charter defines ("record ∩ grantable") says whether it is closed under the scope implications.
 
 ### Step 3: Resolve identities
 

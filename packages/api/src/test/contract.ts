@@ -251,7 +251,12 @@ export function runContractSuite(opts: {
         /** An event carries the stored record: the definition's derived fields are on reads only ([[CORE131]] D2). */
         const recordOfEvent = (record: unknown) =>
           Object.fromEntries(
-            Object.entries(record as Record<string, unknown>).filter(([k]) => !(k in (def.derived ?? {}))),
+            Object.entries(record as Record<string, unknown>).filter(
+              // [[CORE662]] D10: the update answer's extra fields (`sign_in_notice`) are not columns, so no event holds them.
+              ([k]) =>
+                !(k in (def.derived ?? {})) &&
+                !(k in ((def.updateRecord as { shape?: object } | undefined)?.shape ?? {}) && !(k in def.record.shape)),
+            ),
           )
         const types = (events: EventRow[], action: string) =>
           events.filter((e) => e.type === `${def.eventName}.${action}`)

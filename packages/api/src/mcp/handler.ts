@@ -3,7 +3,7 @@ import { ApiError } from '../errors.js'
 import type { AppEnv } from '../rest/app.js'
 import type { Operation, OperationInput, Registry } from '../registry.js'
 import { INSTRUCTIONS } from './instructions.js'
-import { deriveTools, isVisible, splitArguments } from './tools.js'
+import { deriveTools, listedTool, splitArguments } from './tools.js'
 
 /** [[API106]] D2: newest first; the answer to an `initialize` naming anything else. */
 export const SUPPORTED_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26'] as const
@@ -137,9 +137,7 @@ export function mcpPost(deps: McpDeps) {
         return c.json({ jsonrpc: '2.0', id: rid, result: {} })
       case 'tools/list': {
         const principal = c.var.principal
-        const tools = deriveTools(deps.registry)
-          .filter((e) => isVisible(e.op, principal, deps.workspace))
-          .map((e) => e.tool)
+        const tools = deriveTools(deps.registry).flatMap((e) => listedTool(e, principal, deps.workspace) ?? [])
         return c.json({ jsonrpc: '2.0', id: rid, result: { tools } })
       }
       case 'tools/call': {

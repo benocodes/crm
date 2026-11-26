@@ -1262,7 +1262,11 @@ service context enforces it, so scope checks are written once.
     agent-grantable), so a request_approval token over a write cap proposes only. The sites are the API-key branch
     of `authMiddleware`, `meet` in `workspace-authenticator.ts`, `scopesForRole`, and the test stand-in
     authenticator. `ScopeSet.parse` stays exact and requirement checks stay exact; a new credential path must
-    close its set, or a write-only principal cannot propose. Stored grants are never expanded.
+    close its set, or a write-only principal cannot propose. Stored grants are never expanded. A list computed
+    *for* a token (an agent account's sign-in grant, `agentAccountGrant` in `src/auth/agent-principals.ts`,
+    [[CORE662]]) closes the same way against the declared set before it meets anything: met from the record's literal
+    scopes it drops `x:request_approval` that the agent holds live through `x:write`, and a refusal hint then advises a
+    sign-in that cannot help.
   - **`read ⇒ read_metadata` closes only against the declared set** ([[API518]] P1): `closeScopes(list, declared)`
     adds `x:read_metadata` for `x:read` only when `declared` contains it, and adds nothing with `declared` absent.
     The grammar has no resource list, so an ungated rule would put `contacts:read_metadata` into every set.
@@ -1376,6 +1380,9 @@ or an operation (`control-boundary.test.ts`, [[CORE259]] D5).
     old, no token or consent names them; [[CORE577]] D20). It writes no
     `control_audit` row and nothing in the CRM database; its counts are read-only `SELECT`s from the two
     status commands;
+  - Better Auth's own adapter inside the `/auth` before-hook, narrowing an agent account's pending device code (`auth_device_codes.scope`) when the device page claims it and again at approval, to its scopes met with its record in
+    the CRM (read live through the `agentGrant` port, closed on a failing read). No event, no `control_audit` row (machinery that grants nothing: the token only lists what the record already holds); the consent page's
+    narrowing edits the request and writes nothing of its own. It never writes the agent's record ([[CORE662]], [[CORE630]] D11, ruling 630.87);
   - later, [[OPS250]]'s migration tool.
 - **`control_deployment`**, the control marker: written only by `bootstrap`.
 - **`invitations` and `control_audit`** (control migration 0002, [[CORE245]], [[CORE259]] D12): written only

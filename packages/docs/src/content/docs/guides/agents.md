@@ -60,7 +60,13 @@ vibase agents update <agent-id> --add-scopes '["tasks:read"]' --remove-scopes '[
 
 `--scopes` replaces the list and cannot be combined with the add and remove forms. Removing a scope the agent lacks changes nothing. Two changes to the same agent at once can answer `409 conflict`; retry.
 
-Changes apply on the agent's next request: it does not need to sign in again. `vibase agents list` and `vibase agents get <agent-id>` show each agent's scopes and whether it is disabled. For a delegated MCP agent, the instance's Agents page (`/app/agents`) lists it and shows the command to grant its scopes. What a delegated agent can do is also bounded by the person who consented.
+How a change reaches the agent depends on how it signs in:
+
+- **An API-key agent** reads its scopes on every request: a grant or a removal applies at once.
+- **An agent account** (invited with the agent role, signed in with `vibase login`) holds in its sign-in only the scopes it was granted at that moment. Grant first, then sign in: a login made before any grant holds no scopes. A scope you grant later reaches the agent when it runs `vibase login` again (same agent account, so the same agent id); until then its requests are refused with `insufficient_scope` and a message saying so, and `agents update` prints the same advice to you. A removal still applies on its next request.
+- **A connector** (an MCP client such as Claude) is bounded by what the person approved when connecting: a scope you grant it that it had not approved reaches it when the connector reconnects, and the agent stays the same.
+
+`vibase agents list` and `vibase agents get <agent-id>` show each agent's scopes and whether it is disabled. For a delegated MCP agent, the instance's Agents page (`/app/agents`) lists it and shows the command to grant its scopes. What a delegated agent can do is also bounded by the person who consented.
 
 A good starting point is read access to what the agent needs and `request_approval` for what it changes, so a person reviews the first proposals. Move a resource to `write` once you trust the agent with it.
 

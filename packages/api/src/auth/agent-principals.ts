@@ -14,6 +14,7 @@ import {
   type StorageBinding,
 } from '@vibase/storage'
 import { ApiError, mapStorageError } from '../errors.js'
+import { closeScopes } from '../scopes.js'
 import { eventStatement } from '../outbox.js'
 import { SYSTEM_PRINCIPAL_READ, systemPrincipalRead, systemPrincipalSteps } from '../directory/system-principal.js'
 import { agents } from '../resources/agents.js'
@@ -124,6 +125,25 @@ export async function lookupPrincipal(
   } catch (err) {
     throw mapStorageError(err)
   }
+}
+
+/**
+ * [[CORE662]] ([[CORE630]] D11): what the vault's record grants the agent account behind a Better Auth subject, for the approval of a sign-in: its stored scopes met with `grantable` (never a human-only scope). `null` when the subject is
+ * not an agent account (no agent linked to it, or it is also a person: the authenticator refuses that mix, and a person's approval is never narrowed); `[]` for a disabled account. Read-only, live, no cache; a failing read throws.
+ */
+export async function agentAccountGrant(
+  storage: StorageBinding,
+  a: { provider: string; subject: string },
+  grantable: readonly string[],
+  declared: readonly string[],
+): Promise<string[] | null> {
+  const found = await lookupPrincipal(storage, { provider: a.provider, subject: a.subject, clientId: null })
+  if (found.account === null || found.userId !== null) return null
+  if (found.account.disabled) return []
+  // Closed like the authenticator closes every list (write implies request_approval, read_metadata under read) before it meets them: a record holding contacts:write holds contacts:request_approval too.
+  return closeScopes(found.account.scopes, declared)
+    .filter((s) => grantable.includes(s))
+    .sort()
 }
 
 type NewAgent = {

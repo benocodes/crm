@@ -209,6 +209,8 @@ export interface PreparedResource<T extends CrudTable = CrudTable, R extends { i
   readonly columnKinds?: Readonly<Record<string, ColumnKind>>
   /** The public record. Its keys are the projection; none may be a secret column. */
   readonly record: z.ZodType<R> & { shape: Record<string, unknown> }
+  /** [[CORE662]] D10: the answer schema of `update` when it carries more than the record (only `agents.update`'s `sign_in_notice`); the operation's override builds it. `get` and `list` keep the record. */
+  readonly updateRecord?: z.ZodType
   readonly create?: z.ZodObject
   readonly update?: z.ZodObject
   readonly operations?: readonly CrudAction[]

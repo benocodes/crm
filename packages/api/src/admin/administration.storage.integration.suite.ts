@@ -186,7 +186,10 @@ export function engineSuite(engineName: EngineName): void {
           [iso(2), 'bot', 'renamed'],
           [iso(3), 'renamed', 'renamed'],
         ])
-        expect((await events('agent.updated'))[1]!.after).toEqual(scoped)
+        // [[CORE662]] D10: the answer carries `sign_in_notice` (null for an API-key agent); the event holds the record alone.
+        expect(scoped.sign_in_notice).toBeNull()
+        const { sign_in_notice: _notice, ...scopedRecord } = scoped
+        expect((await events('agent.updated'))[1]!.after).toEqual(scopedRecord)
       })
 
       it('update refuses a bad scope with nothing written', async () => {
@@ -258,12 +261,13 @@ export function engineSuite(engineName: EngineName): void {
           async (_n, body, expected) => {
             const a = await twoScopes()
             const result = await update(a.id, { ...body }, { now: at(2) })
-            expect(result).toEqual({ ...a, scopes: expected, updated_at: iso(2) })
+            expect(result).toEqual({ ...a, scopes: expected, updated_at: iso(2), sign_in_notice: null })
             expect(await row('agents', a.id)).toMatchObject({ scopes: expected, updated_at: iso(2) })
             const ev = await agentEvents()
             expect(ev).toHaveLength(1)
             expect(ev[0]!.before).toEqual(a)
-            expect(ev[0]!.after).toEqual(result)
+            const { sign_in_notice: _notice, ...resultRecord } = result
+            expect(ev[0]!.after).toEqual(resultRecord)
             expect(Object.keys(ev[0]!.after).sort()).toEqual(Object.keys(a).sort())
             expect(Object.keys(ev[0]!.before).sort()).toEqual(Object.keys(a).sort())
           },
@@ -430,7 +434,7 @@ export function engineSuite(engineName: EngineName): void {
             const a = await twoScopes()
             const before = await snapshot(e)
             const r = await run('agents.update', { params: { id: a.id }, body: { ...body } }, { now: at(2) })
-            expect(r.value).toEqual(a)
+            expect(r.value).toEqual({ ...a, sign_in_notice: null })
             expect(r.events).toEqual([])
             expect(await agentEvents()).toHaveLength(0)
             expect((await row('agents', a.id)).updated_at).toBe(iso(1))
@@ -600,7 +604,8 @@ export function engineSuite(engineName: EngineName): void {
           ['agent.created', iso(1)],
           ['agent.updated', iso(2)],
         ])
-        expect(ev[1]!.after).toEqual(u)
+        const { sign_in_notice: _notice, ...updated } = u
+        expect(ev[1]!.after).toEqual(updated)
       })
     })
 

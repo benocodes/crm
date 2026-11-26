@@ -4,6 +4,7 @@ import type { Principal } from '../auth/types.js'
 import { toolName, type Operation, type OperationInput, type Registry } from '../registry.js'
 import { formatScope } from '../scopes.js'
 import { proposalMeta } from '../proposal.js'
+import { signInHint } from '../auth/sign-in-hint.js'
 import { acceptsList } from '../storage/column-filters.js'
 
 /** [[API106]] D7-D9: one tool, as `tools/list` carries it. */
@@ -120,6 +121,25 @@ export function isVisible(op: Operation, principal: Principal, workspace: boolea
   // [[AGT8]] D7: a decision command has the target's authority; it is shown to a caller holding that action on any resource.
   const action = op.authority === 'write' ? ':write' : op.authority === 'read' ? ':read' : ':request_approval'
   return principal.scopes.toStrings().some((s) => s.endsWith(action))
+}
+
+/**
+ * [[CORE662]] ([[CORE630]] D8, row 630.91): the tool `tools/list` shows for an entry, or null. A visible tool as it is; a tool whose scope the caller's live authority holds and whose sign-in lacks is listed too, its description
+ * starting with the sign-in hint, so an MCP agent can learn the way forward (calling it is refused with the same hint). Any other tool stays hidden.
+ */
+export function listedTool(entry: ToolEntry, principal: Principal, workspace: boolean): McpTool | null {
+  const { op, tool } = entry
+  if (isVisible(op, principal, workspace)) return tool
+  if (
+    op.output === 'binary' ||
+    op.kind === 'account' ||
+    principal.organizationForbidden ||
+    principal.organizationId === null
+  )
+    return null
+  if (op.scope === null) return null
+  const hint = signInHint(principal, op.scope)
+  return hint ? { ...tool, description: `${hint}. ${tool.description}` } : null
 }
 
 const asString = (v: unknown): string =>

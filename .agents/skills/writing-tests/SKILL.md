@@ -401,6 +401,12 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   `scripts/setup/clerk-keys.ts` into `cli/instance.js` (now `cli/server.js`, [[OPS240]]), its error message `neither sk_test_… nor sk_live_…`
   failed `release:build`. The prose now assembles the prefixes at run time (`sk_${'test'}_`), with a comment
   naming the scan. A cycle that adds an import to a shipped bundle runs `release:build` in its gate ([[OPS232]]).
+- **A guard that flags your line is answered in the guard, never by hiding the line.** Building a string so a source
+  scan stops matching it (`/${'device'}`) blinds the scan to that line for good and hides the intent from the reader.
+  If the line is legitimate, name it (a constant whose comment says why) and give the scan a narrow, commented
+  exception for exactly that line; otherwise change the line ([[CORE662]] review: Better Auth's device endpoints in
+  `packages/auth/src/auth.ts` against `auth-page-urls.test.ts`'s P5 scan). The prefix assembly above for the release
+  scan predates this rule; do not copy it.
 - **A source scan for a path literal matches the path, not the substring.** UI476's no-`/connect` scan
   (`packages/server-d1/src/ui/no-connect-default.test.ts`) matches `/connect` as a whole segment and skips a
   regex literal and an escaped slash (`/connect an agent/`, `\/connect`), and counts a host-qualified `https://h/connect`;
