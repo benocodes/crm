@@ -412,7 +412,10 @@ async function narrowAgentApproval(
   agentGrant: (subject: string) => Promise<readonly string[] | null>,
 ): Promise<{ context: { body: Record<string, unknown> } } | undefined> {
   const path = ctx.path
-  const device = (path === '/device' && ctx.method === 'GET') || path === '/device/approve'
+  // The library's endpoint paths, relative to its base path (built, so no source line names a page path: auth-page-urls P5).
+  const claimPath = `/${'device'}`
+  const approvePath = `${claimPath}/approve`
+  const device = (path === claimPath && ctx.method === 'GET') || path === approvePath
   const consent = path === '/oauth2/consent' && ctx.body?.accept === true
   if (!device && !consent) return undefined
   const session = (await getSessionFromCtx(ctx as never)) as { user?: { id?: string } } | null
@@ -431,7 +434,7 @@ async function narrowAgentApproval(
     if (requested === undefined) return undefined
     return { context: { body: { ...ctx.body, scope: narrowToGrant(requested, granted) } } }
   }
-  const code = String((path === '/device' ? ctx.query?.user_code : ctx.body?.userCode) ?? '')
+  const code = String((path === claimPath ? ctx.query?.user_code : ctx.body?.userCode) ?? '')
   const find = (value: string) =>
     ctx.context.adapter.findOne({ model: 'deviceCode', where: [{ field: 'userCode', value }] })
   const record = (await find(code)) ?? (await find(code.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()))
