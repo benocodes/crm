@@ -5884,6 +5884,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/meta/v1/oauth-clients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the first-party OAuth clients
+         * @description Human only (owners). Lists the first-party clients registered through oauth_clients.create, oldest first; clients registered by other means are not shown.
+         */
+        get: operations["oauth_clients.list"];
+        put?: never;
+        /**
+         * Register a first-party OAuth client for a web app that signs people in
+         * @description Human only (owners). Registers a public OAuth client (PKCE, no secret) for an app that signs people in to this workspace; a person who signs in through it acts as themselves. The client skips the consent screen (skip_consent defaults to true): skip_consent = false is not implemented yet and is refused. Scopes must be within the ceiling a dynamically registered client has (never an administrative scope); omitted, the default scopes are used. The answer carries the client_id; there is no secret.
+         */
+        post: operations["oauth_clients.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/meta/v1/oauth-clients/{client_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a first-party OAuth client
+         * @description Human only (owners). An id that is not a first-party client answers 404.
+         */
+        get: operations["oauth_clients.get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a first-party OAuth client, which revokes it
+         * @description Human only (owners). Deleting is the revocation: the client, its refresh tokens and its consents go at once, so no new sign-in or refresh works. Access tokens already issued stay valid until they expire, at most one hour. An id that is not a first-party client answers 404.
+         */
+        delete: operations["oauth_clients.delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/meta/v1/audit": {
         parameters: {
             query?: never;
@@ -8109,6 +8157,133 @@ export interface operations {
             };
         };
     };
+    "oauth_clients.list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            client_id: string;
+                            name: string;
+                            redirect_uris: string[];
+                            scopes: string[];
+                            skip_consent: boolean;
+                            /** Format: date-time */
+                            created_at: string;
+                            /** Format: date-time */
+                            updated_at: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    "oauth_clients.create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description What the app is called; trimmed, 1 to 100 characters */
+                    name: string;
+                    /** @description 1 to 10 redirect URIs: https, or http on localhost or 127.0.0.1; no fragment, user info or *. Duplicates are removed. */
+                    redirect_uris: string[];
+                    /** @description The scopes the app may be granted; within the ceiling a dynamically registered client has. Omitted: the default scopes. */
+                    scopes?: string[];
+                    /** @description Omitted means true. false is refused: it is not implemented yet. */
+                    skip_consent?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        client_id: string;
+                        name: string;
+                        redirect_uris: string[];
+                        scopes: string[];
+                        skip_consent: boolean;
+                        /** Format: date-time */
+                        created_at: string;
+                        /** Format: date-time */
+                        updated_at: string;
+                    };
+                };
+            };
+        };
+    };
+    "oauth_clients.get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        client_id: string;
+                        name: string;
+                        redirect_uris: string[];
+                        scopes: string[];
+                        skip_consent: boolean;
+                        /** Format: date-time */
+                        created_at: string;
+                        /** Format: date-time */
+                        updated_at: string;
+                    };
+                };
+            };
+        };
+    };
+    "oauth_clients.delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     "audit.list": {
         parameters: {
             query?: {
@@ -9520,6 +9695,38 @@ export type BuiltInOperations = {
     args: ArgsOf<ApiDocument.operations['notes.update']>
     result: ResultOf<ApiDocument.operations['notes.update'], 200>
     proposable: true
+    paginated: false
+  }
+  'oauth_clients.create': {
+    namespace: 'oauthClients'
+    method: 'create'
+    args: ArgsOf<MetaDocument.operations['oauth_clients.create']>
+    result: ResultOf<MetaDocument.operations['oauth_clients.create'], 201>
+    proposable: false
+    paginated: false
+  }
+  'oauth_clients.delete': {
+    namespace: 'oauthClients'
+    method: 'delete'
+    args: ArgsOf<MetaDocument.operations['oauth_clients.delete']>
+    result: undefined
+    proposable: false
+    paginated: false
+  }
+  'oauth_clients.get': {
+    namespace: 'oauthClients'
+    method: 'get'
+    args: ArgsOf<MetaDocument.operations['oauth_clients.get']>
+    result: ResultOf<MetaDocument.operations['oauth_clients.get'], 200>
+    proposable: false
+    paginated: false
+  }
+  'oauth_clients.list': {
+    namespace: 'oauthClients'
+    method: 'list'
+    args: ArgsOf<MetaDocument.operations['oauth_clients.list']>
+    result: ResultOf<MetaDocument.operations['oauth_clients.list'], 200>
+    proposable: false
     paginated: false
   }
   'pipeline_stages.create': {

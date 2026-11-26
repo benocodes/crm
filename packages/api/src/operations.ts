@@ -9,6 +9,8 @@ import { invitationOperations } from './invitations/operations.js'
 import { resetLinkOperation, withMembershipWrites } from './members/operations.js'
 import type { MembersRuntime } from './members/port.js'
 import type { InvitationsRuntime } from './invitations/port.js'
+import { oauthClientOperations } from './oauth-clients/operations.js'
+import type { OAuthClientsRuntime } from './oauth-clients/port.js'
 import { accountOperations } from './account/operations.js'
 import { dealOperations } from './deals/operations.js'
 import { identityOperations } from './identity/operations.js'
@@ -53,7 +55,8 @@ export function createVibaseRegistry(
       registry: Registry,
     ) => void /** [[API7]] D12, D13: the webhook configuration (the credentials key, the insecure-URL switch). Absent: unconfigured; the operations are registered all the same. */
     webhooks?: WebhooksRuntime /** [[CORE245]] P2: the control-plane port of the invitation operations; absent or null: this composition has no control store and they answer `501 provider_not_configured`. The registry has them all the same. */
-    invitations?: InvitationsRuntime | null /** [[CORE288]] P1, P2: the membership writes' control-plane port; absent or null: they answer `501 provider_not_configured`. The registry has them all the same. */
+    invitations?: InvitationsRuntime | null /** [[CORE627]] D2, D10: the first-party OAuth clients' control-plane port, scope ceiling and resources; absent or null: they answer `501 provider_not_configured`. The registry has them all the same. */
+    oauthClients?: OAuthClientsRuntime | null /** [[CORE288]] P1, P2: the membership writes' control-plane port; absent or null: they answer `501 provider_not_configured`. The registry has them all the same. */
     members?: MembersRuntime | null /** [[CORE261]] P1, P5: the audit log's read port; absent or null: `audit.list` answers `501 provider_not_configured`. The registry has it all the same. */
     audit?: AuditRuntime | null /** [[CORE351]] P5: the control-plane store of the four `api_keys.*` operations; absent or null: they answer `501 provider_not_configured`. The registry has them all the same. */
     apiKeys?: ApiKeyStorePort | null /** [[CORE315]] D23: the custom objects' definitions (`defineCustomObject`), registered before the queue's so `action_requests.create` lists their writes. Absent or empty: the registry of every deployment without one. */
@@ -96,6 +99,7 @@ export function createVibaseRegistry(
   for (const op of adminOperations()) registry.register(op)
   for (const op of apiKeyOperations(options.apiKeys ?? null)) registry.register(op)
   for (const op of invitationOperations(options.invitations ?? null)) registry.register(op)
+  for (const op of oauthClientOperations(options.oauthClients ?? null)) registry.register(op)
   for (const op of auditOperations(options.audit ?? null)) registry.register(op)
   registry.register(resetLinkOperation(options.members ?? null))
   for (const op of identityOperations(b, options.definitions ?? [])) registry.register(op)

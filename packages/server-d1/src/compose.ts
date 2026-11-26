@@ -44,6 +44,7 @@ import {
   type AuditRuntime,
   type AuthAdapter,
   type InvitationsRuntime,
+  type OAuthClientsRuntime,
   type MembersRuntime,
   type MailSyncInstances,
   type MailSyncParams,
@@ -78,6 +79,10 @@ import {
   revokeSubjectCredentials,
   hasLiveInvitationForToken,
   createInvitation,
+  createOAuthClient,
+  deleteOAuthClient,
+  getOAuthClient,
+  listOAuthClients,
   listControlAudit,
   listInvitations,
   revokeInvitation,
@@ -99,6 +104,7 @@ import {
   AUTH_SERVER_METADATA_PATH,
   CLI_CLIENT_ID,
   createAuth,
+  registrationScopes,
   resourcesFor,
   type AuthRuntimeConfig,
   type AuthService,
@@ -539,9 +545,7 @@ export function composeD1Worker(
       controlAuthDatabase(control!),
       {
         ...builtInConfig!,
-        vaultScopes: discovery.declaredScopes,
-        grantableScopes: grantableScopes(discovery.declaredScopes),
-        defaultScopes: defaultGrantScopes(discovery.declaredScopes),
+        ...dcrScopeInputs,
       },
       {
         // OPS252: the request that builds the provider stays alive until its initialisation settles (see `keepAlive`).
@@ -593,6 +597,34 @@ export function composeD1Worker(
     return builtInService
   }
 
+  // [[CORE627]] D10: the one set of inputs Better Auth derives its dynamic-registration ceiling and defaults from (`registrationScopes`); the first-party client operations take the same value, not a recomputation.
+  const dcrScopeInputs = {
+    vaultScopes: discovery.declaredScopes,
+    grantableScopes: grantableScopes(discovery.declaredScopes),
+    defaultScopes: defaultGrantScopes(discovery.declaredScopes),
+  }
+  // [[CORE627]] D2, D10: the first-party OAuth client operations' port over the control store; Better Auth only (the Postgres server and Clerk hand none and answer 501).
+  const oauthClients: OAuthClientsRuntime | null =
+    control && builtInConfig
+      ? (() => {
+          const reg = registrationScopes(
+            dcrScopeInputs.vaultScopes,
+            dcrScopeInputs.grantableScopes,
+            dcrScopeInputs.defaultScopes,
+          )
+          return {
+            port: {
+              create: (a) => createOAuthClient(control, a),
+              list: (a) => listOAuthClients(control, a),
+              get: (a) => getOAuthClient(control, a),
+              delete: (a) => deleteOAuthClient(control, a),
+            },
+            allowedScopes: reg.allowed,
+            defaultScopes: reg.defaults,
+            resources: resourcesFor(builtInConfig.baseURL),
+          }
+        })()
+      : null
   // [[CORE245]] P2: the invitation operations' port over the control store, needs `builtInConfig` (Better Auth, [[CORE326]] P3); `control` itself exists in every mode; `PUBLIC_BASE_URL` names the invitation URL's origin.
   const invitations: InvitationsRuntime | null =
     control && builtInConfig
@@ -646,6 +678,7 @@ export function composeD1Worker(
     createApp({
       storage: () => binding,
       invitations,
+      oauthClients,
       members,
       audit,
       apiKeys,

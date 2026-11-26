@@ -37,6 +37,8 @@ export const DECLARED_SCOPES: readonly string[] = [
   'notes:read',
   'notes:request_approval',
   'notes:write',
+  'oauth_clients:read',
+  'oauth_clients:write',
   'pipelines:read',
   'pipelines:request_approval',
   'pipelines:write',

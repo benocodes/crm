@@ -42,8 +42,9 @@ export const SCOPE_AREAS: readonly ScopeArea[] = [
   {
     key: 'admin',
     name: 'Administration',
-    sentence: 'Who is in the workspace, which agents act for it, invitations, and the audit log.',
-    resources: ['members', 'agents', 'invitations', 'audit'],
+    sentence:
+      'Who is in the workspace, which agents act for it, invitations, the apps that sign people in, and the audit log.',
+    resources: ['members', 'agents', 'invitations', 'oauth_clients', 'audit'],
   },
   // [[CORE543]] P6: every custom object's scopes (`<key>__c:read|write|request_approval`) sit here by the name rule in `areaOfScope`; the resources are the deployment's, so the list is empty.
   {

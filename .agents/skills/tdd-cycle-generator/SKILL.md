@@ -517,6 +517,14 @@ narrowed without a decision row (execute-cycle §3).
 calls in one run (+106 code / +334 test lines, 21 files), approved round 0. A plan-time split on decisions alone gives a
 cheap cycle; half a cycle is fine. Its grammar mutation ("drop the inner-`*` check") named a check the host regex made
 redundant, so the mutation changed nothing: name the row that must turn red, not the line to delete.
+**CORE627** (`knowledge/specs/045-CORE627-oauth-client-operations/RETRO.md`, [[CORE623]] cycle 2 of 3): 5 groups (1
+matrix), 8 decisions + 5 planner rules, no migration, 1 local E2E part. 227k over three runs (initial 204k / 72 calls,
+then a free gate-fix round and a free E2E-fix round; +581 / +980 lines, 25 files), with no code findings in review. The
+budget holds. Both extra rounds were charter gaps. First, **every cycle that adds, removes or renames an operation, on any
+surface, names the wire snapshot as a rider** (writing-tests §1): the meta operations moved three digests. Second, a rule
+that admits several classes of value (https and loopback http redirects) needs one obligation per class carried through
+the library that checks the value again (writing-tests §1). Group 5 ran only https, and the E2E found Better Auth refusing
+loopback http.
 
 ### Step 3: Resolve identities
 

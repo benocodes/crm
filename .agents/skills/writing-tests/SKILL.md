@@ -477,6 +477,11 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   the protected value's absence, record the guard as defence in depth with a revisit condition naming the path that
   would make it reachable, and don't ask for a seam test the code doesn't have ([[AGT588]] 588.36). A reviewer who asks
   for a new guard checks reachability first.
+- **A value our validator accepts and a library checks again gets one round trip through the library per accepted
+  class.** An edge test at our own validator proves nothing about the library's check downstream. [[CORE627]]'s create
+  accepted `https` and `http` loopback redirects, but only the `https` class went through Better Auth's authorize in
+  workerd. The library refuses `http` loopback for a `web` client, and only the E2E found it (623.40). When a charter's
+  rule admits several classes (schemes, hosts, encodings), the obligation names one library round trip for each class.
 
 ## 2. Type-level tests
 
@@ -559,7 +564,9 @@ One program, two engines: the same assertions run on Postgres and D1.
     A new field on any resource's record moves four digests (OpenAPI, MCP tools, golden, `schema.get`): a charter that adds
     one names the wire snapshot as a rider, or the gate goes red once ([[AGT588]] gate-fix). A changed **query
     parameter** schema moves it too (both OpenAPI digests and `mcp-tools`; golden and `schema.get` stay), though no golden
-    carries a parameter schema ([[CORE602]] gate-fix).
+    carries a parameter schema ([[CORE602]] gate-fix). A **new operation on any surface**, meta included, moves it as well
+    (its surface's OpenAPI digest, `mcp-tools`, `golden`; the other OpenAPI digest and `schema.get` stay): every cycle that
+    adds, removes or renames an operation names the wire snapshot as a rider ([[CORE627]] gate-fix).
   - A **dormant general mechanism** (kept with no production caller, e.g. the per-type `owner` predicate in the
     event-type map after CORE347) is proven through a test-only registration on the test kit's registry, plus one
     assertion against the real registry that no production entry uses it, so a later caller is a deliberate choice

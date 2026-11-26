@@ -175,7 +175,9 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     never the request host. `createAuthHandler` itself answers `/.well-known/oauth-authorization-server/auth` (path
     insertion); the Worker routes that path to it through the same gates as `/auth/*`, `better-auth` only. Better Auth
     1.7.22 facts that bit: DCR's default `application_type` is `web`, which refuses native clients' loopback redirects
-    (set `clientRegistrationDefaultApplicationType: 'infer'`); an absent `token_endpoint_auth_method` means
+    (set `clientRegistrationDefaultApplicationType: 'infer'`), and authorize reads `application_type` for that
+    transport check and for loopback port matching, so a first-party client with an `http:` loopback redirect is
+    stored `native` and the value is recomputed whenever `redirect_uris` change ([[CORE623]] D4, 623.40); an absent `token_endpoint_auth_method` means
     confidential, so public-only is a `before` hook on `/oauth2/register`; resource rows are written insert-only and
     a client's resource link has an FK to them, so a seed creates the resource rows first and keeps `allowedScopes`
     off them (a list there goes stale); a refresh can never widen the resource of the grant; the rate limiter with no
