@@ -6,6 +6,7 @@ export const discoveryAnswer = (base: string, signInMethods: string[] = ['passwo
     provider: 'better-auth',
     issuer: `${base}/auth`,
     cli_client_id: 'vibase-cli',
+    full_access_scope: 'all_permissions', // [[CORE660]] D2
     resource: base,
     protected_resource_metadata: `${base}/.well-known/oauth-protected-resource`,
     sign_in_methods: signInMethods,
