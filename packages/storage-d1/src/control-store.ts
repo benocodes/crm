@@ -1570,7 +1570,8 @@ export interface OAuthClientRecord {
   clientId: string
   name: string
   redirectUris: string[]
-  scopes: string[]
+  /** The owner-chosen list; `null`: the client follows the first-party ceiling ([[CORE639]] D4). */
+  scopes: string[] | null
   skipConsent: boolean
   createdAt: string
   updatedAt: string
@@ -1583,7 +1584,8 @@ export interface NewOAuthClient {
   clientId: string
   name: string
   redirectUris: string[]
-  scopes: string[]
+  /** `null` stores NULL: the client follows the first-party ceiling ([[CORE639]] D4). */
+  scopes: string[] | null
   skipConsent: boolean
   /** The resource identifiers the client is linked to (`resourcesFor(PUBLIC_BASE_URL)`); resource rows are created when absent, as the seed does. */
   resources: readonly string[]
@@ -1604,7 +1606,8 @@ export interface OAuthClientChange {
   /** Any subset of the four owner fields; a list replaces whole. */
   name?: string
   redirectUris?: string[]
-  scopes?: string[]
+  /** A list replaces whole; `null` switches the client to follow the first-party ceiling ([[CORE639]] D4). */
+  scopes?: string[] | null
   skipConsent?: boolean
 }
 
@@ -1613,7 +1616,7 @@ const toOAuthClientRecord = (r: Record<string, unknown>): OAuthClientRecord => (
   clientId: r.client_id as string,
   name: (r.name as string | null) ?? '',
   redirectUris: JSON.parse((r.redirect_uris as string | null) ?? '[]') as string[],
-  scopes: JSON.parse((r.scopes as string | null) ?? '[]') as string[],
+  scopes: r.scopes === null || r.scopes === undefined ? null : (JSON.parse(r.scopes as string) as string[]),
   skipConsent: Number(r.skip_consent) === 1,
   createdAt: r.created_at as string,
   updatedAt: r.updated_at as string,
@@ -1680,7 +1683,7 @@ export async function createOAuthClient(c: ControlDb, a: NewOAuthClient): Promis
         rowId,
         a.clientId,
         a.skipConsent ? 1 : 0,
-        JSON.stringify(a.scopes),
+        a.scopes === null ? null : JSON.stringify(a.scopes),
         at,
         at,
         a.name,
@@ -1743,7 +1746,7 @@ export async function updateOAuthClient(c: ControlDb, a: OAuthClientChange): Pro
   if (a.redirectUris !== undefined) set('redirect_uris', JSON.stringify(a.redirectUris))
   // [[CORE628]] D4 (623.41): the same statement keeps `application_type` in step with the list, so an https-only client and a loopback one are each stored as the library needs them.
   if (a.redirectUris !== undefined) set('application_type', oauthApplicationType(a.redirectUris))
-  if (a.scopes !== undefined) set('scopes', JSON.stringify(a.scopes))
+  if (a.scopes !== undefined) set('scopes', a.scopes === null ? null : JSON.stringify(a.scopes))
   if (a.skipConsent !== undefined) set('skip_consent', a.skipConsent ? 1 : 0)
   if (sets.length === 0) return readOAuthClient(d1, a.organizationId, a.clientId)
   set('updated_at', oauthWholeSecond(a.now))
@@ -1795,4 +1798,23 @@ export async function deleteOAuthClient(
       .bind(a.clientId, a.organizationId),
   ])
   return (results[0]?.meta?.changes ?? 0) === 1
+}
+
+/**
+ * [[CORE639]] D5: the live read the authenticator makes of a token's client: whether it is first-party (a `reference_id`: only [[CORE623]]'s create writes one, and this database serves one deployment) and its stored scope list
+ * (`null`: it follows the first-party ceiling, D4), or `null` when no such client exists (deleted, or never was). A read, never a write.
+ */
+export async function readOAuthClientBound(
+  c: ControlDb,
+  clientId: string,
+): Promise<{ firstParty: boolean; scopes: string[] | null } | null> {
+  const row = (await raw(c)
+    .prepare('select scopes, reference_id from auth_oauth_clients where client_id = ?')
+    .bind(clientId)
+    .first()) as { scopes: string | null; reference_id: string | null } | null
+  if (!row) return null
+  return {
+    firstParty: row.reference_id !== null,
+    scopes: row.scopes === null ? null : (JSON.parse(row.scopes) as string[]),
+  }
 }

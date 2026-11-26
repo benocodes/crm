@@ -6348,7 +6348,7 @@ export interface paths {
         put?: never;
         /**
          * Register a first-party OAuth client for a web app that signs people in
-         * @description Human only (owners). Registers a public OAuth client (PKCE, no secret) for an app that signs people in to this workspace; a person who signs in through it acts as themselves. The client skips the consent screen (skip_consent defaults to true): skip_consent = false is not implemented yet and is refused. Scopes must be within the ceiling a dynamically registered client has (never an administrative scope); omitted, the default scopes are used. The answer carries the client_id (there is no secret) and warnings: one entry for each redirect origin that is not in CORS_ALLOWED_ORIGINS, which means the app's browser calls will be refused until the origin is added to CORS_ALLOWED_ORIGINS; the client is created either way.
+         * @description Human only (owners). Registers a public OAuth client (PKCE, no secret) for an app that signs people in to this workspace; a person who signs in through it acts as themselves, within their own role and the app's scopes, never as a separate agent. The client skips the consent screen (skip_consent defaults to true): skip_consent = false is not implemented yet and is refused. Scopes, when given, must be within the ceiling a dynamically registered client has (never an administrative scope); omitted, the app follows every scope a first-party app may hold, including ones declared later, and the record answers scopes: null. An edit to scopes and a delete take effect for live tokens within about a minute. The answer carries the client_id (there is no secret) and warnings: one entry for each redirect origin that is not in CORS_ALLOWED_ORIGINS, which means the app's browser calls will be refused until the origin is added to CORS_ALLOWED_ORIGINS; the client is created either way.
          */
         post: operations["oauth_clients.create"];
         delete?: never;
@@ -6373,14 +6373,14 @@ export interface paths {
         post?: never;
         /**
          * Delete a first-party OAuth client, which revokes it
-         * @description Human only (owners). Deleting is the revocation: the client, its refresh tokens and its consents go at once, so no new sign-in or refresh works. Access tokens already issued stay valid until they expire, at most one hour. An id that is not a first-party client answers 404.
+         * @description Human only (owners). Deleting is the revocation: the client, its refresh tokens and its consents go at once, so no new sign-in or refresh works, and an access token already issued is refused within about a minute. An id that is not a first-party client answers 404.
          */
         delete: operations["oauth_clients.delete"];
         options?: never;
         head?: never;
         /**
          * Edit a first-party OAuth client
-         * @description Human only (owners). Edits any of name, redirect_uris, scopes and skip_consent; the lists replace the stored ones, and the rules are create's. skip_consent = false is not implemented yet and is refused. An edit revokes no token: refresh tokens and access tokens already issued keep working (delete the client to revoke). The answer carries warnings: one entry for each redirect origin of the resulting list that is not in CORS_ALLOWED_ORIGINS, which means the app's browser calls will be refused until the origin is added to CORS_ALLOWED_ORIGINS; the edit is made either way. An id that is not a first-party client answers 404.
+         * @description Human only (owners). Edits any of name, redirect_uris, scopes and skip_consent; the lists replace the stored ones, and the rules are create's; scopes: null makes the app follow every scope a first-party app may hold, including ones declared later. A person who signs in through the app acts as themselves, within their own role and the app's scopes. An edit to scopes takes effect for live tokens, access and refresh, within about a minute; no token is revoked (delete the client to revoke). skip_consent = false is not implemented yet and is refused. The answer carries warnings: one entry for each redirect origin of the resulting list that is not in CORS_ALLOWED_ORIGINS, which means the app's browser calls will be refused until the origin is added to CORS_ALLOWED_ORIGINS; the edit is made either way. An id that is not a first-party client answers 404.
          */
         patch: operations["oauth_clients.update"];
         trace?: never;
@@ -8630,7 +8630,8 @@ export interface operations {
                             client_id: string;
                             name: string;
                             redirect_uris: string[];
-                            scopes: string[];
+                            /** @description The owner-chosen scope list; null: the app follows every scope a first-party app may hold. */
+                            scopes: string[] | null;
                             skip_consent: boolean;
                             /** Format: date-time */
                             created_at: string;
@@ -8656,7 +8657,7 @@ export interface operations {
                     name: string;
                     /** @description 1 to 10 redirect URIs: https, or http on localhost or 127.0.0.1; no fragment, user info or *. Duplicates are removed. */
                     redirect_uris: string[];
-                    /** @description The scopes the app may be granted; within the ceiling a dynamically registered client has. Omitted: the default scopes. */
+                    /** @description The scopes the app may be granted; within the ceiling a dynamically registered client has. Omitted: the app follows every scope a first-party app may hold, including ones declared later (the record answers null). */
                     scopes?: string[];
                     /** @description Omitted means true. false is refused: it is not implemented yet. */
                     skip_consent?: boolean;
@@ -8674,7 +8675,8 @@ export interface operations {
                         client_id: string;
                         name: string;
                         redirect_uris: string[];
-                        scopes: string[];
+                        /** @description The owner-chosen scope list; null: the app follows every scope a first-party app may hold. */
+                        scopes: string[] | null;
                         skip_consent: boolean;
                         /** Format: date-time */
                         created_at: string;
@@ -8715,7 +8717,8 @@ export interface operations {
                         client_id: string;
                         name: string;
                         redirect_uris: string[];
-                        scopes: string[];
+                        /** @description The owner-chosen scope list; null: the app follows every scope a first-party app may hold. */
+                        scopes: string[] | null;
                         skip_consent: boolean;
                         /** Format: date-time */
                         created_at: string;
@@ -8762,8 +8765,8 @@ export interface operations {
                     name?: string;
                     /** @description Replaces the whole list; the same rules as on create. Duplicates are removed. */
                     redirect_uris?: string[];
-                    /** @description Replaces the whole list; within the same ceiling as on create. */
-                    scopes?: string[];
+                    /** @description Replaces the whole list, within the same ceiling as on create; null makes the app follow every scope a first-party app may hold, including ones declared later. */
+                    scopes?: string[] | null;
                     /** @description true is accepted. false is refused: it is not implemented yet. */
                     skip_consent?: boolean;
                 };
@@ -8780,7 +8783,8 @@ export interface operations {
                         client_id: string;
                         name: string;
                         redirect_uris: string[];
-                        scopes: string[];
+                        /** @description The owner-chosen scope list; null: the app follows every scope a first-party app may hold. */
+                        scopes: string[] | null;
                         skip_consent: boolean;
                         /** Format: date-time */
                         created_at: string;

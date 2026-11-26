@@ -24,7 +24,7 @@ An agent is software with its own identity and permissions. Each agent's stored 
 
 A new agent account has no permissions until an owner grants them. Agents may also authenticate with their own Vibase API keys. The key identifies an agent; it does not turn the caller into a human owner.
 
-The CLI's first-party device login lets a person perform administration as themselves. A remote MCP client acts as a delegated agent with its own grants.
+The CLI's first-party device login lets a person perform administration as themselves. So does a first-party app an owner registers (`oauth_clients.create`): the person who signs in through it acts as themselves, within their own role and the app's scopes, never as a separate agent. A remote MCP client acts as a delegated agent with its own grants.
 
 ## Attribution
 

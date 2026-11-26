@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   createOAuthClient,
+  readOAuthClientBound,
   deleteOAuthClient,
   getOAuthClient,
   listOAuthClients,
@@ -379,5 +380,71 @@ describe('update keeps the shape (P4)', () => {
       'Client_a0000000000000000000000000000001',
       'Client_b0000000000000000000000000000001',
     ])
+  })
+})
+
+describe('NULL scopes: follow the first-party ceiling ([[CORE639]] D4, D5)', () => {
+  // the audit log is append-only: these groups use client ids no earlier group does
+  it('create with scopes null stores NULL, answers null, and writes null in the audit detail; a listed row stays listed', async () => {
+    const followed = await mk('Client_nullaaaaaaaaaaaaaaaaaaaaaaaaa1', { scopes: null })
+    expect(followed.scopes).toBeNull()
+    expect((await clientRow(followed.clientId))!.scopes).toBeNull()
+    expect(JSON.parse((await auditRows(followed.clientId))[0]!.detail).scopes).toBeNull()
+    const listed = await mk('Client_nullaaaaaaaaaaaaaaaaaaaaaaaaa2')
+    expect(listed.scopes).toEqual(['openid', 'offline_access', 'contacts:read'])
+    expect(await getOAuthClient(c, { organizationId: ORG, clientId: followed.clientId })).toMatchObject({
+      scopes: null,
+    })
+    expect((await listOAuthClients(c, { organizationId: ORG })).map((r) => r.scopes)).toEqual([
+      null,
+      ['openid', 'offline_access', 'contacts:read'],
+    ])
+  })
+
+  it('update to a list and back to null; an update that does not touch scopes keeps NULL; the audit detail follows', async () => {
+    const id = 'Client_nullaaaaaaaaaaaaaaaaaaaaaaaaa3'
+    await mk(id, { scopes: null })
+    const base = { organizationId: ORG, clientId: id, actorId: ACTOR, now: T1, newId }
+    expect((await updateOAuthClient(c, { ...base, name: 'Renamed' }))!.scopes).toBeNull()
+    expect((await updateOAuthClient(c, { ...base, scopes: ['openid'] }))!.scopes).toEqual(['openid'])
+    expect((await clientRow(id))!.scopes).toBe('["openid"]')
+    expect((await updateOAuthClient(c, { ...base, scopes: null }))!.scopes).toBeNull()
+    expect((await clientRow(id))!.scopes).toBeNull()
+    const details = (await auditRows(id)).map((a) => JSON.parse(a.detail).scopes)
+    expect(details).toEqual([null, null, ['openid'], null])
+  })
+})
+
+describe('readOAuthClientBound: the live client read ([[CORE639]] D5)', () => {
+  it('a first-party client answers firstParty with its list or null; a DCR client and the seeded CLI client answer firstParty false; an unknown id is null', async () => {
+    await mk('Client_nullaaaaaaaaaaaaaaaaaaaaaaaaa1', { scopes: null })
+    await mk('Client_nullaaaaaaaaaaaaaaaaaaaaaaaaa2')
+    await foreign('dcr_client', { name: 'Claude', grants: ['authorization_code'] })
+    expect(await readOAuthClientBound(c, 'Client_nullaaaaaaaaaaaaaaaaaaaaaaaaa1')).toEqual({
+      firstParty: true,
+      scopes: null,
+    })
+    expect(await readOAuthClientBound(c, 'Client_nullaaaaaaaaaaaaaaaaaaaaaaaaa2')).toEqual({
+      firstParty: true,
+      scopes: ['openid', 'offline_access', 'contacts:read'],
+    })
+    expect(await readOAuthClientBound(c, 'dcr_client')).toEqual({ firstParty: false, scopes: ['openid'] })
+    expect(await readOAuthClientBound(c, 'nobody')).toBeNull()
+  })
+
+  it('an edit and a delete are seen by the next read', async () => {
+    const id = 'Client_nullaaaaaaaaaaaaaaaaaaaaaaaaa1'
+    await mk(id, { scopes: null })
+    await updateOAuthClient(c, {
+      organizationId: ORG,
+      clientId: id,
+      actorId: ACTOR,
+      now: T1,
+      newId,
+      scopes: ['openid'],
+    })
+    expect(await readOAuthClientBound(c, id)).toEqual({ firstParty: true, scopes: ['openid'] })
+    await deleteOAuthClient(c, { organizationId: ORG, clientId: id, actorId: ACTOR, now: T1, newId })
+    expect(await readOAuthClientBound(c, id)).toBeNull()
   })
 })

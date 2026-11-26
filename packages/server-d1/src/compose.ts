@@ -72,6 +72,7 @@ import {
   readAuthProfile,
   readControlMarker,
   readOAuthClientName,
+  readOAuthClientBound,
   acceptInvitation,
   findAdoptableInvitation,
   findLiveInvitationByToken,
@@ -378,6 +379,8 @@ export function composeD1Worker(
         readKeys: () => readAuthJwks(control),
         readProfile: (subject) => readAuthProfile(control, subject),
         readClientName: (clientId) => readOAuthClientName(control, clientId),
+        // [[CORE639]] D5: the live client read the authenticator caches for 60 s.
+        readClient: (clientId) => readOAuthClientBound(control, clientId),
         now: deps.clock,
       })
     }
@@ -622,7 +625,6 @@ export function composeD1Worker(
               update: (a) => updateOAuthClient(control, a),
             },
             allowedScopes: reg.allowed,
-            defaultScopes: reg.defaults,
             resources: resourcesFor(builtInConfig.baseURL),
             // [[CORE628]] P1: the list the REST app gets, not a second parse; the warning reads no other.
             corsOrigins,

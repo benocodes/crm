@@ -6,7 +6,8 @@ export interface OAuthClientRow {
   clientId: string
   name: string
   redirectUris: string[]
-  scopes: string[]
+  /** The owner-chosen list; `null`: the client follows the first-party ceiling ([[CORE639]] D4). */
+  scopes: string[] | null
   skipConsent: boolean
   createdAt: string
   updatedAt: string
@@ -16,7 +17,8 @@ export interface OAuthClientInsert {
   clientId: string
   name: string
   redirectUris: string[]
-  scopes: string[]
+  /** `null`: the client follows the first-party ceiling ([[CORE639]] D4). */
+  scopes: string[] | null
   skipConsent: boolean
   /** The resource identifiers the client is linked to (the runtime's). */
   resources: readonly string[]
@@ -35,7 +37,8 @@ export interface OAuthClientChange {
   /** Any subset of the four owner fields; a list replaces whole. */
   name?: string
   redirectUris?: string[]
-  scopes?: string[]
+  /** A list replaces whole; `null` switches the client to follow the ceiling ([[CORE639]] D4). */
+  scopes?: string[] | null
   skipConsent?: boolean
 }
 export interface OAuthClientsPort {
@@ -57,13 +60,12 @@ export interface OAuthClientsPort {
   }): Promise<boolean>
 }
 /**
- * What composition hands the registry ([[CORE627]] D10): the port, the scope ceiling and default of a first-party client (the same `registrationScopes` value Better Auth gets for dynamic registration)
+ * What composition hands the registry ([[CORE627]] D10): the port, the scope ceiling of a first-party client (the same `registrationScopes` value Better Auth gets for dynamic registration)
  * and the resource identifiers a client is linked to. `null`/absent: this composition has no built-in provider.
  */
 export interface OAuthClientsRuntime {
   port: OAuthClientsPort
   allowedScopes: readonly string[]
-  defaultScopes: readonly string[]
   resources: readonly string[]
   /** [[CORE628]] P1: the parsed `CORS_ALLOWED_ORIGINS`, the same value the REST app gets as `corsOrigins`; the origin warning (D11) reads this list and no other. */
   corsOrigins: readonly string[]
