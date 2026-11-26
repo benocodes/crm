@@ -625,7 +625,6 @@ export function composeD1Worker(
               update: (a) => updateOAuthClient(control, a),
             },
             allowedScopes: reg.allowed,
-            defaultScopes: reg.defaults,
             resources: resourcesFor(builtInConfig.baseURL),
             // [[CORE628]] P1: the list the REST app gets, not a second parse; the warning reads no other.
             corsOrigins,

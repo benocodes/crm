@@ -53,7 +53,6 @@ const memoryPort = (): { port: OAuthClientsPort; rows: Map<string, OAuthClientRo
 const runtime = (port: OAuthClientsPort, corsOrigins: readonly string[]): OAuthClientsRuntime => ({
   port,
   allowedScopes: ['openid', 'offline_access', 'contacts:read'],
-  defaultScopes: ['openid', 'offline_access'],
   resources: [API_ORIGIN],
   corsOrigins,
   apiOrigin: API_ORIGIN,

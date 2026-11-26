@@ -60,13 +60,12 @@ export interface OAuthClientsPort {
   }): Promise<boolean>
 }
 /**
- * What composition hands the registry ([[CORE627]] D10): the port, the scope ceiling and default of a first-party client (the same `registrationScopes` value Better Auth gets for dynamic registration)
+ * What composition hands the registry ([[CORE627]] D10): the port, the scope ceiling of a first-party client (the same `registrationScopes` value Better Auth gets for dynamic registration)
  * and the resource identifiers a client is linked to. `null`/absent: this composition has no built-in provider.
  */
 export interface OAuthClientsRuntime {
   port: OAuthClientsPort
   allowedScopes: readonly string[]
-  defaultScopes: readonly string[]
   resources: readonly string[]
   /** [[CORE628]] P1: the parsed `CORS_ALLOWED_ORIGINS`, the same value the REST app gets as `corsOrigins`; the origin warning (D11) reads this list and no other. */
   corsOrigins: readonly string[]
