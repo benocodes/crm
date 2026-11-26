@@ -129,7 +129,8 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `controlAuthDatabase` in `packages/storage-d1/src/control-store.ts`; `ControlDb` is opaque (not a `D1Like`), so
     `d1Binding(control)` does not typecheck. Only `server-d1/src/compose.ts`, `server-d1/src/bootstrap-d1.ts`,
     `server-d1/scripts/*` and the control store may name it (`packages/server-d1/src/control-boundary.test.ts`); a new
-    reader is a spec decision. The boundary test greps text, comments included: a comment in `@vibase/api` that says
+    reader is a spec decision. So every new control-store method goes in `control-store.ts` itself, never a sibling
+    module, whatever it writes (a separate `oauth-client-store.ts` cost [[CORE623]] a move, 623.27). The boundary test greps text, comments included: a comment in `@vibase/api` that says
     `control-store` fails it ([[CORE288]]), and so does an error message naming the binding (say "control-plane
     database", [[CORE261]]). A control **read** takes a port the same way (`AuditPort` over `listControlAudit`,
     `packages/api/src/audit/port.ts`; `createApp({ audit })`; `ApiKeyControlPort` for API-key authentication, [[CORE350]]), and without one answers `501 provider_not_configured`
@@ -1059,7 +1060,9 @@ interactive transaction, no `withContext` and no `executor` marker.
     really overlapped, #343, OPS340). The same hole opens with a guard on the *read stamp* (`updated_at = ?`):
     a racer that writes the same `now` leaves the stamp matching, so the dependent audit insert still needs
     `changes() = 1` of the update (`revokeApiKey`, [[CORE328]] review, with a `racing` test that sets the same
-    instant). Read `meta.changes` of the guarded statement for the outcome. Set-based changes go the same way
+    instant). Read `meta.changes` of the guarded statement for the outcome. A guarded **delete** with an audit row runs the conditional audit insert *before* the delete (afterwards there
+    is no row to select `detail` from) and uses that insert's `meta.changes` as the found signal (`deleteOAuthClient`,
+    [[CORE623]] 623.26). Set-based changes go the same way
     (`update ... where role = 'owner' and <live>` rather than reading ids first). `reissueOwnerInvitation` still reads
     the live owner invitations before its batch (acceptable for a single-operator bootstrap; not for [[OPS249]]'s
     `owner-reset`).

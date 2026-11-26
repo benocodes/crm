@@ -30,6 +30,16 @@ Budgets: its connection check gives up after **5 s** ("some checks were skipped 
 - **Rate limits live in D1:** registration is capped at 10 per hour per IP. Probing from your own machine locks you out; test from another IP or wait.
 - CORS `*` on discovery documents; `Cache-Control` on the static metadata.
 
+## Writing `auth_oauth_*` rows by hand
+
+The control store writes first-party clients with its own SQL ([[CORE623]] D6, `packages/storage-d1/src/control-store.ts`). Facts of `@better-auth/oauth-provider` 1.7.22 that such a writer, or its tests, depends on (623.24, 623.37, the cycle's RESULT):
+
+- Copy encodings from a row the library wrote, and prove them by comparing a store-written row with one the library's own adapter wrote, column by column (`packages/server-d1/src/oauth-client-store-workerd.test.ts`). A registered client's `created_at`/`updated_at` are whole seconds; `auth_oauth_resources` keeps `custom_claims` and `metadata` as text `'null'`, booleans `0`/`1`.
+- An access token issued for a resource is a JWT: it leaves **no** `auth_oauth_access_tokens` row, so a test cannot show that table non-empty before a revocation.
+- Authorize answers an unknown `client_id` with status 200 and `{ redirect: true, url: '/auth/error?error=invalid_client' }` when fetched, not a 4xx.
+- `skip_consent` is honoured for a signed-in user: authorize redirects straight to the client with a code, no `/app/consent`.
+- A client is first-party when `reference_id` is the organisation id and `user_id` is null ([[CORE623]] D5): the 7-day sweep skips it, the library's own client endpoints cannot change it, and deleting an auth user does not cascade it.
+
 ## Debugging a connector that will not connect
 
 1. `wrangler tail --env <env>` (JSON) while the user retries; the `[oauth-register]` line in the before-hook logs method, grants, scope count, redirects, client name. Keep it.
