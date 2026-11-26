@@ -57,7 +57,8 @@ const BOGUS_CODE = {
 }
 const register = (inst: Workerd, origin: string, body: unknown = CLIENT) =>
   real(inst, REGISTER, { body, headers: { origin } })
-const token = (inst: Workerd, origin: string) => real(inst, TOKEN, { body: BOGUS_CODE, form: true, headers: { origin } })
+const token = (inst: Workerd, origin: string) =>
+  real(inst, TOKEN, { body: BOGUS_CODE, form: true, headers: { origin } })
 const preflight = (inst: Workerd, path: string, origin: string) =>
   real(inst, path, {
     method: 'OPTIONS',
