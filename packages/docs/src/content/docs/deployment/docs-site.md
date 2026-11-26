@@ -39,7 +39,7 @@ Connect the repository to a Pages project using these settings:
 | Root directory | Repository root (leave blank) |
 | Build command | `pnpm -C packages/docs build` |
 | Build output directory | `packages/docs/dist` |
-| `NODE_VERSION` | `22.21.1` or a later compatible Node 22 release |
+| `NODE_VERSION` | `24.22.3`, or Node 22.23.4 or later |
 | `PNPM_VERSION` | `10.7.0` |
 | `DOCS_SITE_URL` | Your final documentation origin, such as `https://docs.example.com` |
 
