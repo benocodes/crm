@@ -4,12 +4,12 @@ Guidance for coding agents working in this repository.
 
 ## What this is
 
-A **headless CRM** (working name: the vault). No app of its own: every interaction (email, calendar,
+A **headless CRM** (**Vibase**). No app of its own: every interaction (email, calendar,
 WhatsApp, later calls and iMessage) lands in one database, agents the customer
 brings access it over REST, MCP or CLI, with hooks for incoming events. Owners grant per-resource
 `read`, `request_approval` or `write` permissions: `write` includes proposing for approval, while reads
 remain independent. Agents may execute authorised writes, including sends, or choose review by an
-authorised person or agent. The vault holds provider credentials and executes both paths. Human clients are independent apps or the CLI.
+authorised person or agent. Vibase holds provider credentials and executes both paths. Human clients are independent apps or the CLI.
 
 **Current focus (2026-10-30, [[discussions/2026-10-30-d1-only-mvp]]): the MVP is Cloudflare D1 only,
 self-managed, one D1 database per organisation/workspace in the customer's Cloudflare account.** No
@@ -127,7 +127,7 @@ Next Action) and tells the user before any of these, and never works around one:
 - **production:** a deploy, a migration, a secret or a provider (Clerk) change on a deployed environment,
   except what **Environments** below grants on the agents' own instances;
 - **public announcements:** releases, posts, emails or messages to people outside the repo;
-- **irreversible data changes:** dropping any database other than the vault's own test databases,
+- **irreversible data changes:** dropping any database other than Vibase's own test databases,
   force-pushing, deleting branches the sprint didn't create.
 
 It also stops when the fix loop exhausts its two coder rounds, when an agent is blocked on something no other
@@ -228,7 +228,7 @@ The MVP target is D1; the Postgres lines below describe the parked enterprise pa
 
 TypeScript (ESM), **pnpm** workspace, Node >= 22, Vitest. Cloudflare Workers + Hono +
 `@hono/zod-openapi`, Kysely on D1 (the single-organisation MVP engine, self-hosted on Cloudflare) or Neon Postgres via Hyperdrive (multi-tenant, cloud-hosted and enterprise), R2, Queues, Workflows. The Vercel AI SDK
-is the only LLM library (if the vault ever calls one).
+is the only LLM library (if Vibase ever calls one).
 
 ```bash
 pnpm install          # at the repo root
@@ -281,7 +281,7 @@ in-place edits ([[CORE29]] retro).
 - Names ([[OPS262]], [[OPS265]]): packages are `@vibase/*`, new local resource names use `vb`, and user-visible
   text says "Vibase". TypeScript identifiers, file names, the `x-vibase-proposal` OpenAPI extension, the
   `vibase.invalid` default `client_ref` domain, test hosts (`vibase.test`) and the `VIBASE_SMOKED1_*` script env vars
-  all say Vibase, with no aliases. "The vault" stays the internal term in comments and knowledge prose. What keeps
+  all say Vibase, with no aliases. Say "Vibase" everywhere, including comments and knowledge prose; "the vault" is the old name and is not used for anything new. What keeps
   `vault`: stored `…@vault.invalid` rows (history, never rewritten), the `vault_*` Postgres roles and
   databases (#266), the existing `vault-<env>` instances (`vault-smoked1`, `vault-hq`, `vault-approvals-hq`:
   [[OPS251]], [[OPS252]]); no code may hard-code a `vault` prefix for anything new. Both setup front-ends derive
@@ -334,9 +334,9 @@ Carried over from the predecessor product, where each cost real time. Add new on
    `ON CONFLICT` instead.
 4. **Agents act within owner-granted authority** (user revision, 2026-11-05, [[AGT8]]). Per-resource
    `write` includes `request_approval`; `read` is independent. Agents with write permission may send
-   directly through the vault, or propose the same registered operation for approval by a user or agent
+   directly through Vibase, or propose the same registered operation for approval by a user or agent
    with the target write authority. Proposal-only permission never authorises execution. Both paths use the same validation, audit and execution rail;
-   provider credentials stay in the vault. This replaces the former "agents never send" rule.
+   provider credentials stay in Vibase. This replaces the former "agents never send" rule.
 5. **Every write emits an event** to the outbox in the same unit. Nothing else inserts into a
    resource's table except its prepared programs, and nothing but `eventStatement`/`eventSetStatement`
    inserts into `events`. The rule covers *resources* (anything tenant-visible).
