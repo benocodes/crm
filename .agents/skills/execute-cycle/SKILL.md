@@ -232,7 +232,9 @@ context uncached, and a Monitor that expires (900 s) and is re-armed is one such
   includes `packages/server-d1/src/measured-limits.test.ts` whenever you add or remove a D1 read or write on an
   operation or the capture pipeline in `packages/api`: it pins each scenario's query count from another package, and
   [[CORE574]]'s extra per-chunk read was seen first by the gate. A gate-fix round updates RESULT.md (gate line, decisions)
-  as well as the log. When the cycle moves where an error is raised (an earlier layer refuses first), "affected" is
+  as well as the log. A red guard (a source or content scan) is answered in the guard or in the line, never by
+  reshaping the line so the scan misses it (`writing-tests`, "A guard that flags your line"; [[CORE662]]'s built
+  `/${'device'}` was sent back in review). When the cycle moves where an error is raised (an earlier layer refuses first), "affected" is
   every test file in the package that asserts that message: grep for it ([[CORE602]]'s two stale storage tests).
 - Run the whole gate as ONE background script, `scripts/gate.sh [log-dir]` (the four commands above, one log per
   step, `gate.status` ending in `GATE_EXIT=<0|1>`), started with `run_in_background`. Then wait once. Do not start a

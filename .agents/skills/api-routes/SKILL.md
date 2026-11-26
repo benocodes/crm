@@ -1262,7 +1262,11 @@ service context enforces it, so scope checks are written once.
     agent-grantable), so a request_approval token over a write cap proposes only. The sites are the API-key branch
     of `authMiddleware`, `meet` in `workspace-authenticator.ts`, `scopesForRole`, and the test stand-in
     authenticator. `ScopeSet.parse` stays exact and requirement checks stay exact; a new credential path must
-    close its set, or a write-only principal cannot propose. Stored grants are never expanded.
+    close its set, or a write-only principal cannot propose. Stored grants are never expanded. A list computed
+    *for* a token (an agent account's sign-in grant, `agentAccountGrant` in `src/auth/agent-principals.ts`,
+    [[CORE662]]) closes the same way against the declared set before it meets anything: met from the record's literal
+    scopes it drops `x:request_approval` that the agent holds live through `x:write`, and a refusal hint then advises a
+    sign-in that cannot help.
   - **`read ⇒ read_metadata` closes only against the declared set** ([[API518]] P1): `closeScopes(list, declared)`
     adds `x:read_metadata` for `x:read` only when `declared` contains it, and adds nothing with `declared` absent.
     The grammar has no resource list, so an ungated rule would put `contacts:read_metadata` into every set.
