@@ -26,6 +26,8 @@ export interface BetterAuthAdapterConfig {
   readKeys(): Promise<BetterAuthKey[]>
   readProfile(subject: string): Promise<{ email: string | null; emailVerified: boolean; name: string | null } | null>
   readClientName(clientId: string): Promise<string | null>
+  /** [[CORE639]] D5: the live client read behind `fetchOAuthClient`: first-party or not, its owner-chosen scope list (`null`: follows the ceiling); `null` when no such client exists. Optional like the adapter's method. */
+  readClient?(clientId: string): Promise<{ firstParty: boolean; scopes: string[] | null } | null>
   now?: () => Date
 }
 
@@ -177,6 +179,7 @@ export function createBetterAuthAdapter(config: BetterAuthAdapterConfig): AuthAd
     },
 
     fetchOAuthClientName: (clientId) => config.readClientName(clientId),
+    ...(config.readClient ? { fetchOAuthClient: config.readClient } : {}),
     // Single-organisation D1: no directory, no webhooks (the same refusals as the Clerk workspace adapter).
     fetchOrganization: async () => null,
     listMembers: async () => [],
