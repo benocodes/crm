@@ -48,3 +48,5 @@ https://api.example.com/meta/v1/openapi.json
 ```
 
 Use them to inspect request fields, response types, and available operations, or to generate a client for your own application. They describe the running instance's version.
+
+For TypeScript, the [SDK](/guides/sdk/) is a typed client over this API. A browser app on its own origin signs people in with a [first-party OAuth client](/guides/oauth-clients/) and sends the resulting bearer token.

@@ -1,6 +1,6 @@
 # @vibase/sdk
 
-The typed TypeScript client of a Vibase deployment ([[DX603]]). Workspace-internal (`private: true`, not published). One
+The typed TypeScript client of a Vibase deployment, for building custom front ends, dashboards and scripts on its REST API. One
 fetch-only runtime for Node 22+, Workers and browsers: it imports nothing from `node:*` or `@vibase/*`.
 
 ```ts
@@ -18,12 +18,12 @@ await vibase.deals.moveStage({ id, stage_id })
 
 - **`url`** (required): the deployment's origin. One deployment per organisation.
 - **`auth`**: a bearer token (a string), or a function returning `string | null` (or a promise of one), called before every
-  request. `null` throws `401 no_credential` and sends nothing. The REST API accepts only bearer credentials: an API key,
-  an OAuth access token, a Clerk session token or a Better Auth session JWT. Requests go out with `credentials: 'omit'` and
+  request. `null` throws `401 no_credential` and sends nothing. The SDK calls the REST API, which accepts only bearer credentials, so it never sends or
+  stores a session cookie: an API key, an OAuth access token or a Better Auth session JWT (a Clerk session token on a Clerk instance). Requests go out with `credentials: 'omit'` and
   `redirect: 'error'` (on workerd, which rejects that value, the client retries once with `manual` and refuses a redirect response as `unexpected_redirect`); a table path that would leave the configured origin is refused (`origin_mismatch`) before the
   credential is read. There is no automatic retry: a function that returns a fresh token on its own owns refresh.
 - **`fetch`**: defaults to the global; inject one for tests.
-- **`operations`**: the operation table, defaulting to the built-ins. A generated table infers its map ([[DX604]]).
+- **`operations`**: the operation table, defaulting to the built-ins. A generated table infers its map.
 
 ## Calls
 
@@ -103,8 +103,8 @@ const request = await vibase.tasks.update.propose({ id, title: 'Renamed' }, { re
 
 ## Browser sessions
 
-`sessionToken({ url, fetch?, cookie? })` is a credential function for a Better Auth browser session: it exchanges the
-session cookie at `GET <origin>/auth/token` on every call (never cached) and resolves `null` when signed out (a `401`, or a
+The SDK itself only sends bearer tokens. `sessionToken({ url, fetch?, cookie? })` is a credential function for a Better Auth browser session: it exchanges the
+session cookie (the only place a cookie is used) for a short-lived bearer JWT at `GET <origin>/auth/token` on every call (never cached) and resolves `null` when signed out (a `401`, or a
 success without a `token`), which `createClient` turns into `401 no_credential` without sending the API request. In a
 browser it sends `credentials: 'include'`; server-side, pass `cookie` (a string, or a function called once per request) to
 send that cookie header with `credentials: 'omit'`. Other failures reject with `VibaseError` as above.

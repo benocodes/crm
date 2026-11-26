@@ -5,7 +5,7 @@ description: Understand who owns the data, who can sign in, and how agent identi
 
 A **workspace** is one organization's Vibase deployment. It has its own API URL, D1 database, storage, and authentication configuration. All clients connecting to that instance work within the same organization.
 
-Sign-in is provided by Better Auth, built into the instance and the default for a new instance, or by Clerk, chosen at setup. With Better Auth, people join through owner invitations. With Clerk, a workspace uses its own Clerk application and roles live there; it does not require Clerk Organizations.
+Sign-in is provided by Better Auth, built into the instance. It is the default and preferred choice, and people join through owner invitations. Clerk is an optional alternative chosen at setup: the workspace then uses its own Clerk application, roles live there, and Clerk Organizations are not required.
 
 ## Users
 

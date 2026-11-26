@@ -55,6 +55,8 @@ export default defineConfig({
           items: [
             { label: 'Command line', slug: 'guides/cli' },
             { label: 'MCP and REST', slug: 'guides/mcp-and-rest' },
+            { label: 'TypeScript SDK', slug: 'guides/sdk' },
+            { label: 'OAuth clients for your apps', slug: 'guides/oauth-clients' },
             { label: 'Webhooks', slug: 'guides/webhooks' },
             { label: 'Website forms', slug: 'guides/forms' },
             { label: 'Custom objects and fields', slug: 'guides/schema' },

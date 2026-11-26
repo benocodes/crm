@@ -180,6 +180,8 @@ The issuer is the base URL, so a move signs everyone out: every session and toke
 
 Clerk is an optional alternative to the built-in sign-in. Every setup command in this section carries `--auth clerk`; without it a new instance uses Better Auth. An instance keeps the provider it was set up with: changing it later is a migration, not a setup rerun.
 
+Clerk does its sign-in work outside your Worker, so it runs on the Cloudflare Workers Free plan; Better Auth is designed for Workers Paid.
+
 You also need a Clerk application dedicated to this workspace. A development instance works for an evaluation; use a production instance for your deployed business workspace. Create the secrets file with the Clerk application's keys as well:
 
 ```dotenv

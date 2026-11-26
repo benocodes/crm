@@ -24,10 +24,14 @@ export WRANGLER_SEND_METRICS=false CI=1
 pnpm -C packages/server-d1 exec wrangler d1 migrations apply DB --local
 pnpm -C packages/server-d1 exec wrangler d1 migrations apply CONTROL_DB --local
 
-# 2. Create the deployment marker, the first organisation and an operator agent. The key is printed once. A Clerk-backed deployment
-#    creates no human: the owner signs in with a Clerk session token whose `vibase_role` claim is `owner` (CORE64). --issuer is the
-#    Worker's CLERK_ISSUER. For an API-keys-only local run: --auth-provider none --auth-org-id org_local --email owner@example.com --agent my-agent
-pnpm -C packages/server-d1 bootstrap -- --org "Acme" --issuer https://clerk.example.com --agent my-agent
+# 2. Create the deployment marker, the first organisation and an operator agent. The key is printed once. Use Better Auth for local
+#    development: it runs entirely in the local Worker (workerd), with no external service, which Clerk cannot do. The default, Better Auth,
+#    creates no human here: it seeds the `vibase-cli` client in the control database, and the owner is invited (a deployed instance
+#    prints the owner invitation link). --public-base-url is the Worker's own origin. --auth-org-id <label> is optional.
+pnpm -C packages/server-d1 bootstrap -- --org "Acme" --auth-provider better-auth --public-base-url http://localhost:8787 --agent my-agent
+#    Alternatives: an API-keys-only run: --auth-provider none --auth-org-id org_local --email owner@example.com --agent my-agent
+#    Clerk: --issuer <the Worker's CLERK_ISSUER>; it creates no human either, the owner signs in with a Clerk session token whose
+#    `vibase_role` claim is `owner` (CORE64).
 
 # 3. Start the Worker locally (leave it running; stop it with Ctrl-C).
 pnpm -C packages/server-d1 dev   # builds the auth pages and the app, runs `wrangler dev --local --port 8787` and the Vite dev server on :5173 (open http://localhost:5173/app/home); `dev:worker` is build + `wrangler dev` alone
@@ -61,11 +65,11 @@ curl -s -X POST http://localhost:8787/mcp -H "authorization: Bearer $KEY" -H "co
 
 A request carrying an `Origin` header must come from `CORS_ALLOWED_ORIGINS` (empty: every browser is refused; clients with no `Origin` are unaffected).
 
-**OAuth sign-in** ([[API115]]): with Clerk configured, a standard MCP client given only `<origin>/mcp` signs a person in with no static key. Its first
+**OAuth sign-in** ([[API115]]): a standard MCP client given only `<origin>/mcp` signs a person in with no static key. Its first
 request is `401` with `WWW-Authenticate: Bearer resource_metadata="<origin>/.well-known/oauth-protected-resource/mcp", scope="<read and write scopes>"`;
-the document names the Clerk issuer, the client registers itself (DCR), the person consents on Clerk's screen, and the token resolves to a delegated
+the document names the instance's issuer (Better Auth's `/auth` on the default setup, Clerk's issuer on a Clerk instance), the client registers itself (DCR), the person consents on the instance's consent screen, and the token resolves to a delegated
 agent for that (client, person) that an owner can disable on `/app/agents`. `/.well-known/vibase` carries the URL as `mcp`, and the three discovery
-documents answer a browser's `OPTIONS` preflight. `pnpm -C packages/server-d1 e2e:mcp-oauth` proves the whole flow (Playwright, Clerk dev instance, `.env.dev` only).
+documents answer a browser's `OPTIONS` preflight. `pnpm -C packages/server-d1 e2e:mcp-oauth` proves the whole flow (Playwright, Clerk dev instance, `.env.dev` only; the Better Auth flow is covered by `smoke:worker` and the `e2e:oauth-pages` and `e2e:auth-pages` scripts).
 
 ## The workspace app
 
@@ -77,14 +81,14 @@ Signing in lands on **`/app/home`** ([[UI461]]), the workspace app's Home: a per
 pnpm -C packages/server-d1 build        # Vite bundles the auth pages and the app into dist/assets/assets/{ui,app}/ (gitignored; a build clears any older layout); dev, smoke:worker and deploy:remote do it first
 pnpm -C packages/server-d1 dev          # build, then wrangler dev --local on :8787 and the Vite dev server (hot reload) on :5173; open http://localhost:5173/app/home. Everything but the pages and their sources is proxied to :8787 unchanged; the built pages stay on :8787. Needs `AUTH_TRUSTED_ORIGINS` (Better Auth) / `CLERK_AUTHORIZED_PARTIES` (Clerk) to name http://localhost:5173 (see `.dev.vars.example`). Arguments after `--` go to wrangler dev
 pnpm -C packages/server-d1 dev:worker   # build, then wrangler dev --local on :8787 alone
-# E2E (Playwright + @clerk/testing, Clerk development instance, keys from the gitignored .env.dev only; not part of `pnpm test`):
+# Clerk E2E (the alternative provider; Playwright + @clerk/testing, Clerk development instance, keys from the gitignored .env.dev only; not part of `pnpm test`):
 pnpm -C packages/server-d1 exec playwright install chromium
 pnpm -C packages/server-d1 e2e:agents-clerk   # the Account Portal round trip and /app/agents; also e2e:mcp-oauth and e2e:action-requests
 ```
 
 The E2E's Account Portal step signs in with a Backend-API sign-in token (`__clerk_ticket` on the portal URL), which works whatever sign-in methods the development instance offers; it does not rely on an email-code or password route.
 
-Locally set `CLERK_AUTHORIZED_PARTIES=http://localhost:8787` and `CLERK_PUBLISHABLE_KEY` in `.dev.vars` (see `.dev.vars.example`).
+Locally on Better Auth, set `AUTH_TRUSTED_ORIGINS=http://localhost:5173` in `.dev.vars` (see `.dev.vars.example`). Only on a Clerk instance, set `CLERK_AUTHORIZED_PARTIES=http://localhost:8787` and `CLERK_PUBLISHABLE_KEY` instead.
 
 ## Configuration
 

@@ -2,7 +2,7 @@
 
 Astro + Starlight, built as a static site for Cloudflare Pages.
 
-The site describes Vibase as a headless, agentic CRM. Start with Concepts or the Clerk-backed quickstart.
+The site describes Vibase as a headless, agentic CRM. Start with Concepts or the quickstart.
 
 From the repository root:
 

@@ -12,7 +12,7 @@ pnpm vibase login --server https://api.example.com
 pnpm vibase me get
 ```
 
-The CLI prints a URL and a code. Open the URL in a browser and approve the device login. Your instance must have its authentication provider (Better Auth, built in, or Clerk) and device login configured.
+The CLI prints a URL and a code. Open the URL in a browser and approve the device login. Device login is built into every Better Auth instance, so there is nothing to configure. (A Clerk instance needs device authorization enabled in Clerk; see [running an instance](/deployment/self-hosting/#use-clerk-instead).)
 
 For API-key authentication, pass the key over stdin. With `VIBASE_API_KEY` supplied by your environment or secret manager:
 
@@ -49,7 +49,7 @@ pnpm vibase agents update <agent-id> \
   --data '{"scopes":["contacts:read","contacts:write"]}'
 ```
 
-New agent accounts start without scopes (permissions) until an owner grants them. On a Clerk instance, invite the agent in your Clerk application with public metadata `{"vibase_role":"agent"}` instead of creating an invitation. An owner can add or remove individual grants:
+New agent accounts start without scopes (permissions) until an owner grants them. On a Clerk instance, invite the agent in your Clerk application with public metadata `{"vibase_role":"agent"}` instead of creating an invitation; device login then works the same way. An owner can add or remove individual grants:
 
 ```bash
 pnpm vibase agents update <agent-id> \

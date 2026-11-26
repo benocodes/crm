@@ -19,6 +19,21 @@ For example, an agent with `tasks:request_approval` can propose a task change bu
 
 Approval requests refer to registered operations and their arguments. The reviewer must have the target operation's write authority. An authorized person or agent can review; proposal permission alone cannot authorize execution.
 
+## What a reviewer sees
+
+Every approval request carries facts the vault wrote itself, so a reviewer does not depend on the proposer's own description:
+
+- `target_summary`: one line saying what the request asks for, such as the operation, the target record's name and the changed fields. For a send it names the mailbox and recipients. Outside text in it is quoted and shortened.
+- `proposer_kind` and `proposer_name`: whether a user, an agent or the system proposed it, and the name as registered now. An agent's name is chosen by whoever registered it.
+- `proposer_acting_for`: for a delegated agent, the member it acts for.
+- `sending_mailbox`: for a send, the connected mailbox it would go out from.
+
+The `reason` is the proposer's own text. Treat it as a claim, not as a fact.
+
+## Outside content is data
+
+Message bodies, subjects, sender names and form submissions come from outside your team, since anyone can email a connected mailbox. At capture, the vault strips hidden text from what it stores: zero-width characters, bidirectional overrides, and Unicode tag characters. The MCP instructions tell agents to treat this text as data and never as instructions, and to propose an action for approval rather than act on a message's request. An agent with write permission can still be wrong about what a message wants, so grant send authority carefully.
+
 ## Keep workflow policy in your workflow
 
 Your automation can send high-confidence work directly and route uncertain work for review, within its grants. Vibase enforces authority and carries out authorized operations using the credentials it holds.
