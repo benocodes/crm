@@ -284,6 +284,17 @@ function withAuthCors(res: Response, origin: string): Response {
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers })
 }
 
+const OAUTH_REGISTER_PATH = '/auth/oauth2/register'
+const OAUTH_TOKEN_PATH = '/auth/oauth2/token'
+
+/** [[API622]] D6, D9: a copy of `res` with the credential-free CORS answer for a bearer app origin. `set` replaces any `Access-Control-Allow-Origin` (never two); the plugin's other headers (Expose-Headers) are kept. */
+function withBearerCors(res: Response, origin: string): Response {
+  const headers = new Headers(res.headers)
+  headers.set('access-control-allow-origin', origin)
+  headers.append('vary', 'Origin')
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers })
+}
+
 /**
  * The composition of the open D1 Worker ([[CORE38]] P5), built once per isolate. The deployment marker drives the storage
  * binding (a missing `deployment` table counts as absent): while it is absent every route but `/health` and the two OpenAPI documents is `503 not_initialised`, and an absent marker is
@@ -1038,6 +1049,25 @@ export function composeD1Worker(
                 vary: 'Origin',
               },
             })
+          // [[API622]] D5, D6, D7: a bearer app's origin (CORS_ALLOWED_ORIGINS, not a trusted one: D7 keeps the credentialed answer) gets a credential-free answer on exactly the OAuth register and token paths (P1: the
+          // pathname, literally). The preflight is fixed (P3) and answered before the gates; every other answer carries the origin. Never Allow-Credentials.
+          const bearer =
+            trusted === null &&
+            origin !== null &&
+            (url.pathname === OAUTH_REGISTER_PATH || url.pathname === OAUTH_TOKEN_PATH) &&
+            originMatches(corsOrigins, origin)
+              ? origin
+              : null
+          if (bearer !== null && req.method === 'OPTIONS')
+            return new Response(null, {
+              status: 204,
+              headers: {
+                'access-control-allow-origin': bearer,
+                'access-control-allow-methods': 'POST',
+                'access-control-allow-headers': AUTH_CORS_ALLOW_HEADERS,
+                vary: 'Origin',
+              },
+            })
           const answer = async (): Promise<Response> => {
             if ((await migrations()).status === 'behind') return json(MIGRATIONS_PENDING, 503)
             const refused = await controlGate()
@@ -1046,6 +1076,7 @@ export function composeD1Worker(
             return await builtInAuth().handler(req)
           }
           const res = await answer()
+          if (bearer !== null) return withBearerCors(res, bearer)
           return trusted === null ? res : withAuthCors(res, trusted)
         }
         const spec =

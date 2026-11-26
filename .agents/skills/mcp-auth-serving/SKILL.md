@@ -29,6 +29,15 @@ Budgets: its connection check gives up after **5 s** ("some checks were skipped 
 - **Client endpoints are owner-only** ([[CORE577]] D10): the `clientPrivileges` hook (`ownerOnlyClientPrivileges`, fed `clientOwner` by the composition from the live vault role) refuses every action for a non-owner and fails closed. The pinned `@better-auth/oauth-provider` calls it from `/oauth2/register` **only when the request carries a session**: unauthenticated DCR (what MCP clients do) never reaches it, while a registration carrying a member's session gets 401.
 - **Rate limits live in D1:** registration is capped at 10 per hour per IP. Probing from your own machine locks you out; test from another IP or wait.
 - CORS `*` on discovery documents; `Cache-Control` on the static metadata.
+- **`/auth` has three CORS answers** (`compose.ts`'s `/auth` branch, [[API622]] D5–D7, [[API625]]), chosen in this order:
+  an origin `AUTH_TRUSTED_ORIGINS` matches gets the credentialed answer on every `/auth` path ([[UI255]] D7); otherwise an
+  origin `CORS_ALLOWED_ORIGINS` matches gets the credential-free answer (`withBearerCors`: the origin and `Vary: Origin`,
+  never `Allow-Credentials`, a fixed `204` preflight with `POST` and `Content-Type` before the gates) on exactly the
+  pathnames `/auth/oauth2/register` and `/auth/oauth2/token`, compared literally; the metadata document keeps the
+  plugin's `*`. Better Auth's CSRF origin check runs only on cookie-bearing requests, so a cookie-less register or token
+  call from an untrusted origin reaches the handler. Answers set `Access-Control-Allow-Origin` (never append: two values
+  break the browser) and keep the plugin's other headers. A new credential-free path is a spec decision, not a list edit.
+  Proofs: `packages/server-d1/src/oauth-cors-workerd.test.ts`.
 
 ## Writing `auth_oauth_*` rows by hand
 
