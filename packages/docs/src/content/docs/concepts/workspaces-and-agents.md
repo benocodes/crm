@@ -3,7 +3,7 @@ title: Workspaces, users, and agents
 description: Understand who owns the data, who can sign in, and how agent identities are attributed.
 ---
 
-A **workspace** is one organization's Vibase deployment. It has its own API URL, D1 database, storage, and authentication configuration. All clients connecting to that instance work within the same organization.
+A **workspace** is one organization's Vibase deployment. It has its own API URL, two D1 databases (one for CRM data, one for sign-in and access data), storage, and authentication configuration. All clients connecting to that instance work within the same organization.
 
 Sign-in is provided by Better Auth, built into the instance. It is the default and preferred choice, and people join through owner invitations. Clerk is an optional alternative chosen at setup: the workspace then uses its own Clerk application, roles live there, and Clerk Organizations are not required.
 

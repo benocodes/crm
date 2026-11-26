@@ -5,7 +5,7 @@ description: A headless, agentic CRM for independent agents and custom applicati
 
 Vibase is an open-source, self-managed, headless, agentic CRM. It stores contacts, companies, deals, tasks, and conversations, and gives your agents the tools to work with them under permissions you control.
 
-Each organization runs its own Cloudflare Worker, D1 database, and authentication configuration. You own the infrastructure and decide which agents can access it.
+Each organization runs its own Cloudflare Worker, its own D1 databases (one for CRM data, one for sign-in and access data), and its own authentication configuration. You own the infrastructure and decide which agents can access it.
 
 ## Choose how you interact
 
