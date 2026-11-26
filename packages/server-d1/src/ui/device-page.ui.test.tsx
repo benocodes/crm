@@ -18,7 +18,12 @@ const NO_SESSION = { status: 200, json: null }
 const SESSION = { status: 200, json: { user: { id: 'u1', email: 'ann@x.test', name: 'Ann' }, session: { id: 's1' } } }
 const CLAIM = {
   status: 200,
-  json: { user_code: 'ABCDEFGH', status: 'pending', client_id: 'vibase-cli', scope: 'openid contacts:read' },
+  json: {
+    user_code: 'ABCDEFGH',
+    status: 'pending',
+    client_id: 'vibase-cli',
+    scope: 'openid contacts:read limited_login',
+  },
 }
 const CLIENT = { status: 200, json: { client_id: 'vibase-cli', client_name: 'Vibase CLI' } }
 const OK = { status: 200, json: { success: true } }
@@ -150,6 +155,48 @@ describe('claim, then review', () => {
     expect(screen.getByText('<u>x</u>:read')).toBeTruthy()
     expect(document.querySelector('u')).toBeNull()
     for (const id of ['n', 'e']) expect(document.getElementById(id), id).toBeNull()
+  })
+
+  // [[CORE630]] D11 (device half): which block renders is keyed on structure (a labelled region), never on the sentence.
+  describe('what a CLI login grants (D2, D11)', () => {
+    const claim = (clientId: string, scope: string) => ({
+      ...happyRoutes(),
+      'GET /auth/device': {
+        status: 200,
+        json: { user_code: 'ABCDEFGH', status: 'pending', client_id: clientId, scope },
+      },
+    })
+    const FULL = { name: 'Full access' }
+    const LISTED = { name: 'Requested permissions' }
+    beforeEach(() => history.replaceState(null, '', '/app/device?user_code=ABCDEFGH'))
+
+    it('an unmarked vibase-cli request shows the full-access block and no scope list, and never the marker', async () => {
+      fakeFetch(claim('vibase-cli', 'openid contacts:read contacts:write offline_access'))
+      render(<DevicePage />)
+      expect(await screen.findByRole('region', FULL)).toBeTruthy()
+      expect(screen.queryByRole('region', LISTED)).toBeNull()
+      expect(document.body.textContent).not.toContain('limited_login')
+    })
+
+    it('a marked vibase-cli request lists its scopes, shows no full-access block, and never renders the marker', async () => {
+      fakeFetch(claim('vibase-cli', 'contacts:read limited_login offline_access'))
+      render(<DevicePage />)
+      expect(await screen.findByRole('region', LISTED)).toBeTruthy()
+      expect(screen.getByText('contacts:read')).toBeTruthy()
+      expect(screen.queryByRole('region', FULL)).toBeNull()
+      expect(document.body.textContent).not.toContain('limited_login')
+    })
+
+    it('another client keeps the scope list, marked or not, and no full-access block', async () => {
+      for (const scope of ['openid contacts:read', 'openid contacts:read limited_login']) {
+        cleanup()
+        fakeFetch(claim('some-other-client', scope))
+        render(<DevicePage />)
+        expect(await screen.findByRole('region', LISTED)).toBeTruthy()
+        expect(screen.queryByRole('region', FULL)).toBeNull()
+        expect(document.body.textContent).not.toContain('limited_login')
+      }
+    })
   })
 
   it('an unknown scope is shown by name with "No description"', async () => {

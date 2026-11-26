@@ -15,7 +15,7 @@ export interface AuthKit {
   /** The 15-minute session JWT of a cookie (`/auth/token`). */
   sessionJwt(cookie: string): Promise<string>
   /** A public client with the device grant (open DCR, test admission only); its client id. */
-  registerClient(name: string): Promise<string>
+  registerClient(name: string, extraScopes?: readonly string[]): Promise<string>
   /** The device grant end to end for a signed-in cookie: the token endpoint's whole answer (`access_token`, `id_token` with `openid`, ...). */
   deviceTokens(
     cookie: string,
@@ -89,7 +89,7 @@ export function authKitOver(call: AuthKit['call'], base: string, vaultScopes: re
       const res = await ok(await call('/auth/token', { cookie }), 'token')
       return ((await res.json()) as { token: string }).token
     },
-    async registerClient(name) {
+    async registerClient(name, extraScopes = []) {
       const res = await ok(
         await call('/auth/oauth2/register', {
           body: {
@@ -98,7 +98,7 @@ export function authKitOver(call: AuthKit['call'], base: string, vaultScopes: re
             resources: [base],
             grant_types: ['authorization_code', DEVICE_GRANT, 'refresh_token'],
             response_types: ['code'],
-            scope: ['openid', 'offline_access', ...grantableScopes(vaultScopes)].join(' '),
+            scope: ['openid', 'offline_access', ...extraScopes, ...grantableScopes(vaultScopes)].join(' '),
             redirect_uris: ['https://client.test/callback'],
           },
         }),
