@@ -5,7 +5,7 @@ description: Install the Vibase client, sign in to an existing instance, read an
 
 Use a Vibase instance that someone has already set up: install the command line client, sign in, make your first records, and connect an agent. If you need to run the instance itself, see [deploying Vibase](/deployment/self-hosting/).
 
-You need Node.js 22.12 or later, the URL of your instance (for example `https://api.example.com`), and an invitation from the instance's owner.
+You need Node.js 22.12 or later, the URL of your instance (for example `https://crm.mycompany.com`), and an invitation from the instance's owner.
 
 ## 1. Install the client
 
@@ -25,7 +25,7 @@ npm i -g ./vibase-cli-<version>.tgz
 Accept the invitation your instance's owner sends you (on a Clerk instance, the invitation Clerk emails you), then run:
 
 ```bash
-vibase login --server https://api.example.com
+vibase login --server https://crm.mycompany.com
 ```
 
 Open the URL the CLI prints, enter the code if prompted, and approve the device login. The CLI stores the OAuth profile and refreshes access tokens automatically.
@@ -47,7 +47,7 @@ vibase contacts list --limit 5
 
 ## 4. Connect an agent
 
-Add `https://api.example.com/mcp` to a remote MCP client with OAuth support. Complete the browser consent flow, then see the connected agent on the instance's Agents page (`https://api.example.com/app/agents`) and grant its permissions with the [CLI](/guides/cli/) (the page shows the grant command; it does not edit permissions). OAuth consent is bounded by Vibase's stored agent grants.
+Add `https://crm.mycompany.com/mcp` to a remote MCP client with OAuth support. Complete the browser consent flow, then see the connected agent on the instance's Agents page (`https://crm.mycompany.com/app/agents`) and grant its permissions with the [CLI](/guides/cli/) (the page shows the grant command; it does not edit permissions). OAuth consent is bounded by Vibase's stored agent grants.
 
 For a standalone automation with its own account, follow [invite agents and manage permissions](/guides/agents/). Give each agent the scopes it needs; [read, proposal, and write permissions](/concepts/permissions/) are separate choices.
 

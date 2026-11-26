@@ -17,7 +17,7 @@ Each operation page describes its method, path, parameters, request body, and re
 Pass an appropriate access token or agent API key as a Bearer credential:
 
 ```bash
-curl https://api.example.com/api/v1/contacts \
+curl https://crm.mycompany.com/api/v1/contacts \
   -H "Authorization: Bearer $VIBASE_ACCESS_TOKEN"
 ```
 
@@ -28,8 +28,8 @@ Follow the [quickstart](/getting-started/quickstart/) to sign in with OAuth devi
 An instance can run an older version than this site. Its own documents describe what it accepts:
 
 ```text
-https://api.example.com/api/v1/openapi.json
-https://api.example.com/meta/v1/openapi.json
+https://crm.mycompany.com/api/v1/openapi.json
+https://crm.mycompany.com/meta/v1/openapi.json
 ```
 
-Use `https://api.example.com/.well-known/vibase` to discover those URLs. The published JSON downloads are unmodified exports of the router's documents. Use real record IDs and your own credentials when making requests.
+Use `https://crm.mycompany.com/.well-known/vibase` to discover those URLs. The published JSON downloads are unmodified exports of the router's documents. Use real record IDs and your own credentials when making requests.

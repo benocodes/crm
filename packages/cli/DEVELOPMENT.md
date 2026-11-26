@@ -13,7 +13,7 @@ pnpm vibase --help                               # from the repo root; builds pa
 pnpm -C packages/cli build                       # writes dist/vibase.js (rebuild after changing the CLI)
 node packages/cli/dist/vibase.js --help
 
-printf '%s' "$KEY" | vibase login --api-key --server https://api.example.com   # the key is read from stdin, never argv
+printf '%s' "$KEY" | vibase login --api-key --server https://crm.mycompany.com   # the key is read from stdin, never argv
 vibase me get
 vibase contacts create --name "Ada"              # body properties are flags (--due-at for due_at); --data <json|@file|-> gives the whole body
 vibase contacts get <id>
@@ -32,9 +32,9 @@ Put the command words first: `vibase contacts list --limit 5`.
 An instance with a sign-in configured (`auth` in `<server>/.well-known/vibase`) is signed in to from any browser, on any machine:
 
 ```bash
-vibase login --server https://api.example.com               # prints a URL and a code on stderr; approve in a browser
-vibase login --server https://api.example.com --scope contacts:read,contacts:write   # ask for less
-vibase --profile work login --server https://api.example.com   # a second identity in its own profile
+vibase login --server https://crm.mycompany.com               # prints a URL and a code on stderr; approve in a browser
+vibase login --server https://crm.mycompany.com --scope contacts:read,contacts:write   # ask for less
+vibase --profile work login --server https://crm.mycompany.com   # a second identity in its own profile
 vibase me get                                               # who am I; login already printed it on stdout
 vibase logout                                               # revokes the refresh token, then forgets the profile
 ```

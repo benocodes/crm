@@ -6,7 +6,7 @@ fetch-only runtime for Node 22+, Workers and browsers: it imports nothing from `
 ```ts
 import { createClient, isVibaseError } from '@vibase/sdk'
 
-const vibase = createClient({ url: 'https://api.acme.example', auth: () => getToken() })
+const vibase = createClient({ url: 'https://crm.acme.example', auth: () => getToken() })
 
 const page = await vibase.contacts.list({ limit: 50 })
 await vibase.deals.moveStage({ id, stage_id })
@@ -124,12 +124,12 @@ verb runs. It sends no cookie: every request is `credentials: 'omit'`.
 import { browserSignIn, createClient } from '@vibase/sdk'
 
 const signIn = browserSignIn({
-  url: 'https://api.acme.example',
+  url: 'https://crm.acme.example',
   clientId: 'the-client-id',
   redirectUri: `${location.origin}/callback`,
   scopes: ['contacts.read'], // optional
 })
-const vibase = createClient({ url: 'https://api.acme.example', auth: signIn.token })
+const vibase = createClient({ url: 'https://crm.acme.example', auth: signIn.token })
 
 // On the callback page, once on load:
 const done = await signIn.handleRedirect() // { returnTo } after a sign-in, else null
@@ -256,7 +256,7 @@ companies, deals and tasks are declared in its schema file; the generator turns 
 
 ```bash
 # from the deployment: its two public OpenAPI documents (https; http only for localhost, 127.0.0.1, [::1]); no credential is sent
-pnpm -C packages/sdk generate --url https://api.acme.example --out apps/pipeline/src/vibase
+pnpm -C packages/sdk generate --url https://crm.acme.example --out apps/pipeline/src/vibase
 # from the schema file, built in-process: works offline, before a redeploy
 pnpm -C packages/sdk generate --schema ./vibase.schema.json --out apps/pipeline/src/vibase
 ```
@@ -271,7 +271,7 @@ nothing checks at run time that the map matches the deployment.
 import { createClient } from '@vibase/sdk'
 import { workspaceOperations } from './vibase/operations.js'
 
-const vibase = createClient({ url: 'https://api.acme.example', auth: () => getToken(), operations: workspaceOperations })
+const vibase = createClient({ url: 'https://crm.acme.example', auth: () => getToken(), operations: workspaceOperations })
 await vibase.projects__c.list({ budget: { gte: 5000 } }) // a custom namespace keeps its `__c` key, untranslated
 await vibase.contacts.update({ id, tier__c: 'gold' }) // 'platinum' is a type error
 ```

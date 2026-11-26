@@ -11,7 +11,7 @@ If an instance already exists and you only want to use it, see [using Vibase](/g
 
 - **Node.js 22.12 or later.**
 - **A Cloudflare account** on the Workers Paid plan (password hashing can exceed the Free plan's 10 ms CPU limit on a cold start; this has not been measured on Cloudflare).
-- **A domain on that Cloudflare account** for the API, such as `api.example.com`. Cloudflare creates the DNS record itself. No domain? See [domains and workers.dev](/deployment/domains/).
+- **A domain on that Cloudflare account** for your instance, such as `crm.mycompany.com`. Cloudflare creates the DNS record itself. No domain? See [domains and workers.dev](/deployment/domains/).
 - **An email address** for the first owner.
 - **A Cloudflare API token** with these permissions (Cloudflare dashboard, My Profile, API Tokens), and your account ID:
 
@@ -20,7 +20,7 @@ The Cloudflare token needs these permissions:
 | Scope | Permissions |
 | --- | --- |
 | Account | Workers Scripts Edit, D1 Edit, Workers R2 Storage Edit, Workers Tail Read, Account Settings Read |
-| The API hostname's zone | Zone Read, Workers Routes Edit |
+| The domain's zone | Zone Read, Workers Routes Edit |
 
 ## 1. Install
 
@@ -40,7 +40,7 @@ Init asks for:
 | Question | Answer |
 | --- | --- |
 | Instance name | Lower-case letters, digits and dashes, such as `mycompany`. It names the resources and the config files. |
-| API host | The domain on your Cloudflare account, such as `api.example.com`. |
+| Domain | The domain Vibase is served from, on your Cloudflare account, such as `crm.mycompany.com`. |
 | Owner email | The first owner. |
 | Auth provider | Press Enter for Better Auth, the built-in sign-in. |
 | Email providers | `gmail` (the default) or `none`. |
@@ -72,7 +72,7 @@ The last lines of setup's output are the **owner invitation link**. It is shown 
 
 ```bash
 vibase-server status --env mycompany
-curl https://api.example.com/health
+curl https://crm.mycompany.com/health
 ```
 
 Health reports an initialized instance with current migrations. A new custom domain can take a few minutes to resolve; if setup says `not reachable yet`, wait and run `status` again.

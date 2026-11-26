@@ -12,7 +12,7 @@ npm install @vibase/sdk
 ```ts
 import { createClient, isVibaseError } from '@vibase/sdk'
 
-const vibase = createClient({ url: 'https://api.example.com', auth: () => getToken() })
+const vibase = createClient({ url: 'https://crm.mycompany.com', auth: () => getToken() })
 
 const page = await vibase.contacts.list({ limit: 50 })
 await vibase.deals.moveStage({ id, stage_id })
@@ -122,7 +122,7 @@ The default client types the built-in resources. To type your own [custom object
 
 ```bash
 # from the running instance's public OpenAPI documents
-pnpm -C packages/sdk generate --url https://api.example.com --out src/vibase
+pnpm -C packages/sdk generate --url https://crm.mycompany.com --out src/vibase
 # from the schema file, offline, before a redeploy
 pnpm -C packages/sdk generate --schema ./vibase.schema.json --out src/vibase
 ```

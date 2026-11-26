@@ -30,7 +30,7 @@ Everything else is as in [Deploy Vibase](/deployment/self-hosting/): the same st
 A workers.dev instance moves to a domain of your own with a re-run that names the new host and acknowledges what the move breaks:
 
 ```bash
-vibase-server setup --env mycompany --api-host api.example.com --change-host
+vibase-server setup --env mycompany --api-host crm.mycompany.com --change-host
 ```
 
 Without `--change-host`, a host that differs from the instance's record is refused. With it, setup checks that the new host is on a zone in your account, keeps `workers_dev` on, adds the custom-domain route, rewrites the recorded host and `PUBLIC_BASE_URL`, deploys and verifies on the new host. The same flag moves an instance between two custom domains (the old route is replaced; setup makes no DNS or custom-domain delete call, so detach the old custom domain in the dashboard if it stays attached).

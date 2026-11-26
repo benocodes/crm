@@ -8,7 +8,7 @@ The CLI discovers operations from the instance you connect to. The examples use 
 ## Sign in to an instance
 
 ```bash
-pnpm vibase login --server https://api.example.com
+pnpm vibase login --server https://crm.mycompany.com
 pnpm vibase me get
 ```
 
@@ -17,7 +17,7 @@ The CLI prints a URL and a code. Open the URL in a browser and approve the devic
 For API-key authentication, pass the key over stdin. With `VIBASE_API_KEY` supplied by your environment or secret manager:
 
 ```bash
-printf '%s' "$VIBASE_API_KEY" | pnpm vibase login --api-key --server https://api.example.com
+printf '%s' "$VIBASE_API_KEY" | pnpm vibase login --api-key --server https://crm.mycompany.com
 ```
 
 ## Work with records

@@ -15,7 +15,7 @@ pnpm -C packages/approvals-app dev          # wrangler dev on :8788 (the origin 
 
 ## Better Auth instances (the default)
 
-The Better Auth path needs the app and the API on **one registrable domain** (for example `app.example.com` and `api.example.com`):
+The Better Auth path needs the app and the API on **one registrable domain** (for example `app.mycompany.com` and `crm.mycompany.com`):
 the session cookie is sent credentialed across the two origins, which browsers allow for same-site origins only. **It does not work
 on `workers.dev`** (a public suffix: every `*.workers.dev` is a different site), and no code enforces this. To configure it:
 

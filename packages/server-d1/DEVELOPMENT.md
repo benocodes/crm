@@ -194,12 +194,12 @@ and `CREDENTIALS_KEY` is never replaced (`--rotate-secrets` replaces the other t
 `CREDENTIALS_KEY_VERSION`, not setup's job). The Google Cloud side (project, OAuth client, topic, push) is the guide in [Google Cloud setup for Gmail](#google-cloud-setup-for-gmail-user-run).
 
 ```bash
-pnpm -C packages/server-d1 setup:remote -- --env acme --api-host api.acme.example.com --owner-email you@example.com --dry-run
-CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env acme --api-host api.acme.example.com --owner-email you@example.com \
+pnpm -C packages/server-d1 setup:remote -- --env acme --api-host crm.acme.example.com --owner-email you@example.com --dry-run
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env acme --api-host crm.acme.example.com --owner-email you@example.com \
   [--clerk-env-file .env.acme] [--rotate-secrets] \
   [--operator-agent operator --key-env ACME_OPERATOR_KEY [--org <name>]] [--only secrets]
 # Clerk instead of Better Auth (Clerk keys in .env.acme; --clerk-production for sk_live_ keys):
-CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env acme --auth clerk --api-host api.acme.example.com --owner-email you@example.com \
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env acme --auth clerk --api-host crm.acme.example.com --owner-email you@example.com \
   [--clerk-env-file .env.acme] [--clerk-production] [--no-dcr] [--rotate-secrets] \
   [--web-origin https://app.example.com] [--extra-origin https://other.example.com] \
   [--operator-agent operator --key-env ACME_OPERATOR_KEY [--org <name>]] [--only clerk,secrets]
