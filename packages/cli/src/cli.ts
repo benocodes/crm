@@ -316,12 +316,7 @@ async function deviceLogin(server: string, name: string, scopeFlag: string | und
         'unknown_scope',
       )
   }
-  // [[CORE630]] D2: `--scope` limits the login to its list, and the instance only honours that when the request says so: the marker `limited_login` goes before `offline_access`. A login without `--scope` carries none and follows the person's live role.
-  const requested = (
-    scopeFlag === undefined
-      ? [...new Set([...scopes, 'offline_access'])]
-      : [...new Set([...scopes.filter((s) => s !== 'offline_access'), 'limited_login', 'offline_access'])]
-  ).join(' ')
+  const requested = [...new Set([...scopes, 'offline_access'])].join(' ')
   const resource = nonEmpty(auth.resource) ? auth.resource : undefined
   const grant = await deviceGrant(as, auth.cli_client_id, requested, deps, resource)
 

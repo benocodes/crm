@@ -39,8 +39,6 @@ export interface PreparedEnv {
   readonly actor: Actor
   readonly organizationId: string
   readonly scopes: ScopeSet
-  /** [[CORE630]] D10: every scope the registry declares, set by the registry for the agent operations, whose grant check reads it instead of the caller's own scopes. Absent: nothing custom is declared. */
-  readonly declaredScopes?: readonly string[]
   readonly now: Date
   newId(): string
   /** The injected random source (CORE40 P8), beside the clock and ids, so golden runs can record a key. */

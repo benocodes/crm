@@ -35,7 +35,7 @@ Output is JSON, or one record per line for lists. Errors go to stderr. Exit code
 
 ## Give an agent its own identity
 
-A device login by an owner holds the owner's permissions, including ones added later (a new custom object, for example), and the CLI says so on stderr after login. To keep a login to a list, ask for it: `vibase login --scope contacts:read,contacts:write` makes a limited login that holds only those scopes. Anything that uses that profile acts as the owner, so an agent should not share it. Give each agent its own account, or its own API key, and grant it only the scopes it needs: see [invite agents and manage permissions](/guides/agents/).
+A device login by an owner holds the owner's permissions, and the CLI says so on stderr after login. Anything that uses that profile acts as the owner, so an agent should not share it. Give each agent its own account, or its own API key, and grant it only the scopes it needs: see [invite agents and manage permissions](/guides/agents/).
 
 ## Use profiles and sign out
 

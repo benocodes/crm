@@ -33,7 +33,7 @@ An instance with a sign-in configured (`auth` in `<server>/.well-known/vibase`) 
 
 ```bash
 vibase login --server https://crm.mycompany.com               # prints a URL and a code on stderr; approve in a browser
-vibase login --server https://crm.mycompany.com --scope contacts:read,contacts:write   # a limited login: only these scopes, even for permissions added later
+vibase login --server https://crm.mycompany.com --scope contacts:read,contacts:write   # ask for less
 vibase --profile work login --server https://crm.mycompany.com   # a second identity in its own profile
 vibase me get                                               # who am I; login already printed it on stdout
 vibase logout                                               # revokes the refresh token, then forgets the profile
