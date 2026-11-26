@@ -3,9 +3,12 @@ import starlight from '@astrojs/starlight'
 import { sections } from './src/nav.mjs'
 import starlightOpenAPI, { openAPISidebarGroups } from 'starlight-openapi'
 
+const site = process.env.DOCS_SITE_URL || 'https://docs.vibase.ai'
+const ogImage = new URL('/og.png', site).href
+
 export default defineConfig({
   // Override for forks; production canonical URLs always point to the documentation domain.
-  site: process.env.DOCS_SITE_URL || 'https://docs.vibase.ai',
+  site,
   output: 'static',
   integrations: [
     starlight({
@@ -18,6 +21,14 @@ export default defineConfig({
       editLink: { baseUrl: 'https://github.com/benocodes/crm/edit/main/packages/docs/' },
       routeMiddleware: './src/route-data.ts',
       components: { PageTitle: './src/components/PageTitle.astro' },
+      head: [
+        { tag: 'meta', attrs: { property: 'og:image', content: ogImage } },
+        { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
+        { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
+        { tag: 'meta', attrs: { property: 'og:image:alt', content: 'Vibase' } },
+        { tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },
+        { tag: 'meta', attrs: { name: 'twitter:image', content: ogImage } },
+      ],
       customCss: ['./src/styles/custom.css'],
       plugins: [
         starlightOpenAPI([

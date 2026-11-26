@@ -32,6 +32,8 @@ Astro 7 and Starlight 0.43 need Node 22.23.4 or later (or Node 24); the site bui
 
 For agents, the site follows [llmstxt.org](https://llmstxt.org) with no plugin (`src/pages/`, `src/nav.mjs`, `src/route-data.ts`, `public/_headers`): `/llms.txt` is a table of contents in sidebar order linking each page's markdown twin, `/llms-full.txt` is every page concatenated, each content page is served as markdown at `<path>.md` (for example `/getting-started/quickstart.md`), each HTML page advertises its twin with `rel="alternate" type="text/markdown"`, and a Copy as Markdown button sits under the title. The sidebar and `llms.txt` share one list, `src/nav.mjs`: add a page there. The generated API reference pages have no `.md` twin; agents read the OpenAPI JSON under `/openapi/`.
 
+The social preview card is `public/og.png` (the logo centered on the dark background, 1200x630), wired in `astro.config.mjs`. Regenerate it after a logo change with `pnpm -C packages/docs og:generate`.
+
 Author public content in `src/content/docs/`; keep private knowledge notes and credentials outside this package. See `src/content/docs/deployment/docs-site.md` for publishing instructions.
 
 ## API reference

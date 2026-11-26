@@ -45,6 +45,6 @@ Connect the repository to a Pages project using these settings:
 
 Keep the repository root as the build root so Pages can install from the workspace lockfile. The site needs no backend bindings or secrets. Static output does not require an Astro Cloudflare adapter.
 
-Set `DOCS_SITE_URL` to override the default `https://docs.vibase.ai` origin for a fork. Builds generate canonical URLs and a sitemap for the selected origin.
+Set `DOCS_SITE_URL` to override the default `https://docs.vibase.ai` origin for a fork. Builds generate canonical URLs and a sitemap for the selected origin. They also generate a `robots.txt` that points crawlers at the sitemap. `public/_headers` marks the `*.pages.dev` addresses and the `.md` twins `noindex`, so the custom domain's HTML pages are the indexed copy.
 
 Cloudflare's [build configuration](https://developers.cloudflare.com/pages/configuration/build-configuration/) and [monorepo guide](https://developers.cloudflare.com/pages/configuration/monorepos/) explain these settings.
