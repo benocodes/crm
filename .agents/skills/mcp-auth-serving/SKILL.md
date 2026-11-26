@@ -44,6 +44,24 @@ Budgets: its connection check gives up after **5 s** ("some checks were skipped 
   published. A hook that needs "what a connector may register" uses `registrationScopes(…).allowed`, not `scopes`.
   The authenticator reads a provider scope from the token's raw list, before the filter to declared vault scopes.
   Proofs: `packages/server-d1/src/cli-wildcard.test.ts` group 4.
+- **A self-registered connector's stored scopes grow at authorize** ([[CORE661]], [[CORE630]] D9,
+  `convergeClientScopes` in `packages/auth/src/auth.ts`). The library refuses an authorize (`invalid_scope`) for any
+  scope outside the client's stored list, including the empty-scope fill, so a connector that registered before a
+  custom object was declared could not reconnect. The `/oauth2/authorize` before-hook (GET and POST, named or filled
+  scope) grows a dynamically registered client's list (`user_id` and `reference_id` null, an array list, not
+  disabled) to itself ∪ `registrationScopes(…).allowed`, through the library's adapter, only when an entry is
+  missing, never removing one. It works because the library's `getClient` is uncached here (no
+  `cachedTrustedClients`): a write in the before-hook is what the endpoint then reads. The library re-checks the list
+  at code exchange and refresh; the list only grows, so neither breaks. **Not yet observed:** whether Claude web
+  reuses its client on a reconnect or registers a new one (either works; owed on `smoked1`, record the answer under
+  "What Claude web does"). Proofs: `packages/server-d1/src/connector-scope-convergence.test.ts`.
+- **A write on an unauthenticated path must add only what an anonymous caller already gets** ([[CORE661]] review,
+  661.9). `/oauth2/authorize` and `/oauth2/register` run before any session exists, so a hook that writes there is
+  writing for whoever sent the request. Before accepting one, show three things: what it writes is bounded by what an
+  anonymous registration would store anyway (here `registrationScopes(…).allowed`); the later gates (consent, the
+  agent's record, the token's list) still decide what is granted; and its failure path can only leave things out
+  (log and go on is safe only when the write is purely additive). Pick the client id from the same source the library
+  reads (POST body, else query), so one request cannot write one client and authorize another.
 - **`/auth` has three CORS answers** (`compose.ts`'s `/auth` branch, [[API622]] D5–D7, [[API625]]), chosen in this order:
   an origin `AUTH_TRUSTED_ORIGINS` matches gets the credentialed answer on every `/auth` path ([[UI255]] D7); otherwise an
   origin `CORS_ALLOWED_ORIGINS` matches gets the credential-free answer (`withBearerCors`: the origin and `Vary: Origin`,
