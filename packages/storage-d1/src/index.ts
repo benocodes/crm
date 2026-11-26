@@ -161,6 +161,16 @@ export {
 } from './migration-state.js'
 export { CONTROL_MIGRATIONS } from './control-migrations-manifest.js'
 export {
+  createOAuthClient,
+  deleteOAuthClient,
+  getOAuthClient,
+  listOAuthClients,
+  updateOAuthClient,
+  type NewOAuthClient,
+  type OAuthClientChange,
+  type OAuthClientRecord,
+} from './oauth-client-store.js'
+export {
   acceptInvitation,
   findAdoptableInvitation,
   findLiveInvitationByToken,
