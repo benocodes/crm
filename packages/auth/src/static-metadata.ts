@@ -1,6 +1,11 @@
 // The static authorization-server metadata and its constants: config only, no Better Auth import, so the Worker's early answers load nothing heavy (#522).
 /** The OIDC scopes this cycle's clients may ask for. The vault's resource scopes join them with token verification ([[CORE244]]). */
 export const AUTH_SCOPES = ['openid', 'profile', 'email', 'offline_access'] as const
+/**
+ * [[CORE630]] D1: the wildcard a person's default CLI login asks for, a provider scope beside the OIDC ones and never a Vibase scope. Deliberately NOT in `AUTH_SCOPES` (that list feeds every registration default and the empty-scope
+ * fill) and in no published `scopes_supported`: only the provider's own scope list holds it.
+ */
+export const FULL_ACCESS_SCOPE = 'all_permissions'
 export const AUTH_SERVER_METADATA_PATH = '/.well-known/oauth-authorization-server/auth'
 export const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
 

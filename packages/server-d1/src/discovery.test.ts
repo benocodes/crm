@@ -65,6 +65,12 @@ const tracker = async (names: readonly string[]) => {
 const declared = createVibaseRegistry().declaredScopes()
 
 describe('D21 GET /.well-known/vibase', () => {
+  it('[[CORE660]] D2: Clerk names no full_access_scope (only the built-in provider has the wildcard), and neither does a deployment with no provider', async () => {
+    const clerk = (await (await get(worker(), VIBASE)).json()) as any
+    expect(clerk.auth).not.toHaveProperty('full_access_scope')
+    expect(((await (await get(worker({ AUTH_PROVIDER: undefined }), VIBASE)).json()) as any).auth).toBeNull()
+  })
+
   it('answers the documented shape on the request origin, and a different origin gives a different body', async () => {
     const wk = worker()
     const res = await get(wk, VIBASE)

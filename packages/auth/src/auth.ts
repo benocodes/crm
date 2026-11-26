@@ -16,8 +16,19 @@ import { jwt } from 'better-auth/plugins'
 import { D1Dialect } from 'kysely-d1'
 import { uuidv7 } from '@vibase/storage'
 import { hashPassword, verifyPassword } from './password.js'
-import { AUTH_SCOPES, AUTH_SERVER_METADATA_PATH, DEVICE_GRANT, staticMetadataResponse } from './static-metadata.js'
-export { AUTH_SCOPES, AUTH_SERVER_METADATA_PATH, staticAuthServerMetadata } from './static-metadata.js'
+import {
+  AUTH_SCOPES,
+  AUTH_SERVER_METADATA_PATH,
+  DEVICE_GRANT,
+  FULL_ACCESS_SCOPE,
+  staticMetadataResponse,
+} from './static-metadata.js'
+export {
+  AUTH_SCOPES,
+  AUTH_SERVER_METADATA_PATH,
+  FULL_ACCESS_SCOPE,
+  staticAuthServerMetadata,
+} from './static-metadata.js'
 
 /** What the composition needs beyond the database: both are validated by the Worker's composition before they reach here ([[CORE243]] D6, P2). */
 export interface AuthRuntimeConfig {
@@ -249,7 +260,7 @@ function composePlugins(
   clientOwner: ((subject: string) => Promise<boolean>) | undefined = undefined,
 ) {
   const s = schema ?? (() => undefined)
-  const scopes = [...AUTH_SCOPES, ...vaultScopes]
+  const scopes = [...AUTH_SCOPES, FULL_ACCESS_SCOPE, ...vaultScopes]
   const { allowed: registrable, defaults: defaultScopes } = registrationScopes(vaultScopes, grantable, defaults)
   const resources = resourcesFor(baseURL)
   return [
