@@ -500,7 +500,7 @@ test("3d. [[CORE666]] a connector's record follows its sign-in: a narrowed conse
     expect(tok.status(), await tok.text()).toBe(200)
     return (await tok.json()) as { access_token: string; refresh_token: string; scope: string }
   }
-  const useMcp = async (access: string) => {
+  const callMcp = async (access: string) => {
     const mcp = await page.request.post('/mcp', {
       headers: { authorization: `Bearer ${access}`, accept: 'application/json, text/event-stream' },
       data: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
@@ -530,13 +530,13 @@ test("3d. [[CORE666]] a connector's record follows its sign-in: a narrowed conse
   // (a) narrowed consent: Messages Read off
   const first = await signIn('state-record-1', [['Messages', 'Read']])
   expect(first.scope.split(' ')).not.toContain('messages:read')
-  await useMcp(first.access_token)
+  await callMcp(first.access_token)
   // (b) the record is exactly the approved actions' scopes, not every grantable scope
   expect(await record()).toEqual({ scopes: ['contacts:read'], updated: 0 })
   // (c) the same client asks for the same set again: the stored consent does not cover messages:read, so the page shows it, on; Allow
   const second = await signIn('state-record-2', [])
   expect(second.scope.split(' ')).toContain('messages:read')
-  await useMcp(second.access_token)
+  await callMcp(second.access_token)
   // (d) the record widened, with exactly one agent.updated
   const widened = await record()
   expect(widened!.scopes).toEqual(['contacts:read', 'messages:read', 'messages:read_metadata'])
@@ -547,7 +547,7 @@ test("3d. [[CORE666]] a connector's record follows its sign-in: a narrowed conse
     form: { grant_type: 'refresh_token', refresh_token: second.refresh_token, client_id: id, resource: `${BASE}/mcp` },
   })
   expect(refreshed.status(), await refreshed.text()).toBe(200)
-  await useMcp(((await refreshed.json()) as { access_token: string }).access_token)
+  await callMcp(((await refreshed.json()) as { access_token: string }).access_token)
   expect(await record()).toEqual(widened)
 })
 
