@@ -387,6 +387,51 @@ describe('--scope (D19)', () => {
   })
 })
 
+// [[CORE660]] ([[CORE630]] D2): a default login asks for the wildcard the instance names in discovery, and today's list when it names none.
+describe('the wildcard login (CORE630 D2)', () => {
+  const WILDCARD = 'all_permissions'
+  const named = (extra: Record<string, unknown> = { full_access_scope: WILDCARD }) => ({
+    auth: (issuer: string, origin: string) => ({
+      provider: 'better-auth',
+      issuer,
+      cli_client_id: 'client_cli',
+      protected_resource_metadata: `${origin}/.well-known/oauth-protected-resource`,
+      ...extra,
+    }),
+  })
+
+  it('a default login on an instance that names the wildcard asks for it and offline_access, and no list', async () => {
+    const w = world(named())
+    expect((await login(w)).code).toBe(0)
+    expect(form(deviceRequests(w)[0]!.body).scope).toBe(`${WILDCARD} offline_access`)
+  })
+
+  it('an instance that names none (an older one, or Clerk) gets today’s full list', async () => {
+    for (const extra of [{}, { full_access_scope: '' }, { full_access_scope: 7 }]) {
+      const w = world(named(extra))
+      expect((await login(w)).code).toBe(0)
+      expect(form(deviceRequests(w)[0]!.body).scope).toBe('contacts:read contacts:write tasks:read offline_access')
+    }
+  })
+
+  it('--scope stays a plain list, wildcard named or not', async () => {
+    const w = world(named())
+    expect((await login(w, ['--scope', 'contacts:read'])).code).toBe(0)
+    expect(form(deviceRequests(w)[0]!.body).scope).toBe('contacts:read offline_access')
+  })
+
+  it('--scope naming the wildcard is refused unknown_scope before any request, whether or not the instance names it', async () => {
+    for (const opts of [named(), {}]) {
+      const w = world(opts)
+      const res = await login(w, ['--scope', WILDCARD])
+      expect(res.code).toBe(2)
+      expect(errCode(res.stderr)).toBe('unknown_scope')
+      expect(deviceRequests(w)).toEqual([])
+      expect(existsSync(w.r.configFile)).toBe(false)
+    }
+  })
+})
+
 describe('credential routing (D18)', () => {
   const audit = (w: World) => {
     const access = w.iss.secrets().filter((s) => s.startsWith('tok-access-'))

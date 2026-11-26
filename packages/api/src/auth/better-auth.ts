@@ -35,6 +35,8 @@ export interface BetterAuthAdapterConfig {
 export const SESSION_TOKEN_CLAIM = 'vibase_token'
 export const SESSION_TOKEN_VALUE = 'session'
 
+export { FULL_ACCESS_SCOPE } from './full-access-scope.js'
+
 /** How long the keys are kept per isolate, and the least time between two reads caused by a `kid` the cache does not know ([[CORE244]] P1). */
 export const JWKS_CACHE_MS = 5 * 60_000
 export const JWKS_UNKNOWN_KID_REREAD_MS = 30_000

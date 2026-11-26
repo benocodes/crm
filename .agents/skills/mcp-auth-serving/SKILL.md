@@ -36,6 +36,14 @@ Budgets: its connection check gives up after **5 s** ("some checks were skipped 
   merely look (the device claim GET). A failed lookup of the account's grant refuses too.
 - **Rate limits live in D1:** registration is capped at 10 per hour per IP. Probing from your own machine locks you out; test from another IP or wait.
 - CORS `*` on discovery documents; `Cache-Control` on the static metadata.
+- **What the provider accepts is not what it publishes** ([[CORE660]], `composePlugins` in `packages/auth/src/auth.ts`).
+  The oauth-provider's `scopes` is what a client with NULL stored scopes (the seeded `vibase-cli`) may be issued;
+  `advertisedMetadata.scopes_supported` is what the library's authorization-server metadata and OpenID configuration
+  print. The provider-only `all_permissions` (a person's CLI wildcard, [[CORE630]] D1) is in `scopes` alone: never in
+  `AUTH_SCOPES` (every registration default and the empty-scope fill read it), never in `registrationScopes`, never
+  published. A hook that needs "what a connector may register" uses `registrationScopes(…).allowed`, not `scopes`.
+  The authenticator reads a provider scope from the token's raw list, before the filter to declared vault scopes.
+  Proofs: `packages/server-d1/src/cli-wildcard.test.ts` group 4.
 - **`/auth` has three CORS answers** (`compose.ts`'s `/auth` branch, [[API622]] D5–D7, [[API625]]), chosen in this order:
   an origin `AUTH_TRUSTED_ORIGINS` matches gets the credentialed answer on every `/auth` path ([[UI255]] D7); otherwise an
   origin `CORS_ALLOWED_ORIGINS` matches gets the credential-free answer (`withBearerCors`: the origin and `Vary: Origin`,

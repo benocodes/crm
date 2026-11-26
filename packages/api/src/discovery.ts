@@ -1,4 +1,5 @@
 import { toProviderScope } from './auth/clerk.js'
+import { FULL_ACCESS_SCOPE } from './auth/full-access-scope.js'
 import { defaultGrantScopes, grantableScopes } from './auth/roles.js'
 import { SURFACE_PREFIX, openApiPath } from './surfaces.js'
 
@@ -89,6 +90,8 @@ export function discoveryResponse(req: Request, config: DiscoveryConfig): Respon
               provider: p.name,
               issuer: p.issuer,
               cli_client_id: config.cliClientId ?? null,
+              // [[CORE630]] D2: the wildcard a default `vibase login` asks for; only the built-in provider has one.
+              full_access_scope: FULL_ACCESS_SCOPE,
               resource: p.baseUrl,
               protected_resource_metadata: p.baseUrl + PROTECTED_RESOURCE_PATH,
               sign_in_methods: p.signInMethods ?? ['password'],

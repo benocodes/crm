@@ -12,7 +12,7 @@ pnpm vibase login --server https://crm.mycompany.com
 pnpm vibase me get
 ```
 
-The CLI prints a URL and a code. Open the URL in a browser and approve the device login. Device login is built into every Better Auth instance, so there is nothing to configure. (A Clerk instance needs device authorization enabled in Clerk; see [using Clerk](/deployment/clerk/).)
+The CLI prints a URL and a code. Open the URL in a browser and approve the device login. On a Better Auth instance a plain `login` asks for full access as you: your role, read on every request, including permissions added to the instance later, so a new custom object needs no new sign-in. A login made before this version keeps its list, so run `vibase login` once to get full access. `--scope contacts:read,contacts:write` limits a login to that list instead. An agent account that signs in is given what it was granted at that moment, never full access. Device login is built into every Better Auth instance, so there is nothing to configure. (A Clerk instance needs device authorization enabled in Clerk; see [using Clerk](/deployment/clerk/).)
 
 For API-key authentication, pass the key over stdin. With `VIBASE_API_KEY` supplied by your environment or secret manager:
 

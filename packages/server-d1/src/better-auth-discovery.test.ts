@@ -67,6 +67,8 @@ describe('GET /.well-known/vibase (P3)', () => {
     provider: 'better-auth',
     issuer: `${AUTH_BASE}/auth`,
     cli_client_id: 'vibase-cli',
+    // [[CORE660]] D2: the built-in provider names the wildcard a default login asks for.
+    full_access_scope: 'all_permissions',
     resource: AUTH_BASE,
     protected_resource_metadata: `${AUTH_BASE}${PRM}`,
     sign_in_methods: ['password'],

@@ -1,6 +1,7 @@
 import { ApiError } from '../errors.js'
 import type { StorageBinding } from '@vibase/storage'
 import { ScopeSet, closeScopes } from '../scopes.js'
+import { FULL_ACCESS_SCOPE } from './full-access-scope.js'
 import { AuthFailure, ProfileNotFoundError, type AuthAdapter, type AuthProfile } from './adapter.js'
 import { lookupPrincipal, provisionAgent } from './agent-principals.js'
 import { provisionUser } from './first-sight.js'
@@ -114,8 +115,10 @@ export function createWorkspaceAuthenticator(opts: {
     subject: string
     clientId: string | null
     tokenScopes: string[] | null
+    /** [[CORE630]] D5: the token's RAW scope list (the provider scopes the declared-filtered `tokenScopes` drops). */
+    rawScopes: readonly string[]
   }): Promise<Principal> {
-    const { storage, env, provider, subject, clientId, tokenScopes, organizationHeader } = a
+    const { storage, env, provider, subject, clientId, tokenScopes, rawScopes, organizationHeader } = a
     if (storage.kind !== 'd1') throw new Error('the workspace authenticator serves a D1 deployment only')
     const organizationId = storage.organizationId
     // [[CORE639]] D5, D6, P3, P4: every OAuth client but the CLI is read live (an adapter without the read keeps today's rule). A client that no longer exists is refused here, before any agent lookup or creation.
@@ -132,6 +135,10 @@ export function createWorkspaceAuthenticator(opts: {
     })
     const wrongOrganization =
       organizationHeader !== undefined && organizationHeader.toLowerCase() !== organizationId.toLowerCase()
+    // [[CORE630]] D3, D5: the wildcard is the person's "whatever my role allows", read from the raw list and honoured only on the CLI client; the token's list then bounds nothing. D4: an agent account never holds it, so its list stays
+    // the declared-filtered one whatever the client.
+    const wildcard = clientId !== null && clientId === cliClientId && rawScopes.includes(FULL_ACCESS_SCOPE)
+    const listBound = wildcard && found.account === null ? null : tokenScopes
     // [[CORE662]] D8: what the live authority holds that the token's list lacks (an OAuth sign-in only), for the refusal hint.
     const missingFrom = (kind: NonNullable<Principal['signIn']>['kind'], live: string[], held: string[]) => {
       const missing = tokenScopes === null ? [] : live.filter((s) => !held.includes(s))
@@ -160,7 +167,7 @@ export function createWorkspaceAuthenticator(opts: {
         throw forbidden()
       }
       if (found.account.disabled) throw new AuthFailure('disabled')
-      const held = meet(found.account.scopes, tokenScopes ?? declaredScopes, grantable)
+      const held = meet(found.account.scopes, listBound ?? declaredScopes, grantable)
       return agentPrincipal(
         found.account.agentId,
         held,
@@ -189,8 +196,8 @@ export function createWorkspaceAuthenticator(opts: {
       // [[CORE639]] D3: a first-party app's scopes are the role met with the client's live list (the ceiling when it has none): the token's own list is no bound for vault scopes.
       const scopes = firstParty
         ? meet(roleScopes, client!.scopes ?? grantable, grantable)
-        : tokenScopes
-          ? meet(roleScopes, tokenScopes)
+        : listBound
+          ? meet(roleScopes, listBound)
           : roleScopes
       return {
         actor,
@@ -231,7 +238,8 @@ export function createWorkspaceAuthenticator(opts: {
     }
     if (delegated.disabled) throw new AuthFailure('disabled')
     const roleScopes = scopesForRole(role, declaredScopes, policy).toStrings()
-    const held = meet(tokenScopes!, delegated.scopes, roleScopes, grantable)
+    // `listBound` is null only for a CLI person's wildcard, never for a delegated agent: the client check keeps a connector's token list its bound even if its token somehow carries the wildcard.
+    const held = meet(listBound ?? declaredScopes, delegated.scopes, roleScopes, grantable)
     return agentPrincipal(
       delegated.agentId,
       held,
@@ -247,7 +255,8 @@ export function createWorkspaceAuthenticator(opts: {
       const provider = adapter.provider
       const nowMs = env.now.getTime()
       const oauth = verified.kind === 'oauth'
-      const tokenScopes = verified.kind === 'oauth' ? verified.scopes.filter((s) => declared.has(s)) : null
+      const rawScopes = verified.kind === 'oauth' ? verified.scopes : []
+      const tokenScopes = verified.kind === 'oauth' ? rawScopes.filter((s) => declared.has(s)) : null
       const clientId = verified.kind === 'oauth' ? verified.clientId : null
 
       if (adapter.roleSource === 'membership') {
@@ -260,6 +269,7 @@ export function createWorkspaceAuthenticator(opts: {
           subject: verified.subject,
           clientId,
           tokenScopes,
+          rawScopes,
         })
       }
 

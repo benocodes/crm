@@ -552,6 +552,12 @@ suite's comparison) and reading the pinned library for hook points. Count a ride
 as a group in the Size line. Both review findings came from the charter's silence: a gate or narrowing placed in a library
 hook states, per path, what happens when the hook **cannot read the session** (not only when a lookup fails), and a scope
 list the charter defines ("record ∩ grantable") says whether it is closed under the scope implications.
+**CORE660** (`knowledge/specs/047-CORE660-cli-wildcard-login/RETRO.md`, [[CORE630]] cycle 2 of 3): 6 groups (1 matrix),
+8 decisions (at the limit), no migration, 1 local E2E leg, 3 riders. 305k / 107 calls including a free gate-fix round and
+one review-fix round (+88 code / +677 test lines, 27 files). The budget holds at the limit: the cost is the matrix over
+real device-flow tokens and eleven mutations, not the code. A charter that adds a field to an answer a kit fakes
+(`/.well-known/vibase`, the auth metadata) names the fake's builders as a rider (`writing-tests`, the fake bullet); and a
+charter that asks for mutations says "raw output" in the obligation, not only "name each in RESULT.md".
 
 ### Step 3: Resolve identities
 

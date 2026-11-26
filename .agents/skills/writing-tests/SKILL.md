@@ -258,7 +258,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   (discovery, metadata), build the fake from one module of answer builders and add one test that composes the real
   Worker in-process (`composeD1Worker`) and compares its answers with the builders. Every kit then uses those builders.
   The fake cannot drift, and no E2E is needed for that seam ([[OPS306]],
-  `packages/server-d1/scripts/setup/better-auth-answers.test.ts`).
+  `packages/server-d1/scripts/setup/better-auth-answers.test.ts`). A change that adds a field to a faked answer
+  edits the builders in the same commit (`packages/server-d1/scripts/setup/test/better-auth-answers.ts` for the
+  discovery `auth` block); [[CORE660]]'s `auth.full_access_scope` cost a gate round when it did not.
 - **When a mode change makes every harness need new setup, change the kit's default, not each test.** [[CORE326]] made a
   paired control database mandatory for every Worker; instead of editing ~25 suites, `openWorkerD1()` in
   `packages/server-d1/src/test/kit.ts` opens a migrated control database that pairs itself from the CRM deployment row,

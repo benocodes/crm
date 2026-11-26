@@ -164,6 +164,7 @@ describe('discovery in workerd through the real Worker module (D12)', () => {
       provider: 'better-auth',
       issuer: `${BASE}/auth`,
       cli_client_id: 'vibase-cli',
+      full_access_scope: 'all_permissions', // [[CORE660]] D2
       resource: BASE,
       protected_resource_metadata: `${BASE}/.well-known/oauth-protected-resource`,
       sign_in_methods: ['password'],

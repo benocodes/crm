@@ -152,6 +152,50 @@ describe('claim, then review', () => {
     for (const id of ['n', 'e']) expect(document.getElementById(id), id).toBeNull()
   })
 
+  // [[CORE660]] ([[CORE630]] D7): which block renders is keyed on structure (a labelled region) and on the requested scope, never on the sentence or on the client.
+  describe('what a request asks for (CORE630 D7)', () => {
+    const claim = (clientId: string, scope: string) => ({
+      ...happyRoutes(),
+      'GET /auth/device': {
+        status: 200,
+        json: { user_code: 'ABCDEFGH', status: 'pending', client_id: clientId, scope },
+      },
+    })
+    const FULL = { name: 'Full access' }
+    const LISTED = { name: 'Requested permissions' }
+    beforeEach(() => history.replaceState(null, '', '/app/device?user_code=ABCDEFGH'))
+
+    it.each(['vibase-cli', 'acme-cli', 'some-other-client'])(
+      'a request carrying the wildcard from %s shows the full-access statement and no scope list, and the wildcard is never an item',
+      async (clientId) => {
+        fakeFetch(claim(clientId, 'openid offline_access all_permissions'))
+        render(<DevicePage />)
+        expect(await screen.findByRole('region', FULL)).toBeTruthy()
+        expect(screen.queryByRole('region', LISTED)).toBeNull()
+        expect(screen.queryByText('all_permissions')).toBeNull()
+        expect(document.body.textContent).not.toContain('all_permissions')
+      },
+    )
+
+    it('the wildcard beside a list is still the statement, not a list', async () => {
+      fakeFetch(claim('vibase-cli', 'openid all_permissions contacts:read'))
+      render(<DevicePage />)
+      expect(await screen.findByRole('region', FULL)).toBeTruthy()
+      expect(screen.queryByRole('region', LISTED)).toBeNull()
+    })
+
+    it.each(['vibase-cli', 'some-other-client'])(
+      'a list request (an agent account sees its narrowed list) from %s shows its list and no full-access statement',
+      async (clientId) => {
+        fakeFetch(claim(clientId, 'openid offline_access contacts:read'))
+        render(<DevicePage />)
+        expect(await screen.findByRole('region', LISTED)).toBeTruthy()
+        expect(screen.getByText('contacts:read')).toBeTruthy()
+        expect(screen.queryByRole('region', FULL)).toBeNull()
+      },
+    )
+  })
+
   it('an unknown scope is shown by name with "No description"', async () => {
     history.replaceState(null, '', '/app/device?user_code=ABCDEFGH')
     fakeFetch({

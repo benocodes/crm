@@ -5,7 +5,7 @@
 // NODE_TLS_REJECT_UNAUTHORIZED=0 and the browser context ignores the certificate error. The page must be opened at `https://localhost:8787` exactly: Better Auth's origin check trusts PUBLIC_BASE_URL only.
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
-import { mkdirSync, mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -47,7 +47,12 @@ const axeAndShot = async (name: string, scheme: 'light' | 'dark') => {
   ).toEqual([])
 }
 /** [[UI381]] D10: at 1280x720 and 390x844 the decision button is inside the viewport with the page unscrolled; when the list overflows its region, the region scrolls on its own. */
-const foldCheck = async (button: string, expectScroll = false, regionName = 'Requested permissions') => {
+const foldCheck = async (
+  button: string,
+  expectScroll = false,
+  regionName = 'Requested permissions',
+  focusable = true,
+) => {
   for (const size of [
     { width: 1280, height: 720 },
     { width: 390, height: 844 },
@@ -60,7 +65,7 @@ const foldCheck = async (button: string, expectScroll = false, regionName = 'Req
       size.height,
     )
     const region = page.getByRole('region', { name: regionName })
-    await expect(region).toHaveAttribute('tabindex', '0')
+    if (focusable) await expect(region).toHaveAttribute('tabindex', '0')
     if (expectScroll)
       expect(await region.evaluate((el) => el.scrollHeight > el.clientHeight), 'the scope region scrolls').toBe(true)
   }
@@ -88,16 +93,28 @@ const signOutHere = async () => {
 }
 
 /** The real `vibase login` (tsx on the CLI source), its config in a private directory. Resolves the `/app/device` URL it prints; `done` resolves with its exit code and output. */
-function startLogin(): Promise<{
+function startLogin(
+  args: string[] = [],
+  home = mkdtempSync(join(tmpdir(), 'vibase-e2e-')),
+): Promise<{
   url: string
   home: string
   done: Promise<{ code: number; stdout: string; stderr: string }>
 }> {
-  const home = mkdtempSync(join(tmpdir(), 'vibase-e2e-'))
-  const child: ChildProcessWithoutNullStreams = spawn('pnpm', ['exec', 'tsx', CLI, 'login', '--server', BASE], {
-    cwd: PKG,
-    env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0', XDG_CONFIG_HOME: home, XDG_CACHE_HOME: home, HOME: home },
-  })
+  const child: ChildProcessWithoutNullStreams = spawn(
+    'pnpm',
+    ['exec', 'tsx', CLI, 'login', '--server', BASE, ...args],
+    {
+      cwd: PKG,
+      env: {
+        ...process.env,
+        NODE_TLS_REJECT_UNAUTHORIZED: '0',
+        XDG_CONFIG_HOME: home,
+        XDG_CACHE_HOME: home,
+        HOME: home,
+      },
+    },
+  )
   let stdout = ''
   let stderr = ''
   const done = new Promise<{ code: number; stdout: string; stderr: string }>((resolve) =>
@@ -147,7 +164,8 @@ test('1. device: the printed URL leads through sign-in to the code, the review a
   await expect(page.getByRole('button', { name: 'Check code' })).toHaveCount(0)
   await expect(page.getByText(`${code.slice(0, 4)}-${code.slice(4)}`)).toBeVisible()
   await expect(page.getByText('Approve only if you started this sign-in yourself')).toBeVisible()
-  await foldCheck('Approve')
+  // [[CORE660]] D7: a default login reviews as full access, a statement and not a scrolling list
+  await foldCheck('Approve', false, 'Full access', false)
   await axeBoth('device-review')
   await page.getByRole('button', { name: 'Approve' }).click()
   await expect(page.getByText('You can return to your terminal')).toBeVisible()
@@ -200,6 +218,85 @@ test('2b. device: a typed code still goes through Check code (the code form keep
   await page.getByRole('button', { name: 'Deny' }).click()
   await expect(page.getByText(/Denied/).first()).toBeVisible()
   await login.done
+})
+
+/** `vibase <args>` with a login's private config directory; its exit code and both streams. */
+const runCli = (home: string, args: string[]) =>
+  new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
+    const c = spawn('pnpm', ['exec', 'tsx', CLI, ...args, '--server', BASE], {
+      cwd: PKG,
+      env: {
+        ...process.env,
+        NODE_TLS_REJECT_UNAUTHORIZED: '0',
+        XDG_CONFIG_HOME: home,
+        XDG_CACHE_HOME: home,
+        HOME: home,
+      },
+    })
+    let stdout = ''
+    let stderr = ''
+    c.stdout.on('data', (b: Buffer) => (stdout += b.toString()))
+    c.stderr.on('data', (b: Buffer) => (stderr += b.toString()))
+    c.on('close', (code) => resolve({ code: code ?? -1, stdout, stderr }))
+  })
+
+// [[CORE660]] ([[CORE630]] D2, D3, D7, D8), E2E: the real `vibase login` with no flags, with `--scope`, and naming the wildcard. A default login is full access as the owner (the page says so, the saved profile's scope holds `all_permissions`, `me` lists the
+// owner's whole role); a `--scope` login lists its scopes, holds only them, and a call outside them is refused with the sign-in-again hint; `--scope all_permissions` is refused before a device code is requested.
+test('2c. device: a default login is full access (all_permissions, the owner role); --scope is limited and refused with the hint; --scope all_permissions is refused', async () => {
+  // the owner role's own list, read from the session JWT (a session is the live role)
+  const jwt = ((await (await page.request.get('/auth/token')).json()) as { token: string }).token
+  const role = await page.request.get('/meta/v1/me', { headers: { authorization: `Bearer ${jwt}` } })
+  expect(role.status(), await role.text()).toBe(200)
+  const ownerScopes = ((await role.json()) as { active_organization: { scopes: string[] } }).active_organization.scopes
+  expect(ownerScopes.length).toBeGreaterThan(5)
+
+  // (a) no flags: the full-access statement, no list, the wildcard never an item
+  const full = await startLogin()
+  await visit(full.url)
+  await expect(page.getByRole('region', { name: 'Full access' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Requested permissions' })).toHaveCount(0)
+  await expect(page.getByText('all_permissions')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Approve' }).click()
+  const fullDone = await full.done
+  expect(fullDone.code, fullDone.stderr).toBe(0)
+  const saved = JSON.parse(readFileSync(join(full.home, 'vibase', 'config.json'), 'utf8')) as {
+    profiles: Record<string, { scope: string }>
+  }
+  expect(saved.profiles.default!.scope.split(' ')).toContain('all_permissions')
+
+  // (b) me: the owner's whole role, never the wildcard
+  const fullMe = await runCli(full.home, ['me', 'get'])
+  expect(fullMe.code, fullMe.stderr).toBe(0)
+  const heldScopes = JSON.parse(fullMe.stdout).active_organization.scopes as string[]
+  expect([...heldScopes].sort()).toEqual([...ownerScopes].sort())
+  expect(heldScopes).not.toContain('all_permissions')
+
+  // (c) --scope contacts:read on a second profile of the same config directory: the page lists it
+  const limited = await startLogin(['--scope', 'contacts:read', '--profile', 'limited'], full.home)
+  await visit(limited.url)
+  await expect(page.getByRole('region', { name: 'Requested permissions' })).toBeVisible()
+  await expect(page.getByText('contacts:read', { exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Full access' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Approve' }).click()
+  const limitedDone = await limited.done
+  expect(limitedDone.code, limitedDone.stderr).toBe(0)
+
+  // (d) that profile holds contacts:read only; a write is refused, and the person is told how to fix it, on the CLI's stderr
+  const limitedMe = await runCli(full.home, ['me', 'get', '--profile', 'limited'])
+  expect(limitedMe.code, limitedMe.stderr).toBe(0)
+  expect(JSON.parse(limitedMe.stdout).active_organization.scopes).toEqual(['contacts:read'])
+  const refused = await runCli(full.home, ['contacts', 'create', '--name', 'Ada', '--profile', 'limited'])
+  expect(refused.code).toBe(1)
+  expect(refused.stderr).toContain('insufficient_scope')
+  expect(refused.stderr).toContain(
+    'this sign-in does not include contacts:write, which your role holds: run `vibase login` to sign in again',
+  )
+
+  // (e) the wildcard is no scope to name: refused before any device code is requested
+  const named = await runCli(full.home, ['login', '--scope', 'all_permissions', '--profile', 'x'])
+  expect(named.code).toBe(2)
+  expect(named.stderr).toContain('unknown_scope')
+  expect(named.stderr).not.toContain('/app/device')
 })
 
 const pkce = () => {
