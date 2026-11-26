@@ -18,3 +18,9 @@ export type {
   OperationTable,
   Proposal,
 } from './types.js'
+export {
+  browserSignIn,
+  type BrowserSignIn,
+  type BrowserSignInOptions,
+  type StorageLike,
+} from './sign-in.js'
