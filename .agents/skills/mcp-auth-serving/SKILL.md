@@ -47,6 +47,7 @@ The control store writes first-party clients with its own SQL ([[CORE623]] D6, `
 - An access token issued for a resource is a JWT: it leaves **no** `auth_oauth_access_tokens` row, so a test cannot show that table non-empty before a revocation.
 - Authorize answers an unknown `client_id` with status 200 and `{ redirect: true, url: '/auth/error?error=invalid_client' }` when fetched, not a 4xx.
 - `skip_consent` is honoured for a signed-in user: authorize redirects straight to the client with a code, no `/app/consent`.
+- The access token's audience is bound by **authorize's** `resource`, not the token request's: a code exchange without `resource` still yields a token `/api` accepts when authorize carried it; drop it from both and `/api` answers 401. A test that proves the audience binding mutates authorize too ([[DX624]] 624.26; `packages/server-d1/src/browser-sign-in-workerd.test.ts`, M15). Whether refresh's `resource` matters is #636's to establish.
 - A client is first-party when `reference_id` is the organisation id and `user_id` is null ([[CORE623]] D5): the 7-day sweep skips it, the library's own client endpoints cannot change it, and deleting an auth user does not cascade it.
 
 ## Debugging a connector that will not connect

@@ -345,6 +345,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   so it fails under the stub (assert the success status, `201`/`200`, before the absence it claims) or name the mutation
   that reddens it. [[CORE245]]'s "no CRM event" test passed in red on a `404`: it proved nothing until it asserted the
   create succeeded first.
+  A "nothing happens" test (no global read at import, no request sent) passes against a stub that does nothing, and a
+  test written after the red commit was never red at all: each needs a mutation that adds the forbidden behaviour (a
+  stray `globalThis.location` read) and its failing output in RESULT.md. "Its strength is the trap" is a claim, not
+  evidence ([[DX624]] review, M16 in `packages/sdk/src/sign-in.test.ts`).
   A refusal regex that the *old* refusal or usage text also matches passes in the red run for the same reason: assert
   a phrase only the new guard prints (`provider switch is not committed`, never `apply`/`--dry-run`), and a negative
   match on the old text ([[OPS392]], [[OPS393]]).

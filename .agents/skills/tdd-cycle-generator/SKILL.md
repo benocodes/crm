@@ -525,6 +525,12 @@ surface, names the wire snapshot as a rider** (writing-tests §1): the meta oper
 that admits several classes of value (https and loopback http redirects) needs one obligation per class carried through
 the library that checks the value again (writing-tests §1). Group 5 ran only https, and the E2E found Better Auth refusing
 loopback http.
+**DX624 cycle 1** (`knowledge/specs/046-DX624-sdk-browser-sign-in/RETRO.md`, split at plan time from 10 decisions): 6 groups
+(1 matrix), 6 decisions + 4 planner rules, no migration or E2E, a new SDK module plus a workerd round trip. 191k / 61 calls in
+one run plus an evidence-only review round (+397 / +920 lines, 6 files). The budget holds. Its group 6 mutation rested on a
+premise about Better Auth that proved half wrong; the charter's written fallback ("if the Worker accepts it anyway, record a
+finding and mutate X instead") kept the coder from a round trip to the planner. A mutation that depends on a third-party
+library's behaviour carries such a fallback.
 
 ### Step 3: Resolve identities
 
