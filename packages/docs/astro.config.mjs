@@ -1,6 +1,6 @@
 import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
-import starlightLlmsTxt from 'starlight-llms-txt'
+import { sections } from './src/nav.mjs'
 import starlightOpenAPI, { openAPISidebarGroups } from 'starlight-openapi'
 
 export default defineConfig({
@@ -16,10 +16,10 @@ export default defineConfig({
       favicon: '/favicon.ico',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/benocodes/crm' }],
       editLink: { baseUrl: 'https://github.com/benocodes/crm/edit/main/packages/docs/' },
+      routeMiddleware: './src/route-data.ts',
       components: { PageTitle: './src/components/PageTitle.astro' },
       customCss: ['./src/styles/custom.css'],
       plugins: [
-        starlightLlmsTxt(),
         starlightOpenAPI([
           {
             base: 'api-reference/records',
@@ -33,50 +33,9 @@ export default defineConfig({
           },
         ]),
       ],
-      sidebar: [
-        {
-          label: 'Start here',
-          items: [
-            { label: 'What is Vibase?', slug: 'getting-started/introduction' },
-            { label: 'Quickstart', slug: 'getting-started/quickstart' },
-          ],
-        },
-        {
-          label: 'Concepts',
-          items: [
-            { label: 'Overview', slug: 'concepts/overview' },
-            { label: 'Records and relationships', slug: 'concepts/records' },
-            { label: 'Contacts and identities', slug: 'concepts/contacts-and-identities' },
-            { label: 'Workspaces, users, and agents', slug: 'concepts/workspaces-and-agents' },
-            { label: 'Conversations and connections', slug: 'concepts/conversations' },
-            { label: 'Permissions and approvals', slug: 'concepts/permissions' },
-            { label: 'Operations and discovery', slug: 'concepts/operations' },
-          ],
-        },
-        {
-          label: 'Connect your agents',
-          items: [
-            { label: 'Command line', slug: 'guides/cli' },
-            { label: 'MCP and REST', slug: 'guides/mcp-and-rest' },
-            { label: 'TypeScript SDK', slug: 'guides/sdk' },
-            { label: 'OAuth clients for your apps', slug: 'guides/oauth-clients' },
-            { label: 'Webhooks', slug: 'guides/webhooks' },
-            { label: 'Website forms', slug: 'guides/forms' },
-            { label: 'Custom objects and fields', slug: 'guides/schema' },
-          ],
-        },
-        {
-          label: 'API reference',
-          items: [{ label: 'About the reference', slug: 'api-reference/overview' }, ...openAPISidebarGroups],
-        },
-        {
-          label: 'Deploy',
-          items: [
-            { label: 'Self-host Vibase', slug: 'deployment/self-hosting' },
-            { label: 'Publish these docs', slug: 'deployment/docs-site' },
-          ],
-        },
-      ],
+      sidebar: sections.map((section) =>
+        section.api ? { label: section.label, items: [...section.items, ...openAPISidebarGroups] } : section,
+      ),
     }),
   ],
 })
