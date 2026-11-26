@@ -1,6 +1,6 @@
 import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
-import starlightLlmTools from '@wave-rf/starlight-llm-tools'
+import starlightLlmsTxt from 'starlight-llms-txt'
 import starlightOpenAPI, { openAPISidebarGroups } from 'starlight-openapi'
 
 export default defineConfig({
@@ -16,9 +16,10 @@ export default defineConfig({
       favicon: '/favicon.ico',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/benocodes/crm' }],
       editLink: { baseUrl: 'https://github.com/benocodes/crm/edit/main/packages/docs/' },
+      components: { PageTitle: './src/components/PageTitle.astro' },
       customCss: ['./src/styles/custom.css'],
       plugins: [
-        starlightLlmTools(),
+        starlightLlmsTxt(),
         starlightOpenAPI([
           {
             base: 'api-reference/records',
