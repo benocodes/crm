@@ -44,6 +44,8 @@ interface DeploymentOptions {
   vibase?: (origin: string) => { status?: number; body?: unknown }
   metadata?: (issuer: string) => { status?: number; body?: unknown }
   token?: (form: URLSearchParams) => { status?: number; body?: unknown } | 'network'
+  /** Awaited before the token endpoint answers a refresh_token grant (to hold a refresh in flight). */
+  gate?: () => Promise<void>
 }
 const json = (r: { status?: number; body?: unknown }) =>
   new Response(JSON.stringify(r.body ?? {}), {
@@ -81,7 +83,9 @@ function deployment(o: DeploymentOptions = {}) {
     if (kind === 'vibase') return json(vibaseDoc(origin))
     if (kind === 'metadata') return json(metadataDoc(issuer))
     if (kind === 'token') {
-      const answer = (o.token ?? defaultToken)(new URLSearchParams(String(init.body)))
+      const form = new URLSearchParams(String(init.body))
+      if (form.get('grant_type') === 'refresh_token' && o.gate) await o.gate()
+      const answer = (o.token ?? defaultToken)(form)
       if (answer === 'network') throw new TypeError('Failed to fetch')
       return json(answer)
     }
@@ -539,22 +543,23 @@ describe('DX624 group 4: the code exchange and the token record (D4, D5 per P1)'
     expect(await fail(r.s.handleRedirect())).toMatchObject({ status: 0, code: 'network_error' })
   })
 
-  it('token(): more than 60 s left returns the token; exactly 60 s or less is null with no request and the record kept (P1; flips in #636)', async () => {
+  it('token(): more than 60 s left returns the token with no request; exactly 60 s left refreshes (boundary kept from cycle 1)', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(0)
-    const dep = deployment()
-    const { s, session } = await signedIn({}, dep)
-    const sent = dep.seen.length
-    const snapshot = session.snapshot()
+    const dep = deployment({
+      token: (f) =>
+        f.get('grant_type') === 'refresh_token'
+          ? { body: { access_token: 'at-2', expires_in: 3600 } }
+          : { body: { access_token: 'at-1', refresh_token: 'rt-1', expires_in: 3600 } },
+    })
+    const { s } = await signedIn({}, dep)
+    const sent = dep.of('token').length
     vi.setSystemTime(3_600_000 - 60_001)
     expect(await s.token()).toBe('at-1')
+    expect(dep.of('token').length).toBe(sent)
     vi.setSystemTime(3_600_000 - 60_000)
-    expect(await s.token()).toBeNull()
-    vi.setSystemTime(3_600_000 + 5)
-    expect(await s.token()).toBeNull()
-    expect(dep.seen.length).toBe(sent) // P1: no refresh request in this cycle
-    expect(session.snapshot()).toBe(snapshot) // and the record, refresh token included, is untouched
-    expect(s.isSignedIn()).toBe(true)
+    expect(await s.token()).toBe('at-2')
+    expect(dep.of('token').length).toBe(sent + 1)
   })
 
   it('signed out: token() is null, isSignedIn() false, and createClient answers 401 no_credential with no request', async () => {
@@ -699,5 +704,283 @@ describe('DX624 group 5: storage, sign-out and import inertness (D6, D7, D1)', (
     expect(s.isSignedIn()).toBe(false)
     expect(await s.handleRedirect()).toBeNull()
     s.signOut()
+  })
+})
+
+// ---------------------------------------------------------------- DX636 refresh groups
+const TOKEN_KEY = `vibase.sign-in:https://api.acme.example:${CLIENT}:token`
+const NOW = 5_000_000
+/** A sign-in whose storage already holds a token record (no sign-in flow), with the clock fixed at NOW. */
+function seeded(record: Record<string, unknown> | null, dep = deployment(), over: Partial<BrowserSignInOptions> = {}) {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(NOW)
+  const r = rig(over, dep)
+  if (record) r.session.setItem(TOKEN_KEY, JSON.stringify(record))
+  return r
+}
+const inside = { access_token: 'at-old', expires_at: NOW + 30_000, refresh_token: 'rt-old' }
+const refreshAnswer = (body: Record<string, unknown> = { access_token: 'at-new', expires_in: 3600 }) => ({
+  token: () => ({ body }),
+})
+const storedToken = (session: Mem) => JSON.parse(session.getItem(TOKEN_KEY) ?? 'null')
+
+describe('DX636 group 1: the refresh request and what it stores (D5)', () => {
+  it('inside the margin: one form POST of exactly five fields, credentials omit, redirect error; the answer is stored and returned', async () => {
+    const dep = deployment(refreshAnswer())
+    const { s, session } = seeded(inside, dep)
+    expect(await s.token()).toBe('at-new')
+    const reqs = dep.of('token')
+    expect(reqs).toHaveLength(1)
+    expect(reqs[0].url).toBe(`${dep.issuer}/oauth2/token`)
+    expect(reqs[0].init.method).toBe('POST')
+    expect(reqs[0].init.credentials).toBe('omit')
+    expect(reqs[0].init.redirect).toBe('error')
+    const headers = new Headers(reqs[0].init.headers)
+    expect(headers.get('content-type')).toContain('application/x-www-form-urlencoded')
+    expect(headers.has('authorization')).toBe(false)
+    expect(Object.fromEntries(new URLSearchParams(String(reqs[0].init.body)))).toEqual({
+      grant_type: 'refresh_token',
+      refresh_token: 'rt-old',
+      client_id: CLIENT,
+      resource: dep.origin,
+    })
+    expect(storedToken(session)).toEqual({
+      access_token: 'at-new',
+      expires_at: NOW + 3_600_000,
+      refresh_token: 'rt-old',
+    })
+    expect(await s.token()).toBe('at-new') // now outside the margin: no second request
+    expect(dep.of('token')).toHaveLength(1)
+  })
+
+  it('a rotated refresh_token replaces the old one, and the next refresh sends it', async () => {
+    const dep = deployment(refreshAnswer({ access_token: 'at-new', refresh_token: 'rt-new', expires_in: 100 }))
+    const { s, session } = seeded(inside, dep)
+    await s.token()
+    expect(storedToken(session).refresh_token).toBe('rt-new')
+    await s.token() // 100 s left is outside the margin
+    vi.setSystemTime(NOW + 50_000)
+    await s.token() // 50 s left
+    const forms = dep.of('token').map((r) => new URLSearchParams(String(r.init.body)))
+    expect(forms.map((f) => f.get('refresh_token'))).toEqual(['rt-old', 'rt-new'])
+  })
+
+  it('an answer without a refresh_token keeps the old one', async () => {
+    const { s, session } = seeded(inside, deployment(refreshAnswer()))
+    await s.token()
+    expect(storedToken(session).refresh_token).toBe('rt-old')
+  })
+
+  it('more than 60 s left: no request and the record is untouched', async () => {
+    const dep = deployment(refreshAnswer())
+    const { s, session } = seeded({ ...inside, expires_at: NOW + 60_001 }, dep)
+    const snapshot = session.snapshot()
+    expect(await s.token()).toBe('at-old')
+    expect(dep.seen).toEqual([])
+    expect(session.snapshot()).toBe(snapshot)
+  })
+
+  it('an already expired token with a refresh token refreshes too', async () => {
+    const dep = deployment(refreshAnswer())
+    const { s } = seeded({ ...inside, expires_at: NOW - 10_000 }, dep)
+    expect(await s.token()).toBe('at-new')
+  })
+})
+
+describe('DX636 group 2: single-flight and its races (P3, P4)', () => {
+  const until = async (cond: () => boolean) => {
+    for (let i = 0; i < 500 && !cond(); i++) await new Promise((r) => setTimeout(r, 2))
+    expect(cond(), 'the refresh request never arrived').toBe(true)
+  }
+  const gated = () => {
+    let release!: () => void
+    const held = new Promise<void>((r) => (release = r))
+    return { release, gate: () => held }
+  }
+
+  it('N concurrent token() calls send one request and all resolve the same token', async () => {
+    const g = gated()
+    const dep = deployment({ ...refreshAnswer(), gate: g.gate })
+    const { s } = seeded(inside, dep)
+    const calls = [s.token(), s.token(), s.token(), s.token(), s.token()]
+    await until(() => dep.of('token').length > 0)
+    g.release()
+    expect(await Promise.all(calls)).toEqual(Array(5).fill('at-new'))
+    expect(dep.of('token')).toHaveLength(1)
+  })
+
+  it('a failing in-flight refresh rejects every waiter, is not cached, and the next call sends a new request', async () => {
+    const g = gated()
+    let calls = 0
+    const dep = deployment({
+      gate: g.gate,
+      token: () => (++calls === 1 ? { status: 500, body: {} } : { body: { access_token: 'at-new', expires_in: 3600 } }),
+    })
+    const { s } = seeded(inside, dep)
+    const waiters = [s.token(), s.token(), s.token()].map((p) => fail(p))
+    await until(() => dep.of('token').length > 0)
+    g.release()
+    for (const e of await Promise.all(waiters)) expect(e).toMatchObject({ status: 500 })
+    expect(dep.of('token')).toHaveLength(1)
+    expect(await s.token()).toBe('at-new')
+    expect(dep.of('token')).toHaveLength(2)
+  })
+
+  it('a 400 in flight resolves every waiter null, and nothing stays cached', async () => {
+    const g = gated()
+    const dep = deployment({ gate: g.gate, token: () => ({ status: 400, body: { error: 'invalid_grant' } }) })
+    const { s } = seeded(inside, dep)
+    const calls = [s.token(), s.token()]
+    await until(() => dep.of('token').length > 0)
+    g.release()
+    expect(await Promise.all(calls)).toEqual([null, null])
+    expect(await s.token()).toBeNull()
+    expect(dep.of('token')).toHaveLength(1) // signed out now: nothing more to send
+  })
+
+  it('signOut() while a refresh is in flight: the late answer is dropped, that call is null, no record remains', async () => {
+    const g = gated()
+    const dep = deployment({ ...refreshAnswer(), gate: g.gate })
+    const { s, session } = seeded(inside, dep)
+    const p = s.token()
+    await until(() => dep.of('token').length > 0)
+    s.signOut()
+    g.release()
+    expect(await p).toBeNull()
+    expect(s.isSignedIn()).toBe(false)
+    expect([...session.map.keys()].filter((k) => k.endsWith(':token'))).toEqual([])
+  })
+
+  it('a different record stored while a refresh is in flight (a new sign-in) is left alone, and the late answer is dropped', async () => {
+    const g = gated()
+    const dep = deployment({ ...refreshAnswer(), gate: g.gate })
+    const { s, session } = seeded(inside, dep)
+    const p = s.token()
+    await until(() => dep.of('token').length > 0)
+    const other = { access_token: 'at-other', expires_at: NOW + 3_600_000, refresh_token: 'rt-other' }
+    session.setItem(TOKEN_KEY, JSON.stringify(other))
+    g.release()
+    expect(await p).toBeNull()
+    expect(storedToken(session)).toEqual(other)
+  })
+})
+
+describe('DX636 group 3: the refresh outcome matrix (D5, P2, P5)', () => {
+  it.each([
+    [400, { error: 'invalid_grant' }],
+    [401, { error: 'invalid_client' }],
+  ])('refresh %i answers null and clears the record', async (status, body) => {
+    const dep = deployment({ token: () => ({ status, body }) })
+    const { s, session } = seeded(inside, dep)
+    expect(await s.token()).toBeNull()
+    expect(s.isSignedIn()).toBe(false)
+    expect(session.getItem(TOKEN_KEY)).toBeNull()
+    expect(dep.of('token')).toHaveLength(1)
+  })
+
+  it.each([
+    [500, {}, 'http_500'],
+    [503, { error: 'temporarily_unavailable' }, 'temporarily_unavailable'],
+    [429, {}, 'http_429'],
+  ])('refresh %i rejects with that status and keeps the record byte-identical', async (status, body, code) => {
+    const dep = deployment({ token: () => ({ status, body }) })
+    const { s, session } = seeded(inside, dep)
+    const snapshot = session.snapshot()
+    expect(await fail(s.token())).toMatchObject({ status, code })
+    expect(session.snapshot()).toBe(snapshot)
+    expect(s.isSignedIn()).toBe(true)
+  })
+
+  it('a throwing fetch rejects network_error (status 0) and keeps the record', async () => {
+    const { s, session } = seeded(inside, deployment({ token: () => 'network' }))
+    const snapshot = session.snapshot()
+    expect(await fail(s.token())).toMatchObject({ status: 0, code: 'network_error' })
+    expect(session.snapshot()).toBe(snapshot)
+  })
+
+  it('a discovery failure rejects and keeps the record, and a later call retries discovery', async () => {
+    let up = false
+    const dep = deployment({
+      vibase: (origin) =>
+        up
+          ? { body: { auth: { provider: 'better-auth', issuer: `${origin}/auth`, resource: origin } } }
+          : { status: 503, body: {} },
+      ...refreshAnswer(),
+    })
+    const { s, session } = seeded(inside, dep)
+    const snapshot = session.snapshot()
+    expect(await fail(s.token())).toMatchObject({ code: 'discovery_failed' })
+    expect(session.snapshot()).toBe(snapshot)
+    expect(dep.of('token')).toHaveLength(0)
+    up = true
+    expect(await s.token()).toBe('at-new')
+    expect(dep.of('vibase')).toHaveLength(2)
+  })
+
+  it.each([
+    ['no access_token', { expires_in: 3600 }],
+    ['an empty access_token', { access_token: '', expires_in: 3600 }],
+    ['no expires_in', { access_token: 'x' }],
+    ['a non-numeric expires_in', { access_token: 'x', expires_in: 'soon' }],
+  ])('a 200 with %s rejects invalid_response (status 200) and keeps the record', async (_n, body) => {
+    const { s, session } = seeded(inside, deployment({ token: () => ({ body }) }))
+    const snapshot = session.snapshot()
+    expect(await fail(s.token())).toMatchObject({ status: 200, code: 'invalid_response' })
+    expect(session.snapshot()).toBe(snapshot)
+  })
+
+  it('P2: expired with no refresh token resolves null, sends nothing and clears the record', async () => {
+    const dep = deployment(refreshAnswer())
+    const { s, session } = seeded({ access_token: 'at-old', expires_at: NOW + 30_000 }, dep)
+    expect(await s.token()).toBeNull()
+    expect(dep.seen).toEqual([])
+    expect(s.isSignedIn()).toBe(false)
+    expect(session.getItem(TOKEN_KEY)).toBeNull()
+  })
+
+  it('P2: more than 60 s left with no refresh token is returned as before', async () => {
+    const { s } = seeded({ access_token: 'at-old', expires_at: NOW + 120_000 }, deployment())
+    expect(await s.token()).toBe('at-old')
+    expect(s.isSignedIn()).toBe(true)
+  })
+})
+
+describe('DX636 group 4: a 401 from the API through createClient (D8)', () => {
+  it('signed out: 401 no_credential and nothing is sent', async () => {
+    const r = rig()
+    const calls: string[] = []
+    const client = createClient({
+      url: r.dep.origin,
+      auth: r.s.token,
+      fetch: (async (u: RequestInfo | URL) => {
+        calls.push(String(u))
+        return new Response('{}')
+      }) as typeof fetch,
+    })
+    expect(await fail(client.contacts.list())).toMatchObject({ status: 401, code: 'no_credential' })
+    expect(calls).toEqual([])
+  })
+
+  it('a valid token and an API 401: rejects VibaseError 401, one request only, the record untouched', async () => {
+    const dep = deployment()
+    const r = seeded({ access_token: 'at-old', expires_at: NOW + 3_600_000, refresh_token: 'rt-old' }, dep)
+    const snapshot = r.session.snapshot()
+    const calls: string[] = []
+    const client = createClient({
+      url: dep.origin,
+      auth: r.s.token,
+      fetch: (async (u: RequestInfo | URL) => {
+        calls.push(String(u))
+        return new Response(JSON.stringify({ error: { code: 'unauthorized', message: 'no' } }), {
+          status: 401,
+          headers: { 'content-type': 'application/json' },
+        })
+      }) as typeof fetch,
+    })
+    expect(await fail(client.contacts.list())).toMatchObject({ status: 401, code: 'unauthorized' })
+    expect(calls).toHaveLength(1)
+    expect(dep.seen).toEqual([])
+    expect(r.session.snapshot()).toBe(snapshot)
+    expect(r.s.isSignedIn()).toBe(true)
   })
 })

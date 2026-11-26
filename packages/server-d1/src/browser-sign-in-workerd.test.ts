@@ -111,7 +111,19 @@ async function navigateTo(authorizeUrl: string): Promise<string> {
   return new URL(location!, BASE).toString()
 }
 
-async function run(mutate?: (url: string, body: string) => string) {
+/** A new first-party client for the owner (a test that deletes its client needs its own). */
+async function newClient(): Promise<string> {
+  const made = await w.mf.dispatchFetch(`${BASE}/meta/v1/oauth-clients`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${session}`, 'content-type': 'application/json', ...ip() },
+    body: JSON.stringify({ name: 'Refresh board', redirect_uris: [REDIRECT] }),
+  })
+  const rec = (await made.json()) as Record<string, any>
+  expect(made.status, JSON.stringify(rec)).toBe(201)
+  return rec.client_id
+}
+
+async function run(mutate?: (url: string, body: string) => string, id: string = clientId) {
   const sent: Sent[] = []
   const loc = { href: `${APP}/boards?x=1`, origin: APP }
   const store = new Map<string, string>()
@@ -123,7 +135,7 @@ async function run(mutate?: (url: string, body: string) => string) {
   const navigated: string[] = []
   const signIn = browserSignIn({
     url: BASE,
-    clientId,
+    clientId: id,
     redirectUri: REDIRECT,
     fetch: appFetch(sent, mutate),
     location: loc,
@@ -139,7 +151,7 @@ async function run(mutate?: (url: string, body: string) => string) {
     (value) => ({ value }),
     (error) => ({ error }),
   )
-  return { signIn, sent, done, loc }
+  return { signIn, sent, done, loc, store, tokenKey: `vibase.sign-in:${BASE}:${id}:token` }
 }
 
 describe('DX624 group 6: browserSignIn against the real Worker (P2)', () => {
@@ -214,4 +226,79 @@ describe('DX624 group 6: browserSignIn against the real Worker (P2)', () => {
     },
     60_000,
   )
+})
+
+// ---------------------------------------------------------------- DX636 group 5
+/** Moves the stored access token inside the 60 s margin, as the passing of time would. */
+const forceMargin = (store: Map<string, string>, key: string) => {
+  const record = JSON.parse(store.get(key) as string)
+  store.set(key, JSON.stringify({ ...record, expires_at: Date.now() + 30_000 }))
+  return record as { access_token: string; refresh_token?: string }
+}
+const refreshRequests = (sent: Sent[]) =>
+  sent.filter((s) => s.url.endsWith('/auth/oauth2/token') && String(s.init.body).includes('grant_type=refresh_token'))
+
+describe('DX636 group 5: token() refresh against the real Worker (D5)', () => {
+  it('refreshes inside the margin: the new access token differs from the first and /api accepts it', async () => {
+    const { signIn, sent, store, tokenKey } = await run()
+    const first = forceMargin(store, tokenKey)
+    const refreshed = await signIn.token()
+    expect(refreshed).toBeTruthy()
+    expect(refreshed).not.toBe(first.access_token)
+    const requests = refreshRequests(sent)
+    expect(requests).toHaveLength(1)
+    expect(requests[0].status).toBe(200)
+    expect(new Headers(requests[0].init.headers as Record<string, string>).has('cookie')).toBe(false)
+    expect(requests[0].headers.get('access-control-allow-origin')).toBe(APP)
+    const stored = JSON.parse(store.get(tokenKey) as string)
+    expect(stored.access_token).toBe(refreshed)
+    // Finding (RESULT.md): whether Better Auth rotated the refresh token.
+    console.info(`DX636 finding: refresh token rotated = ${stored.refresh_token !== first.refresh_token}`)
+    const apiSent: Sent[] = []
+    const vibase = createClient({ url: BASE, auth: signIn.token, fetch: appFetch(apiSent) })
+    expect(Array.isArray((await vibase.contacts.list()).data)).toBe(true)
+    expect(apiSent[0].status).toBe(200)
+    expect(new Headers(apiSent[0].init.headers as Record<string, string>).get('authorization')).toBe(
+      `Bearer ${refreshed}`,
+    )
+    expect(refreshRequests(sent)).toHaveLength(1) // the client's call used the stored token: no second refresh
+  }, 60_000)
+
+  it('P1 finding: a refresh without `resource` (dropped from the refresh request only) and what /api answers for the token it returns', async () => {
+    const dropResource = (_url: string, body: string) => {
+      const form = new URLSearchParams(body)
+      if (form.get('grant_type') === 'refresh_token') form.delete('resource')
+      return form.toString()
+    }
+    const { signIn, sent, store, tokenKey } = await run(dropResource)
+    forceMargin(store, tokenKey)
+    const refreshed = await signIn.token().catch((e) => `rejected:${e.code}`)
+    const request = refreshRequests(sent)[0]
+    expect(new URLSearchParams(String(request.init.body)).has('resource')).toBe(false)
+    const apiSent: Sent[] = []
+    const vibase = createClient({ url: BASE, auth: () => refreshed, fetch: appFetch(apiSent) })
+    const outcome = await vibase.contacts.list().then(
+      () => 200,
+      (e) => e.status,
+    )
+    console.info(`DX636 finding: refresh without resource: token endpoint ${request.status}, /api ${outcome}`)
+    expect(outcome).toBeDefined()
+  }, 60_000)
+
+  it('a deleted client: the next refresh resolves null and the record is gone', async () => {
+    const id = await newClient()
+    const { signIn, sent, store, tokenKey } = await run(undefined, id)
+    forceMargin(store, tokenKey)
+    const del = (await w.mf.dispatchFetch(`${BASE}/meta/v1/oauth-clients/${id}`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${session}`, ...ip() },
+    })) as unknown as Response
+    expect(del.status).toBe(204)
+    expect(await signIn.token()).toBeNull()
+    const request = refreshRequests(sent)[0]
+    console.info(`DX636 finding: deleted client refresh answered ${request.status}`)
+    expect([400, 401]).toContain(request.status)
+    expect(store.get(tokenKey)).toBeUndefined()
+    expect(signIn.isSignedIn()).toBe(false)
+  }, 60_000)
 })
