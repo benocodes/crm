@@ -884,6 +884,13 @@ and test that a second organisation fails on a foreign key ([[CORE35]] D18).
   `composeD1Worker(env)`. That `fetch` resolves relative URLs against `PUBLIC_BASE_URL`, sends that origin as
   `Origin` (Better Auth checks it) and keeps `Set-Cookie` in a jar. This checks the request and response shapes the
   fake-`fetch` unit suite assumes, inside the gate. The browser E2E then only has to cover what needs a browser.
+- **The workerd harness sends `Origin` too** (`packages/auth/src/test/harness.ts`, `Workerd.call` defaults `origin` to
+  `BASE`). A "no Origin" case must override it (`headers: { origin: '' }`); omitting the header tests the API's own
+  origin ([[API625]]).
+- **A "before the gates" absence mutation names the gate the fixture really trips.** A workerd instance started with
+  `migrate: false` is refused `503` by the control gate, not the CRM migration gate, so moving code after the migration
+  check alone stays green. Check which gate answers the fixture's `503`, then mutate past that one
+  (`packages/server-d1/src/oauth-cors-workerd.test.ts`, [[API625]] 625.7).
 - **A fake for the Better Auth client returns the SDK's shapes.** `better-auth/client` (1.7.22) resolves
   `{ data, error }` on any HTTP failure (a refused sign-out is `error.status === 403`) and throws only on a network
   failure. Drive the real `createAuthClient` + `jwtClient` over a fake `fetch` and cover both failure kinds; a
