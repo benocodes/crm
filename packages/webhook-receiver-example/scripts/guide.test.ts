@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   ATTEMPT_TIMEOUT_MS,
@@ -80,9 +80,13 @@ describe('the webhooks guide states what the code defines', () => {
     expect(createVibaseRegistry().eventTypes().has('webhook')).toBe(false)
     expect(guide).not.toMatch(/webhook\.(created|updated|deleted|secret_rotated)/)
   })
-  it('is in the sidebar under "Connect your agents"', () => {
-    const config = readFileSync(join(root, 'docs/astro.config.mjs'), 'utf8')
-    const group = config.slice(config.indexOf("label: 'Connect your agents'"))
-    expect(group.slice(0, group.indexOf('] }'))).toContain("slug: 'guides/webhooks'")
+  it('is in the sidebar under "Build apps and workflows"', async () => {
+    // The sidebar is data (docs/src/nav.mjs, which astro.config.mjs maps); read the structure, not the config text.
+    const nav = (await import(pathToFileURL(join(root, 'docs/src/nav.mjs')).href)) as {
+      sections: { label: string; items?: { slug?: string }[] }[]
+    }
+    const group = nav.sections.find((s) => s.label === 'Build apps and workflows')
+    expect(group, 'the "Build apps and workflows" group exists').toBeDefined()
+    expect((group?.items ?? []).map((i) => i.slug)).toContain('guides/webhooks')
   })
 })
