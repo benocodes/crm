@@ -1,0 +1,26 @@
+{
+  "name": "@vibase/browser-app-example",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The browser sign-in example and demo: a static page on its own origin that signs a person in with @vibase/sdk's browserSignIn(), shows who they are and their contacts, refreshes and signs out ([[DX624]] D11).",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "tsx scripts/build.ts",
+    "dev": "pnpm build && wrangler dev --port 5180",
+    "test": "vitest run --config ../../vitest.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vibase/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "esbuild": "0.28.2",
+    "happy-dom": "21.0.4",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3",
+    "wrangler": "4.149.0"
+  }
+}
