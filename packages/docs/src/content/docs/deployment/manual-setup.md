@@ -23,7 +23,7 @@ vibase-server status --env mycompany --settings ./mycompany.json --secrets-file 
 Every question init asks has a flag, and with no terminal the flags are all it has:
 
 ```bash
-vibase-server init --env mycompany --api-host api.example.com --owner-email you@example.com
+vibase-server init --env mycompany --api-host crm.mycompany.com --owner-email you@example.com
 ```
 
 Run `vibase-server init --help` for the flags for the auth and email providers.
@@ -44,7 +44,7 @@ Setup generates a missing `AUTH_SECRET` (the key that signs sessions), appends i
 With no settings file from init, give the host and the owner on the first run:
 
 ```bash
-vibase-server setup --env mycompany --api-host api.example.com --owner-email owner@example.com
+vibase-server setup --env mycompany --api-host crm.mycompany.com --owner-email owner@example.com
 ```
 
 After init, `setup --env mycompany` is the whole command: the host, the provider and the owner email come from the settings file, and a flag that differs from them is refused.

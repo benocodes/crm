@@ -14,8 +14,8 @@ pnpm install
 Put the Cloudflare credentials in a gitignored `.env` at the repository root, then review the plan and apply it. A new instance uses Better Auth: setup generates `AUTH_SECRET` into the gitignored `.env.mycompany` (and reads an optional Google pair from it). For Clerk, add `--auth clerk` and put the Clerk keys in that file:
 
 ```bash
-pnpm -C packages/server-d1 setup:remote -- --env mycompany --api-host api.example.com --owner-email owner@example.com --dry-run
-CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env mycompany --api-host api.example.com --owner-email owner@example.com
+pnpm -C packages/server-d1 setup:remote -- --env mycompany --api-host crm.mycompany.com --owner-email owner@example.com --dry-run
+CONFIRM_REMOTE=1 pnpm -C packages/server-d1 setup:remote -- --env mycompany --api-host crm.mycompany.com --owner-email owner@example.com
 ```
 
 The first real run writes the environment to `packages/server-d1/wrangler.jsonc` and stops. Review and commit that file, then rerun the same command with a clean working tree. Later, migrate before you deploy the new Worker:

@@ -53,7 +53,7 @@ Clerk also acts as the OAuth provider for Vibase clients. This is what allows th
 Run the read-only setup plan, then read what it prints. The dry run reads configuration and the Clerk keys, and changes nothing:
 
 ```bash
-vibase-server setup --env mycompany --auth clerk --api-host api.example.com --owner-email owner@example.com --dry-run
+vibase-server setup --env mycompany --auth clerk --api-host crm.mycompany.com --owner-email owner@example.com --dry-run
 ```
 
 **For production Clerk keys, add `--clerk-production` to every setup command, including dry runs.** Finish Clerk's Frontend API and Account Portal domain configuration before proceeding. The device verification page must be reachable on the Account Portal domain.
@@ -79,7 +79,7 @@ The CLI client ID is written to `AUTH_CLI_CLIENT_ID` in the instance configurati
 After addressing the checklist, run the same command without `--dry-run`:
 
 ```bash
-vibase-server setup --env mycompany --auth clerk --api-host api.example.com --owner-email owner@example.com
+vibase-server setup --env mycompany --auth clerk --api-host crm.mycompany.com --owner-email owner@example.com
 ```
 
 Setup creates or adopts the Cloudflare resources, configures Clerk, writes the settings file, migrates the database, bootstraps the owner, deploys the Worker, sets its secrets and verifies it. It stops at the first failed step and names it; rerun the same command after correcting the problem. Existing matching configuration is retained.
@@ -89,8 +89,8 @@ A new instance's resources are named `vb-<env>` (Worker), `vb-crm-<env>` (D1), `
 Check the deployment:
 
 ```bash
-curl https://api.example.com/health
-curl https://api.example.com/.well-known/vibase
+curl https://crm.mycompany.com/health
+curl https://crm.mycompany.com/.well-known/vibase
 ```
 
 Health should report an initialized instance with current migrations. Discovery should report Clerk authentication and a non-null `auth.cli_client_id`. Then tell the owner to accept the Clerk invitation and [sign in with the CLI](/getting-started/quickstart/).

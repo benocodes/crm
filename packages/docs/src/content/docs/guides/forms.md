@@ -52,7 +52,7 @@ Every name that starts with `_vb_` is reserved the same way, so do not name your
 The Turnstile widget adds the token field to the form by itself.
 
 ```html
-<form action="https://api.example.com/f/frm_xxxxxxxxxxxxxxxxxxxxxxxxxx" method="post">
+<form action="https://crm.mycompany.com/f/frm_xxxxxxxxxxxxxxxxxxxxxxxxxx" method="post">
   <input name="name" placeholder="Your name" />
   <input name="email" type="email" placeholder="Email" required />
   <textarea name="message" placeholder="How can we help?"></textarea>
@@ -81,7 +81,7 @@ A plain post navigates the page to the JSON answer. To stay on the page, send it
   document.querySelector('#contact').addEventListener('submit', async (event) => {
     event.preventDefault()
     const form = event.target
-    const res = await fetch('https://api.example.com/f/frm_xxxxxxxxxxxxxxxxxxxxxxxxxx', {
+    const res = await fetch('https://crm.mycompany.com/f/frm_xxxxxxxxxxxxxxxxxxxxxxxxxx', {
       method: 'POST',
       body: new FormData(form), // multipart/form-data; the widget's token is in it
     })

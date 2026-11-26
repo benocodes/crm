@@ -32,7 +32,7 @@ Do not hand an agent your own login. A device login by an owner holds the owner'
 3. The agent signs in as itself. Device login needs no human approval:
 
    ```bash
-   vibase --profile agent login --server https://api.example.com
+   vibase --profile agent login --server https://crm.mycompany.com
    ```
 
    It prints the agent's ID. Use it in the next step.
