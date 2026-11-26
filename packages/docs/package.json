@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@astrojs/starlight": "0.38.5",
+    "@wave-rf/starlight-llm-tools": "^0.3.2",
     "astro": "6.4.8",
     "starlight-openapi": "0.24.0"
   },

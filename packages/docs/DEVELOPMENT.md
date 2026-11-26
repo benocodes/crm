@@ -30,6 +30,8 @@ For a separate project using Pages Git integration: keep the repository root as 
 
 Astro 6 and Starlight 0.38 are pinned for the repository's Node 22.21 runtime; newer Astro releases require a newer Node patch. Upgrade them together when upgrading the runtime.
 
+For agents, `@wave-rf/starlight-llm-tools` (in `astro.config.mjs`) generates `/llms.txt`, `/llms-full.txt` and `/llms-small.txt`, a markdown twin of every content page at `<path>.md` (for example `/getting-started/quickstart.md`), and a Copy Markdown button on each page. The generated API reference pages have no `.md` twin; agents read the OpenAPI JSON under `/openapi/`.
+
 Author public content in `src/content/docs/`; keep private knowledge notes and credentials outside this package. See `src/content/docs/deployment/docs-site.md` for publishing instructions.
 
 ## API reference

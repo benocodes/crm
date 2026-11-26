@@ -229,6 +229,9 @@ importers:
       '@astrojs/starlight':
         specifier: 0.38.5
         version: 0.38.5(astro@6.4.8(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(rollup@4.68.2)(tsx@4.23.15)(yaml@2.9.1))
+      '@wave-rf/starlight-llm-tools':
+        specifier: ^0.3.2
+        version: 0.3.2(@astrojs/starlight@0.38.5(astro@6.4.8(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(rollup@4.68.2)(tsx@4.23.15)(yaml@2.9.1)))(astro@6.4.8(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(rollup@4.68.2)(tsx@4.23.15)(yaml@2.9.1))
       astro:
         specifier: 6.4.8
         version: 6.4.8(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(rollup@4.68.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -3548,6 +3551,17 @@ packages:
 
   '@vscode/l10n@0.0.18':
     resolution: {integrity: sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ==}
+
+  '@wave-rf/starlight-llm-tools@0.3.2':
+    resolution: {integrity: sha512-TzIhCYwWDThB2k6OXVNm8FjiN09wNQZ3o42dnTTG2Ekid3n6oDUCPI4Qoa4UOut06cICZcVGFsNcTi6UWdx3+Q==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@astrojs/starlight': '>=0.36.0'
+      astro: '>=5.0.0'
+      starlight-glossary: '>=1.0.0'
+    peerDependenciesMeta:
+      starlight-glossary:
+        optional: true
 
   '@workflow/serde@4.1.0-beta.2':
     resolution: {integrity: sha512-8kkeoQKLDaKXefjV5dbhBj2aErfKp1Mc4pb6tj8144cF+Em5SPbyMbyLCHp+BVrFfFVCBluCtMx+jjvaFVZGww==}
@@ -8842,6 +8856,11 @@ snapshots:
       vscode-uri: 3.2.0
 
   '@vscode/l10n@0.0.18': {}
+
+  '@wave-rf/starlight-llm-tools@0.3.2(@astrojs/starlight@0.38.5(astro@6.4.8(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(rollup@4.68.2)(tsx@4.23.15)(yaml@2.9.1)))(astro@6.4.8(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(rollup@4.68.2)(tsx@4.23.15)(yaml@2.9.1))':
+    dependencies:
+      '@astrojs/starlight': 0.38.5(astro@6.4.8(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(rollup@4.68.2)(tsx@4.23.15)(yaml@2.9.1))
+      astro: 6.4.8(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(rollup@4.68.2)(tsx@4.23.15)(yaml@2.9.1)
 
   '@workflow/serde@4.1.0-beta.2': {}
 

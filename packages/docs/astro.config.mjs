@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
+import starlightLlmTools from '@wave-rf/starlight-llm-tools'
 import starlightOpenAPI, { openAPISidebarGroups } from 'starlight-openapi'
 
 export default defineConfig({
@@ -17,6 +18,7 @@ export default defineConfig({
       editLink: { baseUrl: 'https://github.com/benocodes/crm/edit/main/packages/docs/' },
       customCss: ['./src/styles/custom.css'],
       plugins: [
+        starlightLlmTools(),
         starlightOpenAPI([
           {
             base: 'api-reference/records',
