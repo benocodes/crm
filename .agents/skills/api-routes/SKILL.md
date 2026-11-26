@@ -129,7 +129,8 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `controlAuthDatabase` in `packages/storage-d1/src/control-store.ts`; `ControlDb` is opaque (not a `D1Like`), so
     `d1Binding(control)` does not typecheck. Only `server-d1/src/compose.ts`, `server-d1/src/bootstrap-d1.ts`,
     `server-d1/scripts/*` and the control store may name it (`packages/server-d1/src/control-boundary.test.ts`); a new
-    reader is a spec decision. The boundary test greps text, comments included: a comment in `@vibase/api` that says
+    reader is a spec decision. So every new control-store method goes in `control-store.ts` itself, never a sibling
+    module, whatever it writes (a separate `oauth-client-store.ts` cost [[CORE623]] a move, 623.27). The boundary test greps text, comments included: a comment in `@vibase/api` that says
     `control-store` fails it ([[CORE288]]), and so does an error message naming the binding (say "control-plane
     database", [[CORE261]]). A control **read** takes a port the same way (`AuditPort` over `listControlAudit`,
     `packages/api/src/audit/port.ts`; `createApp({ audit })`; `ApiKeyControlPort` for API-key authentication, [[CORE350]]), and without one answers `501 provider_not_configured`
@@ -1068,7 +1069,9 @@ interactive transaction, no `withContext` and no `executor` marker.
     really overlapped, #343, OPS340). The same hole opens with a guard on the *read stamp* (`updated_at = ?`):
     a racer that writes the same `now` leaves the stamp matching, so the dependent audit insert still needs
     `changes() = 1` of the update (`revokeApiKey`, [[CORE328]] review, with a `racing` test that sets the same
-    instant). Read `meta.changes` of the guarded statement for the outcome. Set-based changes go the same way
+    instant). Read `meta.changes` of the guarded statement for the outcome. A guarded **delete** with an audit row runs the conditional audit insert *before* the delete (afterwards there
+    is no row to select `detail` from) and uses that insert's `meta.changes` as the found signal (`deleteOAuthClient`,
+    [[CORE623]] 623.26). Set-based changes go the same way
     (`update ... where role = 'owner' and <live>` rather than reading ids first). `reissueOwnerInvitation` still reads
     the live owner invitations before its batch (acceptable for a single-operator bootstrap; not for [[OPS249]]'s
     `owner-reset`).
@@ -1366,6 +1369,12 @@ or an operation (`control-boundary.test.ts`, [[CORE259]] D5).
 - **`invitations` and `control_audit`** (control migration 0002, [[CORE245]], [[CORE259]] D12): written only
   by the control store, one control batch per change and its audit row; `control_audit` is append-only by
   trigger.
+- **`auth_oauth_clients`, `auth_oauth_client_resources` and `auth_oauth_resources`: first-party OAuth clients** ([[CORE623]] D5, D6, D9): also written by the control store's `createOAuthClient`, `updateOAuthClient` and `deleteOAuthClient`
+  (`packages/storage-d1/src/control-store.ts`), hand-written SQL in Better Auth's own encodings (the resource rows only when absent, as the seed does), proven by a real authorize, token and refresh round
+  trip in workerd. A client is first-party when its `reference_id` is the organisation id and its `user_id` is null; the methods read and change only such rows, so a registered client, `vibase-cli` and another
+  organisation's row are never touched. Each change is one control batch with its `oauth_client.created` / `oauth_client.updated` / `oauth_client.deleted` `control_audit` row (`target_type` `oauth_client`,
+  `target_id` the client id, `detail` the name, redirect URIs, scopes and `skip_consent`: after for create and update, before for delete), written only when the guarded row matched; delete is the revocation (the
+  foreign keys cascade tokens, consents and links). No operation calls them yet ([[CORE623]] cycles 2 and 3).
 - **`webhook_subscriptions`, `webhook_secrets`, `webhook_dispatch_state` and `webhook_deliveries`** (control
   migration 0004, [[CORE327]], switched on by [[CORE337]], [[CORE259]] D3, D8, D9 (c), D12): written only by the
   control store's webhook methods, reached through the `WebhooksPort`. A subscription change (create, update,
