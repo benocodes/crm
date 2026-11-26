@@ -74,6 +74,11 @@ export interface AuthAdapter {
   fetchProfile(subject: string): Promise<AuthProfile>
   /** The display name of an OAuth client by its client id; null when the provider does not know it. Throws on transport or HTTP failure ([[CORE77]] D15). */
   fetchOAuthClientName(clientId: string): Promise<string | null>
+  /**
+   * The OAuth client by its client id ([[CORE639]] D5): whether it is a first-party client (the owner's own app) and its owner-chosen scope list (`null`: it follows the first-party ceiling); `null` when no such client
+   * exists. Optional: an adapter without it keeps the rule that every OAuth client but the CLI is delegated. Throws on a failed read (not cached).
+   */
+  fetchOAuthClient?(clientId: string): Promise<{ firstParty: boolean; scopes: string[] | null } | null>
   /** null on 404. Throws on any other failure. */
   fetchOrganization(externalId: string): Promise<DirectoryOrganization | null>
   /** Every member, all pages; unmapped roles dropped with a warn. Throws on failure (a 404 too). */

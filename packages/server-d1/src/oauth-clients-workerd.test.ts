@@ -60,12 +60,17 @@ const meta = (method: string, path: string, body?: unknown) =>
     },
     body: body ? JSON.stringify(body) : undefined,
   }) as unknown as Promise<Response>
-const authorize = async (id: string, resource: string, redirect = REDIRECT) => {
+const authorize = async (
+  id: string,
+  resource: string,
+  redirect = REDIRECT,
+  scope = 'openid offline_access contacts:read',
+) => {
   const q = new URLSearchParams({
     response_type: 'code',
     client_id: id,
     redirect_uri: redirect,
-    scope: 'openid offline_access contacts:read',
+    scope,
     state: 's1',
     code_challenge: challenge,
     code_challenge_method: 'S256',
@@ -271,5 +276,70 @@ describe('group 5: composition, end to end in workerd', () => {
       id,
     )
     expect(audit).toEqual([{ actor_id: owner }, { actor_id: owner }])
+  })
+})
+
+// ---- [[CORE639]] groups 4 and 5: NULL scopes through Better Auth's real authorize, token and refresh, and a first-party token as the person through the composed Worker.
+describe('CORE639: first-party apps act as the signed-in person, end to end in workerd', () => {
+  const SCOPE_OUTSIDE_DEFAULTS = 'openid offline_access contacts:read members:write'
+  const decodeJwt = (t: string) =>
+    JSON.parse(Buffer.from(t.split('.')[1]!, 'base64url').toString()) as Record<string, any>
+  const make = async (extra: Record<string, unknown> = {}) => {
+    const res = await meta('POST', '/meta/v1/oauth-clients', {
+      name: 'Deals board',
+      redirect_uris: [REDIRECT],
+      ...extra,
+    })
+    const rec = (await res.json()) as Record<string, any>
+    expect(res.status, JSON.stringify(rec)).toBe(201)
+    return rec
+  }
+  const tokensOf = async (id: string, scope?: string) => {
+    const a = await authorize(id, BASE, REDIRECT, scope)
+    const code = a.url?.searchParams.get('code') ?? null
+    expect(code, `authorize answered ${a.status} ${a.text}`).toBeTruthy()
+    return token({
+      grant_type: 'authorization_code',
+      code: code!,
+      code_verifier: verifier,
+      redirect_uri: REDIRECT,
+      client_id: id,
+      resource: BASE,
+    })
+  }
+  const asApp = (t: string, path: string) => w.call(path, { headers: { authorization: `Bearer ${t}` } })
+
+  it('a NULL-scope client authorizes a scope outside the old defaults with no consent, and refresh works; a listed client is refused the same scope', async () => {
+    const followed = await make()
+    expect(followed.scopes).toBeNull()
+    const first = await tokensOf(followed.client_id, SCOPE_OUTSIDE_DEFAULTS)
+    expect(first.status, JSON.stringify(first)).toBe(200)
+    expect(decodeJwt(first.access_token).scope).toContain('members:write')
+    const again = await token({
+      grant_type: 'refresh_token',
+      refresh_token: first.refresh_token,
+      client_id: followed.client_id,
+      resource: BASE,
+    })
+    expect(again.status, JSON.stringify(again)).toBe(200)
+    const listed = await make({ scopes: ['openid', 'offline_access', 'contacts:read'] })
+    const refused = await authorize(listed.client_id, BASE, REDIRECT, SCOPE_OUTSIDE_DEFAULTS)
+    expect(refused.url?.searchParams.get('code') ?? null).toBeNull()
+  })
+
+  it('me.get with a first-party token through the composed Worker is the owner as a user: the app named, every ceiling scope held though never asked, no human-only scope, no agent row', async () => {
+    const rec = await make()
+    const tokens = await tokensOf(rec.client_id, SCOPE_OUTSIDE_DEFAULTS)
+    const res = await asApp(tokens.access_token, '/meta/v1/me')
+    const me = (await res.json()) as Record<string, any>
+    expect(res.status, JSON.stringify(me)).toBe(200)
+    expect(me.principal).toMatchObject({ kind: 'user', id: owner })
+    expect(me.client_id).toBe(rec.client_id)
+    expect(me.active_organization.role).toBe('owner')
+    expect(me.active_organization.scopes).toContain('deals:write')
+    for (const human of ['members:write', 'oauth_clients:write'])
+      expect(me.active_organization.scopes).not.toContain(human)
+    const agents = (await w.d1.prepare('select count(*) n from agents').first()) as { n: number }
+    expect(agents.n).toBe(0)
   })
 })

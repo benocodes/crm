@@ -1796,3 +1796,11 @@ export async function deleteOAuthClient(
   ])
   return (results[0]?.meta?.changes ?? 0) === 1
 }
+
+/** [[CORE639]] D5 stub (red): the live client read. */
+export async function readOAuthClientBound(
+  _c: ControlDb,
+  _clientId: string,
+): Promise<{ firstParty: boolean; scopes: string[] | null } | null> {
+  return null
+}

@@ -173,15 +173,19 @@ describe('group 3: create input and refusals (D7, P3, P4)', () => {
     expect(Object.keys(a.json).sort()).toEqual(ANSWER_KEYS)
     expect(a.json).toMatchObject({ name: 'Deals board', redirect_uris: [REDIRECT], skip_consent: true })
     expect(a.json.client_id).toMatch(/^[A-Za-z0-9_-]{32}$/)
-    expect(a.json.scopes).toEqual(
-      registrationScopes(declared, grantableScopes(declared), defaultGrantScopes(declared)).defaults,
-    )
-    expect(a.json.scopes).toContain('offline_access')
+    // [[CORE639]] D4: omitted scopes follow the first-party ceiling, stored as NULL, answered as null (no defaults snapshot)
+    expect(a.json.scopes).toBeNull()
     expect(a.json.created_at).toBe(a.json.updated_at)
     const b = await create(wk, tok)
     expect(b.json.client_id).not.toBe(a.json.client_id)
     const [row] = await rows(w.control, 'select * from auth_oauth_clients where client_id = ?', a.json.client_id)
-    expect(row).toMatchObject({ reference_id: orgId, user_id: null, skip_consent: 1, client_secret: null })
+    expect(row).toMatchObject({
+      reference_id: orgId,
+      user_id: null,
+      skip_consent: 1,
+      client_secret: null,
+      scopes: null,
+    })
   })
 
   it('accepts every rule at its edge', async () => {
@@ -617,5 +621,48 @@ describe('CORE628 group 5: the warning through the real composition (P1)', () =>
     expect(warned.json.warnings.map((x: any) => x.origin)).toEqual(['https://deals.apps.test'])
     const own = await create(bare, tok, body({ redirect_uris: [`${AUTH_BASE}/cb`] }))
     expect(own.json.warnings).toEqual([])
+  })
+})
+
+describe('CORE639 group 4: NULL scopes through the operations (D4)', () => {
+  it('create omitted answers null on create, get and list; an explicit list is kept; the audit detail shows null', async () => {
+    const owner = await human('owner')
+    const wk = worker()
+    const tok = await owner.session()
+    const followed = await create(wk, tok)
+    const listed = await create(wk, tok, body({ scopes: ['openid', 'contacts:read'] }))
+    expect(followed.json.scopes).toBeNull()
+    expect(listed.json.scopes).toEqual(['openid', 'contacts:read'])
+    expect((await call(wk, 'GET', `${PATH}/${followed.json.client_id}`, tok)).json.scopes).toBeNull()
+    expect((await call(wk, 'GET', PATH, tok)).json.data.map((r: any) => r.scopes)).toEqual([
+      null,
+      ['openid', 'contacts:read'],
+    ])
+    expect(JSON.parse((await auditFor(followed.json.client_id))[0]!.detail).scopes).toBeNull()
+  })
+
+  it('update to a list and back to null; an update not touching scopes keeps null; explicit null is accepted, an empty list is refused', async () => {
+    const owner = await human('owner')
+    const wk = worker()
+    const tok = await owner.session()
+    const id = (await create(wk, tok)).json.client_id
+    expect((await patch(wk, tok, id, { name: 'Renamed' })).json.scopes).toBeNull()
+    const listed = await patch(wk, tok, id, { scopes: ['openid', 'contacts:read'] })
+    expect(listed.json.scopes).toEqual(['openid', 'contacts:read'])
+    const back = await patch(wk, tok, id, { scopes: null })
+    expect(back.status, back.text).toBe(200)
+    expect(back.json.scopes).toBeNull()
+    expect((await clientRows(id))[0]!.scopes).toBeNull()
+    expect((await patch(wk, tok, id, { scopes: [] })).status).toBe(400)
+    expect(JSON.parse((await auditFor(id)).at(-1)!.detail).scopes).toBeNull()
+  })
+
+  it('a client registered with a stored list before this change is left listed by an update that does not touch scopes', async () => {
+    const owner = await human('owner')
+    const wk = worker()
+    const tok = await owner.session()
+    await seedClient('Client_listed_aaaaaaaaaaaaaaaaaaaaaaa')
+    const res = await patch(wk, tok, 'Client_listed_aaaaaaaaaaaaaaaaaaaaaaa', { name: 'Renamed' })
+    expect(res.json.scopes).toEqual(['openid', 'offline_access'])
   })
 })

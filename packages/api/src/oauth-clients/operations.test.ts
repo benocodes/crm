@@ -40,13 +40,26 @@ describe('oauth_clients operations', () => {
     for (const o of ops) expect(o!.description).toMatch(/^Human only \(owners\)/)
     expect(ops[0]!.description).toContain('skip_consent = false is not implemented yet')
     expect(ops[3]!.description).toMatch(/revocation/)
-    expect(ops[3]!.description).toMatch(/one hour/)
+    // [[CORE639]] D6, D9: a delete reaches live tokens within about a minute, not their hour
+    expect(ops[3]!.description).toContain('within about a minute')
+    expect(ops[3]!.description).not.toMatch(/one hour/)
     // [[CORE628]] D14
     expect(ops[4]!.description).toContain('skip_consent = false is not implemented yet')
     expect(ops[4]!.description).toMatch(/replace/)
-    expect(ops[4]!.description).toMatch(/revokes no token/)
+    expect(ops[4]!.description).not.toMatch(/revokes no token/)
     expect(ops[4]!.description).toContain('CORS_ALLOWED_ORIGINS')
     expect(ops[0]!.description).toContain('CORS_ALLOWED_ORIGINS')
+  })
+
+  it('create and update carry the three CORE639 D9 statements and no longer say "default scopes" or "revokes no token"', () => {
+    for (const o of [ops[0]!, ops[4]!]) {
+      expect(o.description).toContain('acts as themselves, within their own role and the app')
+      expect(o.description).toContain('including ones declared later')
+      expect(o.description).toContain('within about a minute')
+      expect(o.description).not.toMatch(/revokes no token/)
+      expect(o.description).not.toMatch(/default scopes/)
+    }
+    expect(ops[4]!.description).toMatch(/null/)
   })
 
   it.each(NAMES)('%s answers 501 provider_not_configured when composition hands no runtime', async (name) => {
@@ -74,7 +87,7 @@ describe('oauth_clients operations', () => {
     expect(one.patch.description).toContain('skip_consent = false is not implemented yet')
     for (const o of [list.post, list.get, one.get, one.delete, one.patch]) expect(o.tags).toEqual(['oauth_clients'])
     expect(list.post.description).toContain('skip_consent = false is not implemented yet')
-    expect(one.delete.description).toMatch(/at most one hour/)
+    expect(one.delete.description).toContain('within about a minute')
     expect(JSON.stringify(crm)).not.toContain('oauth-clients')
   })
 })
