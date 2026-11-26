@@ -20,7 +20,7 @@ export class ControlDb {
 /** Opens the handle on the `CONTROL_DB` binding. Composition and bootstrap call this; nothing else has the binding. */
 export const openControlDb = (d1: D1Like): ControlDb => new ControlDb(d1)
 
-const raw = (c: ControlDb): D1Like => {
+export const raw = (c: ControlDb): D1Like => {
   const d1 = handles.get(c)
   if (!d1) throw new Error('not a control database handle')
   return d1

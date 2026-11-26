@@ -222,12 +222,8 @@ describe('group 5: delete is the revocation (D9)', () => {
     expect(first.status, JSON.stringify(first)).toBe(200)
     expect(first.refresh_token).toBeTruthy()
     const second = await tokensFor(kept, BASE)
-    for (const table of [
-      'auth_oauth_access_tokens',
-      'auth_oauth_refresh_tokens',
-      'auth_oauth_consents',
-      'auth_oauth_client_resources',
-    ])
+    // (a token granted for a resource is a JWT: no access-token row exists, so only the other three are present to be cascaded)
+    for (const table of ['auth_oauth_refresh_tokens', 'auth_oauth_consents', 'auth_oauth_client_resources'])
       expect(await count(table, gone), table).toBeGreaterThan(0)
 
     expect(
@@ -245,8 +241,8 @@ describe('group 5: delete is the revocation (D9)', () => {
     expect(refused.access_token).toBeUndefined()
     const after = await authorize(gone, BASE)
     expect(after.url?.searchParams.get('code') ?? null).toBeNull()
-    expect(after.status).toBeGreaterThanOrEqual(300)
-    expect(after.text + (after.url?.search ?? '')).toMatch(/invalid_client|client|not.found/i)
+    expect(after.url?.pathname).toBe('/auth/error')
+    expect(after.url?.searchParams.get('error')).toBe('invalid_client')
     for (const table of [
       'auth_oauth_clients',
       'auth_oauth_access_tokens',
