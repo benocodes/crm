@@ -37,6 +37,9 @@ export const MESSAGES = {
   deviceCheckCode: 'Check that your terminal shows this code.',
   deviceChecking: 'Checking your code…',
   deviceWarning: 'Approve only if you started this sign-in yourself, just now.',
+  // [[CORE630]] D11: what a CLI sign-in without a list grants.
+  deviceFullAccess:
+    'Full access, as you: everything your role allows in this workspace, including permissions added later. To limit it, sign in again with vibase login --scope.',
   deviceApproved: 'Approved. You can return to your terminal.',
   deviceDenied: 'Denied. Nothing was shared with the app, and you can close this page.',
   // The consent page ([[UI247]] D4).

@@ -30,7 +30,7 @@ const me = async (tok: string | null, extra: Record<string, string> = {}) => {
 }
 
 describe('minted in workerd, resolved by the real Worker', () => {
-  it("a session JWT (15 min), a vibase-cli access token (1 h) and another client's access token resolve to a user, a user with the token scopes and a delegated agent; a cookie alone is 401", async () => {
+  it("a session JWT (15 min), a vibase-cli access token (1 h) and another client's access token resolve to a user, a user with the token scopes (a limited login) and a delegated agent; a cookie alone is 401", async () => {
     const kit = authKitOver(w.call as never, BASE, declared)
     const { userId, cookie } = await kit.signUp('owner@x.test')
     const human = uuidv7()
@@ -52,9 +52,9 @@ describe('minted in workerd, resolved by the real Worker', () => {
 
     // the seeded first-party client is CORE283's; a row of the default id (P3) stands in for it here
     const other = await kit.registerClient('Claude Desktop')
-    const cli = await kit.registerClient('Vibase CLI')
+    const cli = await kit.registerClient('Vibase CLI', ['limited_login'])
     await renameClient(w.control, cli, 'vibase-cli')
-    const cliTokens = await kit.deviceTokens(cookie, 'vibase-cli', 'openid contacts:read')
+    const cliTokens = await kit.deviceTokens(cookie, 'vibase-cli', 'openid contacts:read limited_login')
     expect(decode(cliTokens.access_token).exp - decode(cliTokens.access_token).iat).toBe(60 * 60)
     const asCli = await me(cliTokens.access_token)
     expect(asCli.status, JSON.stringify(asCli.json)).toBe(200)

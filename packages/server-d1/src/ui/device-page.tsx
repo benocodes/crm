@@ -4,12 +4,14 @@ import {
   approveDevice,
   claimDeviceCode,
   denyDevice,
+  getCliClientId,
   getClientName,
   getSession,
   signOut,
   type ApiFailure,
   type SessionUser,
 } from './auth-api.js'
+import { CLI_CLIENT_ID, LIMITED_LOGIN_SCOPE } from './cli-login.js'
 import { isCompleteDeviceCode } from './device-code.js'
 import { MESSAGES, genericFailure } from './messages.js'
 import { goTo, type PageProps } from './page.js'
@@ -30,6 +32,7 @@ const failureMessage = (f: ApiFailure, deciding: boolean): string => {
 interface Review {
   code: string
   clientName: string
+  isCli: boolean
   scopes: string[]
 }
 type Outcome = 'approved' | 'denied' | undefined
@@ -99,10 +102,13 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
       return undefined
     }
     const client = await getClientName(r.data.clientId)
+    // [[CORE630]] D11: the CLI is whichever client the instance names in discovery (the built-in id when discovery says nothing).
+    const cliId = (await getCliClientId()) ?? CLI_CLIENT_ID
     setBusy(undefined)
     setReview({
       code,
       clientName: client.ok && client.data.name ? client.data.name : r.data.clientId,
+      isCli: r.data.clientId === cliId,
       scopes: (r.data.scope ?? '').split(/\s+/).filter(Boolean),
     })
     return undefined
@@ -183,7 +189,14 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
         <p>{review.code}</p>
         <p>{MESSAGES.deviceCheckCode}</p>
         <p>{MESSAGES.deviceWarning}</p>
-        <ScopeList scopes={scopeItems(review.scopes)} />
+        {/* [[CORE630]] D11: a vibase-cli request without the limited-login marker is full access as the person; with it, the listed scopes. The marker is never shown. */}
+        {review.isCli && !review.scopes.includes(LIMITED_LOGIN_SCOPE) ? (
+          <section aria-label="Full access">
+            <p>{MESSAGES.deviceFullAccess}</p>
+          </section>
+        ) : (
+          <ScopeList scopes={scopeItems(review.scopes.filter((s) => s !== LIMITED_LOGIN_SCOPE))} />
+        )}
         {account}
       </Card>
     )

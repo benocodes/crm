@@ -376,14 +376,22 @@ describe('refusals before any device request (exit 2)', () => {
   })
 })
 
-describe('--scope (D19)', () => {
-  it('narrows the request, and offline_access is always added, once', async () => {
+describe('--scope (D19, CORE630 D2)', () => {
+  it('narrows the request, marks it limited_login before offline_access, and offline_access is always added, once', async () => {
     const w = world()
     expect((await login(w, ['--scope', 'contacts:read'])).code).toBe(0)
-    expect(form(deviceRequests(w)[0]!.body).scope).toBe('contacts:read offline_access')
+    expect(form(deviceRequests(w)[0]!.body).scope).toBe('contacts:read limited_login offline_access')
     const w2 = world()
     expect((await login(w2, ['--scope', 'tasks:read,offline_access'])).code).toBe(0)
-    expect(form(deviceRequests(w2)[0]!.body).scope).toBe('tasks:read offline_access')
+    expect(form(deviceRequests(w2)[0]!.body).scope).toBe('tasks:read limited_login offline_access')
+  })
+
+  it('a login without --scope is not marked: it asks for what it asked for before', async () => {
+    const w = world()
+    expect((await login(w, [])).code).toBe(0)
+    const scope = form(deviceRequests(w)[0]!.body).scope!
+    expect(scope).toBe('contacts:read contacts:write tasks:read offline_access')
+    expect(scope.split(' ')).not.toContain('limited_login')
   })
 })
 

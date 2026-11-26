@@ -127,6 +127,14 @@ export async function getSignInMethods(): Promise<string[]> {
     : undefined
   return Array.isArray(methods) ? methods.filter((m): m is string => typeof m === 'string') : ['password']
 }
+/** [[CORE630]] D11: the client id the CLI signs in with, from discovery's `auth.cli_client_id`; undefined when discovery is unreadable or names none (the page then falls back to the built-in id). */
+export async function getCliClientId(): Promise<string | undefined> {
+  const r = await call('GET', '/.well-known/vibase')
+  const id = r.ok
+    ? (r.data as { auth?: { cli_client_id?: unknown } } | null | undefined)?.auth?.cli_client_id
+    : undefined
+  return typeof id === 'string' && id !== '' ? id : undefined
+}
 /** [[CORE304]] D2: whether discovery says a person can ask for a reset link here (`auth.self_service_reset === true`). Anything unreadable, absent or not exactly `true` is false: the "ask an owner" line stays. */
 export async function getSelfServiceReset(): Promise<boolean> {
   const r = await call('GET', '/.well-known/vibase')
