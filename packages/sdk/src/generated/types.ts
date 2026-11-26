@@ -5899,7 +5899,7 @@ export interface paths {
         put?: never;
         /**
          * Register a first-party OAuth client for a web app that signs people in
-         * @description Human only (owners). Registers a public OAuth client (PKCE, no secret) for an app that signs people in to this workspace; a person who signs in through it acts as themselves. The client skips the consent screen (skip_consent defaults to true): skip_consent = false is not implemented yet and is refused. Scopes must be within the ceiling a dynamically registered client has (never an administrative scope); omitted, the default scopes are used. The answer carries the client_id; there is no secret.
+         * @description Human only (owners). Registers a public OAuth client (PKCE, no secret) for an app that signs people in to this workspace; a person who signs in through it acts as themselves. The client skips the consent screen (skip_consent defaults to true): skip_consent = false is not implemented yet and is refused. Scopes must be within the ceiling a dynamically registered client has (never an administrative scope); omitted, the default scopes are used. The answer carries the client_id (there is no secret) and warnings: one entry for each redirect origin that is not in CORS_ALLOWED_ORIGINS, which means the app's browser calls will be refused until the origin is added to CORS_ALLOWED_ORIGINS; the client is created either way.
          */
         post: operations["oauth_clients.create"];
         delete?: never;
@@ -5929,7 +5929,11 @@ export interface paths {
         delete: operations["oauth_clients.delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Edit a first-party OAuth client
+         * @description Human only (owners). Edits any of name, redirect_uris, scopes and skip_consent; the lists replace the stored ones, and the rules are create's. skip_consent = false is not implemented yet and is refused. An edit revokes no token: refresh tokens and access tokens already issued keep working (delete the client to revoke). The answer carries warnings: one entry for each redirect origin of the resulting list that is not in CORS_ALLOWED_ORIGINS, which means the app's browser calls will be refused until the origin is added to CORS_ALLOWED_ORIGINS; the edit is made either way. An id that is not a first-party client answers 404.
+         */
+        patch: operations["oauth_clients.update"];
         trace?: never;
     };
     "/meta/v1/audit": {
@@ -8227,6 +8231,15 @@ export interface operations {
                         created_at: string;
                         /** Format: date-time */
                         updated_at: string;
+                        /** @description One entry per redirect origin not in CORS_ALLOWED_ORIGINS; [] when none is missing. The write happened either way. */
+                        warnings: {
+                            /** @enum {string} */
+                            code: "origin_not_allowed";
+                            origin: string;
+                            /** @enum {string} */
+                            list: "CORS_ALLOWED_ORIGINS";
+                            message: string;
+                        }[];
                     };
                 };
             };
@@ -8281,6 +8294,60 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    "oauth_clients.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description What the app is called; trimmed, 1 to 100 characters */
+                    name?: string;
+                    /** @description Replaces the whole list; the same rules as on create. Duplicates are removed. */
+                    redirect_uris?: string[];
+                    /** @description Replaces the whole list; within the same ceiling as on create. */
+                    scopes?: string[];
+                    /** @description true is accepted. false is refused: it is not implemented yet. */
+                    skip_consent?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        client_id: string;
+                        name: string;
+                        redirect_uris: string[];
+                        scopes: string[];
+                        skip_consent: boolean;
+                        /** Format: date-time */
+                        created_at: string;
+                        /** Format: date-time */
+                        updated_at: string;
+                        /** @description One entry per redirect origin not in CORS_ALLOWED_ORIGINS; [] when none is missing. The write happened either way. */
+                        warnings: {
+                            /** @enum {string} */
+                            code: "origin_not_allowed";
+                            origin: string;
+                            /** @enum {string} */
+                            list: "CORS_ALLOWED_ORIGINS";
+                            message: string;
+                        }[];
+                    };
+                };
             };
         };
     };
@@ -9726,6 +9793,14 @@ export type BuiltInOperations = {
     method: 'list'
     args: ArgsOf<MetaDocument.operations['oauth_clients.list']>
     result: ResultOf<MetaDocument.operations['oauth_clients.list'], 200>
+    proposable: false
+    paginated: false
+  }
+  'oauth_clients.update': {
+    namespace: 'oauthClients'
+    method: 'update'
+    args: ArgsOf<MetaDocument.operations['oauth_clients.update']>
+    result: ResultOf<MetaDocument.operations['oauth_clients.update'], 200>
     proposable: false
     paginated: false
   }

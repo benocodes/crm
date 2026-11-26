@@ -1741,6 +1741,8 @@ export async function updateOAuthClient(c: ControlDb, a: OAuthClientChange): Pro
   }
   if (a.name !== undefined) set('name', a.name)
   if (a.redirectUris !== undefined) set('redirect_uris', JSON.stringify(a.redirectUris))
+  // [[CORE628]] D4 (623.41): the same statement keeps `application_type` in step with the list, so an https-only client and a loopback one are each stored as the library needs them.
+  if (a.redirectUris !== undefined) set('application_type', oauthApplicationType(a.redirectUris))
   if (a.scopes !== undefined) set('scopes', JSON.stringify(a.scopes))
   if (a.skipConsent !== undefined) set('skip_consent', a.skipConsent ? 1 : 0)
   if (sets.length === 0) return readOAuthClient(d1, a.organizationId, a.clientId)

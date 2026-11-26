@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ApiError } from '../errors.js'
+import { originMatches } from '../origins.js'
 import type { ControlOperation } from '../registry.js'
 import type { OAuthClientRow, OAuthClientsRuntime } from './port.js'
 
@@ -28,29 +29,40 @@ function redirectUriProblem(uri: string): string | null {
   return 'a redirect URI must be https, or http on localhost or 127.0.0.1'
 }
 
+// One schema per field, shared by create and update (D7 on update: the rules are create's, not a copy).
+const nameField = z.string().trim().min(1).max(100).describe('What the app is called; trimmed, 1 to 100 characters')
+const redirectUrisField = z
+  .array(
+    z.string().superRefine((uri, ctx) => {
+      const problem = redirectUriProblem(uri)
+      if (problem) ctx.addIssue({ code: 'custom', message: problem })
+    }),
+  )
+  .min(1)
+  .max(10)
+const scopesField = z.array(z.string().min(1)).min(1)
 const createBody = z.strictObject({
-  name: z.string().trim().min(1).max(100).describe('What the app is called; trimmed, 1 to 100 characters'),
-  redirect_uris: z
-    .array(
-      z.string().superRefine((uri, ctx) => {
-        const problem = redirectUriProblem(uri)
-        if (problem) ctx.addIssue({ code: 'custom', message: problem })
-      }),
-    )
-    .min(1)
-    .max(10)
-    .describe(
-      '1 to 10 redirect URIs: https, or http on localhost or 127.0.0.1; no fragment, user info or *. Duplicates are removed.',
-    ),
-  scopes: z
-    .array(z.string().min(1))
-    .min(1)
+  name: nameField,
+  redirect_uris: redirectUrisField.describe(
+    '1 to 10 redirect URIs: https, or http on localhost or 127.0.0.1; no fragment, user info or *. Duplicates are removed.',
+  ),
+  scopes: scopesField
     .optional()
     .describe(
       'The scopes the app may be granted; within the ceiling a dynamically registered client has. Omitted: the default scopes.',
     ),
   skip_consent: z.boolean().optional().describe('Omitted means true. false is refused: it is not implemented yet.'),
 })
+const updateBody = z
+  .strictObject({
+    name: nameField.optional(),
+    redirect_uris: redirectUrisField
+      .optional()
+      .describe('Replaces the whole list; the same rules as on create. Duplicates are removed.'),
+    scopes: scopesField.optional().describe('Replaces the whole list; within the same ceiling as on create.'),
+    skip_consent: z.boolean().optional().describe('true is accepted. false is refused: it is not implemented yet.'),
+  })
+  .refine((b) => Object.keys(b).length > 0, { message: 'give at least one field to change' })
 const idParams = z.object({ client_id: z.string().min(1).max(200) })
 
 const oauthClientRecord = z.object({
@@ -63,6 +75,42 @@ const oauthClientRecord = z.object({
   updated_at: z.iso.datetime({ offset: true }),
 })
 
+/** D11, P2, P3: one entry per distinct redirect origin of the resulting list that `CORS_ALLOWED_ORIGINS` does not allow, in order of first appearance; the API's own origin is never warned. */
+const originWarnings = (rt: OAuthClientsRuntime, redirectUris: readonly string[]) => {
+  const seen = new Set<string>()
+  const out: z.infer<typeof originWarning>[] = []
+  for (const uri of redirectUris) {
+    const origin = new URL(uri).origin
+    if (seen.has(origin)) continue
+    seen.add(origin)
+    if (origin === rt.apiOrigin || originMatches(rt.corsOrigins, origin)) continue
+    out.push({
+      code: 'origin_not_allowed',
+      origin,
+      list: 'CORS_ALLOWED_ORIGINS',
+      message: `${origin} is not in CORS_ALLOWED_ORIGINS: the app's browser calls to the token endpoint and the API will be refused until it is added`,
+    })
+  }
+  return out
+}
+const originWarning = z.object({
+  code: z.literal('origin_not_allowed'),
+  origin: z.string(),
+  list: z.literal('CORS_ALLOWED_ORIGINS'),
+  message: z.string(),
+})
+const oauthClientAnswer = oauthClientRecord.extend({
+  warnings: z
+    .array(originWarning)
+    .describe(
+      'One entry per redirect origin not in CORS_ALLOWED_ORIGINS; [] when none is missing. The write happened either way.',
+    ),
+})
+const answerOf = (rt: OAuthClientsRuntime, row: OAuthClientRow): z.infer<typeof oauthClientAnswer> => ({
+  ...recordOf(row),
+  warnings: originWarnings(rt, row.redirectUris),
+})
+
 const recordOf = (row: OAuthClientRow): z.infer<typeof oauthClientRecord> => ({
   client_id: row.clientId,
   name: row.name,
@@ -72,6 +120,15 @@ const recordOf = (row: OAuthClientRow): z.infer<typeof oauthClientRecord> => ({
   created_at: row.createdAt,
   updated_at: row.updatedAt,
 })
+
+/** Scopes de-duplicated in order and each checked against the ceiling, before the port is called (P4). */
+const checkedScopes = (rt: OAuthClientsRuntime, given: readonly string[]): string[] => {
+  const scopes = [...new Set(given)]
+  for (const scope of scopes)
+    if (!rt.allowedScopes.includes(scope))
+      throw new ApiError(400, 'validation_error', `scope ${scope} is not allowed for an OAuth client`)
+  return scopes
+}
 
 const needsStore = (runtime: OAuthClientsRuntime | null): OAuthClientsRuntime => {
   if (!runtime)
@@ -100,20 +157,17 @@ export function oauthClientOperations(runtime: OAuthClientsRuntime | null): Cont
       name: 'oauth_clients.create',
       summary: 'Register a first-party OAuth client for a web app that signs people in',
       description:
-        'Human only (owners). Registers a public OAuth client (PKCE, no secret) for an app that signs people in to this workspace; a person who signs in through it acts as themselves. The client skips the consent screen (skip_consent defaults to true): skip_consent = false is not implemented yet and is refused. Scopes must be within the ceiling a dynamically registered client has (never an administrative scope); omitted, the default scopes are used. The answer carries the client_id; there is no secret.',
+        "Human only (owners). Registers a public OAuth client (PKCE, no secret) for an app that signs people in to this workspace; a person who signs in through it acts as themselves. The client skips the consent screen (skip_consent defaults to true): skip_consent = false is not implemented yet and is refused. Scopes must be within the ceiling a dynamically registered client has (never an administrative scope); omitted, the default scopes are used. The answer carries the client_id (there is no secret) and warnings: one entry for each redirect origin that is not in CORS_ALLOWED_ORIGINS, which means the app's browser calls will be refused until the origin is added to CORS_ALLOWED_ORIGINS; the client is created either way.",
       method: 'post',
       path: '/oauth-clients',
       scope: { resource: 'oauth_clients', action: 'write' },
       request: { body: createBody },
-      response: { status: 201, schema: oauthClientRecord },
+      response: { status: 201, schema: oauthClientAnswer },
       run: async (env, input) => {
         const rt = needsStore(runtime)
         const body = input.body as z.infer<typeof createBody>
         if (body.skip_consent === false) throw new ApiError(400, 'validation_error', SKIP_CONSENT_REFUSAL)
-        const scopes = [...new Set(body.scopes ?? rt.defaultScopes)]
-        for (const scope of scopes)
-          if (!rt.allowedScopes.includes(scope))
-            throw new ApiError(400, 'validation_error', `scope ${scope} is not allowed for an OAuth client`)
+        const scopes = checkedScopes(rt, body.scopes ?? rt.defaultScopes)
         const made = await rt.port.create({
           organizationId: env.organizationId,
           clientId: base64url(env.randomBytes(24)),
@@ -127,7 +181,7 @@ export function oauthClientOperations(runtime: OAuthClientsRuntime | null): Cont
           newId: env.newId,
         })
         if (made === 'exists') throw new Error('oauth_clients.create: the generated client id is already taken') // D13: a 500, not retried
-        return recordOf(made)
+        return answerOf(rt, made)
       },
     },
     {
@@ -187,6 +241,37 @@ export function oauthClientOperations(runtime: OAuthClientsRuntime | null): Cont
         })
         if (!gone) throw new ApiError(404, 'not_found', 'OAuth client not found')
         return undefined
+      },
+    },
+    {
+      ...base,
+      name: 'oauth_clients.update',
+      summary: 'Edit a first-party OAuth client',
+      description:
+        "Human only (owners). Edits any of name, redirect_uris, scopes and skip_consent; the lists replace the stored ones, and the rules are create's. skip_consent = false is not implemented yet and is refused. An edit revokes no token: refresh tokens and access tokens already issued keep working (delete the client to revoke). The answer carries warnings: one entry for each redirect origin of the resulting list that is not in CORS_ALLOWED_ORIGINS, which means the app's browser calls will be refused until the origin is added to CORS_ALLOWED_ORIGINS; the edit is made either way. An id that is not a first-party client answers 404.",
+      method: 'patch',
+      path: '/oauth-clients/{client_id}',
+      scope: { resource: 'oauth_clients', action: 'write' },
+      request: { params: idParams, body: updateBody },
+      response: { status: 200, schema: oauthClientAnswer },
+      run: async (env, input) => {
+        const rt = needsStore(runtime)
+        const body = input.body as z.infer<typeof updateBody>
+        if (body.skip_consent === false) throw new ApiError(400, 'validation_error', SKIP_CONSENT_REFUSAL)
+        const scopes = body.scopes === undefined ? undefined : checkedScopes(rt, body.scopes)
+        const row = await rt.port.update({
+          organizationId: env.organizationId,
+          clientId: input.params.client_id as string,
+          actorId: env.actor.id,
+          now: env.now.toISOString(),
+          newId: env.newId,
+          ...(body.name !== undefined ? { name: body.name } : {}),
+          ...(body.redirect_uris !== undefined ? { redirectUris: [...new Set(body.redirect_uris)] } : {}),
+          ...(scopes !== undefined ? { scopes } : {}),
+          ...(body.skip_consent !== undefined ? { skipConsent: true } : {}),
+        })
+        if (!row) throw new ApiError(404, 'not_found', 'OAuth client not found')
+        return answerOf(rt, row)
       },
     },
   ]

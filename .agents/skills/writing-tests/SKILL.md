@@ -569,8 +569,11 @@ One program, two engines: the same assertions run on Postgres and D1.
     one names the wire snapshot as a rider, or the gate goes red once ([[AGT588]] gate-fix). A changed **query
     parameter** schema moves it too (both OpenAPI digests and `mcp-tools`; golden and `schema.get` stay), though no golden
     carries a parameter schema ([[CORE602]] gate-fix). A **new operation on any surface**, meta included, moves it as well
-    (its surface's OpenAPI digest, `mcp-tools`, `golden`; the other OpenAPI digest and `schema.get` stay): every cycle that
-    adds, removes or renames an operation names the wire snapshot as a rider ([[CORE627]] gate-fix).
+    (its surface's OpenAPI digest and `mcp-tools`; `golden` too when the generator's text changes, as [[CORE627]]'s new
+    `oauth_clients` scopes did and [[CORE628]]'s one more operation under them did not; the other OpenAPI digest and
+    `schema.get` stay): every cycle that adds, removes or renames an operation names the wire snapshot as a rider
+    ([[CORE627]] gate-fix; named in [[CORE628]]'s charter, the gate was green first run). Read which digests moved from
+    the diff; don't predict them.
   - A **dormant general mechanism** (kept with no production caller, e.g. the per-type `owner` predicate in the
     event-type map after CORE347) is proven through a test-only registration on the test kit's registry, plus one
     assertion against the real registry that no production entry uses it, so a later caller is a deliberate choice
