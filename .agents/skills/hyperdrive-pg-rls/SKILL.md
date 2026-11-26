@@ -8,7 +8,7 @@ description: How node-postgres (`pg`), Kysely, Cloudflare Hyperdrive (transactio
 Inherited from the predecessor product, where a multi-hour incident taught this: the API Worker hung ~50% of requests right
 after org-scoped RLS went live, traded those hangs for `prepared statement does not exist` once the pool
 was tuned, and only then settled. Several independent layers had to agree before any tenant-scoped query
-worked end to end. The vault uses the same stack minus the GraphQL layer (no PostGraphile, no
+worked end to end. Vibase uses the same stack minus the GraphQL layer (no PostGraphile, no
 `@dataplan/pg`), which removes one of that stack's layers but not the others.
 
 ## The layers and why they fight
@@ -128,7 +128,7 @@ ever looking at which await was actually stuck. The faster path:
    or race problem, likely Hyperdrive rotating connections.
 5. Only once you know which `await` is long, change pool or driver config.
 
-## Where this lives in the vault
+## Where this lives in Vibase
 
 These files arrive with the CORE cycles that build the tenancy layer; keep this list current when they do.
 

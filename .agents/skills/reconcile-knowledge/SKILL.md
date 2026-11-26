@@ -14,7 +14,7 @@ product that quietly stopped being true.** This skill notices.
 
 ## Why after merge, not at PR time
 
-`project-state.md` says what the vault can do *today*. That isn't true until the code lands. A spec
+`project-state.md` says what Vibase can do *today*. That isn't true until the code lands. A spec
 amended alongside an open PR describes a change review can still alter, and it couples a private-repo PR
 to a public one across two review cadences. So [[work-on-ready-issues]] and [[fix-bugs]] only leave a
 **Knowledge impact** hint in the code PR body; this skill reads the hint back after the merge and does

@@ -7,7 +7,7 @@ description: How to structure Cloudflare Workflows (`step.do`) so retries are ch
 
 A durable orchestrator that checkpoints between `step.do(...)` calls and replays completed steps on retry.
 The model is simple; the constraints have sharp edges. This skill is inherited from the predecessor product's agent-runs
-workflow, where each rule below was paid for in production. The vault's uses are different (durable
+workflow, where each rule below was paid for in production. Vibase's uses are different (durable
 per-mailbox history sync against Gmail, Gmail watch renewal, webhook delivery with retries),
 but the runtime is the same, so the traps are too.
 
@@ -207,7 +207,7 @@ Webhook delivery is the same shape with a dead-letter queue behind it.
   outcome as data.
 - A pass-through step shim in tests → validates neither of the two above.
 
-## Where this lives in the vault
+## Where this lives in Vibase
 
 Gmail sync ([[CHN141]], CHN5 cycle 4) is the first Workflow. Paths are real:
 

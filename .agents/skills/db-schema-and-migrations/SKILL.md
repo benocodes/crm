@@ -6,7 +6,7 @@ description: Preferences and patterns for database work in packages/db — Kysel
 # Database Schema & Migrations
 
 Reference for database work in `packages/db`. Much of it is inherited from the predecessor product, where each rule below
-cost a real incident; the vault starts from **one squashed baseline migration** and applies the same
+cost a real incident; Vibase starts from **one squashed baseline migration** and applies the same
 discipline from there.
 
 ## Stack
@@ -173,7 +173,7 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   CONFLICT specification` the first time the conflict path fires. After adding, dropping or re-scoping a
   unique index, grep tests and code for `.onConflict` / `ON CONFLICT` on the old column set.
 - **Tenant-column defaults hide missing tenancy.** If a table's `organization_id` has a session-scoped
-  `DEFAULT`, a test insert that omits it silently picks up the session's organisation. The vault's test pool
+  `DEFAULT`, a test insert that omits it silently picks up the session's organisation. Vibase's test pool
   presets nothing (see `api-routes`), so every fixture insert names its organisation explicitly.
 
 ## Append-only tables, vocabularies and sources ([[CORE25]])
@@ -239,7 +239,7 @@ Established by the baseline ([[CORE1]], `packages/db/migrations/20261017_001_bas
   `vault_service` (NOLOGIN, BYPASSRLS), `vault_app` (LOGIN NOINHERIT, member of both, no privileges of its
   own). They are created idempotently in a `DO` block that also `ALTER`s all three, so attributes converge
   on a cluster where they already exist. The migration grants both group roles to `CURRENT_USER` too.
-  Every vault database on a cluster (dev, test, each worktree) shares them, so **`down()` never drops
+  Every Vibase database on a cluster (dev, test, each worktree) shares them, so **`down()` never drops
   roles**. Never touch other products' roles (`anon`, `authenticated`, `service_role`) on a shared cluster.
 - **Grants are minimal, per table, in the migration that creates the table.** `vault_service` gets
   `SELECT, INSERT, UPDATE` (narrowed from `ALL` by `20261017_002_service_role_grants.ts`, [[CORE12]]): no
@@ -383,7 +383,7 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   list that enumerates its columns before the gate finds them.
   Tests that count migrations derive the count from the manifest (`EXPECTED.length`, `EXPECTED.slice(0, -1)`),
   never a literal, so the next migration does not break them ([[CORE62]]).
-- **`d1_migrations` is wrangler's table, never the vault's.** The local harness doesn't create it, so its
+- **`d1_migrations` is wrangler's table, never Vibase's.** The local harness doesn't create it, so its
   status is `unknown` and nothing is gated. Tests that need `current`, `behind` or `ahead` create it with
   `createMigrationTracker` and fill it with `recordMigrations`/`forgetMigrations` (`@vibase/storage-d1/test`).
   `clearD1` must never delete from it.

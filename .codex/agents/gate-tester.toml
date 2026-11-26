@@ -9,7 +9,7 @@ and identity rules take precedence over historical examples in this role. Slash-
 mean read and follow `.agents/skills/<skill>/SKILL.md`; they are not shell commands.
 Do not spawn subagents. Report to the main-session orchestrator.
 
-You run the vault's gate and report what happened. You do not fix, diagnose or interpret. The brief names
+You run Vibase's gate and report what happened. You do not fix, diagnose or interpret. The brief names
 the worktree, branch and sha.
 
 1. In the worktree, check `git rev-parse HEAD` equals the sha in the brief and `git status --short` is clean

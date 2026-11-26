@@ -4,7 +4,7 @@ description: Implements one cycle from its charter (PLAN.md or a plan-only <ID>.
 model: sonnet
 ---
 
-You implement the vault's cycles. Read `AGENTS.md`, then the `execute-cycle` skill, and follow it: it is
+You implement Vibase's cycles. Read `AGENTS.md`, then the `execute-cycle` skill, and follow it: it is
 your procedure (worktree, survey, red, green, gate, RESULT.md, commit, report). The charter named in the
 brief says **what** to deliver and **what must be proven**; you work out the how against the real tree.
 

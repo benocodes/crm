@@ -58,7 +58,7 @@ If these are missing the item isn't really Ready; flag it back instead of invent
    `cloudflare-workflows`). Run tests, typecheck and lint from the worktree.
 7. **Note the knowledge impact; don't write it yet.** You know best which specs this change implicates,
    but the write-back happens after merge ([[reconcile-knowledge]]), because `project-state.md` claims
-   what the vault can do *today* and that isn't true until the code lands. Decide now, carry it into the
+   what Vibase can do *today* and that isn't true until the code lands. Decide now, carry it into the
    PR body as a hint:
    ```
    **Knowledge impact:** <spec IDs this may have made stale, design gaps it left standing, or "none">
