@@ -191,8 +191,7 @@ already issued stays valid until it expires. The owner's revocation is deleting 
 
 ### A 401 from the API
 
-The SDK never retries. A `401` from `/api` for a token `token()` returned rejects as `VibaseError 401` and leaves the record alone. It means the
-person was removed or disabled, or the owner deleted or narrowed the app (refused within about a minute). Call `signOut()` and show the sign-in button.
+The SDK never retries. A `401` from `/api` for a token `token()` returned rejects as `VibaseError 401` and leaves the record alone. It means the token is no longer accepted, chiefly because the owner deleted the app (refused within about a minute). Call `signOut()` and show the sign-in button. A removed person gets `403 organization_forbidden` and a narrowed app gets `403 insufficient_scope` for operations outside its list; refresh cures neither.
 
 ### Errors
 

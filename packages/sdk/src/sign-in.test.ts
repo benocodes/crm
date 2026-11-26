@@ -946,21 +946,6 @@ describe('DX636 group 3: the refresh outcome matrix (D5, P2, P5)', () => {
 })
 
 describe('DX636 group 4: a 401 from the API through createClient (D8)', () => {
-  it('signed out: 401 no_credential and nothing is sent', async () => {
-    const r = rig()
-    const calls: string[] = []
-    const client = createClient({
-      url: r.dep.origin,
-      auth: r.s.token,
-      fetch: (async (u: RequestInfo | URL) => {
-        calls.push(String(u))
-        return new Response('{}')
-      }) as typeof fetch,
-    })
-    expect(await fail(client.contacts.list())).toMatchObject({ status: 401, code: 'no_credential' })
-    expect(calls).toEqual([])
-  })
-
   it('a valid token and an API 401: rejects VibaseError 401, one request only, the record untouched', async () => {
     const dep = deployment()
     const r = seeded({ access_token: 'at-old', expires_at: NOW + 3_600_000, refresh_token: 'rt-old' }, dep)

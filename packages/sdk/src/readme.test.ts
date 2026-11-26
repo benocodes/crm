@@ -57,7 +57,11 @@ describe('DX636 group 6: the README documents browser sign-in completely', () =>
     expect(body).toMatch(/OAuth `error`/)
   })
 
-  it.each(METHODS)('the section names the method %s', (method) => {
-    expect(section(readme())).toContain(method)
+  it.each(METHODS)('the section has its own bullet under "### The verbs" for %s', (method) => {
+    const body = section(readme())
+    const start = body.indexOf('### The verbs')
+    expect(start).toBeGreaterThan(-1)
+    const verbs = body.slice(start, body.indexOf('\n### ', start + 1))
+    expect(verbs).toContain(`\n- **\`${method}(`)
   })
 })
