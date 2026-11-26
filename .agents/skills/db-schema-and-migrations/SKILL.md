@@ -356,7 +356,10 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   - a statement binds at most **100 parameters**;
   - a statement is at most 100 KB.
 - **The D1 migration test is red before the migration exists.** `packages/storage-d1/src/schema.integration.test.ts`
-  inspects `sqlite_master`/PRAGMA. `packages/storage-d1/src/schema-parity.integration.test.ts` and `packages/storage-postgres/src/schema-parity.integration.postgres.test.ts` (one per engine) tie the
+  inspects `sqlite_master`/PRAGMA for FKs, constraints and behaviour; it no longer snapshots every table's columns and
+  nullability (deleted by user ruling 666.33: they only restated the migrations). A new column is proven by its own
+  migration test over a database at the previous version holding rows (`connector-consent-migration.integration.test.ts`,
+  [[CORE666]]). `packages/storage-d1/src/schema-parity.integration.test.ts` and `packages/storage-postgres/src/schema-parity.integration.postgres.test.ts` (one per engine) tie the
   physical columns to `COLUMN_KINDS` in `@vibase/storage`, so a new column changes all three together. On contacts,
   companies, deals and tasks a column also changes the table's declaration (`packages/api/src/declarations/`):
   `drift.integration.d1.test.ts` fails on a column, type, nullability, foreign key or unique index the declaration
