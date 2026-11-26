@@ -187,6 +187,34 @@ describe('claim, then review', () => {
       expect(document.body.textContent).not.toContain('limited_login')
     })
 
+    const discovery = (reply: { status: number; json?: unknown; text?: string }) => ({
+      'GET /.well-known/vibase': reply,
+    })
+
+    it('the CLI is the client discovery names: an unmarked request from it shows full access, the built-in id no longer does', async () => {
+      fakeFetch({
+        ...claim('acme-cli', 'openid contacts:read'),
+        ...discovery({ status: 200, json: { auth: { cli_client_id: 'acme-cli' } } }),
+      })
+      render(<DevicePage />)
+      expect(await screen.findByRole('region', FULL)).toBeTruthy()
+      expect(screen.queryByRole('region', LISTED)).toBeNull()
+      cleanup()
+      fakeFetch({
+        ...claim('vibase-cli', 'openid contacts:read'),
+        ...discovery({ status: 200, json: { auth: { cli_client_id: 'acme-cli' } } }),
+      })
+      render(<DevicePage />)
+      expect(await screen.findByRole('region', LISTED)).toBeTruthy()
+      expect(screen.queryByRole('region', FULL)).toBeNull()
+    })
+
+    it('discovery that cannot be read falls back to the built-in id', async () => {
+      fakeFetch({ ...claim('vibase-cli', 'openid contacts:read'), ...discovery({ status: 500, text: 'boom' }) })
+      render(<DevicePage />)
+      expect(await screen.findByRole('region', FULL)).toBeTruthy()
+    })
+
     it('another client keeps the scope list, marked or not, and no full-access block', async () => {
       for (const scope of ['openid contacts:read', 'openid contacts:read limited_login']) {
         cleanup()

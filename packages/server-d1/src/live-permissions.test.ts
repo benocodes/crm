@@ -273,12 +273,21 @@ describe('group 2: a permission added later applies to the same token (D3, D4, D
     expect((await me()).json.active_organization.scopes).toEqual(READ_CONTACTS)
   })
 
-  it('a role change (owner to member) narrows an unmarked CLI login on the next request, and a marked one stays at its list', async () => {
+  it('a role change (owner to member) narrows an unmarked CLI login on the next request', async () => {
     const s = await subject('owner')
     const unmarked = (await s.login(cliClient, 'openid contacts:read', false)).access_token
     const wk = worker()
     expect(await scopesOf(wk, unmarked)).toEqual(OWNER_SCOPES())
     await w.d1.prepare("update memberships set role = 'member' where user_id = ?").bind(s.humanId).run()
     expect(await scopesOf(wk, unmarked)).toEqual(MEMBER_SCOPES())
+  })
+
+  it('a marked CLI login keeps its list after the owner becomes a member', async () => {
+    const s = await subject('owner')
+    const marked = (await s.login(cliClient, 'openid contacts:read', true)).access_token
+    const wk = worker()
+    expect(await scopesOf(wk, marked)).toEqual(READ_CONTACTS)
+    await w.d1.prepare("update memberships set role = 'member' where user_id = ?").bind(s.humanId).run()
+    expect(await scopesOf(wk, marked)).toEqual(READ_CONTACTS)
   })
 })

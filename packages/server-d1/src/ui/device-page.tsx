@@ -4,6 +4,7 @@ import {
   approveDevice,
   claimDeviceCode,
   denyDevice,
+  getCliClientId,
   getClientName,
   getSession,
   signOut,
@@ -31,7 +32,7 @@ const failureMessage = (f: ApiFailure, deciding: boolean): string => {
 interface Review {
   code: string
   clientName: string
-  clientId: string
+  isCli: boolean
   scopes: string[]
 }
 type Outcome = 'approved' | 'denied' | undefined
@@ -101,11 +102,13 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
       return undefined
     }
     const client = await getClientName(r.data.clientId)
+    // [[CORE630]] D11: the CLI is whichever client the instance names in discovery (the built-in id when discovery says nothing).
+    const cliId = (await getCliClientId()) ?? CLI_CLIENT_ID
     setBusy(undefined)
     setReview({
       code,
       clientName: client.ok && client.data.name ? client.data.name : r.data.clientId,
-      clientId: r.data.clientId,
+      isCli: r.data.clientId === cliId,
       scopes: (r.data.scope ?? '').split(/\s+/).filter(Boolean),
     })
     return undefined
@@ -187,7 +190,7 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
         <p>{MESSAGES.deviceCheckCode}</p>
         <p>{MESSAGES.deviceWarning}</p>
         {/* [[CORE630]] D11: a vibase-cli request without the limited-login marker is full access as the person; with it, the listed scopes. The marker is never shown. */}
-        {review.clientId === CLI_CLIENT_ID && !review.scopes.includes(LIMITED_LOGIN_SCOPE) ? (
+        {review.isCli && !review.scopes.includes(LIMITED_LOGIN_SCOPE) ? (
           <section aria-label="Full access">
             <p>{MESSAGES.deviceFullAccess}</p>
           </section>
