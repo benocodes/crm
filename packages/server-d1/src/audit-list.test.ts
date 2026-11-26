@@ -362,7 +362,7 @@ describe('composed end to end (REST, MCP)', () => {
     expect(JSON.stringify(res.json)).not.toMatch(/token/i)
   })
 
-  it('MCP: audit_list is listed for the owner and a delegated agent holding audit:read, not for a member, and for a delegated agent whose connection lacks it only with the sign-in hint ([[CORE662]] D8); tools/call answers as REST does', async () => {
+  it('MCP: audit_list is listed for the owner and a delegated agent holding audit:read, not for a member, and for a delegated agent whose connection lacks it not at all ([[CORE666]] D7); tools/call answers as REST does', async () => {
     const owner = await human('owner')
     const wk = worker()
     const rpc = async (tok: string, method: string, params?: unknown) =>
@@ -376,12 +376,8 @@ describe('composed end to end (REST, MCP)', () => {
     expect(await names(await owner.session())).toEqual(['audit_list'])
     expect(await names(delegated)).toEqual(['audit_list'])
     expect(await names(await (await human('member', 'm@x.test')).session())).toEqual([])
-    // [[CORE662]] D8: the connection was approved without audit:read although the agent's record and its person's role hold it: the tool is listed, led by the reconnect hint (calling it is refused).
-    expect(await names(without)).toEqual(['audit_list'])
-    const listed = (
-      (await rpc(without, 'tools/list')).json.result.tools as Array<{ name: string; description: string }>
-    ).find((t) => t.name === 'audit_list')
-    expect(listed!.description.startsWith('this connection was approved before audit:read was granted')).toBe(true)
+    // [[CORE666]] D7: a connection approved without audit:read does not hold it (its record follows the sign-in): the tool is not listed, with no hint.
+    expect(await names(without)).toEqual([])
     await call(wk, 'POST', INV, await owner.session(), { email: 'mcp@x.test', role: 'member', delivery: 'link' })
     for (const tok of [await owner.session(), delegated]) {
       const out = (await rpc(tok, 'tools/call', { name: 'audit_list', arguments: { action: 'invitation.created' } }))

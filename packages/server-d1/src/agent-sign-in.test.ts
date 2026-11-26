@@ -27,8 +27,6 @@ const hintCli = (s: string) =>
   `this sign-in does not include ${s}, which your role holds: run \`vibase login\` to sign in again`
 const hintAgent = (s: string) =>
   `this sign-in was made before ${s} was granted to this agent: sign in again as the agent with \`vibase login\``
-const hintDelegated = (s: string) =>
-  `this connection was approved before ${s} was granted: reconnect the connector to approve it`
 
 beforeAll(async () => {
   w = await openWorkerPair()
@@ -401,13 +399,14 @@ describe('3. when the refusal hint shows (D8)', () => {
       expect(msg(notHeld)).toBe(`requires ${op.scope}`)
     })
 
-    it('a delegated agent: the hint when its record and the role hold it and the token lacks it; none otherwise', async () => {
+    it('a delegated agent: never a hint, whatever its token lacks ([[CORE666]] D7); the record follows the sign-in, so a wider sign-in holds it', async () => {
       const wk = worker()
       const o = await person('owner', 'del-owner@x.test')
       const client = await authKitOverWorker(wk).registerClient('Claude Desktop')
       const first = (await login(wk, o.cookie, client, listLogin(false))).token
       const missing = await tryOp(wk, first)
-      expect(msg(missing)).toBe(`requires ${op.scope}; ${hintDelegated(op.scope)}`)
+      expect(missing.status).toBe(403)
+      expect(msg(missing)).toBe(`requires ${op.scope}`)
       const held = await tryOp(wk, (await login(wk, o.cookie, client, listLogin(true))).token)
       expect(held.status).toBeLessThan(300)
       await w.d1.prepare('update agents set scopes = \'["tags:read"]\' where auth_client_id = ?').bind(client).run()
