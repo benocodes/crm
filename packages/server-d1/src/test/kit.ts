@@ -29,6 +29,9 @@ import { composeD1Worker as composeRealD1Worker, type D1WorkerEnv } from '../com
 export { clerkOrganization, clerkMembership, clerkUser, mintOAuthToken }
 /** For another package's integration test that bootstraps a Better Auth instance (the CLI's `audit` test). */
 export { openControlDb } from '@vibase/storage-d1'
+/** For the CLI's real-device-flow tests (a second package cannot import these directly): the Better Auth kit and the row seeds. */
+export { authKit, AUTH_BASE, AUTH_SECRET } from './auth-kit.js'
+export { seedAgent, seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 
 export interface WorkerD1 {
   readonly d1: D1Like
