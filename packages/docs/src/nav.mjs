@@ -23,20 +23,43 @@ export const sections = [
   {
     label: 'Connect your agents',
     items: [
+      { label: 'Invite agents and manage permissions', slug: 'guides/agents' },
       { label: 'Command line', slug: 'guides/cli' },
       { label: 'MCP and REST', slug: 'guides/mcp-and-rest' },
+    ],
+  },
+  {
+    label: 'Build apps and workflows',
+    items: [
+      { label: 'Build apps on your instance', slug: 'guides/build-apps' },
       { label: 'TypeScript SDK', slug: 'guides/sdk' },
       { label: 'OAuth clients for your apps', slug: 'guides/oauth-clients' },
       { label: 'Webhooks', slug: 'guides/webhooks' },
       { label: 'Website forms', slug: 'guides/forms' },
-      { label: 'Custom objects and fields', slug: 'guides/schema' },
     ],
+  },
+  {
+    label: 'Customize your data',
+    items: [{ label: 'Custom objects and fields', slug: 'guides/schema' }],
   },
   { label: 'API reference', api: true, items: [{ label: 'About the reference', slug: 'api-reference/overview' }] },
   {
     label: 'Deploy',
     items: [
-      { label: 'Self-host Vibase', slug: 'deployment/self-hosting' },
+      { label: 'Deploy Vibase', slug: 'deployment/self-hosting' },
+      { label: 'Upgrade, redeploy and roll back', slug: 'deployment/upgrade' },
+    ],
+  },
+  {
+    label: 'Deployment recipes',
+    items: [
+      { label: 'workers.dev and custom domains', slug: 'deployment/domains' },
+      { label: 'Google sign-in and email', slug: 'deployment/sign-in-and-email' },
+      { label: 'Recover the owner', slug: 'deployment/recover-owner' },
+      { label: 'Set up without init, or in CI', slug: 'deployment/manual-setup' },
+      { label: 'Install from a release tarball', slug: 'deployment/release-tarball' },
+      { label: 'Use Clerk instead of Better Auth', slug: 'deployment/clerk' },
+      { label: 'Deploy from source', slug: 'deployment/from-source' },
       { label: 'Publish these docs', slug: 'deployment/docs-site' },
     ],
   },

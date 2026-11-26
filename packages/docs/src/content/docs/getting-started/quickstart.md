@@ -3,7 +3,7 @@ title: Quickstart
 description: Install the Vibase client, sign in to an existing instance, read and write records, and connect an agent.
 ---
 
-Use a Vibase instance that someone has already set up: install the command line client, sign in, make your first records, and connect an agent. If you need to run the instance itself, see [running an instance](/deployment/self-hosting/).
+Use a Vibase instance that someone has already set up: install the command line client, sign in, make your first records, and connect an agent. If you need to run the instance itself, see [deploying Vibase](/deployment/self-hosting/).
 
 You need Node.js 22.12 or later, the URL of your instance (for example `https://api.example.com`), and an invitation from the instance's owner.
 
@@ -43,18 +43,18 @@ vibase contacts create --name "Ada Lovelace"
 vibase contacts list --limit 5
 ```
 
-`vibase --help` lists every resource the instance offers, and `vibase <resource> --help` its actions. The [command line guide](/guides/cli/) covers profiles, API keys and agent accounts.
+`vibase --help` lists every resource the instance offers, and `vibase <resource> --help` its actions. The [command line guide](/guides/cli/) covers profiles and sign-in; [invite agents and manage permissions](/guides/agents/) covers agent accounts and API keys.
 
 ## 4. Connect an agent
 
 Add `https://api.example.com/mcp` to a remote MCP client with OAuth support. Complete the browser consent flow, then see the connected agent on the instance's Agents page (`https://api.example.com/app/agents`) and grant its permissions with the [CLI](/guides/cli/) (the page shows the grant command; it does not edit permissions). OAuth consent is bounded by Vibase's stored agent grants.
 
-For a standalone automation with its own account, follow the [agent-account device login guide](/guides/cli/#give-an-agent-its-own-identity). Give each agent the scopes it needs; [read, proposal, and write permissions](/concepts/permissions/) are separate choices.
+For a standalone automation with its own account, follow [invite agents and manage permissions](/guides/agents/). Give each agent the scopes it needs; [read, proposal, and write permissions](/concepts/permissions/) are separate choices.
 
 ## Troubleshooting
 
 | Symptom | What to check |
 | --- | --- |
-| Device authorization is unavailable | The instance's owner must enable device login; see [running an instance](/deployment/self-hosting/). |
+| Device authorization is unavailable | The instance's owner must enable device login; see [deploying Vibase](/deployment/self-hosting/). |
 | `403 organization_forbidden` | Your account has no recognized role: ask the owner to check the invitation (on Clerk, its `vibase_role`). |
 | `vibase: command not found` | The npm global bin directory is not on your `PATH`. |

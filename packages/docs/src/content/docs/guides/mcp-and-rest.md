@@ -21,7 +21,7 @@ Add your instance's MCP URL to a client that supports remote HTTP MCP servers:
 https://api.example.com/mcp
 ```
 
-Use a client that supports the server's OAuth discovery and authorization flow. Complete consent in the browser, then have an owner grant the connected agent the scopes it needs. Connecting a client does not grant it CRM access automatically.
+Use a client that supports the server's OAuth discovery and authorization flow. Complete consent in the browser, then have an owner grant the connected agent the scopes it needs ([how](/guides/agents/)). Connecting a client does not grant it CRM access automatically.
 
 MCP connections act as agents. The backend checks their grants when tools run, just as it does for CLI and REST calls.
 
@@ -49,4 +49,4 @@ https://api.example.com/meta/v1/openapi.json
 
 Use them to inspect request fields, response types, and available operations, or to generate a client for your own application. They describe the running instance's version.
 
-For TypeScript, the [SDK](/guides/sdk/) is a typed client over this API. A browser app on its own origin signs people in with a [first-party OAuth client](/guides/oauth-clients/) and sends the resulting bearer token.
+To build an app on this API, see [build apps on your instance](/guides/build-apps/): the typed [SDK](/guides/sdk/) and [first-party OAuth clients](/guides/oauth-clients/) are the two parts.
