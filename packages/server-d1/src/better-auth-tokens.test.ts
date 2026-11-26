@@ -41,8 +41,8 @@ beforeEach(async () => {
   bootUser = r.userId!
   bootKey = r.key
   kit = authKit(w.control, { scopes: declared })
-  cliClient = await kit.registerClient('Vibase CLI', ['limited_login'])
-  otherClient = await kit.registerClient('Claude Desktop', ['limited_login'])
+  cliClient = await kit.registerClient('Vibase CLI')
+  otherClient = await kit.registerClient('Claude Desktop')
 })
 
 const env = (over: Partial<D1WorkerEnv> = {}, control: D1WorkerEnv['CONTROL_DB'] = w.control): D1WorkerEnv => ({
@@ -147,9 +147,8 @@ async function subject(state: Subject, email = `${state.replace(/ /g, '-')}@x.te
     humanId,
     agentId,
     session: () => kit.sessionJwt(cookie),
-    // The `cli` rows are limited logins (the marker, CORE630 D2): an unmarked CLI login is the live role, proven in live-permissions.test.ts.
     oauth: async (client: string, scope = 'openid contacts:read contacts:write') =>
-      (await kit.deviceTokens(cookie, client, client === cliClient ? `${scope} limited_login` : scope)).access_token,
+      (await kit.deviceTokens(cookie, client, scope)).access_token,
   }
 }
 

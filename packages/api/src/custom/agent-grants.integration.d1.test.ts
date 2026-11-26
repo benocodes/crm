@@ -57,35 +57,3 @@ describe('an owner grants the scopes of a custom object', () => {
     }
   })
 })
-
-// [[CORE630]] D10: the grant check reads the scopes the registry declares, not the caller's own. A caller that holds `agents:write` and no scope of the custom object (a limited login, an agent with the narrower list)
-// grants it all the same; an undeclared scope and a human-only scope stay refused.
-describe('D10: the grant check reads the declared scopes, whatever the caller holds', () => {
-  const NARROW = ['agents:read', 'agents:write']
-  const asNarrow = async (method: string, path: string, body?: unknown) => {
-    const r = await s.call(a, 'user', NARROW, method, path, body)
-    return { status: r.status, body: (await r.json().catch(() => null)) as any }
-  }
-  it('agents.create, a full scopes list and add_scopes accept a declared custom scope the caller does not hold', async () => {
-    expect(NARROW).not.toContain(`${PROJECTS_KEY}:write`)
-    const created = await asNarrow('POST', '/meta/v1/agents', { name: 'bot', scopes: [`${PROJECTS_KEY}:write`] })
-    expect(created.status, JSON.stringify(created.body)).toBe(201)
-    expect(await stored(created.body.id)).toEqual([`${PROJECTS_KEY}:write`])
-    const full = await asNarrow('PATCH', `/meta/v1/agents/${created.body.id}`, { scopes: [`${PROJECTS_KEY}:read`] })
-    expect(full.status, JSON.stringify(full.body)).toBe(200)
-    const added = await asNarrow('PATCH', `/meta/v1/agents/${created.body.id}`, {
-      add_scopes: [`${PROJECTS_KEY}:write`],
-    })
-    expect(added.status, JSON.stringify(added.body)).toBe(200)
-    expect(await stored(created.body.id)).toEqual([`${PROJECTS_KEY}:read`, `${PROJECTS_KEY}:write`])
-  })
-  it('an undeclared custom scope is still 400 unknown_scope and a human-only scope is still 400 scope_not_grantable, for a caller holding every scope or few', async () => {
-    const made = await asNarrow('POST', '/meta/v1/agents', { name: 'bot2' })
-    for (const body of [{ add_scopes: ['x__c:write'] }, { scopes: ['x__c:write'] }]) {
-      const r = await asNarrow('PATCH', `/meta/v1/agents/${made.body.id}`, body)
-      expect([r.status, r.body.error.code]).toEqual([400, 'unknown_scope'])
-    }
-    const human = await asNarrow('PATCH', `/meta/v1/agents/${made.body.id}`, { add_scopes: ['agents:write'] })
-    expect([human.status, human.body.error.code]).toEqual([400, 'scope_not_grantable'])
-  })
-})

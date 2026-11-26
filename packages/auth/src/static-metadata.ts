@@ -1,11 +1,6 @@
 // The static authorization-server metadata and its constants: config only, no Better Auth import, so the Worker's early answers load nothing heavy (#522).
 /** The OIDC scopes this cycle's clients may ask for. The vault's resource scopes join them with token verification ([[CORE244]]). */
 export const AUTH_SCOPES = ['openid', 'profile', 'email', 'offline_access'] as const
-/**
- * [[CORE630]] D2: the limited-login marker, a provider scope beside the OIDC ones and never a vault scope. A login that names it is limited to the scopes it listed; any other CLI or agent-account login follows its live permissions. It is
- * accepted wherever a scope can be named (authorize, the device grant, registration) and listed in `scopes_supported`, and it is deliberately NOT in `AUTH_SCOPES`: that list feeds every default (registration defaults, the empty-scope fill).
- */
-export const LIMITED_LOGIN_SCOPE = 'limited_login'
 export const AUTH_SERVER_METADATA_PATH = '/.well-known/oauth-authorization-server/auth'
 export const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
 
@@ -19,7 +14,7 @@ export function staticAuthServerMetadata(baseURL: string, vaultScopes: readonly 
   const issuer = `${baseURL}/auth`
   const publicMethods = ['client_secret_basic', 'client_secret_post']
   return {
-    scopes_supported: [...AUTH_SCOPES, LIMITED_LOGIN_SCOPE, ...vaultScopes],
+    scopes_supported: [...AUTH_SCOPES, ...vaultScopes],
     issuer,
     authorization_endpoint: `${issuer}/oauth2/authorize`,
     token_endpoint: `${issuer}/oauth2/token`,

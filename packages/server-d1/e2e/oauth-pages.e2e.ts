@@ -47,12 +47,7 @@ const axeAndShot = async (name: string, scheme: 'light' | 'dark') => {
   ).toEqual([])
 }
 /** [[UI381]] D10: at 1280x720 and 390x844 the decision button is inside the viewport with the page unscrolled; when the list overflows its region, the region scrolls on its own. */
-const foldCheck = async (
-  button: string,
-  expectScroll = false,
-  regionName = 'Requested permissions',
-  focusable = true,
-) => {
+const foldCheck = async (button: string, expectScroll = false, regionName = 'Requested permissions') => {
   for (const size of [
     { width: 1280, height: 720 },
     { width: 390, height: 844 },
@@ -65,7 +60,7 @@ const foldCheck = async (
       size.height,
     )
     const region = page.getByRole('region', { name: regionName })
-    if (focusable) await expect(region).toHaveAttribute('tabindex', '0')
+    await expect(region).toHaveAttribute('tabindex', '0')
     if (expectScroll)
       expect(await region.evaluate((el) => el.scrollHeight > el.clientHeight), 'the scope region scrolls').toBe(true)
   }
@@ -93,26 +88,16 @@ const signOutHere = async () => {
 }
 
 /** The real `vibase login` (tsx on the CLI source), its config in a private directory. Resolves the `/app/device` URL it prints; `done` resolves with its exit code and output. */
-function startLogin(args: string[] = []): Promise<{
+function startLogin(): Promise<{
   url: string
   home: string
   done: Promise<{ code: number; stdout: string; stderr: string }>
 }> {
   const home = mkdtempSync(join(tmpdir(), 'vibase-e2e-'))
-  const child: ChildProcessWithoutNullStreams = spawn(
-    'pnpm',
-    ['exec', 'tsx', CLI, 'login', '--server', BASE, ...args],
-    {
-      cwd: PKG,
-      env: {
-        ...process.env,
-        NODE_TLS_REJECT_UNAUTHORIZED: '0',
-        XDG_CONFIG_HOME: home,
-        XDG_CACHE_HOME: home,
-        HOME: home,
-      },
-    },
-  )
+  const child: ChildProcessWithoutNullStreams = spawn('pnpm', ['exec', 'tsx', CLI, 'login', '--server', BASE], {
+    cwd: PKG,
+    env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0', XDG_CONFIG_HOME: home, XDG_CACHE_HOME: home, HOME: home },
+  })
   let stdout = ''
   let stderr = ''
   const done = new Promise<{ code: number; stdout: string; stderr: string }>((resolve) =>
@@ -162,8 +147,7 @@ test('1. device: the printed URL leads through sign-in to the code, the review a
   await expect(page.getByRole('button', { name: 'Check code' })).toHaveCount(0)
   await expect(page.getByText(`${code.slice(0, 4)}-${code.slice(4)}`)).toBeVisible()
   await expect(page.getByText('Approve only if you started this sign-in yourself')).toBeVisible()
-  // [[CORE630]] D11: an unmarked CLI login reviews as full access, not as a scope list (the region is a statement, not a scrolling list)
-  await foldCheck('Approve', false, 'Full access', false)
+  await foldCheck('Approve')
   await axeBoth('device-review')
   await page.getByRole('button', { name: 'Approve' }).click()
   await expect(page.getByText('You can return to your terminal')).toBeVisible()
@@ -216,67 +200,6 @@ test('2b. device: a typed code still goes through Check code (the code form keep
   await page.getByRole('button', { name: 'Deny' }).click()
   await expect(page.getByText(/Denied/).first()).toBeVisible()
   await login.done
-})
-
-/** `vibase <args>` with a login's private config directory; its exit code and both streams. */
-const runCli = (home: string, args: string[]) =>
-  new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
-    const c = spawn('pnpm', ['exec', 'tsx', CLI, ...args, '--server', BASE], {
-      cwd: PKG,
-      env: {
-        ...process.env,
-        NODE_TLS_REJECT_UNAUTHORIZED: '0',
-        XDG_CONFIG_HOME: home,
-        XDG_CACHE_HOME: home,
-        HOME: home,
-      },
-    })
-    let stdout = ''
-    let stderr = ''
-    c.stdout.on('data', (b: Buffer) => (stdout += b.toString()))
-    c.stderr.on('data', (b: Buffer) => (stderr += b.toString()))
-    c.on('close', (code) => resolve({ code: code ?? -1, stdout, stderr }))
-  })
-
-// [[CORE630]] cycle 1, E2E: the real `vibase login` with and without `--scope`. Without it the login is the person's live role (the device page shows full access and `me` lists the owner's whole role); with it the page lists the
-// scopes, never the marker, `me` lists only them, and a call outside them is refused for the missing scope.
-test('2c. device: a login without --scope is full access and holds the owner role; with --scope it is limited to the list', async () => {
-  // the owner role's own list, read from the session JWT (a session is the live role)
-  const jwt = ((await (await page.request.get('/auth/token')).json()) as { token: string }).token
-  const role = await page.request.get('/meta/v1/me', { headers: { authorization: `Bearer ${jwt}` } })
-  expect(role.status(), await role.text()).toBe(200)
-  const ownerScopes = ((await role.json()) as { active_organization: { scopes: string[] } }).active_organization.scopes
-  expect(ownerScopes.length).toBeGreaterThan(5)
-
-  // (a) no --scope: the full-access block, no scope list, no marker
-  const full = await startLogin()
-  await visit(full.url)
-  await expect(page.getByRole('region', { name: 'Full access' })).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Requested permissions' })).toHaveCount(0)
-  await expect(page.getByText('limited_login')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Approve' }).click()
-  const fullDone = await full.done
-  expect(fullDone.code, fullDone.stderr).toBe(0)
-  const fullMe = await runCli(full.home, ['me', 'get'])
-  expect(fullMe.code, fullMe.stderr).toBe(0)
-  expect(JSON.parse(fullMe.stdout).active_organization.scopes).toEqual(ownerScopes)
-
-  // (b) --scope contacts:read: the page lists it and not the marker; me holds only it; companies is refused for the missing scope
-  const limited = await startLogin(['--scope', 'contacts:read'])
-  await visit(limited.url)
-  await expect(page.getByRole('region', { name: 'Requested permissions' })).toBeVisible()
-  await expect(page.getByText('contacts:read', { exact: true })).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Full access' })).toHaveCount(0)
-  await expect(page.getByText('limited_login')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Approve' }).click()
-  const limitedDone = await limited.done
-  expect(limitedDone.code, limitedDone.stderr).toBe(0)
-  const limitedMe = await runCli(limited.home, ['me', 'get'])
-  expect(JSON.parse(limitedMe.stdout).active_organization.scopes).toEqual(['contacts:read'])
-  const refused = await runCli(limited.home, ['companies', 'list'])
-  expect(refused.code).not.toBe(0)
-  expect(refused.stderr).toContain('insufficient_scope')
-  expect(refused.stderr).toContain('companies:read')
 })
 
 const pkce = () => {

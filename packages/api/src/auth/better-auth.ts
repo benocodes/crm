@@ -35,12 +35,6 @@ export interface BetterAuthAdapterConfig {
 export const SESSION_TOKEN_CLAIM = 'vibase_token'
 export const SESSION_TOKEN_VALUE = 'session'
 
-/**
- * Mirrors `@vibase/auth`'s `LIMITED_LOGIN_SCOPE` (the same test holds the two equal), [[CORE630]] D2: a token that carries it was issued to a login that asked to be limited to its listed scopes. It is a provider scope, so `verify` passes it through in
- * `scopes` like any name the provider does not own; the authenticator reads it from that raw list, since it keeps only declared (vault) scopes for its own use.
- */
-export const LIMITED_LOGIN_SCOPE = 'limited_login'
-
 /** How long the keys are kept per isolate, and the least time between two reads caused by a `kid` the cache does not know ([[CORE244]] P1). */
 export const JWKS_CACHE_MS = 5 * 60_000
 export const JWKS_UNKNOWN_KID_REREAD_MS = 30_000
