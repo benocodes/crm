@@ -14,6 +14,7 @@ import {
   type StorageBinding,
 } from '@vibase/storage'
 import { ApiError, mapStorageError } from '../errors.js'
+import { closeScopes } from '../scopes.js'
 import { eventStatement } from '../outbox.js'
 import { SYSTEM_PRINCIPAL_READ, systemPrincipalRead, systemPrincipalSteps } from '../directory/system-principal.js'
 import { agents } from '../resources/agents.js'
@@ -134,11 +135,15 @@ export async function agentAccountGrant(
   storage: StorageBinding,
   a: { provider: string; subject: string },
   grantable: readonly string[],
+  declared: readonly string[],
 ): Promise<string[] | null> {
   const found = await lookupPrincipal(storage, { provider: a.provider, subject: a.subject, clientId: null })
   if (found.account === null || found.userId !== null) return null
   if (found.account.disabled) return []
-  return found.account.scopes.filter((s) => grantable.includes(s)).sort()
+  // Closed like the authenticator closes every list (write implies request_approval, read_metadata under read) before it meets them: a record holding contacts:write holds contacts:request_approval too.
+  return closeScopes(found.account.scopes, declared)
+    .filter((s) => grantable.includes(s))
+    .sort()
 }
 
 type NewAgent = {

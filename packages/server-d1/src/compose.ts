@@ -605,6 +605,7 @@ export function composeD1Worker(
             d1Binding(env.DB, link),
             { provider: 'better-auth', subject },
             dcrScopeInputs.grantableScopes,
+            discovery.declaredScopes,
           )
         },
       },

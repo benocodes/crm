@@ -86,11 +86,18 @@ describe('no non-test source names an old auth path (P5)', () => {
     expect(files.map((f) => relative(ROOT, f))).toContain('auth/src/auth.ts')
     expect(files.map((f) => relative(ROOT, f))).toContain('approvals-app/src/better-auth.ts')
   })
+  // Excepted: `@vibase/auth`'s two constants naming Better Auth's own device endpoints (`/device`, `/device/approve`, relative to `/auth`), which are library endpoints and no auth page.
   it('the old paths appear in no source line (only /auth/sign-in/... machine paths)', () => {
     const hits = files.flatMap((f) =>
       code(readFileSync(f, 'utf8'))
         .split('\n')
-        .filter((l) => OLD.test(l) && !/\/auth\/|ctx\.path === '\/sign-in\/social'|call\('POST', '\/auth/.test(l))
+        .filter(
+          (l) =>
+            OLD.test(l) &&
+            !/\/auth\/|ctx\.path === '\/sign-in\/social'|call\('POST', '\/auth|^const DEVICE_(?:CLAIM|APPROVE)_ENDPOINT = '/.test(
+              l.trim(),
+            ),
+        )
         .map((l) => `${relative(ROOT, f)}: ${l.trim()}`),
     )
     expect(hits).toEqual([])

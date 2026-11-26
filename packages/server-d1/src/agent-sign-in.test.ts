@@ -238,7 +238,7 @@ describe('1. an agent account signs in with what its record holds (D11)', () => 
     const a = await agentAccount(['contacts:read', 'contacts:write'])
     const d = await device(wk, a.cookie, CLI_CLIENT_ID, DEFAULT_LOGIN)
     const page = (await (await d.claim()).json()) as { scope: string }
-    expect(vault(page.scope)).toEqual(['contacts:read', 'contacts:write'])
+    expect(vault(page.scope)).toEqual(['contacts:read', 'contacts:request_approval', 'contacts:write'])
     await setRecord(a.id, ['contacts:read'])
     expect((await d.approve()).status).toBe(200)
     const tok = (await (await d.token()).json()) as { access_token: string }
@@ -335,7 +335,7 @@ describe('2. the agent story, end to end (D4, D8, D10, D11)', () => {
     expect(refused.json.error.message).toBe(`requires contacts:write; ${hintAgent('contacts:write')}`)
 
     const second = await login(wk, a.cookie, CLI_CLIENT_ID, DEFAULT_LOGIN)
-    expect(vault(second.claims.scope)).toEqual(['contacts:read', 'contacts:write'])
+    expect(vault(second.claims.scope)).toEqual(['contacts:read', 'contacts:request_approval', 'contacts:write'])
     expect((await api(wk, 'GET', '/meta/v1/me', second.token)).json.principal.id).toBe(a.id)
     expect((await api(wk, 'POST', '/api/v1/contacts', second.token, { name: 'Ada' })).status).toBe(201)
 

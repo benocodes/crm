@@ -7,6 +7,7 @@ import {
   APIError,
   addOAuthServerContext,
   createAuthMiddleware,
+  getAuthoritativeSessionFromCtx,
   getOAuthState,
   getSessionFromCtx,
 } from 'better-auth/api'
@@ -376,6 +377,10 @@ function narrowToGrant(requested: string, granted: readonly string[]): string {
     .join(' ')
 }
 
+/** Better Auth's device-flow endpoint paths, relative to its `/auth` base path: library endpoints, not the vault's auth pages (the P5 scan in server-d1's `auth-page-urls.test.ts` excepts these two lines). */
+const DEVICE_CLAIM_ENDPOINT = '/device'
+const DEVICE_APPROVE_ENDPOINT = '/device/approve'
+
 const refuseApproval = () =>
   new APIError('INTERNAL_SERVER_ERROR', {
     error: 'server_error',
@@ -412,15 +417,25 @@ export async function narrowAgentApproval(
   agentGrant: (subject: string) => Promise<readonly string[] | null>,
 ): Promise<{ context: { body: Record<string, unknown> } } | undefined> {
   const path = ctx.path
-  // The library's endpoint paths, relative to its base path (built, so no source line names a page path: auth-page-urls P5).
-  const claimPath = `/${'device'}`
-  const approvePath = `${claimPath}/approve`
-  const device = (path === claimPath && ctx.method === 'GET') || path === approvePath
+  const device = (path === DEVICE_CLAIM_ENDPOINT && ctx.method === 'GET') || path === DEVICE_APPROVE_ENDPOINT
   const consent = path === '/oauth2/consent' && ctx.body?.accept === true
   if (!device && !consent) return undefined
-  const session = (await getSessionFromCtx(ctx as never)) as { user?: { id?: string } } | null
+  // The reader the library itself authorises with (device) or its session middleware's (consent). Any failure reads as no session.
+  let session = null as { user?: { id?: string } } | null
+  try {
+    session = (await (device ? getAuthoritativeSessionFromCtx : getSessionFromCtx)(ctx as never)) as typeof session
+  } catch {
+    session = null
+  }
   const subject = session?.user?.id
-  if (typeof subject !== 'string') return undefined
+  if (typeof subject !== 'string') {
+    // A claim read with no session is only a look at the page's state. An approval or an accept that this hook cannot attribute to an account is refused (D11, 630.72): the library might read a session this read missed, and then an agent account's request would pass unnarrowed.
+    if (path === DEVICE_CLAIM_ENDPOINT) return undefined
+    throw new APIError('UNAUTHORIZED', {
+      error: 'unauthorized',
+      error_description: 'the sign-in could not be attributed to a signed-in account',
+    })
+  }
   let granted: readonly string[] | null
   try {
     granted = await agentGrant(subject)
@@ -434,7 +449,7 @@ export async function narrowAgentApproval(
     if (requested === undefined) return undefined
     return { context: { body: { ...ctx.body, scope: narrowToGrant(requested, granted) } } }
   }
-  const code = String((path === claimPath ? ctx.query?.user_code : ctx.body?.userCode) ?? '')
+  const code = String((path === DEVICE_CLAIM_ENDPOINT ? ctx.query?.user_code : ctx.body?.userCode) ?? '')
   const find = (value: string) =>
     ctx.context.adapter.findOne({ model: 'deviceCode', where: [{ field: 'userCode', value }] })
   const record = (await find(code)) ?? (await find(code.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()))
