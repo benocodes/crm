@@ -101,3 +101,15 @@
     filter: none;
   }
 }
+
+/* Front page: full-width banner under the section heading. */
+.start-banner {
+  margin: 1rem 0 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--sl-color-accent);
+  border-radius: 0.5rem;
+  background: var(--sl-color-accent-low);
+  color: var(--sl-color-white);
+  font-size: var(--sl-text-lg);
+  text-align: center;
+}
