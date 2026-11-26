@@ -703,6 +703,9 @@ One program, two engines: the same assertions run on Postgres and D1.
   you meet; do not repoint it to the file the text moved to. A charter that asks for one is wrong; say so in review
   rather than build it: [[DX636]]'s README test was chartered, built and reviewed twice before anyone applied this rule, and
   its `toContain('token')` passed on any README that said "token" (`knowledge/specs/046-DX636-sdk-token-refresh/RETRO.md`).
+  What replaces the text test: a structural check (the page exists, its place in `nav.mjs`), review reading the prose
+  against the code (paths, ports, script names, error keys), and an E2E that follows the README's steps ([[DX637]]: no
+  round came from prose).
 - **Synthetic Google recordings redact by length** (`xxxxx@xxxxx.xxxx`). Renaming a test host or address changes the
   recorded fixtures: rerun `recordings:generate` and update the expected redacted strings; the diff should be
   email-shaped hunks only (`knowledge/specs/015-OPS265-remaining-vibase-names/RETRO.md`).
@@ -1008,6 +1011,11 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   (`page.waitForFunction(() => window.Clerk?.session)`) before `session.getToken()`.
 - **A hosted provider screen's labels are not ours** (Clerk's consent button): match tolerantly and treat the
   click as optional while waiting for the outcome you actually assert (the callback, a URL).
+- **Our own pages' selectors come from a script that already passes against them.** A new E2E that crosses the
+  deployment's `/invite` or `/sign-in` copies `approvals-app.e2e.ts`'s labels and buttons rather than guessing, and the
+  coder serves any built artefact once by hand (`wrangler dev`, curl the routes) before handing over; RESULT.md names
+  what the tester may still need to adjust. [[DX637]]'s `e2e:browser-app` passed 7/7 on its first run this way
+  (`knowledge/specs/046-DX637-browser-app-example/RETRO.md`).
 - **A scenario that carries a session across steps shares one browser context.** Playwright gives each `test()` a
   fresh context, which drops the cookie the previous step signed in with: create one `browser.newContext()` in
   `beforeAll` and run the file serially (`test.describe.configure({ mode: 'serial' })`;
@@ -1173,6 +1181,7 @@ pnpm -C packages/server-d1 e2e:oauth-pages         # Better Auth /device and /co
 pnpm -C packages/server-d1 e2e:accounts-connect      # the connect return and Home's Connect your email prompt (UI469): its own Worker with the Gmail core four set and no CONNECT_RETURN_URL (Gmail on would flip e2e:auth-pages' 501 legs), Google answered by a Playwright route, the callback's refusal returns real; fresh local state, recipe in the spec header; no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:auth-pages-reset      # self-service reset by email on /sign-in (CORE304): its own email-on Worker from the test-only entry src/test/entry-email.ts (a recording EMAIL binding read at /__emails), over HTTPS, fresh local state (recipe in the spec file header); no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:approvals-app      # the approvals app (:8788, started by the config) signs in, approves and signs out through Better Auth against a local better-auth Worker on :8787 that the operator starts (UI388); E2E_INVITE_URL from bootstrap; recipe in e2e/approvals-app.e2e.ts; no Clerk; not in the gate
+pnpm -C packages/server-d1 e2e:browser-app        # the browser sign-in example (DX637): the owner signs up, registers a first-party client, then the script builds (`build:app`) and serves packages/browser-app-example on :5180 (inspector 9231) and drives sign-in, reload, Refresh now, sign out and a deleted client in a real browser, checking no cookie and the CORS answer on the token requests; local better-auth Worker on :8787 the operator starts, CORS_ALLOWED_ORIGINS=http://localhost:5180; recipe in e2e/browser-app.e2e.ts; no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:auth-migration     # the hq auth migration end to end (OPS397, OPS394): the real `auth:migrate:remote` plan, apply, claim and revert through a test-only driver (e2e/auth-migration-driver.ts: local D1 pair, fixed Time Travel bookmark, `deploy` = restart the local Worker on the committed record's provider) against the Clerk dev instance (users and sessions by the Backend API, keys from `.env.dev`, E2E_DEV_ENV_FILE may name it), then a claim link opened in the browser; own temp state, removed at the end; recipe in the spec header; E2E_BROWSER_CHANNEL=chrome if Playwright's Chromium is not installed; not in the gate
 pnpm -C packages/server-d1 e2e:forms               # a website form posted to the real Worker under `wrangler dev --local` (CHN432): real Turnstile siteverify with the always-pass test secret (needs network; it passes any non-empty token, so the script proves no wrong-token refusal), live `ratelimits` bindings, owner-created form in-process; own temp state and env file, removed at the end; no browser, no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:agents-clerk        # the Clerk-only legs on /app/home and /app/agents (UI479, paths UI507): Account Portal round trip, owner Disable/Enable, agent role, member, sign out; Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only, E2E_AGENT_KEY from bootstrap); same harness and config as the two below; not in the gate

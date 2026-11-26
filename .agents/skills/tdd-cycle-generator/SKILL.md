@@ -539,6 +539,11 @@ one run plus an evidence-only review round (+397 / +920 lines, 6 files). The bud
 premise about Better Auth that proved half wrong; the charter's written fallback ("if the Worker accepts it anyway, record a
 finding and mutate X instead") kept the coder from a round trip to the planner. A mutation that depends on a third-party
 library's behaviour carries such a fallback.
+**DX637** (`knowledge/specs/046-DX637-browser-app-example/RETRO.md`, [[DX624]] cycle 3 of 3): 4 groups (1 matrix), 4
+decisions + 7 planner rules, no migration, 1 local browser E2E part, a new workspace package, docs. 188k / 43 calls in one
+run plus a free gate-fix round (+419 code / +608 test / +132 docs lines, 29 files), E2E 7/7 first run, approved round 0.
+The budget holds. A charter whose package must refuse to build without settings says, in Watch out, that the gate's
+`pnpm -r build` runs every `build` script bare (execute-cycle, new workspace package).
 
 ### Step 3: Resolve identities
 
