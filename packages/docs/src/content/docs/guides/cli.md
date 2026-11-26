@@ -12,7 +12,7 @@ pnpm vibase login --server https://api.example.com
 pnpm vibase me get
 ```
 
-The CLI prints a URL and a code. Open the URL in a browser and approve the device login. Device login is built into every Better Auth instance, so there is nothing to configure. (A Clerk instance needs device authorization enabled in Clerk; see [running an instance](/deployment/self-hosting/#use-clerk-instead).)
+The CLI prints a URL and a code. Open the URL in a browser and approve the device login. Device login is built into every Better Auth instance, so there is nothing to configure. (A Clerk instance needs device authorization enabled in Clerk; see [using Clerk](/deployment/clerk/).)
 
 For API-key authentication, pass the key over stdin. With `VIBASE_API_KEY` supplied by your environment or secret manager:
 

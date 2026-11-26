@@ -1,7 +1,7 @@
 # Configuring Clerk for a Vibase deployment
 
 > Clerk is the optional alternative. A new instance uses Better Auth, which is built in and needs none of this: see
-> [Set up with Better Auth](https://docs.vibase.ai/deployment/self-hosting/#set-up-with-better-auth). Read on only for `--auth clerk`.
+> [Set up with Better Auth](https://docs.vibase.ai/deployment/self-hosting/). Read on only for `--auth clerk`.
 
 One Clerk application per Vibase deployment (each organisation runs its own Worker and its own Clerk app). Clerk handles sign-in and
 roles; Vibase keeps principals, agents and scopes. Spec: OPS65 (the `--auth clerk` side), CORE64 (what Vibase expects).
