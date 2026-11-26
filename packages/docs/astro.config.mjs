@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
+import starlightLlmsTxt from 'starlight-llms-txt'
 import starlightOpenAPI, { openAPISidebarGroups } from 'starlight-openapi'
 
 export default defineConfig({
@@ -15,8 +16,10 @@ export default defineConfig({
       favicon: '/favicon.ico',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/benocodes/crm' }],
       editLink: { baseUrl: 'https://github.com/benocodes/crm/edit/main/packages/docs/' },
+      components: { PageTitle: './src/components/PageTitle.astro' },
       customCss: ['./src/styles/custom.css'],
       plugins: [
+        starlightLlmsTxt(),
         starlightOpenAPI([
           {
             base: 'api-reference/records',
@@ -55,6 +58,8 @@ export default defineConfig({
           items: [
             { label: 'Command line', slug: 'guides/cli' },
             { label: 'MCP and REST', slug: 'guides/mcp-and-rest' },
+            { label: 'TypeScript SDK', slug: 'guides/sdk' },
+            { label: 'OAuth clients for your apps', slug: 'guides/oauth-clients' },
             { label: 'Webhooks', slug: 'guides/webhooks' },
             { label: 'Website forms', slug: 'guides/forms' },
             { label: 'Custom objects and fields', slug: 'guides/schema' },

@@ -1,12 +1,12 @@
 ---
 name: api-routes
-description: Patterns for the vault's backend in packages/api — the operation registry (zod in/out, scope, prepare), prepared resource definitions with generic CRUD, commands, storage identities and bindings (Postgres or D1), the events outbox, Hono + Kysely routes, and integration tests on a production-like tenancy pool. Use when adding or changing an operation, a resource, a command, a route, middleware, or writing tests against the backend.
+description: Patterns for Vibase's backend in packages/api — the operation registry (zod in/out, scope, prepare), prepared resource definitions with generic CRUD, commands, storage identities and bindings (Postgres or D1), the events outbox, Hono + Kysely routes, and integration tests on a production-like tenancy pool. Use when adding or changing an operation, a resource, a command, a route, middleware, or writing tests against the backend.
 ---
 
 # API: operations, resources, routes
 
 Reference for backend work in `packages/api`. The design is in `knowledge/architecture.md` (§3–§9, §11); this
-skill is how to write it. It is a rewrite around the vault's model of the predecessor's `api-routes`: the Hono and
+skill is how to write it. It is a rewrite around Vibase's model of the predecessor's `api-routes`: the Hono and
 Kysely mechanics carry over, the per-route bespoke style does not.
 
 The shape, top down:
@@ -97,7 +97,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `remoteBindings` to **`true`**, so the CLI always passes `false`; `scripts/bootstrap.test.ts` pins it.
   - `scripts/smoke-worker.ts` (`pnpm -C packages/server-d1 smoke:worker`): esbuild bundle run in workerd through
     Miniflare. `outboundService` is the fake Clerk and fails on any other host, which proves no real network call.
-    Two workers that call each other (vault and a webhook receiver, `scripts/e2e-webhook-example.ts`, [[API221]]) go
+    Two workers that call each other (Vibase and a webhook receiver, `scripts/e2e-webhook-example.ts`, [[API221]]) go
     in one Miniflare (`workers: [...]`), each with an `outboundService` that routes the other's host to
     `mf.getWorker(name).fetch`; forward the request body as text (a stream body needs `duplex: 'half'`). Rebinding a
     secret learned mid-run (the webhook secret) is `mf.setOptions`; persisted D1, R2 and Workflow state survive it.
@@ -193,8 +193,8 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     schema passes unknown fields through (`invitation_token`); the **sign-in** body schema (`/sign-in/email`) is a
     stripping `z.object` (the hook sees only `{email,password,rememberMe}`), so a value a sign-in must carry goes in a
     request header (`vibase-invitation`, read from `ctx.headers`), proven by a test that probes the body ([[CORE302]]
-    D1). A row Better Auth writes (`auth_users`, sessions) is stamped with the real clock, never the vault's injected
-    one: a test that fakes the vault clock must place its fixtures relative to the real account time. The auth package reaches the vault only through a port
+    D1). A row Better Auth writes (`auth_users`, sessions) is stamped with the real clock, never Vibase's injected
+    one: a test that fakes Vibase's clock must place its fixtures relative to the real account time. The auth package reaches Vibase only through a port
     the composition hands in (`InvitationAdmission`), never a database handle ([[CORE259]] D5).
   - **Better Auth in-process calls and captured tokens** ([[CORE288]], `packages/auth/src/auth.ts`; 1.7.22).
     `hooks.before` runs for in-process `auth.api.*` calls too (`dist/api/to-auth-endpoints.mjs`), and an in-process
@@ -288,7 +288,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `authAdapter`/`userAuthenticator`. `@vibase/server-d1` sets it for every composition, `AUTH_PROVIDER` unset
     included. It uses `createWorkspaceAuthAdapter` (never reads `CLERK_WEBHOOK_SECRET`) and
     `src/auth/workspace-authenticator.ts`. The role is read on every request from the claim `AUTH_ROLE_CLAIM`
-    (default `vibase_role`) and mapped through `SCOPE_POLICY`. The vault never reads or writes `memberships`
+    (default `vibase_role`) and mapped through `SCOPE_POLICY`. Vibase never reads or writes `memberships`
     for it. A missing, unknown or non-string role throws `403 organization_forbidden` before first
     sight, so a refused token writes nothing. `/inbound/clerk` is not mounted. `me.get` answers agents (the
     op flag `agents: true`), and memberships are synthesised from the role. `CLERK_AUTHORIZED_PARTIES` is
@@ -320,7 +320,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     matches an exact `client_id`), falling back to the id. A scope term that is vacuous under `SCOPE_POLICY`
     (the role term) is tested with an injected `policy` option.
   - **Clerk OAuth facts seen live** ([[CORE77]] E2E): Clerk grants custom scopes that are "Not advertised" and
-    absent from `scopes_supported`, so the issuer metadata is not the list of grantable scopes (the vault
+    absent from `scopes_supported`, so the issuer metadata is not the list of grantable scopes (Vibase
     publishes its own, [[CORE84]]). The DCR `registration_endpoint` is in `/.well-known/oauth-authorization-server`,
     not in `openid-configuration`.
   - **OAuth discovery** ([[CORE84]], `src/discovery.ts`): `GET`/`HEAD` of `/.well-known/vibase` (D21) and
@@ -500,7 +500,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     route: the signed state is its credential, every refusal is a fixed code (redirect parameter or built-in page)
     that writes nothing, and log lines carry the code or error class only. A new OAuth-style callback follows it.
   - **Machine endpoints follow two families** ([[API503]] D6, user ruling 504.12). A provider's browser redirect back
-    after an OAuth connect is `/oauth/callback/<provider>`; a provider calling the vault server to server (push,
+    after an OAuth connect is `/oauth/callback/<provider>`; a provider calling Vibase server-to-server (push,
     webhook) is `/inbound/<provider>`, with no kind segment. `<provider>` is the party whose console holds the URL
     (`/oauth/callback/microsoft`, `/inbound/zernio`). Sign-in stays under Better Auth's `/auth/callback/google`, and
     the browser form route `/f/<public_id>` is not in either family. Each path is one exported constant in `@vibase/api`
@@ -603,7 +603,7 @@ and `knowledge/specs/008-AGT165-execution-rail/RETRO.md`.
   clear the timer in `finally`. Never restart the budget between reconcile and dispatch.
 - **Preserve uncertainty:** missing registry metadata or a transport after a dispatch stamp is
   `outcome_unknown`; only an execution never stamped can be `provider_rejected`. Transport throws
-  are unknown too; persist the vault's fixed error sentence, never the provider's text.
+  are unknown too; persist Vibase's fixed error sentence, never the provider's text.
 - **Authority is fixed at authorisation** for the current ten-minute deadline ([[AGT8]] D50/D62).
   The runner does not re-check scopes; the transport reports credential loss. Longer deadlines or
   scheduled sends require a new decision and an active-principal/write-scope check at claim.
@@ -1234,7 +1234,7 @@ service context enforces it, so scope checks are written once.
     applications > Scopes) as Advertised and add it to Settings > "Allowed scopes for dynamic clients", else
     `e2e:mcp-oauth` leg 2 fails with `InvalidClientMetadataError: Invalid scope requested`.
   - Human-only scopes (`agentGrantable: false`) are never granted to an agent; bootstrap refuses them.
-  - **"Not a default grant" covers every place the vault picks scopes the owner did not name** ([[CORE261]]
+  - **"Not a default grant" covers every place Vibase picks scopes the owner did not name** ([[CORE261]]
     review round 1): Clerk setup's C7 `default_scopes`, Better Auth's `clientRegistrationDefaultScopes`, the
     bootstrap default agent (`bootstrap.ts`, `bootstrap-workspace.ts`), and the `/mcp` 401 challenge's `scope` hint
     (`discovery.ts`: spec-following MCP clients request exactly that value). All four use
@@ -1279,7 +1279,7 @@ service context enforces it, so scope checks are written once.
     `git grep -nE "request_approval\|write|'request_approval'"`. A filtering copy that misses the action drops the
     scope without any error. Once a scope string is valid grammar but undeclared, it is refused as `unknown scope`,
     not `invalid scope`.
-  - **Text the vault composes from stored rows follows the caller's read scope, value by value.** `request_approval`
+  - **Text Vibase composes from stored rows follows the caller's read scope, value by value.** `request_approval`
     implies nothing about `read`, so a summary, label or subject that `create` reads from a target record and returns
     to a proposer is a read of that record: use the stored value only when the proposer holds the target resource's
     read action (`readActionOf`), else name the record by its id ([[AGT588]] D8, rulings 588.31 and 588.34,
@@ -1598,7 +1598,7 @@ The app and auth pages are the pattern for any page the Worker serves (one entry
   around the pure mapping and returns `{ skip: 'unreadable' }`; the provider calls (the fetch, the lazy raw and
   attachment reads) stay outside the catch, so throttles, `invalid_grant` and 5xx keep their classification. The skip
   logs one warning with ids and the error's `name` only, never its message or any content (D3).
-- **A sender-chosen header is a claim, never a fact the vault records as its own** ([[CORE571]] D5, D6; cycle
+- **A sender-chosen header is a claim, never a fact Vibase records as its own** ([[CORE571]] D5, D6; cycle
   [[CORE574]]). `From` and `Message-ID` are written by whoever sends the mail. Direction comes only from the caller's
   `direction` or the provider's sent flag (`sent_by_connection`, Gmail's `SENT` label), never from "the From is an own
   identity". Dedup on `(channel, external_id)` also needs `messages.content_sha256` to match (stored null matches);
@@ -1662,7 +1662,7 @@ is actually on: an already-exported `DATABASE_URL` overrides `--env-file`.
 - `sql.ref(alias)` emits a quoted identifier; if the surrounding raw SQL declares an unquoted alias, pass its
   folded lowercase spelling or Postgres says `42P01`.
 - **Kysely 0.27's `JoinBuilder` has no `orOn`.** An OR inside a join needs `.on((eb) => eb.or([...]))`.
-  (The vault has no canonical-contact alias to join across: contacts are people and identities are
+  (Vibase has no canonical-contact alias to join across: contacts are people and identities are
   addresses, [[CORE2]] D1.)
 - **Find-or-create needs no key lock** ([[CORE36]] D3, [[CORE41]]: `lockKeys` is deleted). On Postgres the org
   writer lock serialises tenant writers; an internal unit with no organisation has no lock, and its commit-time

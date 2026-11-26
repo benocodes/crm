@@ -1,6 +1,6 @@
 ---
 name: writing-tests
-description: How to write tests for the vault that prove something - red first, absence mutations, contract and golden suites, tests that run on both storage engines, type-level negative tests, no leaked state, flake handling. Use whenever you write or change a test, write a cycle charter's test obligations, review a coder's tests, or investigate a flaky or order-dependent test.
+description: How to write tests for Vibase that prove something - red first, absence mutations, contract and golden suites, tests that run on both storage engines, type-level negative tests, no leaked state, flake handling. Use whenever you write or change a test, write a cycle charter's test obligations, review a coder's tests, or investigate a flaky or order-dependent test.
 ---
 
 # Writing tests
@@ -822,7 +822,7 @@ set (`ratelimits`, `r2Buckets`), or repeat its values in full.
 
 **The test pool behaves like production: nothing is preset.** The predecessor's test pool presets
 `app.organization_id` and `service_role` globally, so a query that skips its tenancy wrapper passes every
-test and reads or writes zero rows in production. The vault's pool (`createTestDb()` from `@vibase/db/test`)
+test and reads or writes zero rows in production. Vibase's pool (`createTestDb()` from `@vibase/db/test`)
 connects as `vault_app` and presets nothing, every fixture names its organisation, and a query without a
 wrapper fails in tests. Seeds (`seedOrganization`, `seedUser`, `seedAgent`) run under `withServiceRole`;
 there is deliberately no task or event seed: create those through the service layer. `createOwnerTestDb()`
@@ -988,7 +988,7 @@ Assert the browser *property* in Chromium, as `packages/ui/e2e/gallery-react.e2e
   (`packages/ui/scripts/react-build.test.ts`).
 
 `packages/server-d1/e2e/*.e2e.ts` run Playwright + `@clerk/testing` against a local Worker and the Clerk dev
-instance (`.env.dev` only), outside the gate. They fail on browser and provider timing, not on vault logic, so
+instance (`.env.dev` only), outside the gate. They fail on browser and provider timing, not on Vibase logic, so
 write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oauth.e2e.ts`):
 
 - **`page.route` does not see the target of a server redirect.** An OAuth authorize endpoint answers `302` to
@@ -1146,11 +1146,11 @@ check passes for the wrong reason when the value is missing ([[UI479]], 479.16).
 Known traps in the scripts below:
 - `e2e:action-requests` is not re-runnable on one `.wrangler/state`: a second run fails legs 7-8 on the first run's
   pending action requests. Reset the state between runs (479.18).
-- `e2e:mcp-oauth` is red on `main` past leg 2 until #481 (the Clerk dev instance's DCR refuses the vault's scopes);
+- `e2e:mcp-oauth` is red on `main` past leg 2 until #481 (the Clerk dev instance's DCR refuses Vibase's scopes);
   a cycle that names it proves its own legs past leg 2 by the rule above.
-  **Clerk dev instance setup it depends on** (decision 481.1): every vault custom scope (46 today, `packages/api` scope
+  **Clerk dev instance setup it depends on** (decision 481.1): every Vibase custom scope (46 today, `packages/api` scope
   catalogue) must be defined in the Clerk dashboard (OAuth applications > Scopes) as Advertised, and listed in Settings >
-  "Allowed scopes for dynamic clients" (the default scopes can stay the 10 reads). A new vault scope must be added there
+  "Allowed scopes for dynamic clients" (the default scopes can stay the 10 reads). A new Vibase scope must be added there
   too, else leg 2 fails with `InvalidClientMetadataError: Invalid scope requested`.
 - `smoke:worker` aborts after check 43 on `main` (#505, `getaddrinfo ENOTFOUND push.test` at the connect-callback
   call). Bypassing that leg reaches the page and asset legs (24b-24e), then a second abort at the better-auth legs

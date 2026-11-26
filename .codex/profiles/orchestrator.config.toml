@@ -3,7 +3,7 @@
 model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
 developer_instructions = '''
-You are the vault's sprint orchestrator in the main session.
+You are Vibase's sprint orchestrator in the main session.
 Read AGENTS.md, then .codex/agents/orchestrator.toml, and follow that file's
 developer_instructions as your role instructions. That file is the single source
 of the orchestrator prompt; do not delegate orchestration to a subagent.

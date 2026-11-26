@@ -4,18 +4,18 @@ Guidance for coding agents working in this repository.
 
 ## What this is
 
-A **headless CRM** (working name: the vault). No app of its own: every interaction (email, calendar,
+A **headless CRM** (**Vibase**). No app of its own: every interaction (email, calendar,
 WhatsApp, later calls and iMessage) lands in one database, agents the customer
 brings access it over REST, MCP or CLI, with hooks for incoming events. Owners grant per-resource
 `read`, `request_approval` or `write` permissions: `write` includes proposing for approval, while reads
 remain independent. Agents may execute authorised writes, including sends, or choose review by an
-authorised person or agent. The vault holds provider credentials and executes both paths. Human clients are independent apps or the CLI.
+authorised person or agent. Vibase holds provider credentials and executes both paths. Human clients are independent apps or the CLI.
 
 **Current focus (2026-10-30, [[discussions/2026-10-30-d1-only-mvp]]): the MVP is Cloudflare D1 only,
 self-managed, one D1 database per organisation/workspace in the customer's Cloudflare account.** No
 enterprise tier and no cloud-hosted Postgres service for now. The engine-neutral storage port and the
 Postgres adapters stay in the repo, dormant, for later: no new Postgres work, and Postgres suites are not a
-cycle gate. A single-workspace D1 deployment uses Clerk for sign-in but not Clerk Organizations; membership and roles live in Clerk (the `vibase_role` claim, [[CORE64]] D7); the vault keeps principals, agents and scopes.
+cycle gate. A single-workspace D1 deployment signs in with **Better Auth, built into the instance: the default and preferred provider** (people join by owner invitation; Vibase keeps principals, agents and scopes). Clerk (`--auth clerk`) is the alternative: it does not use Clerk Organizations, membership and roles live in Clerk (the `vibase_role` claim, [[CORE64]] D7). Better Auth also runs locally on workerd with no external service, so use it for development; Clerk needs its dev instance. Write new docs, examples and tests Better Auth first, with Clerk as a footnote.
 **Custom objects are built (milestone T, [[CORE315]])** as physical tables with typed columns, declared under `define` in the schema file (`vibase.schema.json`, `redeploy --schema`, [[CORE569]]; no shared `records` table, no jsonb); the built-ins also carry an `additional_props` property bag ([[CORE318]]). Custom `<name>__c` fields on contacts, companies, deals and tasks are declared in the same file's `extend` section ([[CORE561]]); contact merge fills them and re-points references to contacts ([[CORE556]]); every system writer is proven against them ([[CORE565]]). A
 **discoverable schema** (real names, native types, declared FKs; easy for agents and humans to query and
 understand) is a core principle.
@@ -127,7 +127,7 @@ Next Action) and tells the user before any of these, and never works around one:
 - **production:** a deploy, a migration, a secret or a provider (Clerk) change on a deployed environment,
   except what **Environments** below grants on the agents' own instances;
 - **public announcements:** releases, posts, emails or messages to people outside the repo;
-- **irreversible data changes:** dropping any database other than the vault's own test databases,
+- **irreversible data changes:** dropping any database other than Vibase's own test databases,
   force-pushing, deleting branches the sprint didn't create.
 
 It also stops when the fix loop exhausts its two coder rounds, when an agent is blocked on something no other
@@ -228,7 +228,7 @@ The MVP target is D1; the Postgres lines below describe the parked enterprise pa
 
 TypeScript (ESM), **pnpm** workspace, Node >= 22, Vitest. Cloudflare Workers + Hono +
 `@hono/zod-openapi`, Kysely on D1 (the single-organisation MVP engine, self-hosted on Cloudflare) or Neon Postgres via Hyperdrive (multi-tenant, cloud-hosted and enterprise), R2, Queues, Workflows. The Vercel AI SDK
-is the only LLM library (if the vault ever calls one).
+is the only LLM library (if Vibase ever calls one).
 
 ```bash
 pnpm install          # at the repo root
@@ -246,7 +246,7 @@ pnpm -C packages/server-postgres dev               # Postgres dev server (DATABA
 pnpm -C packages/server-postgres bootstrap -- --org <n> --email <e> --agent <a>
 pnpm -C packages/server-postgres smoke:auth        # and smoke:admin; both need SMOKE_EXPECT_DATABASE
 pnpm -C packages/api golden:generate               # and golden:check; goldens generated on D1 (Miniflare), review the fixture diff
-pnpm -C packages/server-d1 bootstrap -- --org <n> --issuer <CLERK_ISSUER> [--agent <a>]  # local D1 only; Clerk path creates no human (CORE64 D11); `--auth-provider none --auth-org-id <n> --email <e> --agent <a>` keeps the API-key-only owner; `--auth-provider better-auth --public-base-url <url> [--auth-org-id <label>]` creates no human and seeds `vibase-cli` in the control database (CORE283)
+pnpm -C packages/server-d1 bootstrap -- --org <n> --auth-provider better-auth --public-base-url <url> [--auth-org-id <label>] [--agent <a>]  # local D1 only; the default: creates no human and seeds `vibase-cli` in the control database (CORE283); `--issuer <CLERK_ISSUER>` is the Clerk path and creates no human either (CORE64 D11); `--auth-provider none --auth-org-id <n> --email <e> --agent <a>` keeps the API-key-only owner
 pnpm -C packages/server-d1 smoke:worker            # the D1 Worker bundle in workerd (Miniflare), no network; builds the auth pages and the app first
 pnpm -C packages/server-d1 build                   # the auth pages and the app (Vite, UI489) into dist/assets/assets/{ui,app}/ (UI504; clears stale old-layout folders; the app's pages are `/app/home`, `/app/accounts`, `/app/agents`, UI507)
 pnpm -C packages/server-d1 dev                     # builds, then wrangler dev --local on :8787 and the Vite dev server (HMR) on :5173 in front of it: open http://localhost:5173/app/home; `dev:worker` is the Worker alone
@@ -281,7 +281,7 @@ in-place edits ([[CORE29]] retro).
 - Names ([[OPS262]], [[OPS265]]): packages are `@vibase/*`, new local resource names use `vb`, and user-visible
   text says "Vibase". TypeScript identifiers, file names, the `x-vibase-proposal` OpenAPI extension, the
   `vibase.invalid` default `client_ref` domain, test hosts (`vibase.test`) and the `VIBASE_SMOKED1_*` script env vars
-  all say Vibase, with no aliases. "The vault" stays the internal term in comments and knowledge prose. What keeps
+  all say Vibase, with no aliases. Say "Vibase" everywhere, including comments and knowledge prose; "the vault" is the old name and is not used for anything new. What keeps
   `vault`: stored `…@vault.invalid` rows (history, never rewritten), the `vault_*` Postgres roles and
   databases (#266), the existing `vault-<env>` instances (`vault-smoked1`, `vault-hq`, `vault-approvals-hq`:
   [[OPS251]], [[OPS252]]); no code may hard-code a `vault` prefix for anything new. Both setup front-ends derive
@@ -334,9 +334,9 @@ Carried over from the predecessor product, where each cost real time. Add new on
    `ON CONFLICT` instead.
 4. **Agents act within owner-granted authority** (user revision, 2026-11-05, [[AGT8]]). Per-resource
    `write` includes `request_approval`; `read` is independent. Agents with write permission may send
-   directly through the vault, or propose the same registered operation for approval by a user or agent
+   directly through Vibase, or propose the same registered operation for approval by a user or agent
    with the target write authority. Proposal-only permission never authorises execution. Both paths use the same validation, audit and execution rail;
-   provider credentials stay in the vault. This replaces the former "agents never send" rule.
+   provider credentials stay in Vibase. This replaces the former "agents never send" rule.
 5. **Every write emits an event** to the outbox in the same unit. Nothing else inserts into a
    resource's table except its prepared programs, and nothing but `eventStatement`/`eventSetStatement`
    inserts into `events`. The rule covers *resources* (anything tenant-visible).

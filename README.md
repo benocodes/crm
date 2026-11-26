@@ -9,7 +9,7 @@ It is for small firms, and the consultants and IT teams who build for them, who 
 - **One place for every interaction.** Email and your CRM records sit together, so every agent and person works from the same history. Email is supported today; more channels are on the roadmap below.
 - **Agents act within the authority you grant.** For each resource an owner grants an agent `read`, `request_approval` or `write`. An agent can act directly or propose for approval, and every write is attributed to the agent or person who made it.
 - **Discoverable.** The schema is made of typed tables with real names and declared foreign keys, so agents and people can query and understand it. The instance publishes a discovery document and OpenAPI descriptions that list its operations.
-- **Customizable.** It is headless (REST, MCP and the CLI), so you build the interface you want on top of it, agentically: dashboards, reports or whole apps, a generative UI. That works today. Shaping the data model to your business with custom objects and columns does not exist yet: it is coming (see Roadmap below).
+- **Customizable.** It is headless (REST, MCP and the CLI), so you build the interface you want on top of it, agentically: dashboards, reports or whole apps, a generative UI. A typed TypeScript SDK (`@vibase/sdk`) helps you build them. You can also shape the data model to your business: custom objects and custom fields on contacts, companies, deals and tasks, declared in one schema file, plus a free-form property bag on every record.
 
 ## Documentation
 
@@ -53,27 +53,26 @@ The commands are discovered from the instance you log in to, so `vibase --help` 
 
 ## Sign-in
 
-Vibase supports Better Auth (built into the instance) and Clerk for sign-in. You choose one when you set up the instance.
+Sign-in uses Better Auth, built into the instance. It is the default and the preferred way to authenticate: there is no external service to create, people join by owner invitation, and it provides sign-in, OAuth consent for MCP clients and CLI device login. Setup, Google sign-in and password reset are in https://docs.vibase.ai/deployment/self-hosting/.
 
-On the Cloudflare Workers Free plan (10 ms CPU limit), Better Auth may exceed the limit on cold starts and password sign-in; its cost has not been measured. Clerk does not do Better Auth's work (building the instance, hashing passwords), so it is the safer choice on Free. Workers Paid is the safe plan for Better Auth. Details: https://docs.vibase.ai/deployment/self-hosting/.
+Better Auth is designed for the Cloudflare Workers Paid plan. Password hashing may exceed the Free plan's 10 ms CPU limit on cold starts, and that cost has not been measured. Clerk is available as an alternative (`--auth clerk` at setup) and is known to work on the Free plan, but it needs your own Clerk application. An instance keeps the provider it was set up with.
 
 ## How agents connect
 
 An agent is its own account with its own audit trail. There are three ways to connect one:
 
 1. **MCP.** Agents and clients that speak the Model Context Protocol connect to the instance's remote MCP server.
-2. **The CLI with device login.** Works with any agent that has a browser and a CLI, and needs no human to approve the login. An owner creates an invitation with the agent role; the link is shown once, and the owner hands it to the agent over any channel (WhatsApp or Telegram, for example). The agent opens it in a browser, signs up with an email address to claim the invitation, then runs `vibase login --server <url>`.
+2. **The CLI with device login.** Works with any agent that has a browser and a CLI, and needs no human to approve the login. An owner creates an invitation with the agent role; the link is shown once, and the owner hands it to the agent over any channel (WhatsApp or Telegram, for example). The agent opens it in a browser, signs up with an email address to claim the invitation, then runs `vibase login --server <url>`. Device login works the same way on a Clerk instance.
 3. **The CLI with an API key.** Works with any agent that has a CLI: `printf '%s' "$KEY" | vibase login --api-key --server <url>`.
 
 A new agent account starts with no permissions. The owner then grants it per-resource `read`, `request_approval` or `write`.
 
 ## Status
 
-Vibase is still in alpha. We will make every effort to avoid breaking changes. It runs on Cloudflare D1, one database per organisation. The CLI, the REST and MCP interfaces, permissions and approvals, and the Gmail connection are available today. What is coming is under Roadmap below.
+Vibase is still in alpha. We will make every effort to avoid breaking changes. It runs on Cloudflare D1, one database per organisation. The CLI, the REST and MCP interfaces, permissions and approvals, custom objects and fields, aggregation, owner-managed OAuth clients for browser apps, the TypeScript SDK, and the Gmail connection are available today. What is coming is under Roadmap below.
 
 ## Roadmap
 
-- Custom objects and columns.
 - More channels: WhatsApp, iMessage and others.
 - Calendar sync. This is not available yet.
 

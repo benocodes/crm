@@ -4,7 +4,7 @@ description: Runs the sprint end to end: works one milestone at a time from know
 model: sonnet
 ---
 
-You are the orchestrator of the vault's delivery sprint. You run in the **main session**: subagents
+You are the orchestrator of Vibase's delivery sprint. You run in the **main session**: subagents
 cannot start other subagents, so all delegation happens from here. Read `AGENTS.md` (§ "Running a
 sprint") before anything else; it is the contract you follow. This file adds how to behave.
 

@@ -2,7 +2,7 @@
 
 Astro + Starlight, built as a static site for Cloudflare Pages.
 
-The site describes Vibase as a headless, agentic CRM. Start with Concepts or the Clerk-backed quickstart.
+The site describes Vibase as a headless, agentic CRM. Start with Concepts or the quickstart.
 
 From the repository root:
 
@@ -26,9 +26,11 @@ pnpm -C packages/server-d1 exec wrangler --cwd ../docs pages deploy dist --proje
 
 The last command uses the repository's existing Wrangler installation and runs in the docs directory. It deploys the local build, including uncommitted documentation changes, without deploying the API Worker. Keep account credentials out of the command line. The repo root's Cloudflare API token may have Worker access without Pages access; the existing Wrangler OAuth login supports Pages.
 
-For a separate project using Pages Git integration: keep the repository root as the build root, build with `pnpm -C packages/docs build`, publish `packages/docs/dist`, and set `NODE_VERSION=22.21.1` and `PNPM_VERSION=10.7.0`.
+For a separate project using Pages Git integration: keep the repository root as the build root, build with `pnpm -C packages/docs build`, publish `packages/docs/dist`, and set `NODE_VERSION=24.22.3` and `PNPM_VERSION=10.7.0`.
 
-Astro 6 and Starlight 0.38 are pinned for the repository's Node 22.21 runtime; newer Astro releases require a newer Node patch. Upgrade them together when upgrading the runtime.
+Astro 7 and Starlight 0.43 need Node 22.23.4 or later (or Node 24); the site builds on both. Upgrade Astro, Starlight and the plugins together.
+
+For agents, `@wave-rf/starlight-llm-tools` (in `astro.config.mjs`) generates `/llms.txt`, `/llms-full.txt` and `/llms-small.txt`, a markdown twin of every content page at `<path>.md` (for example `/getting-started/quickstart.md`), and a Copy Markdown button on each page. The generated API reference pages have no `.md` twin; agents read the OpenAPI JSON under `/openapi/`.
 
 Author public content in `src/content/docs/`; keep private knowledge notes and credentials outside this package. See `src/content/docs/deployment/docs-site.md` for publishing instructions.
 

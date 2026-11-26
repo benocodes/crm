@@ -55,7 +55,7 @@ The file is plain data: nothing in it is executed, and it is checked against a J
 Rules the validation enforces, among others:
 
 - `extend.contacts` cannot reference contacts (`reference_contacts_self`); use an association.
-- A unique field on a built-in cannot also have a `default` (`unique_with_default`), because every row the vault creates itself would take the default and a second one would collide. Use `unique` for business keys such as a customer number.
+- A unique field on a built-in cannot also have a `default` (`unique_with_default`), because every row Vibase creates itself would take the default and a second one would collide. Use `unique` for business keys such as a customer number.
 - Merging two contacts re-points references to the merged contact at the survivor.
 
 ### What does not belong here

@@ -1,0 +1,56 @@
+---
+import Default from '@astrojs/starlight/components/PageTitle.astro'
+const { entry } = Astro.locals.starlightRoute
+const id = entry.id
+const hasMarkdown = (entry as { filePath?: string }).filePath?.endsWith('.md') ?? false
+---
+
+<Default {...Astro.props}><slot /></Default>
+{
+  hasMarkdown && (
+    <div class="md-actions">
+      <button type="button" class="md-copy" data-md={`/${id}.md`}>Copy as Markdown</button>
+      <a class="md-view" href={`/${id}.md`}>View as Markdown</a>
+    </div>
+  )
+}
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('.md-copy').forEach((button) => {
+    const label = button.textContent
+    button.addEventListener('click', async () => {
+      try {
+        const res = await fetch(button.dataset.md ?? '')
+        if (!res.ok) throw new Error(String(res.status))
+        await navigator.clipboard.writeText(await res.text())
+        button.textContent = 'Copied'
+      } catch {
+        button.textContent = 'Copy failed'
+      }
+      setTimeout(() => (button.textContent = label), 2000)
+    })
+  })
+</script>
+
+<style>
+  .md-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    font-size: var(--sl-text-sm);
+  }
+  .md-copy {
+    cursor: pointer;
+    background: none;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.25rem;
+    color: var(--sl-color-text);
+    padding: 0.15rem 0.6rem;
+  }
+  .md-copy:hover {
+    border-color: var(--sl-color-text-accent);
+  }
+  .md-view {
+    align-self: center;
+  }
+</style>

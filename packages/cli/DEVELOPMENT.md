@@ -54,10 +54,10 @@ its endpoints must be `https`, and a redirect from any of them is an error.
 
 ## Onboard an agent account
 
-An agent that is not a person (a sales agent, an automation) signs in as its own Clerk user, so it has its own audit identity and its
+An agent that is not a person (a sales agent, an automation) signs in as its own user, so it has its own audit identity and its
 scopes are set by an owner:
 
-1. Invite the agent's email in Clerk with the public metadata `{ "vibase_role": "agent" }`.
+1. As an owner, create an invitation with the agent role (Better Auth, the default); the link is shown once. The agent opens it in a browser and signs up with its email to claim it. (On a Clerk instance, invite the agent's email in Clerk with the public metadata `{ "vibase_role": "agent" }` instead.)
 2. As the agent (its own browser session, or yours with the agent's account): `vibase --profile agent login --server <url>`.
    It prints `me` with `kind: agent` and no scopes, and says on stderr that an owner must grant them.
 3. An owner grants scopes with the id that login printed: `vibase agents update <agent-id> --data '{"scopes":["contacts:read","contacts:write"]}'`.

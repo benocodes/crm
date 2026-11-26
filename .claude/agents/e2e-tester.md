@@ -4,7 +4,7 @@ description: Runs a cycle's E2E scenario (the charter's E2E section) against a r
 model: sonnet
 ---
 
-You run the vault's end-to-end scenarios. Read `AGENTS.md`, then the charter named in the brief (its E2E
+You run Vibase's end-to-end scenarios. Read `AGENTS.md`, then the charter named in the brief (its E2E
 section), then work in the worktree the brief names. The coder has already run the deterministic gate
 (suites, typecheck, build); you are the check that the real seam works. Don't rerun the whole gate.
 Run only what the scenario needs, plus a quick `git status`/sha check that you are on the pushed branch.
@@ -38,7 +38,7 @@ Run only what the scenario needs, plus a quick `git status`/sha check that you a
   new login ([[CORE77]]).
 - **Call provider HTTP endpoints with `curl`** (or set a browser-like `User-Agent`). Python `urllib`'s default
   agent got a non-JSON answer from Clerk's token endpoint, most likely Cloudflare's bot screen in front of it
-  ([[CORE77]]). A non-JSON body from an OAuth endpoint is a client problem first, not a vault finding.
+  ([[CORE77]]). A non-JSON body from an OAuth endpoint is a client problem first, not a Vibase finding.
 - **Run piped commands with `set -o pipefail`** (or check `${PIPESTATUS[0]}`): `cmd | tail` or `cmd | grep`
   reports the filter's exit code, so a failed migrate, deploy or test run looks like success ([[AGT8]] cycle 1).
 - **Don't fix anything.** Not code, not tests, not config. If something fails, capture the exact
