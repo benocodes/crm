@@ -862,9 +862,20 @@ try {
   res = await pushNow(await pushToken())
   const afterFirst = await requestedAt()
   check(
-    'PU2 a locally signed push for Mailbox@Smoke.test (mixed case) -> 204, jose verified it against the JWKS fetched once, sync_requested_at advanced, one MAIL_SYNC instance created',
-    res.status === 204 && jwksFetches === jwks0 + 1 && afterFirst > req0 && instancesCreated() === inst0 + 1,
-    { status: res.status, jwks: jwksFetches - jwks0, req0, afterFirst, instances: instancesCreated() - inst0 },
+    'PU2 a locally signed push for Mailbox@Smoke.test (mixed case) -> 204, jose verified it against the one JWKS fetch the isolate made (the shared key cache, CORE577 D21: the connect callback fetched it earlier, the push reuses it), sync_requested_at advanced, one MAIL_SYNC instance created',
+    res.status === 204 &&
+      jwksFetches === 1 &&
+      jwksFetches === jwks0 &&
+      afterFirst > req0 &&
+      instancesCreated() === inst0 + 1,
+    {
+      status: res.status,
+      jwksTotal: jwksFetches,
+      jwks: jwksFetches - jwks0,
+      req0,
+      afterFirst,
+      instances: instancesCreated() - inst0,
+    },
   )
   const statuses: number[] = []
   for (let i = 0; i < 10; i++) statuses.push((await pushNow(await pushToken())).status)
