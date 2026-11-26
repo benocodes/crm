@@ -60,11 +60,11 @@ const meta = (method: string, path: string, body?: unknown) =>
     },
     body: body ? JSON.stringify(body) : undefined,
   }) as unknown as Promise<Response>
-const authorize = async (id: string, resource: string) => {
+const authorize = async (id: string, resource: string, redirect = REDIRECT) => {
   const q = new URLSearchParams({
     response_type: 'code',
     client_id: id,
-    redirect_uri: REDIRECT,
+    redirect_uri: redirect,
     scope: 'openid offline_access contacts:read',
     state: 's1',
     code_challenge: challenge,
@@ -139,5 +139,42 @@ describe('group 5: composition, end to end in workerd', () => {
     expect(after.url?.searchParams.get('code') ?? null).toBeNull()
     expect(after.url?.searchParams.get('error')).toBe('invalid_client')
     expect((await meta('GET', `/meta/v1/oauth-clients/${id}`)).status).toBe(404)
+  })
+
+  it('an http loopback redirect completes authorize, token and refresh; http on another host is still refused at create', async () => {
+    const LOOP = 'http://localhost:5199/cb'
+    const made = await meta('POST', '/meta/v1/oauth-clients', { name: 'Local dev', redirect_uris: [LOOP] })
+    const rec = (await made.json()) as Record<string, any>
+    expect(made.status, JSON.stringify(rec)).toBe(201)
+    const id = rec.client_id as string
+    const a = await authorize(id, BASE, LOOP)
+    expect(a.url, `authorize answered ${a.status} ${a.text}`).not.toBeNull()
+    expect(a.url!.origin + a.url!.pathname).toBe(LOOP)
+    const code = a.url!.searchParams.get('code')
+    expect(code, a.text).toBeTruthy()
+    const tokens = await token({
+      grant_type: 'authorization_code',
+      code: code!,
+      code_verifier: verifier,
+      redirect_uri: LOOP,
+      client_id: id,
+      resource: BASE,
+    })
+    expect(tokens.status, JSON.stringify(tokens)).toBe(200)
+    const again = await token({
+      grant_type: 'refresh_token',
+      refresh_token: tokens.refresh_token,
+      client_id: id,
+      resource: BASE,
+    })
+    expect(again.status, JSON.stringify(again)).toBe(200)
+    expect(
+      (await w.call('/api/v1/contacts', { headers: { authorization: `Bearer ${again.access_token}` } })).status,
+    ).toBe(200)
+    const refused = await meta('POST', '/meta/v1/oauth-clients', {
+      name: 'Remote',
+      redirect_uris: ['http://example.com/cb'],
+    })
+    expect(refused.status).toBe(400)
   })
 })
