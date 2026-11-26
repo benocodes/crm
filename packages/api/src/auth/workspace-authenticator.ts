@@ -1,6 +1,7 @@
 import { ApiError } from '../errors.js'
 import type { StorageBinding } from '@vibase/storage'
 import { ScopeSet, closeScopes } from '../scopes.js'
+import { LIMITED_LOGIN_SCOPE } from './better-auth.js'
 import { AuthFailure, ProfileNotFoundError, type AuthAdapter, type AuthProfile } from './adapter.js'
 import { lookupPrincipal, provisionAgent } from './agent-principals.js'
 import { provisionUser } from './first-sight.js'
@@ -114,8 +115,10 @@ export function createWorkspaceAuthenticator(opts: {
     subject: string
     clientId: string | null
     tokenScopes: string[] | null
+    /** [[CORE630]] D2: the token names `limited_login` (read from the raw scope list); only then does its own list bound a CLI person or an agent account. */
+    limited: boolean
   }): Promise<Principal> {
-    const { storage, env, provider, subject, clientId, tokenScopes, organizationHeader } = a
+    const { storage, env, provider, subject, clientId, tokenScopes, organizationHeader, limited } = a
     if (storage.kind !== 'd1') throw new Error('the workspace authenticator serves a D1 deployment only')
     const organizationId = storage.organizationId
     // [[CORE639]] D5, D6, P3, P4: every OAuth client but the CLI is read live (an adapter without the read keeps today's rule). A client that no longer exists is refused here, before any agent lookup or creation.
@@ -154,7 +157,11 @@ export function createWorkspaceAuthenticator(opts: {
         throw forbidden()
       }
       if (found.account.disabled) throw new AuthFailure('disabled')
-      return agentPrincipal(found.account.agentId, meet(found.account.scopes, tokenScopes ?? declaredScopes, grantable))
+      // [[CORE630]] D4: the account's live record (the owner's grant), met with the token's list only for a limited login.
+      return agentPrincipal(
+        found.account.agentId,
+        meet(found.account.scopes, limited && tokenScopes ? tokenScopes : declaredScopes, grantable),
+      )
     }
     const role = found.membershipRole ?? null
     if (found.userId === null || role === null) {
@@ -176,9 +183,10 @@ export function createWorkspaceAuthenticator(opts: {
         }
       const roleScopes = scopesForRole(resolved.role, declaredScopes, policy).toStrings()
       // [[CORE639]] D3: a first-party app's scopes are the role met with the client's live list (the ceiling when it has none): the token's own list is no bound for vault scopes.
+      // [[CORE630]] D3: a CLI person is their live role, met with the token's list only for a limited login.
       const scopes = firstParty
         ? meet(roleScopes, client!.scopes ?? grantable, grantable)
-        : tokenScopes
+        : limited && tokenScopes
           ? meet(roleScopes, tokenScopes)
           : roleScopes
       return {
@@ -243,6 +251,7 @@ export function createWorkspaceAuthenticator(opts: {
           subject: verified.subject,
           clientId,
           tokenScopes,
+          limited: verified.kind === 'oauth' && verified.scopes.includes(LIMITED_LOGIN_SCOPE),
         })
       }
 

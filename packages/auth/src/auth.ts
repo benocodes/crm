@@ -9,8 +9,19 @@ import { jwt } from 'better-auth/plugins'
 import { D1Dialect } from 'kysely-d1'
 import { uuidv7 } from '@vibase/storage'
 import { hashPassword, verifyPassword } from './password.js'
-import { AUTH_SCOPES, AUTH_SERVER_METADATA_PATH, DEVICE_GRANT, staticMetadataResponse } from './static-metadata.js'
-export { AUTH_SCOPES, AUTH_SERVER_METADATA_PATH, staticAuthServerMetadata } from './static-metadata.js'
+import {
+  AUTH_SCOPES,
+  AUTH_SERVER_METADATA_PATH,
+  DEVICE_GRANT,
+  LIMITED_LOGIN_SCOPE,
+  staticMetadataResponse,
+} from './static-metadata.js'
+export {
+  AUTH_SCOPES,
+  AUTH_SERVER_METADATA_PATH,
+  LIMITED_LOGIN_SCOPE,
+  staticAuthServerMetadata,
+} from './static-metadata.js'
 
 /** What the composition needs beyond the database: both are validated by the Worker's composition before they reach here ([[CORE243]] D6, P2). */
 export interface AuthRuntimeConfig {
@@ -236,7 +247,7 @@ function composePlugins(
   clientOwner: ((subject: string) => Promise<boolean>) | undefined = undefined,
 ) {
   const s = schema ?? (() => undefined)
-  const scopes = [...AUTH_SCOPES, ...vaultScopes]
+  const scopes = [...AUTH_SCOPES, LIMITED_LOGIN_SCOPE, ...vaultScopes]
   const { allowed: registrable, defaults: defaultScopes } = registrationScopes(vaultScopes, grantable, defaults)
   const resources = resourcesFor(baseURL)
   return [
@@ -265,7 +276,8 @@ function composePlugins(
       clientRegistrationDefaultResources: resources,
       clientRegistrationAllowedResources: resources,
       clientRegistrationDefaultScopes: defaultScopes,
-      clientRegistrationAllowedScopes: registrable,
+      // The marker may be named at registration (a client then holds it and may ask for it), yet `registrationScopes` leaves it out of `allowed` and `defaults`: the first-party client operations share that value and the marker is no app scope.
+      clientRegistrationAllowedScopes: [...registrable, LIMITED_LOGIN_SCOPE],
       // Native MCP clients register a loopback `http://127.0.0.1:<port>` redirect and send no application_type: treat those as native (the web rules for any other client).
       clientRegistrationDefaultApplicationType: 'infer',
       allowDynamicClientRegistration: true,

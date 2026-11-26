@@ -18,7 +18,7 @@ import { assertNeighbours, endpointTypesOf } from './associations/definition.js'
 import { associationOperations } from './associations/operations.js'
 import { schemaOperations } from './schema/operations.js'
 import { eventOperations } from './events/operations.js'
-import { Registry, type AnyResource } from './registry.js'
+import { Registry, type AnyResource, type TenantOperation } from './registry.js'
 import { agents } from './resources/agents.js'
 import { createBuiltIns, defaultBuiltIns } from './resources/built-ins.js'
 import type { ExtendDeclarations } from './custom/extend.js'
@@ -90,6 +90,12 @@ export function createVibaseRegistry(
   for (const op of associationOperations(() => registry.resources())) registry.register(op)
   for (const op of contentOperations()) registry.register(op)
   registry.registerResource(memberships).registerResource(agents)
+  // [[CORE630]] D10: the agent operations' grant check reads the scopes the registry declares (custom objects included), read when the operation runs.
+  const withDeclared = (op: TenantOperation): TenantOperation => ({
+    ...op,
+    prepare: (env, input, ctx) => op.prepare({ ...env, declaredScopes: registry.declaredScopes() }, input, ctx),
+  })
+  registry.decorate('agents.create', withDeclared).decorate('agents.update', withDeclared)
   // [[CORE288]]: the generated membership writes get their control-plane stages; the reset link is a hand-written operation beside `users.list`.
   const memberWrites = withMembershipWrites(memberships, options.members ?? null)
   registry.decorate('memberships.update', memberWrites.update).decorate('memberships.delete', memberWrites.delete)

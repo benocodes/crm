@@ -10,6 +10,7 @@ import {
   type ApiFailure,
   type SessionUser,
 } from './auth-api.js'
+import { CLI_CLIENT_ID, LIMITED_LOGIN_SCOPE } from './cli-login.js'
 import { isCompleteDeviceCode } from './device-code.js'
 import { MESSAGES, genericFailure } from './messages.js'
 import { goTo, type PageProps } from './page.js'
@@ -30,6 +31,7 @@ const failureMessage = (f: ApiFailure, deciding: boolean): string => {
 interface Review {
   code: string
   clientName: string
+  clientId: string
   scopes: string[]
 }
 type Outcome = 'approved' | 'denied' | undefined
@@ -103,6 +105,7 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
     setReview({
       code,
       clientName: client.ok && client.data.name ? client.data.name : r.data.clientId,
+      clientId: r.data.clientId,
       scopes: (r.data.scope ?? '').split(/\s+/).filter(Boolean),
     })
     return undefined
@@ -183,7 +186,14 @@ function Signed({ user, navigate }: { user: SessionUser; navigate: (path: string
         <p>{review.code}</p>
         <p>{MESSAGES.deviceCheckCode}</p>
         <p>{MESSAGES.deviceWarning}</p>
-        <ScopeList scopes={scopeItems(review.scopes)} />
+        {/* [[CORE630]] D11: a vibase-cli request without the limited-login marker is full access as the person; with it, the listed scopes. The marker is never shown. */}
+        {review.clientId === CLI_CLIENT_ID && !review.scopes.includes(LIMITED_LOGIN_SCOPE) ? (
+          <section aria-label="Full access">
+            <p>{MESSAGES.deviceFullAccess}</p>
+          </section>
+        ) : (
+          <ScopeList scopes={scopeItems(review.scopes.filter((s) => s !== LIMITED_LOGIN_SCOPE))} />
+        )}
         {account}
       </Card>
     )

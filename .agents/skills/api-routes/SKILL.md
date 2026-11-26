@@ -315,9 +315,12 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     the session key, no `aud`/`azp` check. Clerk's own scopes are dropped, the rest go through
     `fromProviderScope` (identity). Resolution lives in `src/auth/workspace-authenticator.ts` +
     `src/auth/agent-principals.ts`: one read-only lookup unit (user row, account agent by `auth_subject`, delegated
-    agent by (client, human)); `AUTH_CLI_CLIENT_ID` acts as the human (role ∩ token); any other client is a
-    delegated agent (token ∩ stored cap ∩ role ∩ grantable); role `agent` is an agent account (grants ∩ token for
-    OAuth, grants for a session token). Kinds never convert (`403 organization_forbidden`); a disabled agent is
+    agent by (client, human)); `AUTH_CLI_CLIENT_ID` acts as the human (Clerk: role ∩ token; built-in provider: the live
+    role, role ∩ token only when the token carries the provider scope `limited_login`, [[CORE630]] D3); any other client is a
+    delegated agent (token ∩ stored cap ∩ role ∩ grantable); role `agent` is an agent account (Clerk: grants ∩ token for
+    OAuth, grants for a session token; built-in provider: record ∩ grantable, ∩ token only with `limited_login`, D4). The
+    marker is read from the raw token scope list (the authenticator keeps only declared scopes for its own use) and is in
+    no default list: `AUTH_SCOPES` feeds the defaults, so it lives beside it (`LIMITED_LOGIN_SCOPE`). Kinds never convert (`403 organization_forbidden`); a disabled agent is
     `401`. First sight inserts `ON CONFLICT DO NOTHING`, gates the event on the insert, then asserts the stored id
     (the race loser re-looks up once, else `409`). The profile (`fetchProfile`, with `role`) is cached per isolate
     for 60 s by `env.now`; a `404` is cached as a refusal, any other failure is `500` and uncached. The client

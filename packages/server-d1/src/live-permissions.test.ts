@@ -5,7 +5,7 @@ import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/tes
 import { MIGRATIONS, createOAuthClient, openControlDb } from '@vibase/storage-d1'
 import { seedAgent, seedMembership, seedPrincipal } from '@vibase/storage-d1/test/seed'
 import { PROJECTS_KEY, createCustomTables, projectsDefinition } from '@vibase/api/test/custom-objects'
-import { createVibaseRegistry, scopesForRole } from '@vibase/api'
+import { createVibaseRegistry, grantableScopes, scopesForRole } from '@vibase/api'
 import { resourcesFor } from '@vibase/auth'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET, authKit, type AuthKit } from './test/auth-kit.js'
@@ -169,7 +169,7 @@ describe('group 1: the matrix, principal kind x marker (D2 to D4)', () => {
         clientId: `app_${uuidv7(NOW).slice(-20)}`,
         name: 'Deals board',
         redirectUris: ['https://app.test/cb'],
-        scopes: ['contacts:read', 'deals:write'],
+        scopes: null,
         skipConsent: true,
         resources: resourcesFor(AUTH_BASE),
         actorId: bootUser,
@@ -204,9 +204,9 @@ describe('group 1: the matrix, principal kind x marker (D2 to D4)', () => {
         },
       })
       const tok = ((await t.json()) as { access_token: string }).access_token
-      expect(await scopesOf(worker(), tok)).toEqual(
-        ['contacts:read', 'contacts:request_approval', 'deals:read', 'deals:request_approval', 'deals:write'].sort(),
-      )
+      // role met with the app's ceiling (the app has no list of its own): the owner's scopes that an agent may hold, whatever the token asked for or the marker said
+      const ceiling = grantableScopes(declared)
+      expect(await scopesOf(worker(), tok)).toEqual(OWNER_SCOPES().filter((x) => ceiling.includes(x)))
     })
 })
 

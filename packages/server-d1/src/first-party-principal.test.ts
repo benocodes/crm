@@ -159,10 +159,10 @@ describe('group 1: the principal by client class (D2, D6, P3, P4)', () => {
     expect(p.organizationId).toBeNull()
   })
 
-  it('vibase-cli is unchanged and its client is never read', async () => {
+  it('vibase-cli: a limited login (the marker) is role ∩ token as before, and its client is never read', async () => {
     const t = await setup({ clients: new Map([[APP, FIRST()]]) })
     const id = await t.person('sub_owner', 'owner')
-    const p = await t.authenticate({ sub: 'sub_owner', client: CLI, scopes: ['contacts:read'] })
+    const p = await t.authenticate({ sub: 'sub_owner', client: CLI, scopes: ['contacts:read', 'limited_login'] })
     expect(p.actor).toEqual({ id, kind: 'user' })
     expect(p.scopes.toStrings()).toEqual(['contacts:read'])
     expect(t.adapter.reads).toEqual([])
