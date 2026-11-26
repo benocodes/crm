@@ -83,7 +83,7 @@ export function configProblems(root: string): string[] {
     out.push(`fixed is ${JSON.stringify(c.fixed)}, expected exactly one group of @vibase/cli and @vibase/server-d1`)
   const names = workspaceNames(root)
   const others = names.filter((n) => n !== '@vibase/cli' && n !== '@vibase/server-d1')
-  if (others.length !== 13) out.push(`expected 13 other workspace packages, found ${others.length}`)
+  if (others.length !== 14) out.push(`expected 14 other workspace packages, found ${others.length}`)
   const ignore = [...(c.ignore ?? [])].sort()
   if (JSON.stringify(ignore) !== JSON.stringify(others))
     out.push(`ignore is ${JSON.stringify(ignore)}, expected the other workspace packages ${JSON.stringify(others)}`)

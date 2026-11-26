@@ -319,6 +319,9 @@ what `@vibase/server-d1` ships, so it adds one too (`'@vibase/server-d1': minor`
 A new workspace package (`packages/<dir>`) must update `packages/release/src/workspace.test.ts` (the full
 directory list), the count in `packages/release/src/version.test.ts` and `.changeset/config.json`'s `ignore` list
 (every package but `@vibase/cli` and `@vibase/server-d1`), or the gate goes red ([[UI254]]'s gate-fix round).
+The gate's `pnpm -r build` runs every package's `build` script with no settings in the environment, so a build that
+needs settings and refuses without them (an example app compiled with a deployment URL and a client id) is named
+something else (`build:app`) and the package has no `build` script ([[DX637]]'s gate-fix round, decision 637.18).
 
 Commit on the cycle branch with Conventional Commits, staging explicit paths (never `git add -A`), and
 push. Commit `RESULT.md` in the knowledge repo together with your decision rows: `git -C knowledge add

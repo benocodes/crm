@@ -11,6 +11,7 @@
     "@vibase/api",
     "@vibase/approvals-app",
     "@vibase/auth",
+    "@vibase/browser-app-example",
     "@vibase/db",
     "@vibase/docs",
     "@vibase/release",

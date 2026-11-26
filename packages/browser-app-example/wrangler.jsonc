@@ -1,0 +1,9 @@
+// The browser sign-in example: static assets only, no Worker code, no binding, no remote resource. Served locally by `pnpm dev` on :5180.
+// There is no deploy script on purpose: hosting the example is the owner's call (DX624 D11). `/callback` is served by the single-page fallback.
+{
+  "name": "vb-browser-app-example",
+  "compatibility_date": "2026-07-30",
+  "assets": { "directory": "./dist", "not_found_handling": "single-page-application" },
+  "workers_dev": false,
+  "preview_urls": false
+}

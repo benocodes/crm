@@ -34,6 +34,7 @@ export const sections = [
       { label: 'Build apps on your instance', slug: 'guides/build-apps' },
       { label: 'TypeScript SDK', slug: 'guides/sdk' },
       { label: 'OAuth clients for your apps', slug: 'guides/oauth-clients' },
+      { label: 'Sign in from a browser app', slug: 'guides/browser-apps' },
       { label: 'Webhooks', slug: 'guides/webhooks' },
       { label: 'Website forms', slug: 'guides/forms' },
     ],
