@@ -173,7 +173,9 @@ Test commands: `pnpm -C packages/<pkg> test [file]`, `pnpm -r test`. Never `npx 
 
 Implement until the tests pass. Then run every absence mutation the charter names, plus any you judge
 necessary: inject the fault, see the named test turn red on the named engine, restore. Keep the **raw**
-output (filtered to the failing test names and messages, saying what you filtered) in `RESULT.md`.
+output (filtered to the failing test names and messages, saying what you filtered) in `RESULT.md`. A table of
+outcomes ("M3 → red: yes") is not raw output: paste each mutation's `FAIL` lines and its `Tests` summary line under the
+mutation's name ([[CORE660]] review round 1 re-ran all eleven).
 
 **Decisions.** Where the spec and charter are silent on something the tests pin (an error code, a
 payload field, an ordering), decide it, prefer what existing code does, and record it when you make it, not at
