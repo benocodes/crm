@@ -1,5 +1,11 @@
+# The Pages address (and its branch previews) serves the same site: keep it out of search so docs.vibase.ai is the indexed copy.
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex
+
+# Markdown twins are for agents; the HTML pages are what search indexes.
 /*.md
   Content-Type: text/markdown; charset=utf-8
   Link: </llms.txt>; rel="describedby"
+  X-Robots-Tag: noindex
 /llms.txt
   Content-Type: text/plain; charset=utf-8
