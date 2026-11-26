@@ -21,7 +21,7 @@ Add your instance's MCP URL to a client that supports remote HTTP MCP servers:
 https://crm.mycompany.com/mcp
 ```
 
-Use a client that supports the server's OAuth discovery and authorization flow. Complete consent in the browser, then have an owner grant the connected agent the scopes it needs ([how](/guides/agents/)). Connecting a client does not grant it CRM access automatically.
+Use a client that supports the server's OAuth discovery and authorization flow. Complete consent in the browser, then the connected agent holds the scopes the person approved, and an owner can narrow them ([how](/guides/agents/)). A wider list comes from reconnecting and approving it.
 
 MCP connections act as agents. The backend checks their grants when tools run, just as it does for CLI and REST calls.
 

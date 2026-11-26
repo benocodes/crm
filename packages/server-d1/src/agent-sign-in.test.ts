@@ -540,7 +540,7 @@ describe('5. the owner is told (D10)', () => {
     expect((await patch(wk, tok, a.id, { name: 'renamed' })).json.sign_in_notice).toBeNull()
   })
 
-  it('a delegated agent: a conditional reconnect notice, different from the agent account one; an API-key agent: null', async () => {
+  it('a delegated agent: the one connector notice for any change of its list, different from the agent account one; an API-key agent: null', async () => {
     const wk = worker()
     const tok = await owner()
     const a = await agentAccount(['contacts:read'])
@@ -554,11 +554,19 @@ describe('5. the owner is told (D10)', () => {
       .prepare('update agents set auth_provider = ?, auth_client_id = ?, delegated_by = ? where id = ?')
       .bind('better-auth', 'client_x', human.id, d)
       .run()
+    // [[CORE669]] D5: an add must lie within the consent: the person approved contacts:write, the record narrowed it away
+    await w.d1
+      .prepare('update agents set consented_scopes = ? where id = ?')
+      .bind(JSON.stringify(['contacts:read', 'contacts:write']), d)
+      .run()
     const delegated = await patch(wk, tok, d, { add_scopes: ['contacts:write'] })
     expect(delegated.status, JSON.stringify(delegated.json)).toBe(200)
     expect(typeof delegated.json.sign_in_notice).toBe('string')
     expect(delegated.json.sign_in_notice).not.toEqual(accountNotice)
-    expect((await patch(wk, tok, d, { remove_scopes: ['contacts:write'] })).json.sign_in_notice).toBeNull()
+    // a removal is a change of the list too: the same notice (CORE666 D6)
+    const removed = await patch(wk, tok, d, { remove_scopes: ['contacts:write'] })
+    expect(removed.json.sign_in_notice).toBe(delegated.json.sign_in_notice)
+    expect((await patch(wk, tok, d, { name: 'renamed' })).json.sign_in_notice).toBeNull()
     const key = (await w.d1
       .prepare('select id from agents where auth_subject is null and auth_client_id is null limit 1')
       .first()) as { id: string }

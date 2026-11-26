@@ -38,18 +38,22 @@ export const agentUpdateRecord = agentRecord.extend({ sign_in_notice: z.string()
 export type AgentUpdateRecord = z.infer<typeof agentUpdateRecord>
 
 /**
- * The notice for the scopes `added` to `agent`. An agent account's token lists only what its record held when it signed in ([[CORE630]] D11), so the notice is unconditional. A delegated agent's tokens live in the control database,
- * which no operation reads, so it is conditional in words: the connector holds the scope only if it consented to it before.
+ * The notice for a change from the list `before` to the one `agent` now holds. An agent account's token lists only what its record held when it signed in ([[CORE630]] D11), so the notice for an added scope is unconditional; a connector's is
+ * the one sentence for any change of its list ([[CORE666]] D6).
  */
-function signInNotice(agent: AgentRecord, added: readonly string[]): string | null {
+function signInNotice(agent: AgentRecord, before: readonly string[]): string | null {
+  // [[CORE669]] ([[CORE666]] D6): a connector's record follows its latest sign-in, so ANY change of its list (an add back inside the consent, or a removal) is not lasting.
+  if (agent.auth_client_id !== null) return sameList(agent.scopes, before) ? null : CONNECTOR_NOTICE
+  const added = agent.scopes.filter((s) => !before.includes(s))
   if (added.length === 0) return null
   const list = added.join(', ')
   if (agent.auth_subject !== null)
     return `${list} will reach this agent when it next signs in: its current sign-in keeps only the scopes it held then. Have it run \`vibase login\` as the agent.`
-  if (agent.auth_client_id !== null)
-    return `${list} reaches this agent's connection only if the connector already consented to it; otherwise reconnect the connector so the person approves it.`
   return null
 }
+
+const CONNECTOR_NOTICE =
+  "this connector's scopes follow what the person approves when signing in: a later sign-in that approves a different list replaces this change. For a limit no sign-in can change, connect it signed in as an agent account"
 
 /**
  * Validates scopes for an agent ([[CORE3]] D9): every one must be declared and agent-grantable. The first
@@ -90,7 +94,7 @@ export const agents = withColumnFilters(
       operations: ['list', 'get', 'create', 'update'],
       descriptions: {
         update:
-          'Change an agent: its name, scopes (the whole list, or add_scopes and remove_scopes) or disabled flag. 409 form_principal for the agent of a form (live or deleted): that agent is managed by its form, so rename, disable or delete the form instead. When the call adds a scope to an agent that signs in, sign_in_notice says when the added scope reaches it (an agent account: when it signs in again with vibase login; a connector: only if it already consented, else reconnect it); it is null for an API-key agent, which applies at once, and when nothing was added. Example: vibase agents update <id> --disabled true',
+          'Change an agent: its name, scopes (the whole list, or add_scopes and remove_scopes) or disabled flag. 409 form_principal for the agent of a form (live or deleted): that agent is managed by its form, so rename, disable or delete the form instead. A connector (an agent a person signed in through an OAuth client) can be narrowed only within what the person approved at sign-in: 409 scope_not_consented for a scope outside it, and a later sign-in with a different list replaces the change; for a limit no sign-in can change, use an agent account. When the call adds a scope to an agent account, sign_in_notice says it reaches the agent when it signs in again with vibase login; for a connector it says so for any change of its list; it is null for an API-key agent, which applies at once, and when nothing changed. Example: vibase agents update <id> --disabled true',
       },
       record: agentRecord,
       updateRecord: agentUpdateRecord,
@@ -165,6 +169,22 @@ function planAgentUpdate(env: PreparedEnv, input: { id: string; body: unknown })
 }
 
 /**
+ * [[CORE669]] ([[CORE666]] D5): a connector's list may only be narrowed within what the person approved. The scopes this call would put on the record (the whole list, or the added ones; a removal and a rename put none) must all lie in `bound`
+ * (`consented_scopes`, or the record when it is NULL). The first offender in input order is named. Thrown from `build`, before any statement of the unit, so nothing is written and no event is emitted.
+ */
+function refuseOutsideConsent(bound: readonly string[], body: unknown): void {
+  const values = body as { scopes?: string[]; add_scopes?: string[] }
+  const produced = values.scopes ?? values.add_scopes ?? []
+  const outside = produced.find((s) => !bound.includes(s))
+  if (outside !== undefined)
+    throw new ApiError(
+      409,
+      'scope_not_consented',
+      `${outside} was not approved when this connector signed in: the person reconnects it and approves ${outside}; for a limit no sign-in can change, use an agent account`,
+    )
+}
+
+/**
  * `agents.update` for every body shape, refusing the principal of a form ([[CHN423]] D4, P1 to P3): `409 form_principal` when the agent's id is a `forms` row, live or soft-deleted. The check comes after the body validation
  * (`planAgentUpdate` throws 400 first) and after the existence check (its `build` throws 404 first), and before any write; the agent and its form are written in one unit, so no guard is needed (P3). The form read rides the same plan phase.
  */
@@ -185,6 +205,14 @@ export function updateAgentOperation(
           .where('forms.id', '=', id)
           .where('forms.organization_id', '=', env.organizationId),
       ),
+      // [[CORE669]] D5: the connector's consent, read here and never carried in the record (UNLISTED_COLUMNS).
+      consent: readMaybe(
+        qc.db
+          .selectFrom('agents')
+          .select('agents.consented_scopes')
+          .where('agents.id', '=', id)
+          .where('agents.organization_id', '=', env.organizationId),
+      ),
     }),
     build: (found, qc) => {
       const built = inner.build(found, qc) // 404 for an unknown agent comes first
@@ -193,16 +221,19 @@ export function updateAgentOperation(
       // [[CORE662]] D10: the scopes this call added, against the row the write was planned on.
       const { __stamp, ...rest } = found.maybe('before') as Record<string, unknown>
       const before = toRecord(agents, rest) as AgentRecord
+      if (before.auth_client_id !== null) {
+        const consented = codecs.stringArray.readNullable(
+          (found.maybe('consent') as { consented_scopes: unknown } | null)?.consented_scopes ?? null,
+        )
+        refuseOutsideConsent(consented ?? before.scopes, input.body)
+      }
       return {
         ...built,
         decode: (rows, f) => {
           const after = built.decode(rows, f)
           return {
             ...after,
-            sign_in_notice: signInNotice(
-              after,
-              after.scopes.filter((s) => !before.scopes.includes(s)),
-            ),
+            sign_in_notice: signInNotice(after, before.scopes),
           }
         },
       }

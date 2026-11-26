@@ -168,4 +168,25 @@ describe('the owner on the CLI (D10)', () => {
     expect(JSON.parse(removed.stdout).sign_in_notice).toBeNull()
     expect(removed.stderr).toBe('')
   })
+  it("agents update refuses a scope outside a connector's consent: exit 1 (the CLI's refusal exit), the message on stderr, nothing written ([[CORE669]] D5)", async () => {
+    const o = await owner()
+    const d = id()
+    await seedAgent(w.d1, { id: d, organizationId: orgId, createdBy: bootUser, scopes: ['tags:read'] })
+    const human = (await w.d1.prepare('select id from users limit 1').first()) as { id: string }
+    await w.d1
+      .prepare(
+        'update agents set auth_provider = ?, auth_client_id = ?, delegated_by = ?, consented_scopes = ? where id = ?',
+      )
+      .bind('better-auth', 'client_cli', human.id, JSON.stringify(['tags:read']), d)
+      .run()
+    const c = cli()
+    expect((await c.login(o.cookie)).code).toBe(0)
+    const refused = await c.r.run(['agents', 'update', d, '--add-scopes', '["contacts:write"]'])
+    expect(refused.code).toBe(1)
+    const body = JSON.parse(refused.stderr)
+    expect(body.error.code).toBe('scope_not_consented')
+    expect(body.error.message).toContain('contacts:write was not approved when this connector signed in')
+    const row = (await w.d1.prepare('select scopes from agents where id = ?').bind(d).first()) as { scopes: string }
+    expect(JSON.parse(row.scopes)).toEqual(['tags:read'])
+  })
 })

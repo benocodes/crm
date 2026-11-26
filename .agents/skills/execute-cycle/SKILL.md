@@ -74,6 +74,10 @@ branch then carries no code, so there is no gate to run ([[DX422]] D2).
 - **When the cycle replaces a default or an initial value that tests assume** (a first-sight record, a refusal's
   words), grep the whole package's tests for the old value and run every file that hits before handing off; the
   charter's rider list is a lower bound ([[CORE666]]: two files named, the gate found three more).
+  The same holds for docs: when the cycle changes who does something or how (the owner grants a scope, a page shows
+  a command), grep all of `packages/docs` for the old claim by its idea, not only the pages the charter names
+  ([[CORE669]]: the charter named the agents bullet and the Clerk page; review found four more sentences saying
+  the owner grants a connector's scopes).
 - **Cross-check a column-level grant against every writer of the table**, not just the resource's own
   operations: merges, cascades and programs from other areas ([[CORE25]]'s link-table grant missed
   merge's re-point).
