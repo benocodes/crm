@@ -40,8 +40,10 @@ vibase logout                                               # revokes the refres
 ```
 
 The CLI never opens a browser: it prints `verification_uri_complete` (or the URL and the user code) and the expiry on stderr, then polls.
-Stdout stays machine-readable (the `me` document). By default it asks for every scope the instance supports plus `offline_access`; the
-Vibase caps the token at what the person or agent account may do, so asking for all loses nothing. The profile (kind `oauth`) is stored in
+Stdout stays machine-readable (the `me` document). On the built-in provider a default login asks for `all_permissions` plus `offline_access`: for a person that is
+"whatever my role allows", including scopes declared later, and for an agent account it is narrowed to what the agent was granted when it signs in (it never holds the wildcard).
+An instance that names no wildcard in discovery (an older one, or Clerk) is asked for every scope it supports, as before; `--scope` is always the plain list, and
+`--scope all_permissions` is refused (`unknown_scope`). The profile (kind `oauth`) is stored in
 the same `config.json`. A login that is denied, expires or fails leaves the profile as it was.
 
 The access token is refreshed when it is within 60 s of expiry and once when the server answers `401`; parallel `vibase` processes
