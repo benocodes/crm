@@ -56,7 +56,9 @@ describe('REST cors (answer and preflight)', () => {
     expect(answer.headers.get('vary')).toMatch(/origin/i)
     const bare = await preflight('/api/v1/contacts', BARE)
     expect(bare.headers.get('access-control-allow-origin')).toBeNull()
-    expect((await call('/api/v1/contacts', { headers: { origin: BARE } })).headers.get('access-control-allow-origin')).toBeNull()
+    expect(
+      (await call('/api/v1/contacts', { headers: { origin: BARE } })).headers.get('access-control-allow-origin'),
+    ).toBeNull()
   })
 })
 

@@ -59,7 +59,6 @@ describe('group 1: the grammar through parseOriginList (CORS)', () => {
   })
 })
 
-
 describe('group 2: originMatches', () => {
   it.each(ORIGIN_MATCH_TABLE)('%s vs %s -> %s', (entry, origin, want) => {
     expect(originMatches([entry], origin)).toBe(want)

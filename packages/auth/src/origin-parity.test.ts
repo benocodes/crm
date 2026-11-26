@@ -9,7 +9,9 @@ import { authOptions } from './auth.js'
 const db = { prepare: () => ({}) }
 const baseURL = 'https://api.example.com'
 const trustedBy = async (entries: string[], origin: string) => {
-  const auth = betterAuth(authOptions(db, { secret: 'a-valid-auth-secret-of-exactly-32!', baseURL, trustedOrigins: entries }))
+  const auth = betterAuth(
+    authOptions(db, { secret: 'a-valid-auth-secret-of-exactly-32!', baseURL, trustedOrigins: entries }),
+  )
   return (await auth.$context).isTrustedOrigin(origin)
 }
 
@@ -28,8 +30,11 @@ describe('originMatches agrees with Better Auth', () => {
 // P3: the rows where the two differ are all in the REQUEST origin, never in an entry shape (the grammar refuses `:443` and upper-case entries, so no accepted entry can cause one). Better Auth normalises the URL it is given;
 // `originMatches` compares the origin as the browser sent it (always lower-case, no default port, a non-empty label), so it is stricter: it refuses where Better Auth would pass. Pinned so a change in either shows.
 describe('known differences (request origins a browser never sends)', () => {
-  it.each(['https://A.HQ.vibase.ai', 'https://.hq.vibase.ai'])('%s: Better Auth trusts it, originMatches does not', async (origin) => {
-    expect(await trustedBy(['https://*.hq.vibase.ai'], origin)).toBe(true)
-    expect(originMatches(['https://*.hq.vibase.ai'], origin)).toBe(false)
-  })
+  it.each(['https://A.HQ.vibase.ai', 'https://.hq.vibase.ai'])(
+    '%s: Better Auth trusts it, originMatches does not',
+    async (origin) => {
+      expect(await trustedBy(['https://*.hq.vibase.ai'], origin)).toBe(true)
+      expect(originMatches(['https://*.hq.vibase.ai'], origin)).toBe(false)
+    },
+  )
 })

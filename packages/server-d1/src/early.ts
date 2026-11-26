@@ -8,6 +8,7 @@ import {
   MCP_PROTECTED_RESOURCE_PATH,
   PROTECTED_RESOURCE_PATH,
 } from '@vibase/api/discovery'
+import { originMatches, parseWildcardOrigin } from '@vibase/api/origins'
 import { AUTH_SERVER_METADATA_PATH, staticMetadataResponse } from '@vibase/auth/static-metadata'
 import { DECLARED_SCOPES } from './declared-scopes.js'
 
@@ -41,6 +42,8 @@ function originsOf(value: unknown): string[] | undefined {
     if (entry === '') continue
     if (entry.endsWith('/')) entry = entry.slice(0, -1)
     if (!/^(https?:\/\/[^/?#\s]+|chrome-extension:\/\/[a-p]{32})$/.test(entry)) return undefined
+    // [[API622]] D2: a `*` is only the wildcard form; anything else defers to the full path, which reports it.
+    if (entry.includes('*') && parseWildcardOrigin(entry) === undefined) return undefined
     out.push(entry)
   }
   return out
@@ -87,7 +90,7 @@ export function earlyAnswer(req: Request, env: EarlyEnv, schemaFileText?: string
     const allowed = originsOf(env.CORS_ALLOWED_ORIGINS)
     if (allowed === undefined) return undefined
     const origin = req.headers.get('origin')
-    if (origin !== null && !allowed.includes(origin))
+    if (origin !== null && !originMatches(allowed, origin))
       return json({ error: { code: 'origin_forbidden', message: 'this origin may not call the MCP endpoint' } }, 403)
     return json({ error: { code: 'unauthenticated', message: 'missing bearer credentials' } }, 401, {
       'www-authenticate': mcpChallenge(url.origin, declared),

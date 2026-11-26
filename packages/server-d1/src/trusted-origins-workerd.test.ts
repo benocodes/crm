@@ -171,11 +171,13 @@ const wildAccount = async () => {
 }
 
 describe('[[API622]] group 4: a wildcard trusted origin, end to end in workerd (D1, D8)', () => {
-  it('a cookie-bearing sign-out from a depth-2 origin passes Better Auth\'s origin check; the bare host is refused 403 and the session stays', async () => {
+  it("a cookie-bearing sign-out from a depth-2 origin passes Better Auth's origin check; the bare host is refused 403 and the session stays", async () => {
     const { cookie } = await wildAccount()
     const bare = await wild.call('/auth/sign-out', { body: {}, cookie, headers: { origin: BARE } })
     expect(bare.status).toBe(403)
-    expect(((await (await wild.call('/auth/get-session', { cookie })).json()) as { user?: unknown } | null)?.user).toBeTruthy()
+    expect(
+      ((await (await wild.call('/auth/get-session', { cookie })).json()) as { user?: unknown } | null)?.user,
+    ).toBeTruthy()
     const ok = await wild.call('/auth/sign-out', { body: {}, cookie, headers: { origin: DEEP } })
     expect(ok.status, await ok.clone().text()).toBe(200)
   })
@@ -183,7 +185,11 @@ describe('[[API622]] group 4: a wildcard trusted origin, end to end in workerd (
   it('the credentialed CORS answer echoes the depth-2 origin; the bare host gets none', async () => {
     const pre = await real(wild, '/auth/sign-out', {
       method: 'OPTIONS',
-      headers: { origin: DEEP, 'access-control-request-method': 'POST', 'access-control-request-headers': 'content-type' },
+      headers: {
+        origin: DEEP,
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type',
+      },
     })
     expect(pre.status).toBe(204)
     expect(cors(pre)).toMatchObject({ origin: DEEP, credentials: 'true' })

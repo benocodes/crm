@@ -1,4 +1,4 @@
-import { isValidPushVar } from '@vibase/api'
+import { isValidPushVar, parseWildcardOrigin } from '@vibase/api'
 import type { AuthRuntimeConfig } from '@vibase/auth'
 
 /** `AUTH_SECRET` is at least this many characters ([[CORE243]] D6, P2): setup generates 32 random bytes as base64url, which is 43. */
@@ -37,18 +37,27 @@ export function resolveGoogleSignIn(
 
 /**
  * [[UI255]] D6: `AUTH_TRUSTED_ORIGINS`, a comma-separated list of first-party app origins. Each entry is an origin by `PUBLIC_BASE_URL`'s rule (`https`, or `http://localhost[:port]`; no path, query or fragment),
- * and no wildcard. Entries are normalised to their origin, an entry equal to `baseURL` is dropped (already trusted) and repeats collapse. Empty or unset is none. A malformed entry throws a message that names the
+ * or a wildcard `scheme://*.<host>[:port]` whose base is such an origin ([[API622]] D2; matches subdomains at any depth). Entries are normalised to their origin, an entry equal to `baseURL` is dropped (already trusted) and repeats collapse. Empty or unset is none. A malformed entry throws a message that names the
  * variable and never a value.
  */
+const TRUSTED_ORIGINS_MESSAGE =
+  'AUTH_TRUSTED_ORIGINS must be a comma-separated list of origins without a path: https, or http://localhost for local development'
+
 export function parseTrustedOrigins(value: string | undefined, baseURL: string): string[] {
   const out: string[] = []
   for (const raw of (value ?? '').split(',')) {
-    const entry = raw.trim()
+    let entry = raw.trim()
     if (entry === '') continue
-    if (entry.includes('*') || !isValidPushVar('PUBLIC_BASE_URL', entry))
-      throw new Error(
-        'AUTH_TRUSTED_ORIGINS must be a comma-separated list of origins without a path or wildcard: https, or http://localhost for local development',
-      )
+    if (entry.includes('*')) {
+      // [[API622]] D2: the wildcard keeps its `*.`, so the base is validated by this var's own rule (https, or http://localhost[:port]).
+      if (entry.endsWith('/')) entry = entry.slice(0, -1)
+      entry = entry.toLowerCase()
+      const base = parseWildcardOrigin(entry)
+      if (base === undefined || !isValidPushVar('PUBLIC_BASE_URL', base)) throw new Error(TRUSTED_ORIGINS_MESSAGE)
+      if (!out.includes(entry)) out.push(entry)
+      continue
+    }
+    if (!isValidPushVar('PUBLIC_BASE_URL', entry)) throw new Error(TRUSTED_ORIGINS_MESSAGE)
     const origin = new URL(entry).origin
     if (origin !== baseURL && !out.includes(origin)) out.push(origin)
   }
