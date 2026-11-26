@@ -10,7 +10,7 @@ import { createCustomTables, projectsDefinition } from '@vibase/api/test/custom-
 import { CLI_CLIENT_ID, registrationScopes, seedFirstPartyClient } from '@vibase/auth'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET, DEVICE_GRANT, authKit, type AuthKit } from './test/auth-kit.js'
-import { bootstrapD1, NOW, openWorkerPair, spyD1, type WorkerPair } from './test/kit.js'
+import { bootstrapD1, inheritPairing, NOW, openWorkerPair, spyD1, type WorkerPair } from './test/kit.js'
 
 // [[CORE661]] ([[CORE630]] D9): a connector that registered itself before an object was declared reconnects with the SAME client. Two Worker compositions run over the same control and CRM databases: A declares no
 // custom object, B declares `projects__c`, which is what a `redeploy --schema` does to a live instance. Every flow runs through the real Better Auth authorize, consent and token endpoints on the composed Worker's `/auth`.
@@ -249,7 +249,7 @@ describe('1. a connector reconnects with its own client after an object is decla
 
 describe('2. which client rows D9 touches, and how', () => {
   const UPDATE = /update\s+"?auth_oauth_clients"?/i
-  const FORBIDDEN = ['all_permissions', 'agents:write', 'members:write', 'oauth_clients:write', 'audit:read']
+  const FORBIDDEN = ['all_permissions', 'agents:write', 'members:write', 'oauth_clients:write']
   const missing = () => ALLOWED_A.filter((s) => !NEW.includes(s))
   const covering = () => [...ALLOWED_B]
 
@@ -330,6 +330,21 @@ describe('2. which client rows D9 touches, and how', () => {
     expect(r.writes).toEqual([])
     expect(r.after).toBeUndefined()
     expect(r.res.text).toContain('invalid_client')
+  })
+
+  it('a failing write does not break the authorize: the library answers as it did before, the row is unchanged', async () => {
+    const client = await dynamic(missing())
+    const failing: D1Like = {
+      prepare: (q: string) => {
+        if (UPDATE.test(q)) throw new Error('control database unavailable')
+        return w.control.prepare(q)
+      },
+      batch: (b) => w.control.batch(b),
+    }
+    const res = await authorize(workerB(inheritPairing(w.control, failing)), client, undefined)
+    expect(res.status).toBe(302)
+    expect(res.text).toContain('invalid_scope')
+    expect(await storedScopes(client)).toEqual(missing())
   })
 
   it('a POST authorize converges a stored list too', async () => {

@@ -484,6 +484,38 @@ export async function narrowAgentApproval(
 }
 
 /**
+ * [[CORE661]] ([[CORE630]] D9): a dynamically registered client (`user_id` and `reference_id` both null, the unused-client sweep's test, [[CORE577]] D20) that stores a scope list and is not disabled has the list grown to itself ∪ the
+ * registration allowed list, so a client that registered before a scope existed can ask for it. Written through the library's own adapter, only when an entry is missing; an entry is never removed, an unknown client id writes nothing, and
+ * the wildcard and the human-only scopes can never enter (they are in no allowed list). It only ever ADDS what a new registration would be given, so a failed read or write is logged and the request goes on: the library then answers
+ * exactly as it did before this hook.
+ */
+async function convergeClientScopes(
+  ctx: NarrowCtx,
+  allowed: readonly string[],
+  source: Record<string, unknown> | undefined,
+) {
+  const clientId = source?.client_id
+  if (typeof clientId !== 'string' || clientId === '') return
+  const where = [{ field: 'clientId', value: clientId }]
+  try {
+    const client = await ctx.context.adapter.findOne({ model: 'oauthClient', where })
+    if (!client || client.userId != null || client.referenceId != null || client.disabled) return
+    const stored = client.scopes
+    if (!Array.isArray(stored)) return
+    const added = allowed.filter((scope) => !stored.includes(scope))
+    if (added.length === 0) return
+    await ctx.context.adapter.update({
+      model: 'oauthClient',
+      where,
+      update: { scopes: [...stored, ...added], updatedAt: new Date() },
+    })
+    console.log('[oauth-client-scopes]', JSON.stringify({ client_id: clientId, added: added.length }))
+  } catch (error) {
+    console.log('[oauth-client-scopes]', JSON.stringify({ client_id: clientId, failed: String(error) }))
+  }
+}
+
+/**
  * Before-hooks of every endpoint. [[CORE283]] P6: unauthenticated registration admits public clients only (`token_endpoint_auth_method: none`); an absent method defaults to a confidential one in the
  * library, so it is refused too. [[CORE287]]: email sign-up is gated before anything else runs, so an unadmitted request costs no password hash and cannot tell an existing account from an absent one.
  */
@@ -493,6 +525,7 @@ const endpointGate = (
   captures: ResetCaptures | undefined,
   selfService: boolean,
   defaultScopes: readonly string[],
+  registrable: readonly string[],
   agentGrant: CreateAuthOptions['agentGrant'],
 ) =>
   createAuthMiddleware(async (ctx) => {
@@ -501,11 +534,12 @@ const endpointGate = (
       const narrowed = await narrowAgentApproval(ctx as unknown as NarrowCtx, agentGrant)
       if (narrowed) return narrowed
     }
-    // [[CORE330]]: an authorize request that names no scope (absent, empty or blank) asks for the registration default list, never the client's stored ceiling (the library's own fallback is `client.scopes`, the
+    // [[CORE661]] D9 runs on every authorize, named scope or filled, before the library reads the client. [[CORE330]]: an authorize request that names no scope (absent, empty or blank) asks for the registration default list, never the client's stored ceiling (the library's own fallback is `client.scopes`, the
     // default plus the allowed list). Filled here, before the library reads it, so the signed `oauth_query` that rides to /sign-in and /consent already carries it; a named scope is never touched.
     if (ctx.path === '/oauth2/authorize') {
       const post = ctx.method === 'POST'
       const source = (post ? ctx.body : ctx.query) as Record<string, unknown> | undefined
+      await convergeClientScopes(ctx as unknown as NarrowCtx, registrable, source)
       const named = source?.scope
       if (named === undefined || (typeof named === 'string' && named.trim() === '')) {
         const filled = { ...source, scope: defaultScopes.join(' ') }
@@ -647,6 +681,7 @@ export function authOptions(
         opts.resetCaptures,
         opts.deliverResetToken !== undefined,
         registrationScopes(config.vaultScopes ?? [], config.grantableScopes ?? [], config.defaultScopes).defaults,
+        registrationScopes(config.vaultScopes ?? [], config.grantableScopes ?? [], config.defaultScopes).allowed,
         opts.agentGrant,
       ),
     },
