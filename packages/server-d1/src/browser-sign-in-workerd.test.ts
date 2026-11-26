@@ -172,8 +172,9 @@ describe('DX624 group 6: browserSignIn against the real Worker (P2)', () => {
     expect(new Headers(apiSent[0].init.headers as Record<string, string>).get('authorization')).toMatch(/^Bearer /)
   }, 60_000)
 
-  // The charter's mutation (drop `resource` from the token request) did NOT turn /api red here: the Worker accepted the token (finding, RESULT.md). The live-path checks
-  // below are the substitute: a callback with a forged `iss` or `state` is refused before any token request, against the real documents.
+  // The round trip's absence mutation is M15 (RESULT.md): drop `resource` from both authorize and token and the first test goes red (/api answers 401).
+  // (Dropping it from the token request alone does not: authorize's `resource` binds the audience, finding 624.26.) The forged cases below are extra live-path
+  // checks: a callback with a forged `iss` or `state` is refused before any token request, against the real documents.
   it.each([
     ['iss', 'issuer_mismatch'],
     ['state', 'state_mismatch'],
