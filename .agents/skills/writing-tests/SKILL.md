@@ -456,8 +456,9 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   ([[CORE571]], `packages/api/src/channels/gmail/mapper.test.ts`, smoke checks X1 to X4). The 50,000-level case is
   load-sensitive: it hit the 30 s timeout at gate load ~8 and passed on rerun ([[AGT588]] gate); treat it as contention
   (§5), don't raise its timeout. It and `packages/server-d1/src/form-route.test.ts`'s 60-request per-form window case
-  turned DX608's gate red twice at load 6 to 8 and passed on the third run (#611 tracks making both deterministic).
-  Until then a red gate whose only failures are these two is rerun once; copy the raw failure out of
+  turned DX608's gate red twice at load 6 to 8 and passed on the third run; the deep-HTML case alone timed out twice
+  more in CORE570's gate (#611 tracks making both deterministic). Until then a red gate whose only failures are these
+  two is rerun, at most twice, after waiting for the load to drop; copy the raw failure out of
   `~/.cache/vibase-gate/latest` before the rerun overwrites it.
 - **A client that serialises a server grammar is checked by the server's parser.** Parse the client's output with the
   server's own function (the SDK's `in` quoting is parsed back by `parseCondition` from `column-filters.ts`,

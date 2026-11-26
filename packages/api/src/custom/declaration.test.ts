@@ -81,6 +81,10 @@ describe('the reserved names (D19)', () => {
         'min',
         'max',
         'group_by',
+        'or',
+        'and',
+        'not',
+        'select',
       ].sort(),
     )
   })
@@ -112,6 +116,10 @@ describe('the reserved names (D19)', () => {
     'min',
     'max',
     'group_by',
+    'or',
+    'and',
+    'not',
+    'select',
   ])('refuses a field named %s', (name) => {
     expect(rule('projects__c', ok({ [name]: field }))).toBe('reserved_name')
   })
@@ -119,6 +127,18 @@ describe('the reserved names (D19)', () => {
     '[[CORE615]] D6: the refusal of %s names the field',
     (name) => {
       expect(() => parseObjectDeclaration('projects__c', ok({ [name]: field }))).toThrow(new RegExp(`"${name}"`))
+    },
+  )
+})
+
+describe('the filter grammar names ([[CORE570]] D1)', () => {
+  it.each(['or', 'and', 'not', 'select'])('the refusal of %s names the field', (name) => {
+    expect(() => parseObjectDeclaration('projects__c', ok({ [name]: field }))).toThrow(new RegExp(`"${name}"`))
+  })
+  it.each(['selected', 'android', 'notes', 'nothing', 'order_id', 'orange'])(
+    'matches exactly: %s still parses',
+    (name) => {
+      expect(rule('projects__c', ok({ [name]: field }))).toBeUndefined()
     },
   )
 })

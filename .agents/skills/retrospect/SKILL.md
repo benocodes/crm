@@ -142,6 +142,11 @@ Rules for propagating:
 - **Prefer the area skill over `AGENTS.md` when unsure.** `AGENTS.md` is for invariants that bite across
   areas; it must stay short to stay read (a 4,000-word budget, `wiki-lint` check 10). Adding to it means
   checking the budget, and moving detail out if the addition would break it.
+- **Run the text guards on your own edits before committing them.** The retro's skill and `AGENTS.md` edits
+  land on the branch after the gate ran, and PR CI runs no tests, so nothing else checks them before merge.
+  `pnpm -C packages/storage test src/schema-file-name.test.ts` (the [[CORE569]] D10 name scan over `.agents/`,
+  `AGENTS.md`, `.changeset/` and `packages/`) must pass. A DX616 retro line in `api-routes` using the banned word reached `main` this way and turned the next cycle's gate red
+  (`knowledge/specs/043-CORE570-reserve-grammar-names/RETRO.md`).
 
 ### Step 5: Update the spec
 

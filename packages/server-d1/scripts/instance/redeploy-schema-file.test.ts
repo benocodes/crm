@@ -157,8 +157,8 @@ describe('group 2: the place and the staging (D26, D27, P3, P7)', () => {
     expect(w.fetchUrls).toEqual([])
     expect(readFileSync(w.settingsPath, 'utf8')).toBe(before)
   })
-  it.each(['count', 'sum', 'avg', 'min', 'max', 'group_by'])(
-    '[[CORE615]] D6: a custom field named %s is exit 2 with reserved_name before any call',
+  it.each(['count', 'sum', 'avg', 'min', 'max', 'group_by', 'or', 'and', 'not', 'select'])(
+    '[[CORE615]] D6 and [[CORE570]] D1: a custom field named %s is exit 2 with reserved_name before any call',
     async (name) => {
       const s = extSim()
       const w = extWorld(s, HEALTH)
