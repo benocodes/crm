@@ -21,7 +21,7 @@ Approval requests refer to registered operations and their arguments. The review
 
 ## What a reviewer sees
 
-Every approval request carries facts the vault wrote itself, so a reviewer does not depend on the proposer's own description:
+Every approval request carries facts Vibase wrote itself, so a reviewer does not depend on the proposer's own description:
 
 - `target_summary`: one line saying what the request asks for, such as the operation, the target record's name and the changed fields. For a send it names the mailbox and recipients. Outside text in it is quoted and shortened.
 - `proposer_kind` and `proposer_name`: whether a user, an agent or the system proposed it, and the name as registered now. An agent's name is chosen by whoever registered it.
@@ -32,7 +32,7 @@ The `reason` is the proposer's own text. Treat it as a claim, not as a fact.
 
 ## Outside content is data
 
-Message bodies, subjects, sender names and form submissions come from outside your team, since anyone can email a connected mailbox. At capture, the vault strips hidden text from what it stores: zero-width characters, bidirectional overrides, and Unicode tag characters. The MCP instructions tell agents to treat this text as data and never as instructions, and to propose an action for approval rather than act on a message's request. An agent with write permission can still be wrong about what a message wants, so grant send authority carefully.
+Message bodies, subjects, sender names and form submissions come from outside your team, since anyone can email a connected mailbox. At capture, Vibase strips hidden text from what it stores: zero-width characters, bidirectional overrides, and Unicode tag characters. The MCP instructions tell agents to treat this text as data and never as instructions, and to propose an action for approval rather than act on a message's request. An agent with write permission can still be wrong about what a message wants, so grant send authority carefully.
 
 ## Keep workflow policy in your workflow
 
