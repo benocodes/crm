@@ -554,8 +554,10 @@ describe('5. the owner is told (D10)', () => {
     const key = (await w.d1
       .prepare('select id from agents where auth_subject is null and auth_client_id is null limit 1')
       .first()) as { id: string }
+    await setRecord(key.id, [])
     const keyAgent = await patch(wk, tok, key.id, { add_scopes: ['contacts:write'] })
     expect(keyAgent.status).toBe(200)
+    expect(keyAgent.json.scopes).toContain('contacts:write') // a scope WAS added: the API-key agent still gets no notice
     expect(keyAgent.json.sign_in_notice).toBeNull()
   })
 
