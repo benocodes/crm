@@ -177,13 +177,11 @@ describe('a proposal-only effective set proposes and is refused the direct write
     const taskId = await makeTask(wk)
     profile('user_b', 'owner')
     kit.clients.set(DCR, 'Claude Desktop')
-    const first = await call(wk, 'GET', '/meta/v1/me', await oauth('user_b', DCR, 'tasks:read'))
-    const agentId = first.json.principal.id as string
-    // Owner-set cap: write only. The token asks for request_approval only.
-    await setScopes(agentId, ['tasks:read', 'tasks:write'])
+    // [[CORE666]] D1: a delegated agent's record is its latest sign-in's list, so a request_approval sign-in holds request_approval only.
     await proposalOnly(wk, () => oauth('user_b', DCR, 'tasks:read tasks:request_approval'), taskId)
-    // Owner-set cap: request_approval only. The token asks for write.
-    await setScopes(agentId, ['tasks:read', 'tasks:request_approval'])
+    // A write sign-in, then the owner narrows the record to request_approval only: the same list again (a refresh) keeps the narrowing, so the write token proposes only.
+    const first = await call(wk, 'GET', '/meta/v1/me', await oauth('user_b', DCR, 'tasks:read tasks:write'))
+    await setScopes(first.json.principal.id as string, ['tasks:read', 'tasks:request_approval'])
     await proposalOnly(wk, () => oauth('user_b', DCR, 'tasks:read tasks:write'), taskId)
     // A token narrowed to read holds neither.
     const readOnly = await call(wk, 'POST', '/api/v1/action-requests', await oauth('user_b', DCR, 'tasks:read'), {

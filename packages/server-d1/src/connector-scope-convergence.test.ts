@@ -196,7 +196,7 @@ const setStored = (clientId: string, scopes: string[] | null) =>
     .run()
 
 describe('1. a connector reconnects with its own client after an object is declared (D9)', () => {
-  it('a scope-less authorize, the same client and delegated agent, the new scope refused until the owner grants it, then usable on the same token', async () => {
+  it('a scope-less authorize, the same client and delegated agent, the wider consent reaches the record, so the new scope is usable on the same token', async () => {
     const o = await owner()
     const ownerTok = await o.session()
     const a = workerA()
@@ -219,14 +219,10 @@ describe('1. a connector reconnects with its own client after an object is decla
     expect(set(claims(secondTok).scope)).toEqual(expect.arrayContaining(NEW))
     expect((await api(b, 'GET', '/meta/v1/me', secondTok)).json.principal.id).toBe(agentId)
 
-    // Held by the person and consented to, but not by the agent's record: refused until the owner grants it.
-    const refused = await api(b, 'GET', '/api/v1/projects__c', secondTok)
-    expect(refused.status, JSON.stringify(refused.json)).toBe(403)
-    expect(refused.json.error.code).toBe('insufficient_scope')
-    const grant = await api(b, 'PATCH', `/meta/v1/agents/${agentId}`, ownerTok, { add_scopes: ['projects__c:read'] })
-    expect(grant.status, JSON.stringify(grant.json)).toBe(200)
+    // [[CORE666]] D1, D10: the wider consent reaches the record by itself, so the new scope is usable on the same token with no owner grant.
     const used = await api(b, 'GET', '/api/v1/projects__c', secondTok)
     expect(used.status, JSON.stringify(used.json)).toBe(200)
+    expect(ownerTok).toBeTruthy()
   })
 
   it('the same authorize with the scopes named (the protected-resource list) passes too', async () => {

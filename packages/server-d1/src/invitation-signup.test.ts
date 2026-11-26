@@ -319,6 +319,7 @@ describe('acceptance per role (P3)', () => {
           auth_subject: subject,
           auth_client_id: null,
           delegated_by: null,
+          consented_scopes: null, // [[CORE666]] D4: machinery, NULL for an agent account
         })
         expect((await crm('select kind from principals where id = ?', agent.id))[0]).toEqual({ kind: 'agent' })
         expect(await count(w.d1, 'memberships')).toBe(0)
