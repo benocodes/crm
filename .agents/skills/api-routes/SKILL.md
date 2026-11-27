@@ -1268,8 +1268,8 @@ service context enforces it, so scope checks are written once.
     of `authMiddleware`, `meet` in `workspace-authenticator.ts`, `scopesForRole`, and the test stand-in
     authenticator. `ScopeSet.parse` stays exact and requirement checks stay exact; a new credential path must
     close its set, or a write-only principal cannot propose. Stored grants are never expanded. A list computed
-    *for* a token (an agent account's sign-in grant, `agentAccountGrant` in `src/auth/agent-principals.ts`,
-    [[CORE662]]) closes the same way against the declared set before it meets anything: met from the record's literal
+    *for* a token (an account's sign-in bound, `approvalBound` in `src/auth/agent-principals.ts`,
+    [[CORE662]], [[CORE673]]) closes the same way against the declared set before it meets anything: met from the record's literal
     scopes it drops `x:request_approval` that the agent holds live through `x:write`, and a refusal hint then advises a
     sign-in that cannot help.
   - **`read ⇒ read_metadata` closes only against the declared set** ([[API518]] P1): `closeScopes(list, declared)`
@@ -1386,8 +1386,8 @@ or an operation (`control-boundary.test.ts`, [[CORE259]] D5).
     `control_audit` row and nothing in the CRM database; its counts are read-only `SELECT`s from the two
     status commands;
   - Better Auth's own adapter inside the `/auth` before-hook, narrowing an agent account's pending device code (`auth_device_codes.scope`) when the device page claims it and again at approval, to its scopes met with its record in
-    the CRM (read live through the `agentGrant` port, closed on a failing read). No event, no `control_audit` row (machinery that grants nothing: the token only lists what the record already holds); the consent page's
-    narrowing edits the request and writes nothing of its own. It never writes the agent's record ([[CORE662]], [[CORE630]] D11, ruling 630.87);
+    the CRM (read live through the `approvalBound` port, closed on a failing read). No event, no `control_audit` row (machinery that grants nothing: the token only lists what the record already holds); the consent page's
+    narrowing (an agent account to its record, a person to their role, [[CORE673]]) edits the request and writes nothing of its own. It never writes the agent's record ([[CORE662]], [[CORE630]] D11, ruling 630.87);
   - Better Auth's own adapter inside the `/auth` before-hook at `/oauth2/authorize` (GET and POST), converging the `scopes` of a dynamically registered client (`user_id` and `reference_id` null, a stored list, not disabled)
     to itself plus the registration allowed list, only when an entry is missing and never removing one, so a connector that registered before a scope existed can ask for it. No event, no `control_audit` row (machinery that
     grants nothing: the consent page and the record still decide); one `[oauth-client-scopes]` log line; a failed read or write is logged and the request goes on ([[CORE661]], [[CORE630]] D9);

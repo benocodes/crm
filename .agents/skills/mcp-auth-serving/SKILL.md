@@ -28,12 +28,19 @@ Budgets: its connection check gives up after **5 s** ("some checks were skipped 
 - **Placement:** `placement: { mode: "smart" }` on the env keeps the Worker near D1 (WEUR); US colos were adding 2-3 s to discovery. Pre-warming or caching is the next lever if cold starts still bite.
 - **Client endpoints are owner-only** ([[CORE577]] D10): the `clientPrivileges` hook (`ownerOnlyClientPrivileges`, fed `clientOwner` by the composition from the live Vibase role) refuses every action for a non-owner and fails closed. The pinned `@better-auth/oauth-provider` calls it from `/oauth2/register` **only when the request carries a session**: unauthenticated DCR (what MCP clients do) never reaches it, while a registration carrying a member's session gets 401.
 - **A before-hook that gates or narrows on the signed-in account refuses when it cannot read the account** ([[CORE662]]
-  review, `narrowAgentApproval` in `packages/auth/src/auth.ts`). `getSessionFromCtx` answers `null` on a failed read,
+  review, `narrowApproval` in `packages/auth/src/auth.ts`). `getSessionFromCtx` answers `null` on a failed read,
   and the endpoint then reads the session again itself: a hook that takes "no session" as "not my case" lets the
   endpoint act for an account the hook never checked. Read with the endpoint's own reader (the device endpoints use
   `getAuthoritativeSessionFromCtx`; `sessionMiddleware` endpoints such as `/oauth2/consent` use `getSessionFromCtx`),
   catch any throw into "no session", and refuse on the paths that act (approve, accept); pass only the paths that
-  merely look (the device claim GET). A failed lookup of the account's grant refuses too.
+  merely look (the device claim GET). A failed lookup of the account's bound (`approvalBound`) refuses too. Since
+  [[CORE673]] an accepting `/oauth2/consent` narrows a person to their live role as well as an agent account to its
+  record; the device flow narrows agent accounts only.
+- **A hook is tested through the composed Worker, never the bare kit** ([[CORE673]] review). In server-d1 tests
+  `authKit(control)` (`packages/server-d1/src/test/auth-kit.ts`) is a bare `createAuthHandler` without the
+  composition's ports (`approvalBound`, `clientOwner`): a flow driven through it passes whatever the hook does. For hook
+  behaviour, drive the flow with `authKitOver(<the Worker's fetch>, AUTH_BASE, declared)`, and prove it with a
+  mutation of the hook that turns the test red.
 - **Rate limits live in D1:** registration is capped at 10 per hour per IP. Probing from your own machine locks you out; test from another IP or wait.
 - CORS `*` on discovery documents; `Cache-Control` on the static metadata.
 - **What the provider accepts is not what it publishes** ([[CORE660]], `composePlugins` in `packages/auth/src/auth.ts`).
