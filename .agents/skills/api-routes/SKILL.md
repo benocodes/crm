@@ -522,7 +522,11 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
 - **Resource definition knobs:**
   - `operations` (a CRUD subset; read-only definitions omit `create`/`update`);
   - `scopeResource` (share a scope, e.g. identities use `contacts:*`).
-  - Routes are `resourcePath(def)`: `_` becomes `-`, so `api_keys` routes at `/api-keys`.
+  - Routes are `resourcePath(def)`: `_` becomes `-`, so `api_keys` routes at `/api-keys`. A `__c` name splits
+    into stem and suffix, only the stem is translated and `__c` is re-appended (`session_recordings__c` routes at
+    `/session-recordings__c`); the CLI's `kebab` and the SDK's `memberNames` (camel stem, `sessionRecordings__c`)
+    apply the same split. Operation ids, MCP tools, scopes, events and wire keys stay snake. Never build a custom
+    object's path, command or member from its name by hand: go through these three functions ([[CORE692]] D1/D2).
 
 ## Operations: define once, expose everywhere
 

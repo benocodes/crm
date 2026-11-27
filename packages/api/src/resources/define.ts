@@ -21,9 +21,11 @@ export const crudActions = (def: Named): readonly CrudAction[] => def.operations
 export const scopeResourceOf = (def: Named): string => def.scopeResource ?? def.name
 /** [[API516]] D7: the action that reads the definition's records (default `read`). */
 export const readActionOf = (def: Named): 'read' | 'read_metadata' => def.readAction ?? 'read'
-/** The REST path of a resource: `_` becomes `-`, except in a custom object's `__c` name, which is never translated ([[CORE315]] D25). */
-export const resourcePath = (def: Named): string =>
-  '/' + (def.name.endsWith('__c') ? def.name : def.name.replaceAll('_', '-'))
+/** The REST path of a resource: `_` becomes `-`; a custom object's `__c` suffix is kept verbatim and only its stem is translated (`/session-recordings__c`, [[CORE692]] D1). */
+export const resourcePath = (def: Named): string => {
+  const suffix = def.name.endsWith('__c') ? '__c' : ''
+  return '/' + def.name.slice(0, def.name.length - suffix.length).replaceAll('_', '-') + suffix
+}
 /**
  * A validation failure as one sentence. An issue on an extension field ([[CORE559]] P3: a `<name>__c` key of a built-in) names it, so a caller learns which field was missing or null; every other issue is its message alone, as it
  * always was (the core fields' error bodies are pinned by `fixtures/wire-core554`).

@@ -106,8 +106,11 @@ export function mergeDocuments(docs: { source: 'api' | 'meta'; doc: unknown }[])
   return [...out.values()]
 }
 
-/** A name as a command word or a flag: `_` becomes `-`, except in a `__c` name (a custom object or field), which is never translated ([[CORE315]] D25). */
-export const kebab = (s: string) => (s.endsWith('__c') ? s : s.replace(/_/g, '-'))
+/** A name as a command word or a flag: `_` becomes `-`; a `__c` name (a custom object or field) keeps its suffix verbatim and only its stem is translated (`session-recordings__c`, [[CORE692]] D1). */
+export const kebab = (s: string) => {
+  const suffix = s.endsWith('__c') ? '__c' : ''
+  return s.slice(0, s.length - suffix.length).replace(/_/g, '-') + suffix
+}
 
 /** [[CORE605]] D6: does a query parameter's schema accept a list of strings (`anyOf` with an array of strings)? Agrees with the server's `acceptsList`. */
 function acceptsStringList(schema: JsonSchema): boolean {

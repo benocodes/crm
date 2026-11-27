@@ -105,7 +105,7 @@ describe.each(RESOURCES)('%s', (r: Resource) => {
     expect(refused.result.isError).toBe(true)
   })
 
-  it('OpenAPI: the record, create and update schemas name each field, untranslated (D25)', async () => {
+  it('OpenAPI: the record, create and update schemas name each field by its snake_case wire name (CORE692 D2)', async () => {
     const doc = (await k.call(owner, 'GET', '/api/v1/openapi.json')).body as any
     const text = JSON.stringify(doc.paths[pathOf(r)])
     for (const f of Object.keys(ONE_OF_EACH)) expect(text, f).toContain(`"${f}"`)

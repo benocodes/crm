@@ -6,10 +6,24 @@ import { workspaceOperations } from './generate/fixtures/workspace/operations.js
 const vibase = createClient({ url: 'https://api.acme.example', auth: 't', operations: workspaceOperations })
 
 export async function workspaceTypes() {
-  // the custom namespace is the key, untranslated
+  // a one-word custom namespace is the key, untranslated
   await vibase.projects__c.list({ name: 'x' })
   // @ts-expect-error the camelCased spelling is not a member
   await vibase.projectsC.list({})
+
+  // CORE692 D1: a multi-word custom namespace is the camelCased stem plus `__c`; the argument keys stay snake
+  await vibase.sessionRecordings__c.list({ title: 'x' })
+  await vibase.sessionRecordings__c.create({ title: 'x', length_seconds: 3 })
+  // @ts-expect-error the snake spelling is not a member
+  await vibase.session_recordings__c.list({})
+  // @ts-expect-error the suffix is not camelCased
+  await vibase.sessionRecordingsC.list({})
+  // @ts-expect-error an argument key is the snake wire name
+  await vibase.sessionRecordings__c.create({ title: 'x', lengthSeconds: 3 })
+  // a multi-word extension field keeps its snake key
+  await vibase.contacts.update({ id: 'c1', referral_source__c: 'web' })
+  // @ts-expect-error the camelCased argument key is not a field
+  await vibase.contacts.update({ id: 'c1', referralSource__c: 'web' })
 
   // a typed range filter on a __c number field
   await vibase.projects__c.list({ budget: { gte: 5000, lt: 9000 } })
