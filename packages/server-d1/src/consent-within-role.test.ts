@@ -8,7 +8,7 @@ import { seedAgent, seedMembership, seedPrincipal } from '@vibase/storage-d1/tes
 import { createVibaseRegistry, grantableScopes as grantableOf, scopesForRole } from '@vibase/api'
 import { CLI_CLIENT_ID, seedFirstPartyClient } from '@vibase/auth'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
-import { AUTH_BASE, AUTH_SECRET, DEVICE_GRANT, authKit, type AuthKit } from './test/auth-kit.js'
+import { AUTH_BASE, AUTH_SECRET, DEVICE_GRANT, authKit, authKitOver, type AuthKit } from './test/auth-kit.js'
 import { bootstrapD1, inheritPairing, NOW, openWorkerPair, type WorkerPair } from './test/kit.js'
 
 // [[CORE673]] (CORE666 D11): on the built-in provider a person approves for a connector only what their live role holds. The REAL Better Auth runs on the composed Worker's `/auth`: the hook narrows an accepting
@@ -249,20 +249,21 @@ describe('1. the hook: an accepting consent holds the approving account (matrix:
   it("a person's device approval is not narrowed by this cycle: a member keeps an out-of-role scope on the CLI's token (P2)", async () => {
     const wk = worker()
     const m = await person('member', 'member@x.test')
-    const tokens = await kit.deviceTokens(
-      m.cookie,
-      CLI_CLIENT_ID,
-      ['openid', 'offline_access', 'webhooks:read', 'contacts:read'].join(' '),
-    )
+    // Through the composed Worker, so the real hook is in the path (the bare kit has no approvalBound).
+    const tokens = await authKitOver(
+      (path, init) => authCall(wk)(path, init as never),
+      AUTH_BASE,
+      declared,
+    ).deviceTokens(m.cookie, CLI_CLIENT_ID, ['openid', 'offline_access', 'webhooks:read', 'contacts:read'].join(' '))
     expect(vault(claimsOf(tokens.access_token).scope)).toEqual(['contacts:read', 'webhooks:read'])
-    void wk
   })
 })
 
 describe('2. the shared bound and the page read (P3, P4)', () => {
-  it('answers 401 with no session, and reads nothing', async () => {
-    const wk = worker()
-    expect((await bound(wk)).status).toBe(401)
+  it('answers 401 with no session, and reads nothing (a CRM that would fail is never touched)', async () => {
+    const flaky = breakable(w.d1)
+    flaky.state.failing = true
+    expect((await bound(worker(flaky.d1))).status).toBe(401)
   })
 
   it('an owner, a member, no membership and an agent account each get their kind and list', async () => {

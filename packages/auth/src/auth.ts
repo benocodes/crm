@@ -435,9 +435,9 @@ type NarrowCtx = {
 }
 
 /**
- * [[CORE662]] ([[CORE630]] D11): where an agent account approves a sign-in, its requested vault scopes become requested ∩ its grant, read live through `agentGrant`. The device flow narrows the device code's `scope` (the
+ * [[CORE662]] ([[CORE630]] D11): where an account approves a sign-in, its requested vault scopes become requested ∩ its bound, read live through `approvalBound` ([[CORE673]]: an accepting consent narrows both kinds of account, a person to their role; the device flow narrows agent accounts only). The device flow narrows the device code's `scope` (the
  * pending request) when the page claims it and again at approval, before the library reads it: the claim binds the code to the first session that reads it, so narrowing earlier would be too late. The consent page's accept
- * narrows the `scope` of its body (the library only ever accepts a subset of what was requested). A person's approval, or anything unclaimed by this session, is untouched. A lookup that throws refuses the request.
+ * narrows the `scope` of its body (the library only ever accepts a subset of what was requested). A person's device approval, or anything unclaimed by this session, is untouched. A lookup that throws refuses the request.
  */
 export async function narrowApproval(
   ctx: NarrowCtx,

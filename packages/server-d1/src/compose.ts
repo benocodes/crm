@@ -543,11 +543,6 @@ export function composeD1Worker(
     return undefined
   }
 
-  /** The app bound to the marker, once the marker exists. Only success is cached. A missing marker table is an absent marker. */
-  /**
-   * The built-in provider ([[CORE259]] D3: composed on the control-plane database, never on `DB`), built once per isolate: the `/auth` handler and the in-process reset-link issue share one instance.
-   * [[CORE287]]: the gate and acceptance. The port is the only way the auth package reaches the vault; the CRM binding is resolved per call from the deployment row. Only called once `builtInConfig` and `control` exist.
-   */
   async function approvalBoundOf(subject: string): Promise<ApprovalBound> {
     const link = await readDeployment(env.DB)
     if (!link) throw new Error('the deployment is not initialised')
@@ -571,6 +566,11 @@ export function composeD1Worker(
       return json(INTERNAL, 500)
     }
   }
+  /** The app bound to the marker, once the marker exists. Only success is cached. A missing marker table is an absent marker. */
+  /**
+   * The built-in provider ([[CORE259]] D3: composed on the control-plane database, never on `DB`), built once per isolate: the `/auth` handler and the in-process reset-link issue share one instance.
+   * [[CORE287]]: the gate and acceptance. The port is the only way the auth package reaches the vault; the CRM binding is resolved per call from the deployment row. Only called once `builtInConfig` and `control` exist.
+   */
   function builtInAuth(): AuthService {
     builtInService ??= createAuth(
       controlAuthDatabase(control!),
