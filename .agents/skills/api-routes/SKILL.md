@@ -58,7 +58,7 @@ REST (@hono/zod-openapi)   MCP tools (Workers)   CLI (later)
     `src/resources/built-ins.ts`); the module constants (`contacts`, `deals`, ...) are the no-extend set. Hand-written
     paths take the composed definition as a trailing optional parameter that defaults to the constant, so a caller that
     forgets it compiles and silently serves core fields only. Paths that run outside a registry (the capture pipeline
-    from the mail-sync Workflow and webhooks, form ingress) get the set through their context from `composeD1Worker`;
+    from the Gmail sync Workflow and webhooks, form ingress) get the set through their context from `composeD1Worker`;
     each such path has a test that turns red when the set is withheld. Grep the constant's importers *and* the callers
     of the functions that take it (`recordMessages`), not only the registry;
   - `src/rest/{app,errors,openapi}.ts` (`createApp`, `renderError`);

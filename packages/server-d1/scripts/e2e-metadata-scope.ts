@@ -1,7 +1,7 @@
 // API516 (#516, API514 cycle 3): `messages:read_metadata` live, end to end on the built-in provider. The vault Worker runs in Miniflare on `AUTH_PROVIDER=better-auth` with migrated CRM and
 // control databases; a Better Auth signing key is seeded in `auth_jwks` (the private half stays here and mints the tokens the Worker's adapter then verifies, 516.9's premise); the owner is a
 // Better Auth user and an owner member. Two Gmail fixtures (`plain`, `attachment`) are recorded IN-PROCESS through the vault's capture pipeline (`captureMessages` over FakeGmail, the Worker's
-// own D1 and R2): the MAIL_SYNC Workflow leg of `e2e:webhook-example` (red on main, #520) is not used. Agents hold the stored scopes an older release would have stored; nothing leaves the machine.
+// own D1 and R2): the GMAIL_SYNC Workflow leg of `e2e:webhook-example` (red on main, #520) is not used. Agents hold the stored scopes an older release would have stored; nothing leaves the machine.
 // pnpm -C packages/server-d1 e2e:metadata-scope
 import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
@@ -75,7 +75,7 @@ try {
         compatibilityFlags: ['nodejs_compat'],
         d1Databases: { DB: 'metadata-scope-e2e', CONTROL_DB: 'metadata-scope-e2e-control' },
         r2Buckets: ['BODIES'],
-        workflows: { MAIL_SYNC: { name: 'metadata-scope-e2e-sync', className: 'MailSyncWorkflow' } },
+        workflows: { GMAIL_SYNC: { name: 'metadata-scope-e2e-sync', className: 'GmailSyncWorkflow' } },
         bindings: {
           AUTH_PROVIDER: 'better-auth',
           AUTH_SECRET,

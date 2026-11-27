@@ -1,7 +1,7 @@
 // The 15-minute cron's sync requests ([[CHN5]] D14, D75): a request for every due connection. One connection failing does not stop the others.
 import { dueConnections, requestSync, type RequestDeps } from './request.js'
 
-export const MAIL_SYNC_CRON = '*/15 * * * *'
+export const GMAIL_SYNC_CRON = '*/15 * * * *'
 
 export async function requestDueSyncs(d: RequestDeps): Promise<{ requested: string[]; failed: number }> {
   const due = await dueConnections(d, d.clock())

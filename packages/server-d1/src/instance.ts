@@ -4,7 +4,7 @@ import { readSchemaFile } from './schema-file-module.js'
 // [[CORE315]] D27, [[CORE543]] P7: the attached file, a Text module a deploy stages beside the Worker (the repo's builds resolve the checked-in empty default).
 import { schemaFileText } from './schema-file-text.js'
 
-// One composition per isolate, shared by the `fetch` and `scheduled` handlers and by the `MailSyncWorkflow`'s steps, so the migration state
+// One composition per isolate, shared by the `fetch` and `scheduled` handlers and by the `GmailSyncWorkflow`'s steps, so the migration state
 // they all consult is read once (see composeD1Worker: only success is cached).
 let worker: ReturnType<typeof composeD1Worker> | undefined
 

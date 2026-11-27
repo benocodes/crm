@@ -4,6 +4,7 @@ import { RemoteRefusal } from '../remote.js'
 import { buildSetupOptions, checkNameLengths, envNameProblem, parseSetupFlags } from '../setup/args.js'
 import type { RecordedAuth } from '../setup/better-auth.js'
 import { recordedMode } from '../setup/host.js'
+import { workflowName } from '../setup/names.js'
 import type { SetupOptions } from '../setup/types.js'
 import type { InitSettings } from './types.js'
 
@@ -82,7 +83,7 @@ export function parseInstanceSetupArgs(argv: string[], record?: InstanceRecordLo
   // An init-written file is no record: the run is a new instance's, with the defaults above.
   const opts = buildSetupOptions(values, file?.kind === 'full' ? () => file.record : undefined)
   // The Workflow's derived name is the longest of the four ([[OPS262]] D5); the settings file records it, so the check lives here.
-  checkNameLengths([`vb-mail-sync-${opts.env}`])
+  checkNameLengths([workflowName(opts.env)])
   return {
     opts,
     settingsPath: values.settings as string | undefined,

@@ -235,7 +235,9 @@ describe('4. the record', () => {
     await run(w, REPLACE)
     // the reference is a plain new-instance block, which has no workflows this cycle (250.20): the replaced block differs by that entry alone
     const { workflows, ...rest } = block(w.state.configText)
-    expect(workflows).toEqual([{ binding: 'GMAIL_SYNC', name: 'vb-gmail-sync-smoked1', class_name: 'GmailSyncWorkflow' }])
+    expect(workflows).toEqual([
+      { binding: 'GMAIL_SYNC', name: 'vb-gmail-sync-smoked1', class_name: 'GmailSyncWorkflow' },
+    ])
     expect(rest).toEqual(block(reference.state.configText))
     // outside env.smoked1's value, the text is the fixture's
     const tree = parseTree(fixture)!

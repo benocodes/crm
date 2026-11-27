@@ -196,9 +196,9 @@ describe('the switch through the composition', () => {
       streams: nodeStreams(),
       clock: () => NOW,
     })
-    await expect(worker.runGmailSyncWorkflow({ payload: { connection_id: id } }, makeWorkerdStepShim().step)).rejects.toThrow(
-      /BODIES/,
-    )
+    await expect(
+      worker.runGmailSyncWorkflow({ payload: { connection_id: id } }, makeWorkerdStepShim().step),
+    ).rejects.toThrow(/BODIES/)
   })
   it("a failing recording write leaves the sync run's outcome unchanged and logs", async () => {
     const lines = logs()

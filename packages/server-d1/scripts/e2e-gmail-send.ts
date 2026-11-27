@@ -1,4 +1,4 @@
-// AGT166: disposable workerd/D1/R2/MAIL_SYNC acceptance. Every outbound hostname is answered locally.
+// AGT166: disposable workerd/D1/R2/GMAIL_SYNC acceptance. Every outbound hostname is answered locally.
 // pnpm -C packages/server-d1 e2e:gmail-send
 import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
@@ -51,7 +51,7 @@ const options = () => ({
   d1Persist: join(dir, 'd1'),
   r2Buckets: ['BODIES'],
   r2Persist: join(dir, 'r2'),
-  workflows: { MAIL_SYNC: { name: 'gmail-send-e2e-sync', className: 'MailSyncWorkflow' } },
+  workflows: { GMAIL_SYNC: { name: 'gmail-send-e2e-sync', className: 'GmailSyncWorkflow' } },
   bindings: {
     AUTH_PROVIDER: 'clerk',
     CLERK_JWT_KEY: issuer.pem,

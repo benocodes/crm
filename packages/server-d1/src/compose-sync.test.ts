@@ -208,18 +208,18 @@ describe('the composed run (runGmailSyncWorkflow)', () => {
       fetch: fake(new FakeGmail([])),
       streams: nodeStreams(),
     })
-    await expect(worker.runGmailSyncWorkflow({ payload: { connection_id: id } }, makeWorkerdStepShim().step)).rejects.toThrow(
-      /behind/,
-    )
+    await expect(
+      worker.runGmailSyncWorkflow({ payload: { connection_id: id } }, makeWorkerdStepShim().step),
+    ).rejects.toThrow(/behind/)
     expect((await w.d1.prepare('select run_id from connection_sync_state').first())!.run_id).toBeNull()
   })
   it('a step that finds Gmail unconfigured throws to the retry policy', async () => {
     const t = await boot()
     const id = await seed(t)
     const worker = composeD1Worker(env({ GOOGLE_CLIENT_ID: undefined, BODIES: fakeR2Bucket() }))
-    await expect(worker.runGmailSyncWorkflow({ payload: { connection_id: id } }, makeWorkerdStepShim().step)).rejects.toThrow(
-      /not configured/,
-    )
+    await expect(
+      worker.runGmailSyncWorkflow({ payload: { connection_id: id } }, makeWorkerdStepShim().step),
+    ).rejects.toThrow(/not configured/)
   })
 })
 

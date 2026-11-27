@@ -1,5 +1,5 @@
 // API221: disposable workerd/D1/R2 acceptance of the webhook receiver example ([[API7]] D21). Two workers in one Miniflare: the vault (this package's bundle) and the example receiver
-// (`packages/webhook-receiver-example`). A real Gmail fixture is captured through the real MAIL_SYNC Workflow, the per-minute cron dispatches and signs the delivery, the receiver verifies it
+// (`packages/webhook-receiver-example`). A real Gmail fixture is captured through the real GMAIL_SYNC Workflow, the per-minute cron dispatches and signs the delivery, the receiver verifies it
 // and starts its Workflow, and the Workflow proposes a reply through the vault's REST API. Google's hosts are answered by FakeGmail; every other outbound host is refused. Nothing leaves the machine.
 // pnpm -C packages/server-d1 e2e:webhook-example
 import assert from 'node:assert/strict'
@@ -66,7 +66,7 @@ const options = () => ({
       // [[CORE337]]: the subscription, its secret, its dispatch state and its deliveries live in CONTROL_DB (every composition needs one since CORE326).
       d1Databases: { DB: 'webhook-example-e2e', CONTROL_DB: 'webhook-example-e2e-control' },
       r2Buckets: ['BODIES'],
-      workflows: { MAIL_SYNC: { name: 'webhook-example-e2e-sync', className: 'MailSyncWorkflow' } },
+      workflows: { GMAIL_SYNC: { name: 'webhook-example-e2e-sync', className: 'GmailSyncWorkflow' } },
       bindings: {
         AUTH_PROVIDER: 'clerk',
         CLERK_JWT_KEY: issuer.pem,

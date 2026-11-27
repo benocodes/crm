@@ -114,7 +114,7 @@ Locally on Better Auth, set `AUTH_TRUSTED_ORIGINS=http://localhost:5173` in `.de
 | `GMAIL_TOPIC_NAME` | var | `projects/<p>/topics/<t>`, the Pub/Sub topic Gmail watches publish to; optional; set by `setup:remote` from `.env.<env>` |
 | `GMAIL_PUSH_SUBSCRIPTION` | var | `projects/<p>/subscriptions/<s>`, the push subscription; a push whose body names another subscription is refused; optional; set by `setup:remote` from `.env.<env>` |
 | `GMAIL_PUSH_SERVICE_ACCOUNT` | var | the service account email Pub/Sub signs push requests as; a push token for any other `email` is refused; optional; set by `setup:remote` from `.env.<env>` |
-| `MAIL_SYNC` | Workflow binding | the sync run. Push is **on** only with Gmail configured, this binding, and all four of `GMAIL_TOPIC_NAME`, `GMAIL_PUSH_SUBSCRIPTION`, `GMAIL_PUSH_SERVICE_ACCOUNT` and `PUBLIC_BASE_URL` set and well formed (one parser, shared with `setup:remote`). Off: `POST /inbound/gmail` answers `404`, no watch is registered or renewed; a partly set group logs `push is off: set or fix <names>` at startup |
+| `GMAIL_SYNC` | Workflow binding | the sync run. Push is **on** only with Gmail configured, this binding, and all four of `GMAIL_TOPIC_NAME`, `GMAIL_PUSH_SUBSCRIPTION`, `GMAIL_PUSH_SERVICE_ACCOUNT` and `PUBLIC_BASE_URL` set and well formed (one parser, shared with `setup:remote`). Off: `POST /inbound/gmail` answers `404`, no watch is registered or renewed; a partly set group logs `push is off: set or fix <names>` at startup |
 | `PUBLIC_BASE_URL` | var | absolute `https` URL of the Worker, origin only (no path), for OAuth redirects and as push's endpoint base (`<it>/inbound/gmail` is the token audience); default `https://<api-host>` when the Gmail group is set; set by `setup:remote` from `.env.<env>` |
 | `CONNECT_RETURN_URL` | var | optional; unset, the connect flow returns to the instance's own `/app/accounts` (Connected accounts) when the app is served, otherwise to a built-in result page; set it only to send people elsewhere (absolute `https` URL); set by `setup:remote` from `.env.<env>` |
 | `GMAIL_BACKFILL_DAYS` | var | positive integer, days of mail to backfill on connect; optional; set by `setup:remote` from `.env.<env>` |
@@ -408,7 +408,7 @@ can overlap, and the recorder's index is one object read, extended and written b
 | Log line | Meaning | Fix |
 |---|---|---|
 | `[gmail] push is off: set or fix <names>` at startup | a push variable is missing or malformed | set it; `PUBLIC_BASE_URL` must be an origin only |
-| `[gmail] push is off: the MAIL_SYNC binding is missing` | no Workflow binding | add the `workflows` block to the env |
+| `[gmail] push is off: the GMAIL_SYNC binding is missing` | no Workflow binding | add the `workflows` block to the env |
 | `[watch] ... misconfigured connection=<id> status=403` | the topic's publisher grant is missing, or the topic is in another project | step 2's `add-iam-policy-binding`; check `GMAIL_TOPIC_NAME` |
 | `[watch] ... misconfigured ... status=400` | a bad topic name, or Google refusing `labelFilterBehavior` (Vibase sends `include`; Google's reference lists lowercase, its push guide's example writes `INCLUDE`) | fix the topic; if the status stays 400 on a correct topic, the casing is the cause (one constant in `client.ts`) |
 | `[watch] ... misconfigured ... status=404` | the topic does not exist | create it |

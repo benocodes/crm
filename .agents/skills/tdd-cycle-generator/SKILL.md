@@ -274,7 +274,7 @@ connector's `/oauth/google/callback`): name each URI a consequence line must car
 scripts-only, one front-end. It cost ~196k / 57 calls over two runs (+121 code / +300 test lines, 11 files), one review round.
 The budget holds; the round came from the charter. It listed the resource kinds a rebuilt env block must cover from setup's
 record reader ("the Workflow too if the coder finds the record reads it"), and the reader shares setup's blind spot: the real
-`smoked1`/`hq` blocks carry a hand-added `MAIL_SYNC` Workflow that no setup path writes (#368). When a charter rebuilds,
+`smoked1`/`hq` blocks carry a hand-added `GMAIL_SYNC` Workflow that no setup path writes (#368). When a charter rebuilds,
 replaces or compares an env block, diff a real recorded block in `wrangler.jsonc` against what setup writes at plan time and
 name every binding the real one holds, each with an obligation.
 **OPS251** (`knowledge/specs/015-OPS251-smoked1-cutover/RETRO.md`): a remote cutover as a coder cycle plus a remote E2E, 6

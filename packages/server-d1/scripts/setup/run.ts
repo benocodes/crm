@@ -183,7 +183,7 @@ export function recordedNames(configText: string, env: string): RecordedNames {
     d1Id: named(block.d1_databases, 'binding', 'DB', 'database_id'),
     controlD1Id: named(block.d1_databases, 'binding', 'CONTROL_DB', 'database_id'),
     r2Name: named(block.r2_buckets, 'binding', 'BODIES', 'bucket_name'),
-    workflowName: named(block.workflows, 'binding', 'MAIL_SYNC', 'name'),
+    workflowName: named(block.workflows, 'binding', 'GMAIL_SYNC', 'name'),
   }
 }
 

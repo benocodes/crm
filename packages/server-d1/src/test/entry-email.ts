@@ -5,7 +5,7 @@ import { createAuthHandler } from '@vibase/auth'
 import worker from '../worker.js'
 import type { D1WorkerEnv } from '../compose.js'
 
-export { MailSyncWorkflow } from '../worker.js'
+export { GmailSyncWorkflow } from '../worker.js'
 
 type Env = D1WorkerEnv & { SIGNUP_OPEN?: string }
 const recorded: unknown[] = []
