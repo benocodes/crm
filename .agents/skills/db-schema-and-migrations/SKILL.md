@@ -356,7 +356,9 @@ Layout (identifiers unquoted unless SQL requires, one column per line, a table's
 **Adding an exemption** (a column named like an id or a timestamp whose values are not): add an entry to
 `CONVENTION_EXEMPTIONS` in `src/test/conventions.ts` with its database (`crm` or `control`), table, column and the reason; confirm
 against the code that writes it that it is never a UUID Vibase mints. The checker reports an entry whose table or column no
-longer exists as `exemption_stale`, so a rename must edit the list in the same change.
+longer exists as `exemption_stale`, so a rename must edit the list in the same change. **Changing or adding a rule**:
+grep `.agents/skills/` for DDL advice in the old form and fix it in the same change (the parent-rebuild recipe above
+still said "keep `UNIQUE (organization_id, id)`" after C5, caught only at [[CORE679]]'s review).
 
 ## D1 migrations ([[CORE35]])
 
