@@ -29,3 +29,6 @@ packages/server-d1/recordings-pull/
 packages/ui/e2e-screenshots/
 packages/ui/test-results/
 packages/server-d1/e2e-screenshots/
+
+# The test scan's output (OPS670 D5): answers, candidate lists. Never committed.
+.test-scan/

@@ -109,7 +109,7 @@ describe('slicing: the matrix of constructs (D1)', () => {
         '  })',
         '}',
       ),
-      expected: [['does the thing', 3]],
+      expected: [['name > does the thing', 3]],
     },
     {
       name: 'a .tsx file',
@@ -236,11 +236,15 @@ describe('the state (D2)', () => {
   })
 
   it("carries a referenced constant, the helper it passes it to, and the helper's own constant", () => {
-    const decls = byTitle(src, 'agents').state.declarations.join('\n')
-    expect(decls).toContain('AGENT_COLUMNS')
-    expect(decls).toContain('function check')
-    expect(decls).toContain('HELPER_CONST')
-    expect(decls).not.toContain('UNUSED')
+    const decls = byTitle(src, 'agents').state.declarations
+    // Each is a whole declaration of its own: the helper's body mentions HELPER_CONST, so its text alone proves nothing.
+    expect(decls).toHaveLength(3)
+    for (const start of ['const AGENT_COLUMNS', 'const HELPER_CONST', 'function check'])
+      expect(
+        decls.some((d) => d.startsWith(start)),
+        start,
+      ).toBe(true)
+    expect(decls.join('\n')).not.toContain('UNUSED')
   })
 
   it('a case that reaches nothing carries no declaration, and an import is not followed', () => {
