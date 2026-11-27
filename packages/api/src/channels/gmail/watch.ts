@@ -1,5 +1,5 @@
 // The watch lifecycle ([[CHN5]] D89, D90, D91): register at connect (the callback), renew in the cron, stop on delete (`connections.delete`'s after stage).
-// `gmail_watches` is channel machinery (invariant 5, D22): nothing here emits an event except `invalid_grant`'s `reauth_required`, which is D16's own.
+// `connection_watches` is channel machinery (invariant 5, D22): nothing here emits an event except `invalid_grant`'s `reauth_required`, which is D16's own.
 import { sql } from 'kysely'
 import { defineOperation, execute, readSet, step, unit, type Step, type StorageBinding } from '@vibase/storage'
 import type { GmailConfig } from '../../connections/config.js'
@@ -54,23 +54,23 @@ function describe(err: unknown): string {
 
 const isoOfExpiration = (expiration: string): string => new Date(Number(expiration)).toISOString()
 
-/** The `gmail_watches` upsert ([[CHN5]] D89), one statement: `ON CONFLICT` (invariant 3), so a row inserted between a read and this write is updated, not a violation. */
+/** The `connection_watches` upsert ([[CHN5]] D89), one statement: `ON CONFLICT` (invariant 3), so a row inserted between a read and this write is updated, not a violation. */
 export function watchUpsertStep(
   qc: Parameters<Parameters<typeof defineOperation>[0]['build']>[1],
-  p: { connectionId: string; organizationId: string; ownerId: string; mailbox: string; at: string; expiresAt: string },
+  p: { connectionId: string; organizationId: string; ownerId: string; address: string; at: string; expiresAt: string },
 ): Step {
   return step(
     qc.db
-      .insertInto('gmail_watches')
+      .insertInto('connection_watches')
       .values({
         connection_id: p.connectionId,
         organization_id: p.organizationId,
         created_by: p.ownerId,
         created_at: p.at,
-        mailbox: p.mailbox,
+        address: p.address,
         expires_at: p.expiresAt,
       })
-      .onConflict((oc) => oc.column('connection_id').doUpdateSet({ mailbox: p.mailbox, expires_at: p.expiresAt })),
+      .onConflict((oc) => oc.column('connection_id').doUpdateSet({ address: p.address, expires_at: p.expiresAt })),
   )
 }
 
@@ -101,9 +101,9 @@ async function candidates(d: WatchDeps, now: Date): Promise<Candidate[]> {
     mutates: false,
     reads: (qc) => ({
       due: readSet(
-        sql`select c.id as id, c.owner_id as owner_id, i.value as mailbox from channel_connections c
+        sql`select c.id as id, c.owner_id as owner_id, i.value as mailbox from connections c
           join identities i on i.id = c.identity_id and i.organization_id = c.organization_id
-          left join gmail_watches w on w.connection_id = c.id and w.organization_id = c.organization_id
+          left join connection_watches w on w.connection_id = c.id and w.organization_id = c.organization_id
           where c.organization_id = ${d.organizationId} and c.deleted_at is null and c.status = 'active' and (w.connection_id is null or w.expires_at < ${threshold})
           order by c.id`.compile(qc.db),
       ),
@@ -146,7 +146,7 @@ export async function renewWatches(d: WatchDeps): Promise<RenewResult> {
                 connectionId: c.id,
                 organizationId: d.organizationId,
                 ownerId: c.owner_id,
-                mailbox: c.mailbox,
+                address: c.mailbox,
                 at,
                 expiresAt,
               }),

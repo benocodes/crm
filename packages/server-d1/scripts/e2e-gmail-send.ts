@@ -172,7 +172,7 @@ try {
         ],
         ciphertext: await sealToken(key, 'send-e2e-refresh', crypto.getRandomValues(new Uint8Array(12))),
         key_version: 1,
-        history_id: '1000',
+        cursor: '1000',
       }),
     )
   ).value.connection_id
@@ -298,7 +298,7 @@ try {
   await poll('repeat sync settles', async () => {
     const s = (
       await rows(
-        'select lease_until,last_success_at,sync_requested_at from mail_sync_state where connection_id=?',
+        'select lease_until,last_success_at,sync_requested_at from connection_sync_state where connection_id=?',
         connection,
       )
     )[0]

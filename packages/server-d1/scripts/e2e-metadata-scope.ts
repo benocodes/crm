@@ -215,7 +215,7 @@ try {
         ],
         ciphertext: 'not-a-real-ciphertext',
         key_version: 1,
-        history_id: '1000',
+        cursor: '1000',
       }),
     )
   ).value.connection_id as string

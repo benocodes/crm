@@ -169,8 +169,7 @@ describe('renewal (D89, D90)', () => {
         address: `box${n}@vibase.test`,
         expires_at: new Date(now.getTime() + (opts.expiresIn ?? 7 * DAY)).toISOString(),
       })
-    if (opts.status)
-      await e.d1!.prepare('update connections set status = ? where id = ?').bind(opts.status, id).run()
+    if (opts.status) await e.d1!.prepare('update connections set status = ? where id = ?').bind(opts.status, id).run()
     return { id, rt }
   }
   const deps = (over: Partial<WatchDeps> = {}): WatchDeps => ({
@@ -227,10 +226,7 @@ describe('renewal (D89, D90)', () => {
     await seed({ expiresIn: null, status: 'reauth_required' })
     await seed({ expiresIn: null, status: 'suspended' })
     const gone = await seed({ expiresIn: null })
-    await e
-      .d1!.prepare('update connections set deleted_at = ? where id = ?')
-      .bind(now.toISOString(), gone.id)
-      .run()
+    await e.d1!.prepare('update connections set deleted_at = ? where id = ?').bind(now.toISOString(), gone.id).run()
     expect(await renewWatches(deps())).toMatchObject({ attempted: 0, registered: 0 })
     expect(google.watchRequests).toEqual([])
     expect(await e.rows('connection_watches')).toEqual([])
@@ -389,10 +385,7 @@ describe('stop on delete (D91)', () => {
     const app = buildApp()
     const id = await connectedId(app)
     e.betweenPlanAndCommit(async () => {
-      await e
-        .d1!.prepare("update connections set updated_at = '2026-11-05T10:00:01.000Z' where id = ?")
-        .bind(id)
-        .run()
+      await e.d1!.prepare("update connections set updated_at = '2026-11-05T10:00:01.000Z' where id = ?").bind(id).run()
     })
     expect((await del(app, id)).status).toBe(409)
     expect(google.stopRequests).toEqual([])

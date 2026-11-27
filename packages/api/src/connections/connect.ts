@@ -41,8 +41,8 @@ export interface ConnectInput {
   ciphertext: string
   key_version: number
   /** The profile's history id: the cursor a new connection starts from (a reconnect keeps its own). */
-  history_id: string
-  /** The watch's `expiration` as an ISO timestamp ([[CHN5]] D89): when set, the unit upserts the connection's `gmail_watches` row. */
+  cursor: string
+  /** The watch's `expiration` as an ISO timestamp ([[CHN5]] D89): when set, the unit upserts the connection's `connection_watches` row. */
   watch_expires_at?: string
 }
 export interface ConnectResult {
@@ -75,9 +75,9 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
     reads: (qc) => ({
       [EXISTING]: readMaybe(
         selectRecord(connections, qc, env, undefined, { derived: false })
-          .where(sql<SqlBool>`${sql.ref('channel_connections.provider')} = 'google'`)
-          .where(sql<SqlBool>`${sql.ref('channel_connections.account_id')} = ${input.google_sub}`)
-          .select(ts.exact(qc, 'channel_connections.updated_at').as('__stamp')),
+          .where(sql<SqlBool>`${sql.ref('connections.provider')} = 'google'`)
+          .where(sql<SqlBool>`${sql.ref('connections.account_id')} = ${input.google_sub}`)
+          .select(ts.exact(qc, 'connections.updated_at').as('__stamp')),
       ),
       ...Object.assign(
         {},
@@ -104,7 +104,7 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
       if (!row) {
         steps.push(
           step(
-            qc.db.insertInto('channel_connections').values({
+            qc.db.insertInto('connections').values({
               id: newConnectionId,
               created_at: at,
               updated_at: at,
@@ -159,7 +159,7 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
         steps.push(
           step(
             qc.db
-              .updateTable('channel_connections')
+              .updateTable('connections')
               .set({
                 owner_id: actor,
                 status: 'active',
@@ -168,10 +168,10 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
                 updated_at: at,
                 identity_id: identityOfMailbox as never,
               })
-              .where('channel_connections.id', '=', before.id)
-              .where('channel_connections.organization_id', '=', org)
-              .where('channel_connections.deleted_at', 'is', null)
-              .where(sql<SqlBool>`${ts.exact(qc, 'channel_connections.updated_at')} = ${String(__stamp)}`),
+              .where('connections.id', '=', before.id)
+              .where('connections.organization_id', '=', org)
+              .where('connections.deleted_at', 'is', null)
+              .where(sql<SqlBool>`${ts.exact(qc, 'connections.updated_at')} = ${String(__stamp)}`),
             'first-mutation',
             { expect: 'affected' },
           ),
@@ -204,7 +204,7 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
       steps.push(
         bare(
           step(
-            qc.db.insertInto('channel_credentials').values({
+            qc.db.insertInto('connection_credentials').values({
               id: credentialId,
               organization_id: org,
               created_by: actor,
@@ -221,7 +221,7 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
           bare(
             step(
               qc.db
-                .deleteFrom('channel_credentials')
+                .deleteFrom('connection_credentials')
                 .where('connection_id', '=', id)
                 .where('organization_id', '=', org)
                 .where('id', '!=', credentialId),
@@ -232,13 +232,13 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
         bare(
           step(
             qc.db
-              .insertInto('mail_sync_cursors')
+              .insertInto('connection_sync_cursors')
               .values({
                 connection_id: id,
                 organization_id: org,
                 created_by: actor,
                 created_at: at,
-                history_id: input.history_id,
+                cursor: input.cursor,
                 page_token: null,
                 last_synced_at: null,
               })
@@ -248,7 +248,7 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
         bare(
           step(
             qc.db
-              .insertInto('mail_sync_state')
+              .insertInto('connection_sync_state')
               .values({ connection_id: id, organization_id: org, created_by: actor, created_at: at })
               .onConflict((oc) => oc.column('connection_id').doNothing()),
           ),
@@ -259,7 +259,7 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
           bare(
             step(
               qc.db
-                .updateTable('mail_sync_state')
+                .updateTable('connection_sync_state')
                 .set({ last_error_code: null, last_error_at: null })
                 .where('connection_id', '=', id)
                 .where('organization_id', '=', org),
@@ -274,7 +274,7 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
               connectionId: id,
               organizationId: org,
               ownerId: actor,
-              mailbox,
+              address: mailbox,
               at,
               expiresAt: input.watch_expires_at,
             }),
@@ -284,9 +284,9 @@ export function connectOperation(env: PreparedEnv, input: ConnectInput): Prepare
       steps.push(
         step(
           qc.db
-            .selectFrom('channel_connections')
-            .select('channel_connections.id')
-            .where('channel_connections.id', '=', id)
+            .selectFrom('connections')
+            .select('connections.id')
+            .where('connections.id', '=', id)
             .where(eventExists(eventId)),
           'result',
         ),

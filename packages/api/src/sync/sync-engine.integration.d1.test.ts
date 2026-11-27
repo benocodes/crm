@@ -366,7 +366,10 @@ describe('again (D11)', () => {
     const shim = makeWorkerdStepShim({
       beforeStep: async (name) => {
         if (name === 'p1-finish') {
-          await raw('update connection_sync_state set sync_requested_at = ?', new Date(now.getTime() + 1000).toISOString())
+          await raw(
+            'update connection_sync_state set sync_requested_at = ?',
+            new Date(now.getTime() + 1000).toISOString(),
+          )
           now = new Date(now.getTime() + 2000) // the pass ends after the request, so the next pass starts later than it
         }
       },

@@ -320,11 +320,7 @@ describe('push to sync (D88)', () => {
     [
       'a soft-deleted connection',
       async () =>
-        void (await raw(
-          'update connections set deleted_at = ? where id = ?',
-          '2026-11-05T09:00:00.000Z',
-          connId,
-        )),
+        void (await raw('update connections set deleted_at = ? where id = ?', '2026-11-05T09:00:00.000Z', connId)),
     ],
     [
       'a reauth_required connection',

@@ -52,29 +52,29 @@ definePreparedResource({
   record: z.object({ id: z.uuid(), bogus: z.string() }),
 })
 
-// secret record column: the secret-column directive on `channel_credentials` below (the control-plane `api_keys` is no CRM table, [[CORE329]]; its grammar is checked in section 1 and 5 of the administration cases)
+// secret record column: the secret-column directive on `connection_credentials` below (the control-plane `api_keys` is no CRM table, [[CORE329]]; its grammar is checked in section 1 and 5 of the administration cases)
 export const okCredentials = definePreparedResource({
   surface: 'meta',
-  name: 'channel_credentials',
+  name: 'connection_credentials',
   eventName: 'channel_credential',
-  table: 'channel_credentials',
+  table: 'connection_credentials',
   record: z.object({ id: z.uuid(), key_version: z.number() }),
 })
 
-// CHN140 D41: the credential's ciphertext is a secret column. Removing `channel_credentials` from SecretColumns makes the directive below unused: a typecheck failure.
+// CHN140 D41: the credential's ciphertext is a secret column. Removing `connection_credentials` from SecretColumns makes the directive below unused: a typecheck failure.
 definePreparedResource({
   surface: 'meta',
-  name: 'channel_credentials',
+  name: 'connection_credentials',
   eventName: 'channel_credential',
-  table: 'channel_credentials',
+  table: 'connection_credentials',
   // @ts-expect-error refresh_token_ciphertext is a secret column
   record: z.object({ id: z.uuid(), refresh_token_ciphertext: z.string() }),
 })
 export const okCredentialShape = definePreparedResource({
   surface: 'meta',
-  name: 'channel_credentials',
+  name: 'connection_credentials',
   eventName: 'channel_credential',
-  table: 'channel_credentials',
+  table: 'connection_credentials',
   record: z.object({ id: z.uuid(), key_version: z.number() }),
 })
 

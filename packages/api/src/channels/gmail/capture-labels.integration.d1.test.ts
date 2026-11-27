@@ -221,10 +221,7 @@ describe('one settings read per page, and a null read (D1, P3)', () => {
     const s = await setup({ messages: [mk('n1')] })
     addHistory(s.gmail, '1001', [{ id: 'n1' }])
     const before = JSON.stringify(await e.rows('connection_sync_cursors'))
-    await e
-      .d1!.prepare('update connections set deleted_at = ? where id = ?')
-      .bind(NOW.toISOString(), s.id)
-      .run()
+    await e.d1!.prepare('update connections set deleted_at = ? where id = ?').bind(NOW.toISOString(), s.id).run()
     const scan: Scan = { kind: 'backfill', after: AFTER, history_id: null }
     expect(await captureHistoryPage(s.deps, s.id)).toEqual({ outcome: 'inactive' })
     expect(await captureScanPage(s.deps, s.id, scan, null)).toEqual({ outcome: 'inactive' })

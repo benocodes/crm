@@ -153,7 +153,12 @@ const keyed: KeyedCase[] = [
     valid: CONNECTION,
     row: (v) => ({ connection_id: v, ...base, address: 'a@b.test', expires_at: AT }),
   },
-  { table: 'connection_sync_state', column: 'connection_id', valid: CONNECTION, row: (v) => ({ connection_id: v, ...base }) },
+  {
+    table: 'connection_sync_state',
+    column: 'connection_id',
+    valid: CONNECTION,
+    row: (v) => ({ connection_id: v, ...base }),
+  },
   {
     table: 'connection_sync_cursors',
     column: 'connection_id',

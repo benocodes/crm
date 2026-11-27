@@ -173,11 +173,11 @@ export function connectionOperations(runtime: ConnectionsRuntime | null): Tenant
             // The row as read: still live, still the actor's, untouched since. Used by the commit-time assertion and the final UPDATE alike (P3).
             const unchanged = <Q extends { where: (e: any) => Q }>(q: Q): Q =>
               q
-                .where(sql<SqlBool>`${sql.ref('channel_connections.id')} = ${id}`)
-                .where(sql<SqlBool>`${sql.ref('channel_connections.organization_id')} = ${org}`)
-                .where(sql<SqlBool>`${sql.ref('channel_connections.deleted_at')} is null`)
-                .where(sql<SqlBool>`${sql.ref('channel_connections.owner_id')} = ${actor}`)
-                .where(sql<SqlBool>`${ts.exact(qc, 'channel_connections.updated_at')} = ${String(__stamp)}`)
+                .where(sql<SqlBool>`${sql.ref('connections.id')} = ${id}`)
+                .where(sql<SqlBool>`${sql.ref('connections.organization_id')} = ${org}`)
+                .where(sql<SqlBool>`${sql.ref('connections.deleted_at')} is null`)
+                .where(sql<SqlBool>`${sql.ref('connections.owner_id')} = ${actor}`)
+                .where(sql<SqlBool>`${ts.exact(qc, 'connections.updated_at')} = ${String(__stamp)}`)
             const writes: Step[] = []
             const replace = (
               table: 'connection_capture_labels' | 'connection_blocked_senders',
@@ -216,13 +216,13 @@ export function connectionOperations(runtime: ConnectionsRuntime | null): Tenant
             }
             // The UPDATE is the last write, so the event's `appliedPrev` gate reads a statement that always changes one row (a DELETE of no rows would not), and it renders `after` from the rows written above.
             const update = unchanged(
-              qc.db.updateTable('channel_connections').set({ ...scalars, updated_at: at }) as never,
+              qc.db.updateTable('connections').set({ ...scalars, updated_at: at }) as never,
             ) as never
             return unit({
               steps: [
                 assertStep(
                   qc,
-                  sql<SqlBool>`exists ${unchanged(qc.db.selectFrom('channel_connections').select(sql<number>`1`.as('one')) as never)}`,
+                  sql<SqlBool>`exists ${unchanged(qc.db.selectFrom('connections').select(sql<number>`1`.as('one')) as never)}`,
                 ),
                 ...writes,
                 step(update, 'first-mutation', { expect: 'affected' }),
@@ -288,11 +288,11 @@ export function connectionOperations(runtime: ConnectionsRuntime | null): Tenant
           reads: (qc) => ({
             connection: readMaybe(
               qc.db
-                .selectFrom('channel_connections')
-                .select('channel_connections.status')
-                .where('channel_connections.id', '=', id)
-                .where('channel_connections.organization_id', '=', org)
-                .where('channel_connections.deleted_at', 'is', null),
+                .selectFrom('connections')
+                .select('connections.status')
+                .where('connections.id', '=', id)
+                .where('connections.organization_id', '=', org)
+                .where('connections.deleted_at', 'is', null),
             ),
           }),
           build: (found, qc) => {
@@ -304,7 +304,7 @@ export function connectionOperations(runtime: ConnectionsRuntime | null): Tenant
               steps: [
                 step(
                   qc.db
-                    .updateTable('mail_sync_state')
+                    .updateTable('connection_sync_state')
                     .set({ sync_requested_at: at })
                     .where('connection_id', '=', id)
                     .where('organization_id', '=', org),
@@ -357,19 +357,19 @@ export function withWatchStop(op: TenantOperation, runtime: ConnectionsRuntime |
           ...inner.reads(qc),
           'stop:watch': readMaybe(
             qc.db
-              .selectFrom('gmail_watches')
-              .select('gmail_watches.connection_id')
-              .where('gmail_watches.connection_id', '=', id)
-              .where('gmail_watches.organization_id', '=', org),
+              .selectFrom('connection_watches')
+              .select('connection_watches.connection_id')
+              .where('connection_watches.connection_id', '=', id)
+              .where('connection_watches.organization_id', '=', org),
           ),
           'stop:credential': readMaybe(
             qc.db
-              .selectFrom('channel_credentials')
-              .select(['channel_credentials.refresh_token_ciphertext', 'channel_credentials.key_version'])
-              .where('channel_credentials.connection_id', '=', id)
-              .where('channel_credentials.organization_id', '=', org)
-              .orderBy('channel_credentials.created_at', 'desc')
-              .orderBy('channel_credentials.id', 'desc')
+              .selectFrom('connection_credentials')
+              .select(['connection_credentials.refresh_token_ciphertext', 'connection_credentials.key_version'])
+              .where('connection_credentials.connection_id', '=', id)
+              .where('connection_credentials.organization_id', '=', org)
+              .orderBy('connection_credentials.created_at', 'desc')
+              .orderBy('connection_credentials.id', 'desc')
               .limit(1),
           ),
         }),

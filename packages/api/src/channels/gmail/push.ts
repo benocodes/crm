@@ -91,10 +91,10 @@ async function watched(binding: D1Binding, mailbox: string): Promise<Watched[]> 
     reads: (qc) => ({
       watched: readSet(
         sql`select c.id as id, s.lease_until as lease_until, s.last_success_at as last_success_at, s.sync_requested_at as sync_requested_at
-          from gmail_watches w
-          join channel_connections c on c.id = w.connection_id and c.organization_id = w.organization_id
-          join mail_sync_state s on s.connection_id = c.id and s.organization_id = c.organization_id
-          where w.organization_id = ${organizationId} and w.mailbox = ${mailbox} and c.deleted_at is null and c.status = 'active'
+          from connection_watches w
+          join connections c on c.id = w.connection_id and c.organization_id = w.organization_id
+          join connection_sync_state s on s.connection_id = c.id and s.organization_id = c.organization_id
+          where w.organization_id = ${organizationId} and w.address = ${mailbox} and c.deleted_at is null and c.status = 'active'
           order by c.id`.compile(qc.db),
       ),
     }),

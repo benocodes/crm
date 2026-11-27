@@ -189,9 +189,9 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
 - **The D1 splitter knows triggers.** `splitStatements` (`@vibase/storage-d1/test`) ends a `CREATE TRIGGER` at the line that
   closes it with `END;`; wrangler applies the same file as written.
 - **Source tables are machinery** (`message_sources`, `thread_sources`): no events, no API; the provider's ids map to ours.
-  Since `0010` ([[CHN140]]) their `connection_id` is a composite FK to `channel_connections`; since `0024` ([[CHN421]]) it
+  Since `0010` ([[CHN140]]) their `connection_id` is a composite FK to `connections`; since `0024` ([[CHN421]]) it
   is nullable beside a `form_id` FK to `forms`, exactly one set (below).
-- **Adding a foreign key to an existing D1 table is a rebuild** (`channel_connections` and the source tables in genesis, from `0010_gmail_capture.sql`, are the worked example):
+- **Adding a foreign key to an existing D1 table is a rebuild** (`connections` and the source tables in genesis, from `0010_gmail_capture.sql`, are the worked example):
   `PRAGMA defer_foreign_keys = on;`, create `<t>_new` with the key, `INSERT … SELECT` the explicit column list, `DROP`,
   `RENAME`, then re-create **every** index and trigger the old table had (they go with the drop). Diff the new definition
   against the original migration's, column by column. Test it as a migration over data (apply up to the previous file

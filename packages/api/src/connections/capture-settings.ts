@@ -40,21 +40,21 @@ export function captureSettingsRead(
         where "connection_blocked_senders"."organization_id" = ${organizationId} and "connection_blocked_senders"."connection_id" = ${connectionId} and "connection_blocked_senders"."kind" = ${kind}
     ))`
   const query = qc.db
-    .selectFrom('channel_connections')
+    .selectFrom('connections')
     .select([
-      'channel_connections.id as connection_id',
-      'channel_connections.exclude_group_addresses',
-      'channel_connections.exclude_personal_domains',
-      'channel_connections.contact_creation',
-      sql<string>`(select json_group_array("connection_capture_labels"."label_id" order by "connection_capture_labels"."label_id") from "connection_capture_labels" where "connection_capture_labels"."connection_id" = "channel_connections"."id" and "connection_capture_labels"."organization_id" = "channel_connections"."organization_id")`.as(
+      'connections.id as connection_id',
+      'connections.exclude_group_addresses',
+      'connections.exclude_personal_domains',
+      'connections.contact_creation',
+      sql<string>`(select json_group_array("connection_capture_labels"."label_id" order by "connection_capture_labels"."label_id") from "connection_capture_labels" where "connection_capture_labels"."connection_id" = "connections"."id" and "connection_capture_labels"."organization_id" = "connections"."organization_id")`.as(
         'capture_labels',
       ),
       blocked('address').as('blocked_addresses'),
       blocked('domain').as('blocked_domains'),
     ])
-    .where('channel_connections.id', '=', connectionId)
-    .where('channel_connections.organization_id', '=', organizationId)
-    .where('channel_connections.deleted_at', 'is', null)
+    .where('connections.id', '=', connectionId)
+    .where('connections.organization_id', '=', organizationId)
+    .where('connections.deleted_at', 'is', null)
   return { read: readMaybe(query), decode: decodeCaptureSettings }
 }
 

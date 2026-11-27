@@ -50,16 +50,16 @@ async function resolve(d: TokenResolverDeps): Promise<string> {
     reads: (qc) => ({
       credential: readMaybe(
         qc.db
-          .selectFrom('channel_credentials')
+          .selectFrom('connection_credentials')
           .select([
-            'channel_credentials.id',
-            'channel_credentials.refresh_token_ciphertext',
-            'channel_credentials.key_version',
+            'connection_credentials.id',
+            'connection_credentials.refresh_token_ciphertext',
+            'connection_credentials.key_version',
           ])
-          .where('channel_credentials.connection_id', '=', d.connectionId)
-          .where('channel_credentials.organization_id', '=', d.organizationId)
-          .orderBy('channel_credentials.created_at', 'desc')
-          .orderBy('channel_credentials.id', 'desc')
+          .where('connection_credentials.connection_id', '=', d.connectionId)
+          .where('connection_credentials.organization_id', '=', d.organizationId)
+          .orderBy('connection_credentials.created_at', 'desc')
+          .orderBy('connection_credentials.id', 'desc')
           .limit(1),
       ),
     }),
@@ -110,7 +110,7 @@ async function resolve(d: TokenResolverDeps): Promise<string> {
         unit({
           steps: [
             step(
-              qc.db.insertInto('channel_credentials').values({
+              qc.db.insertInto('connection_credentials').values({
                 id: newId,
                 organization_id: d.organizationId,
                 created_by: d.ownerId,
@@ -122,7 +122,7 @@ async function resolve(d: TokenResolverDeps): Promise<string> {
             ),
             step(
               qc.db
-                .deleteFrom('channel_credentials')
+                .deleteFrom('connection_credentials')
                 .where('connection_id', '=', d.connectionId)
                 .where('organization_id', '=', d.organizationId)
                 .where('id', '!=', newId),

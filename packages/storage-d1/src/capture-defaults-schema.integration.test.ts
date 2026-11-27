@@ -69,9 +69,7 @@ describe('capture defaults on connections', () => {
     )
 
     expect(
-      await all(
-        'select id, exclude_group_addresses, exclude_personal_domains, contact_creation from connections',
-      ),
+      await all('select id, exclude_group_addresses, exclude_personal_domains, contact_creation from connections'),
     ).toEqual([
       { id: OLD, exclude_group_addresses: 0, exclude_personal_domains: 0, contact_creation: 'sent_and_received' },
     ])

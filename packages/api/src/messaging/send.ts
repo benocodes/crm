@@ -16,7 +16,7 @@ export const SEND_GRANTS = [
 ]
 export function sendConnectionQuery(org: string, id: string) {
   return sql<Row>`select c.id, c.identity_id, c.owner_id, c.account_id, c.updated_at, c.granted_scopes, i.value as mailbox
-    from channel_connections c join identities i on i.id=c.identity_id and i.organization_id=c.organization_id
+    from connections c join identities i on i.id=c.identity_id and i.organization_id=c.organization_id
     where c.id=${id} and c.organization_id=${org} and c.provider='google' and c.status='active' and c.deleted_at is null
       and i.kind='email' and i.own=1 and i.deleted_at is null
       and exists(select 1 from json_each(c.granted_scopes) where value=${SEND_GRANTS[0]})

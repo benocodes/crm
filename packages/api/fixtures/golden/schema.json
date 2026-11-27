@@ -287,7 +287,7 @@
                     "values": null,
                     "exposed": false,
                     "references": {
-                      "table": "channel_connections",
+                      "table": "connections",
                       "column": "id"
                     }
                   },
@@ -555,7 +555,7 @@
                   {
                     "columns": ["organization_id", "connection_id"],
                     "references": {
-                      "table": "channel_connections",
+                      "table": "connections",
                       "columns": ["organization_id", "id"]
                     },
                     "on_delete": "NO ACTION"
@@ -1984,431 +1984,6 @@
                 ]
               },
               {
-                "name": "channel_connections",
-                "origin": "built_in",
-                "archived": false,
-                "label": "Connections",
-                "description": "A mailbox connected to Vibase through its owner's Google account, under /meta/v1. Read it and disconnect it; connecting happens in the browser (connections.authorize). Syncing is read from last_synced_at and last_error_code.",
-                "associable": false,
-                "resource": {
-                  "name": "connections",
-                  "surface": "meta",
-                  "path": "/meta/v1/connections",
-                  "operations": ["connections.list", "connections.get", "connections.delete"],
-                  "read_scope": "connections:read",
-                  "write_scope": "connections:write",
-                  "sorts": [
-                    {
-                      "name": "id",
-                      "kind": "uuid",
-                      "indexed": true
-                    },
-                    {
-                      "name": "created_at",
-                      "kind": "timestamp",
-                      "indexed": false
-                    },
-                    {
-                      "name": "updated_at",
-                      "kind": "timestamp",
-                      "indexed": false
-                    },
-                    {
-                      "name": "last_synced_at",
-                      "kind": "timestamp",
-                      "indexed": false
-                    }
-                  ],
-                  "filters": [
-                    {
-                      "name": "id",
-                      "custom": false,
-                      "kind": "uuid",
-                      "operators": ["eq", "neq", "in"],
-                      "indexed": true,
-                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "provider",
-                      "custom": false,
-                      "kind": "text",
-                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
-                      "indexed": false,
-                      "description": "Filter by provider (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: provider=ilike.*acme*. A range is two conditions: provider=gte.a&provider=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send provider=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "account_id",
-                      "custom": false,
-                      "kind": "text",
-                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
-                      "indexed": false,
-                      "description": "Filter by account_id (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: account_id=ilike.*acme*. A range is two conditions: account_id=gte.a&account_id=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send account_id=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "identity_id",
-                      "custom": false,
-                      "kind": "uuid",
-                      "operators": ["eq", "neq", "in"],
-                      "indexed": false,
-                      "description": "Filter by identity_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: identity_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send identity_id=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "owner_id",
-                      "custom": false,
-                      "kind": "uuid",
-                      "operators": ["eq", "neq", "in"],
-                      "indexed": false,
-                      "description": "Filter by owner_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: owner_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send owner_id=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "status",
-                      "custom": false,
-                      "kind": "text",
-                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
-                      "indexed": false,
-                      "description": "Filter by status (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: status=ilike.*acme*. A range is two conditions: status=gte.a&status=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send status=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "connected_at",
-                      "custom": false,
-                      "kind": "timestamp",
-                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in"],
-                      "indexed": false,
-                      "description": "Filter by connected_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in. Example: connected_at=gte.2026-11-01. A range is two conditions: connected_at=gte.2026-11-01&connected_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send connected_at=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "exclude_group_addresses",
-                      "custom": false,
-                      "kind": "boolean",
-                      "operators": ["eq", "neq"],
-                      "indexed": false,
-                      "description": "Filter by exclude_group_addresses (boolean). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq. Example: exclude_group_addresses=eq.true. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send exclude_group_addresses=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "exclude_personal_domains",
-                      "custom": false,
-                      "kind": "boolean",
-                      "operators": ["eq", "neq"],
-                      "indexed": false,
-                      "description": "Filter by exclude_personal_domains (boolean). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq. Example: exclude_personal_domains=eq.true. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send exclude_personal_domains=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "contact_creation",
-                      "custom": false,
-                      "kind": "text",
-                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
-                      "indexed": false,
-                      "description": "Filter by contact_creation (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: contact_creation=ilike.*acme*. A range is two conditions: contact_creation=gte.a&contact_creation=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send contact_creation=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "created_by",
-                      "custom": false,
-                      "kind": "uuid",
-                      "operators": ["eq", "neq", "in"],
-                      "indexed": false,
-                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "created_at",
-                      "custom": false,
-                      "kind": "timestamp",
-                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in"],
-                      "indexed": false,
-                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. A range is two conditions: created_at=gte.2026-11-01&created_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
-                    },
-                    {
-                      "name": "updated_at",
-                      "custom": false,
-                      "kind": "timestamp",
-                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in"],
-                      "indexed": false,
-                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. A range is two conditions: updated_at=gte.2026-11-01&updated_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
-                    }
-                  ],
-                  "aggregate": null
-                },
-                "columns": [
-                  {
-                    "name": "id",
-                    "type": "TEXT",
-                    "kind": "uuid",
-                    "nullable": false,
-                    "primary_key": true,
-                    "default": null,
-                    "label": "Id",
-                    "description": "Unique id (UUIDv7).",
-                    "values": null,
-                    "exposed": true,
-                    "references": null
-                  },
-                  {
-                    "name": "created_at",
-                    "type": "TEXT",
-                    "kind": "timestamp",
-                    "nullable": false,
-                    "primary_key": false,
-                    "default": null,
-                    "label": "Created at",
-                    "description": "When the row was created.",
-                    "values": null,
-                    "exposed": true,
-                    "references": null
-                  },
-                  {
-                    "name": "updated_at",
-                    "type": "TEXT",
-                    "kind": "timestamp",
-                    "nullable": false,
-                    "primary_key": false,
-                    "default": null,
-                    "label": "Updated at",
-                    "description": "When the row last changed.",
-                    "values": null,
-                    "exposed": true,
-                    "references": null
-                  },
-                  {
-                    "name": "organization_id",
-                    "type": "TEXT",
-                    "kind": "uuid",
-                    "nullable": false,
-                    "primary_key": false,
-                    "default": null,
-                    "label": "Organization id",
-                    "description": "The organisation that owns the row; always the deployment's single organisation.",
-                    "values": null,
-                    "exposed": true,
-                    "references": {
-                      "table": "organizations",
-                      "column": "id"
-                    }
-                  },
-                  {
-                    "name": "created_by",
-                    "type": "TEXT",
-                    "kind": "uuid",
-                    "nullable": false,
-                    "primary_key": false,
-                    "default": null,
-                    "label": "Created by",
-                    "description": "The principal (user or agent) that created the row.",
-                    "values": null,
-                    "exposed": true,
-                    "references": {
-                      "table": "principals",
-                      "column": "id"
-                    }
-                  },
-                  {
-                    "name": "deleted_at",
-                    "type": "TEXT",
-                    "kind": "timestamp",
-                    "nullable": true,
-                    "primary_key": false,
-                    "default": null,
-                    "label": "Deleted at",
-                    "description": "When the row was deleted (soft delete); null while the row is live.",
-                    "values": null,
-                    "exposed": false,
-                    "references": null
-                  },
-                  {
-                    "name": "provider",
-                    "type": "TEXT",
-                    "kind": "text",
-                    "nullable": false,
-                    "primary_key": false,
-                    "default": null,
-                    "label": "Provider",
-                    "description": "The provider of the account; google only for now.",
-                    "values": ["google"],
-                    "exposed": true,
-                    "references": null
-                  },
-                  {
-                    "name": "account_id",
-                    "type": "TEXT",
-                    "kind": "text",
-                    "nullable": false,
-                    "primary_key": false,
-                    "default": null,
-                    "label": "Account id",
-                    "description": "The provider's stable id for the account (Google's sub), not the address, which can change. Unique among live connections.",
-                    "values": null,
-                    "exposed": true,
-                    "references": null
-                  },
-                  {
-                    "name": "identity_id",
-                    "type": "TEXT",
-                    "kind": "uuid",
-                    "nullable": false,
-                    "primary_key": false,
-                    "default": null,
-                    "label": "Identity id",
-                    "description": "The own identity that is the connected mailbox's address.",
-                    "values": null,
-                    "exposed": true,
-                    "references": {
-                      "table": "identities",
-                      "column": "id"
-                    }
-                  },
-                  {
-                    "name": "owner_id",
-                    "type": "TEXT",
-                    "kind": "uuid",
-                    "nullable": false,
-                    "primary_key": false,
-                    "default": null,
-                    "label": "Owner id",
-                    "description": "The user who owns the connection now. A reconnect of the same account by another person moves it.",
-                    "values": null,
-                    "exposed": true,
-                    "references": {
-                      "table": "users",
-                      "column": "id"
-                    }
-                  },
-                  {
-                    "name": "status",
-                    "type": "TEXT",
-                    "kind": "text",
-                    "nullable": false,
-                    "primary_key": false,
-                    "default": null,
-                    "label": "Status",
-                    "description": "active works; reauth_required when the provider refused the stored grant; suspended when the owner is no longer admitted. A reconnect makes it active again.",
-                    "values": ["active", "reauth_required", "suspended"],
-                    "exposed": true,
-                    "references": null
-                  },
-                  {
-                    "name": "granted_scopes",
-                    "type": "TEXT",
-                    "kind": "string_array",
-                    "nullable": false,
-                    "primary_key": false,
-                    "default": null,
-                    "label": "Granted scopes",
-                    "description": "The OAuth scopes the person granted at the provider, as a JSON array.",
-                    "values": null,
-                    "exposed": true,
-                    "references": null
-                  },
-                  {
-                    "name": "connected_at",
-                    "type": "TEXT",
-                    "kind": "timestamp",
-                    "nullable": false,
-                    "primary_key": false,
-                    "default": null,
-                    "label": "Connected at",
-                    "description": "When the connection was made or last reconnected.",
-                    "values": null,
-                    "exposed": true,
-                    "references": null
-                  },
-                  {
-                    "name": "exclude_group_addresses",
-                    "type": "INTEGER",
-                    "kind": "boolean",
-                    "nullable": false,
-                    "primary_key": false,
-                    "default": "1",
-                    "label": "Exclude group addresses",
-                    "description": "Whether mail from group addresses is left out of capture. True by default for a new connection; applied from CHN407 on.",
-                    "values": null,
-                    "exposed": true,
-                    "references": null
-                  },
-                  {
-                    "name": "exclude_personal_domains",
-                    "type": "INTEGER",
-                    "kind": "boolean",
-                    "nullable": false,
-                    "primary_key": false,
-                    "default": "1",
-                    "label": "Exclude personal domains",
-                    "description": "Whether mail from personal-mail domains is left out of capture. True by default for a new connection; applied from CHN407 on.",
-                    "values": null,
-                    "exposed": true,
-                    "references": null
-                  },
-                  {
-                    "name": "contact_creation",
-                    "type": "TEXT",
-                    "kind": "text",
-                    "nullable": false,
-                    "primary_key": false,
-                    "default": "'sent'",
-                    "label": "Contact creation",
-                    "description": "Which captured mail gives an address a contact: sent (the default for a new connection) gives one only to the to, cc and bcc recipients of mail this mailbox sent, never to an address that is also the sender of that message; sent_and_received gives every counterparty one; none gives nobody one. An address that gets no contact is still recorded, as an unattached identity, and is promoted when a later capture qualifies it. It applies to mail captured from now on; changing it never removes or detaches a contact.",
-                    "values": ["sent_and_received", "sent", "none"],
-                    "exposed": true,
-                    "references": null
-                  }
-                ],
-                "derived": [
-                  {
-                    "name": "last_synced_at",
-                    "kind": "timestamp",
-                    "nullable": true,
-                    "writable": false,
-                    "label": "Last synced at",
-                    "description": "When the mailbox was last brought up to date; null until a sync has finished. Derived from the sync cursor, read-only.",
-                    "requires": null,
-                    "filters": [],
-                    "sortable": true
-                  },
-                  {
-                    "name": "last_error_code",
-                    "kind": "text",
-                    "nullable": true,
-                    "writable": false,
-                    "label": "Last error code",
-                    "description": "A short code for the last sync failure; null when the last run was fine or none ran. Derived from the sync state, read-only.",
-                    "requires": null,
-                    "filters": [],
-                    "sortable": false
-                  }
-                ],
-                "foreign_keys": [
-                  {
-                    "columns": ["organization_id"],
-                    "references": {
-                      "table": "organizations",
-                      "columns": ["id"]
-                    },
-                    "on_delete": "CASCADE"
-                  },
-                  {
-                    "columns": ["created_by"],
-                    "references": {
-                      "table": "principals",
-                      "columns": ["id"]
-                    },
-                    "on_delete": "NO ACTION"
-                  },
-                  {
-                    "columns": ["owner_id"],
-                    "references": {
-                      "table": "users",
-                      "columns": ["id"]
-                    },
-                    "on_delete": "NO ACTION"
-                  },
-                  {
-                    "columns": ["organization_id", "identity_id"],
-                    "references": {
-                      "table": "identities",
-                      "columns": ["organization_id", "id"]
-                    },
-                    "on_delete": "NO ACTION"
-                  }
-                ]
-              },
-              {
                 "name": "companies",
                 "origin": "built_in",
                 "archived": false,
@@ -2972,7 +2547,7 @@
                     "values": null,
                     "exposed": false,
                     "references": {
-                      "table": "channel_connections",
+                      "table": "connections",
                       "column": "id"
                     }
                   },
@@ -3029,7 +2604,7 @@
                   {
                     "columns": ["organization_id", "connection_id"],
                     "references": {
-                      "table": "channel_connections",
+                      "table": "connections",
                       "columns": ["organization_id", "id"]
                     },
                     "on_delete": "NO ACTION"
@@ -3086,7 +2661,7 @@
                     "values": null,
                     "exposed": false,
                     "references": {
-                      "table": "channel_connections",
+                      "table": "connections",
                       "column": "id"
                     }
                   },
@@ -3130,7 +2705,432 @@
                   {
                     "columns": ["organization_id", "connection_id"],
                     "references": {
-                      "table": "channel_connections",
+                      "table": "connections",
+                      "columns": ["organization_id", "id"]
+                    },
+                    "on_delete": "NO ACTION"
+                  }
+                ]
+              },
+              {
+                "name": "connections",
+                "origin": "built_in",
+                "archived": false,
+                "label": "Connections",
+                "description": "A mailbox connected to Vibase through its owner's Google account, under /meta/v1. Read it and disconnect it; connecting happens in the browser (connections.authorize). Syncing is read from last_synced_at and last_error_code.",
+                "associable": false,
+                "resource": {
+                  "name": "connections",
+                  "surface": "meta",
+                  "path": "/meta/v1/connections",
+                  "operations": ["connections.list", "connections.get", "connections.delete"],
+                  "read_scope": "connections:read",
+                  "write_scope": "connections:write",
+                  "sorts": [
+                    {
+                      "name": "id",
+                      "kind": "uuid",
+                      "indexed": true
+                    },
+                    {
+                      "name": "created_at",
+                      "kind": "timestamp",
+                      "indexed": false
+                    },
+                    {
+                      "name": "updated_at",
+                      "kind": "timestamp",
+                      "indexed": false
+                    },
+                    {
+                      "name": "last_synced_at",
+                      "kind": "timestamp",
+                      "indexed": false
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "name": "id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": ["eq", "neq", "in"],
+                      "indexed": true,
+                      "description": "Filter by id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "provider",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
+                      "indexed": false,
+                      "description": "Filter by provider (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: provider=ilike.*acme*. A range is two conditions: provider=gte.a&provider=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send provider=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "account_id",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
+                      "indexed": false,
+                      "description": "Filter by account_id (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: account_id=ilike.*acme*. A range is two conditions: account_id=gte.a&account_id=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send account_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "identity_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": ["eq", "neq", "in"],
+                      "indexed": false,
+                      "description": "Filter by identity_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: identity_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send identity_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "owner_id",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": ["eq", "neq", "in"],
+                      "indexed": false,
+                      "description": "Filter by owner_id (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: owner_id=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send owner_id=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "status",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
+                      "indexed": false,
+                      "description": "Filter by status (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: status=ilike.*acme*. A range is two conditions: status=gte.a&status=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send status=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "connected_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in"],
+                      "indexed": false,
+                      "description": "Filter by connected_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in. Example: connected_at=gte.2026-11-01. A range is two conditions: connected_at=gte.2026-11-01&connected_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send connected_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "exclude_group_addresses",
+                      "custom": false,
+                      "kind": "boolean",
+                      "operators": ["eq", "neq"],
+                      "indexed": false,
+                      "description": "Filter by exclude_group_addresses (boolean). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq. Example: exclude_group_addresses=eq.true. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send exclude_group_addresses=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "exclude_personal_domains",
+                      "custom": false,
+                      "kind": "boolean",
+                      "operators": ["eq", "neq"],
+                      "indexed": false,
+                      "description": "Filter by exclude_personal_domains (boolean). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq. Example: exclude_personal_domains=eq.true. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send exclude_personal_domains=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "contact_creation",
+                      "custom": false,
+                      "kind": "text",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "like", "ilike"],
+                      "indexed": false,
+                      "description": "Filter by contact_creation (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: contact_creation=ilike.*acme*. A range is two conditions: contact_creation=gte.a&contact_creation=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send contact_creation=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_by",
+                      "custom": false,
+                      "kind": "uuid",
+                      "operators": ["eq", "neq", "in"],
+                      "indexed": false,
+                      "description": "Filter by created_by (uuid). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, in. Example: created_by=in.(<uuid>,<uuid>). Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value that starts with not. or an operator name and a dot is read as an operator: send created_by=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "created_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in"],
+                      "indexed": false,
+                      "description": "Filter by created_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in. Example: created_at=gte.2026-11-01. A range is two conditions: created_at=gte.2026-11-01&created_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send created_at=eq.<value> for a literal."
+                    },
+                    {
+                      "name": "updated_at",
+                      "custom": false,
+                      "kind": "timestamp",
+                      "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in"],
+                      "indexed": false,
+                      "description": "Filter by updated_at (timestamp). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in. Example: updated_at=gte.2026-11-01. A range is two conditions: updated_at=gte.2026-11-01&updated_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send updated_at=eq.<value> for a literal."
+                    }
+                  ],
+                  "aggregate": null
+                },
+                "columns": [
+                  {
+                    "name": "id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": true,
+                    "default": null,
+                    "label": "Id",
+                    "description": "Unique id (UUIDv7).",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "created_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Created at",
+                    "description": "When the row was created.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "updated_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Updated at",
+                    "description": "When the row last changed.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "organization_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Organization id",
+                    "description": "The organisation that owns the row; always the deployment's single organisation.",
+                    "values": null,
+                    "exposed": true,
+                    "references": {
+                      "table": "organizations",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "created_by",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Created by",
+                    "description": "The principal (user or agent) that created the row.",
+                    "values": null,
+                    "exposed": true,
+                    "references": {
+                      "table": "principals",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "deleted_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": true,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Deleted at",
+                    "description": "When the row was deleted (soft delete); null while the row is live.",
+                    "values": null,
+                    "exposed": false,
+                    "references": null
+                  },
+                  {
+                    "name": "provider",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Provider",
+                    "description": "The provider of the account; google only for now.",
+                    "values": ["google"],
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "account_id",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Account id",
+                    "description": "The provider's stable id for the account (Google's sub), not the address, which can change. Unique among live connections.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "identity_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Identity id",
+                    "description": "The own identity that is the connected mailbox's address.",
+                    "values": null,
+                    "exposed": true,
+                    "references": {
+                      "table": "identities",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "owner_id",
+                    "type": "TEXT",
+                    "kind": "uuid",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Owner id",
+                    "description": "The user who owns the connection now. A reconnect of the same account by another person moves it.",
+                    "values": null,
+                    "exposed": true,
+                    "references": {
+                      "table": "users",
+                      "column": "id"
+                    }
+                  },
+                  {
+                    "name": "status",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Status",
+                    "description": "active works; reauth_required when the provider refused the stored grant; suspended when the owner is no longer admitted. A reconnect makes it active again.",
+                    "values": ["active", "reauth_required", "suspended"],
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "granted_scopes",
+                    "type": "TEXT",
+                    "kind": "string_array",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Granted scopes",
+                    "description": "The OAuth scopes the person granted at the provider, as a JSON array.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "connected_at",
+                    "type": "TEXT",
+                    "kind": "timestamp",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": null,
+                    "label": "Connected at",
+                    "description": "When the connection was made or last reconnected.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "exclude_group_addresses",
+                    "type": "INTEGER",
+                    "kind": "boolean",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": "1",
+                    "label": "Exclude group addresses",
+                    "description": "Whether mail from group addresses is left out of capture. True by default for a new connection; applied from CHN407 on.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "exclude_personal_domains",
+                    "type": "INTEGER",
+                    "kind": "boolean",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": "1",
+                    "label": "Exclude personal domains",
+                    "description": "Whether mail from personal-mail domains is left out of capture. True by default for a new connection; applied from CHN407 on.",
+                    "values": null,
+                    "exposed": true,
+                    "references": null
+                  },
+                  {
+                    "name": "contact_creation",
+                    "type": "TEXT",
+                    "kind": "text",
+                    "nullable": false,
+                    "primary_key": false,
+                    "default": "'sent'",
+                    "label": "Contact creation",
+                    "description": "Which captured mail gives an address a contact: sent (the default for a new connection) gives one only to the to, cc and bcc recipients of mail this mailbox sent, never to an address that is also the sender of that message; sent_and_received gives every counterparty one; none gives nobody one. An address that gets no contact is still recorded, as an unattached identity, and is promoted when a later capture qualifies it. It applies to mail captured from now on; changing it never removes or detaches a contact.",
+                    "values": ["sent_and_received", "sent", "none"],
+                    "exposed": true,
+                    "references": null
+                  }
+                ],
+                "derived": [
+                  {
+                    "name": "last_synced_at",
+                    "kind": "timestamp",
+                    "nullable": true,
+                    "writable": false,
+                    "label": "Last synced at",
+                    "description": "When the mailbox was last brought up to date; null until a sync has finished. Derived from the sync cursor, read-only.",
+                    "requires": null,
+                    "filters": [],
+                    "sortable": true
+                  },
+                  {
+                    "name": "last_error_code",
+                    "kind": "text",
+                    "nullable": true,
+                    "writable": false,
+                    "label": "Last error code",
+                    "description": "A short code for the last sync failure; null when the last run was fine or none ran. Derived from the sync state, read-only.",
+                    "requires": null,
+                    "filters": [],
+                    "sortable": false
+                  }
+                ],
+                "foreign_keys": [
+                  {
+                    "columns": ["organization_id"],
+                    "references": {
+                      "table": "organizations",
+                      "columns": ["id"]
+                    },
+                    "on_delete": "CASCADE"
+                  },
+                  {
+                    "columns": ["created_by"],
+                    "references": {
+                      "table": "principals",
+                      "columns": ["id"]
+                    },
+                    "on_delete": "NO ACTION"
+                  },
+                  {
+                    "columns": ["owner_id"],
+                    "references": {
+                      "table": "users",
+                      "columns": ["id"]
+                    },
+                    "on_delete": "NO ACTION"
+                  },
+                  {
+                    "columns": ["organization_id", "identity_id"],
+                    "references": {
+                      "table": "identities",
                       "columns": ["organization_id", "id"]
                     },
                     "on_delete": "NO ACTION"

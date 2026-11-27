@@ -121,20 +121,20 @@ export const STATED_FILTER_COSTS: readonly StatedFilterCost[] = [
   {
     list: 'connections',
     filter: 'provider',
-    reason: kept('idx_channel_connections_live_account', '(organization_id, provider, account_id) over live rows'),
+    reason: kept('idx_connections_live_account', '(organization_id, provider, account_id) over live rows'),
   },
   {
     list: 'connections',
     filter: 'account_id',
     reason: behind(
-      'idx_channel_connections_live_account',
+      'idx_connections_live_account',
       '(organization_id, provider, account_id) over live rows',
       'provider',
       'an (organization_id, account_id, id) index',
     ),
   },
   { list: 'connections', filter: 'identity_id', reason: SMALL },
-  { list: 'connections', filter: 'owner_id', reason: kept('idx_channel_connections_owner', '(owner_id)') },
+  { list: 'connections', filter: 'owner_id', reason: kept('idx_connections_owner', '(owner_id)') },
   { list: 'connections', filter: 'status', reason: SMALL },
   { list: 'connections', filter: 'connected_at', reason: SMALL },
   { list: 'connections', filter: 'exclude_group_addresses', reason: SMALL },

@@ -178,15 +178,13 @@ describe('gmail capture tables', () => {
 
   it('constrains the connection: provider google, status, scopes a JSON array, unique live account, composite identity key', async () => {
     expect(await insert('connections', conn({ id: id(12), provider: 'microsoft' }))).toMatch(/CHECK/)
-    expect(await insert('connections', conn({ id: id(12), account_id: 'sub-2', status: 'paused' }))).toMatch(
+    expect(await insert('connections', conn({ id: id(12), account_id: 'sub-2', status: 'paused' }))).toMatch(/CHECK/)
+    expect(await insert('connections', conn({ id: id(12), account_id: 'sub-2', granted_scopes: '{"a":1}' }))).toMatch(
       /CHECK/,
     )
-    expect(
-      await insert('connections', conn({ id: id(12), account_id: 'sub-2', granted_scopes: '{"a":1}' })),
-    ).toMatch(/CHECK/)
-    expect(
-      await insert('connections', conn({ id: id(12), account_id: 'sub-2', granted_scopes: 'nope' })),
-    ).toMatch(/CHECK/)
+    expect(await insert('connections', conn({ id: id(12), account_id: 'sub-2', granted_scopes: 'nope' }))).toMatch(
+      /CHECK/,
+    )
     expect(await insert('connections', conn({ id: id(12), account_id: '' }))).toMatch(/CHECK/)
     expect(await insert('connections', conn({ id: 'x', account_id: 'sub-2' }))).toMatch(/CHECK/)
     expect(await insert('connections', conn({ id: id(12), account_id: 'sub-2', identity_id: id(98) }))).toMatch(
@@ -211,7 +209,12 @@ describe('gmail capture tables', () => {
         .filter((f) => f.table === 'connections')
         .map((f) => f.from)
         .sort()
-    for (const t of ['connection_credentials', 'connection_watches', 'connection_sync_state', 'connection_sync_cursors'])
+    for (const t of [
+      'connection_credentials',
+      'connection_watches',
+      'connection_sync_state',
+      'connection_sync_cursors',
+    ])
       expect(await fks(t), t).toEqual(['connection_id', 'organization_id'])
     expect(
       await insert('connection_credentials', {
@@ -250,10 +253,20 @@ describe('gmail capture tables', () => {
       }),
     ).toBeNull()
     expect(
-      await insert('connection_watches', { connection_id: id(12), ...base, address: 'Ann@Example.test', expires_at: AT }),
+      await insert('connection_watches', {
+        connection_id: id(12),
+        ...base,
+        address: 'Ann@Example.test',
+        expires_at: AT,
+      }),
     ).toMatch(/CHECK/)
     expect(
-      await insert('connection_watches', { connection_id: id(12), ...base, address: 'ann@example.test', expires_at: AT }),
+      await insert('connection_watches', {
+        connection_id: id(12),
+        ...base,
+        address: 'ann@example.test',
+        expires_at: AT,
+      }),
     ).toBeNull()
     expect(await insert('connection_sync_state', { connection_id: id(12), ...base })).toBeNull()
     expect(await insert('connection_sync_cursors', { connection_id: id(12), ...base, cursor: '' })).toMatch(/CHECK/)

@@ -394,10 +394,7 @@ describe('the sending mailbox (D10) and the refusals that stay (D11)', () => {
   it('after the connection is disconnected (soft-deleted) or its row is gone, sending_mailbox is NULL and the request still reads', async () => {
     const c = await prereq(k).connection()
     const send = await propose('messages.send', sendArgs(c))
-    await k.d1
-      .prepare("update connections set deleted_at = '2026-11-06T09:30:00.000Z' where id = ?")
-      .bind(c)
-      .run()
+    await k.d1.prepare("update connections set deleted_at = '2026-11-06T09:30:00.000Z' where id = ?").bind(c).run()
     expect((await k.call(owner, 'GET', `${AR}/${send.id}`)).body).toMatchObject({
       sending_mailbox: null,
       operation: 'messages.send',

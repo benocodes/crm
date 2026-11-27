@@ -177,7 +177,12 @@ describe('connections.delete (D26, D56)', () => {
     expect(await e.rows('message_sources')).toHaveLength(1)
     const res = await call('DELETE', `/meta/v1/connections/${c.id}`, ['connections:write'])
     expect(res.status).toBe(204)
-    for (const t of ['connection_credentials', 'connection_watches', 'connection_sync_state', 'connection_sync_cursors'])
+    for (const t of [
+      'connection_credentials',
+      'connection_watches',
+      'connection_sync_state',
+      'connection_sync_cursors',
+    ])
       expect(await e.rows(t), t).toEqual([])
     expect((await e.rows('connections'))[0]).toMatchObject({ id: c.id, deleted_at: expect.any(String) })
     expect(await e.rows('message_sources')).toHaveLength(1)
@@ -194,7 +199,12 @@ describe('connections.delete (D26, D56)', () => {
     await seedMachinery(a.id as string)
     await seedMachinery(b.id as string)
     expect((await call('DELETE', `/meta/v1/connections/${a.id}`, ['connections:write'])).status).toBe(204)
-    for (const t of ['connection_credentials', 'connection_watches', 'connection_sync_state', 'connection_sync_cursors'])
+    for (const t of [
+      'connection_credentials',
+      'connection_watches',
+      'connection_sync_state',
+      'connection_sync_cursors',
+    ])
       expect(
         (await e.rows(t)).map((r) => r.connection_id),
         t,
@@ -303,7 +313,12 @@ describe('secrecy (D41)', () => {
   it('the four machinery tables are hidden from schema discovery; connections is listed with described columns', async () => {
     const schema = (await call('GET', '/meta/v1/schema', ['schema:read'])).body
     const names = (schema.tables as Array<{ name: string }>).map((t) => t.name)
-    for (const hidden of ['connection_credentials', 'connection_watches', 'connection_sync_state', 'connection_sync_cursors'])
+    for (const hidden of [
+      'connection_credentials',
+      'connection_watches',
+      'connection_sync_state',
+      'connection_sync_cursors',
+    ])
       expect(names, hidden).not.toContain(hidden)
     expect(names).toContain('connections')
     const table = (

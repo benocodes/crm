@@ -38,10 +38,10 @@ export const HIDDEN_TABLES: readonly string[] = [
   'unit_assertion',
   'message_sources',
   'thread_sources',
-  'channel_credentials',
-  'gmail_watches',
-  'mail_sync_state',
-  'mail_sync_cursors',
+  'connection_credentials',
+  'connection_watches',
+  'connection_sync_state',
+  'connection_sync_cursors',
 ]
 
 /** D6: a column's default label is its name with `_` as spaces and the first letter capitalised (`due_at` -> "Due at"). */
@@ -288,7 +288,7 @@ export const CATALOG: Catalog = {
       },
     },
     deals: catalogText(dealsDeclaration),
-    channel_connections: {
+    connections: {
       label: 'Connections',
       description:
         "A mailbox connected to Vibase through its owner's Google account, under /meta/v1. Read it and disconnect it; connecting happens in the browser (connections.authorize). Syncing is read from last_synced_at and last_error_code.",
