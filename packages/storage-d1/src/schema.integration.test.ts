@@ -645,6 +645,7 @@ describe('the messaging slice (CORE25 C1)', () => {
     const want: Record<string, string[]> = {
       threads: ['threads_channel'],
       messages: [
+        'messages_author', // CORE679 D8: was unnamed
         'messages_channel',
         'messages_kind',
         'messages_content_key',
@@ -662,6 +663,8 @@ describe('the messaging slice (CORE25 C1)', () => {
       interaction_participants: ['interaction_participants_role'],
       message_attachments: [
         'message_attachments_type',
+        'message_attachments_inline', // CORE679 D8: was unnamed
+        'message_attachments_fetch_metadata', // CORE679 D8: was unnamed
         'message_attachments_fetch_status',
         'message_attachments_stored_file',
         'message_attachments_position_nonnegative',
@@ -672,7 +675,9 @@ describe('the messaging slice (CORE25 C1)', () => {
     }
     for (const t of ALL) {
       const [{ sql }] = await all<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", t)
-      const names = [...sql.matchAll(/CONSTRAINT (\w+) CHECK/g)].map((m) => m[1]).filter((x) => !x!.endsWith('_fk'))
+      const names = [...sql.matchAll(/CONSTRAINT (\w+) CHECK/g)]
+        .map((m) => m[1])
+        .filter((x) => !x!.endsWith('_fk') && !/_(uuid|timestamp)$/.test(x!)) // the canonical id and timestamp CHECKs are held by conventions.integration.test.ts (CORE679)
       expect(names.sort(), t).toEqual([...(want[t] ?? [])].sort())
     }
   })

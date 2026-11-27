@@ -275,7 +275,7 @@ export function checkConventions(
   const mine = exemptions.filter((e) => e.database === database)
   for (const e of mine) {
     const t = catalogue.tables.find((x) => x.name === e.table)
-    if (!t || !t.columns.some((c) => c.name === e.column))
+    if (!t?.columns.some((c) => c.name === e.column))
       add(
         'exemption_stale',
         `${e.table}.${e.column}`,
@@ -313,7 +313,7 @@ export function checkConventions(
     const key = `${table}.${col}`
     if (satisfied.has(key)) return satisfied.get(key)!
     const t = byName.get(table)
-    if (!t || !t.columns.some((c) => c.name === col) || exempt(table, col) || seen.has(key)) return false
+    if (!t?.columns.some((c) => c.name === col) || exempt(table, col) || seen.has(key)) return false
     seen.add(key)
     const keys = keysOf(t, col)
     let ok: boolean

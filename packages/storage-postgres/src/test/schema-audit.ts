@@ -51,9 +51,14 @@ export function indexItem(name: string, cols: string[], predicate: string | null
   return `${name} (${cols.join(', ')})${p ? ` where ${p}` : ''}`
 }
 
-/** The names of `CONSTRAINT <name> CHECK` clauses of a CREATE TABLE text, in order of appearance. */
+/**
+ * The names of `CONSTRAINT <name> CHECK` clauses of a CREATE TABLE text, in order of appearance. The canonical id and timestamp
+ * CHECKs (`<table>_<column>_uuid` / `_timestamp`, [[CORE679]] C1/C2) are D1's spelling of Postgres column types (see NOT_COMPARED), so they are left out.
+ */
 export function d1CheckNames(createTableSql: string): string[] {
-  return [...createTableSql.matchAll(/\bCONSTRAINT\s+"?([A-Za-z0-9_]+)"?\s+CHECK\b/gi)].map((m) => m[1]!)
+  return [...createTableSql.matchAll(/\bCONSTRAINT\s+"?([A-Za-z0-9_]+)"?\s+CHECK\b/gi)]
+    .map((m) => m[1]!)
+    .filter((n) => !/_(uuid|timestamp)$/.test(n))
 }
 
 const byText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
