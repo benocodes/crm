@@ -119,7 +119,11 @@ charter counted the three named chain-step files and missed 14 suites whose firs
 cases needed its rows (678.30); more than a handful of such suites is a cycle of its own before the swap. A rename
 charter also asks for: the docs' samples parsed by the shipped code (a renamed key is an ordinary word no token ban
 catches), the old name refused by a test that the guard's allow-list names, and the changesets read back after the
-replace (lowercase sentence starts survive into the CHANGELOG) ([[CORE569]] review).
+replace (lowercase sentence starts survive into the CHANGELOG) ([[CORE569]] review). Its residue grep covers the
+pending `.changeset/*.md` of earlier unreleased cycles too: they ship in the same CHANGELOG entry, so a hit there is
+fixed, not classed as history ([[CORE680]] review). Its surface matrix lists only the paths the old name already had
+(read the declaration's filters, sorts and `group_by` at plan time): a rename adds no capability, and CORE680's
+"sort on `description` works" named a sort tasks never had.
 
 These numbers are a first calibration (2026-11-06). Each retro records the cost against them ([[retrospect]]),
 and they move when the retros say so.
@@ -538,6 +542,10 @@ first run, E2E pass first run, approved round 0. Same Size line as CORE627 at ab
 gaps (wire-snapshot rider, one library round trip per redirect class, both directions in workerd) were in the charter,
 and each cost a free round when absent. A Watch out naming the existing assertions a new response field turns red
 (exact-keys on the create answer) let the coder move them in the red commit instead of finding them in the gate.
+**CORE680** (`knowledge/specs/051-CORE680-genesis-renames/RETRO.md`, split at plan time from 11 decisions): a column
+rename on every surface, 6 groups (1 matrix), 5 decisions, no migration or E2E, riders named. ~170k / 71 calls over
+three runs (+18 code / +222 test / +140 generated lines, 39 files), one free gate-fix round, approved round 1. The
+tokens went to the fixture sweep (~25 files), not code: a field rename costs like API503's path rename.
 
 **DX624 cycle 1** (`knowledge/specs/046-DX624-sdk-browser-sign-in/RETRO.md`, split at plan time from 10 decisions): 6 groups
 (1 matrix), 6 decisions + 4 planner rules, no migration or E2E, a new SDK module plus a workerd round trip. 191k / 61 calls in

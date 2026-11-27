@@ -745,6 +745,11 @@ One program, two engines: the same assertions run on Postgres and D1.
   both changed. One absence mutation per guard (put the old string back) is the only proof the guard still
   bites. Third, a mutation can show the guard has no test at all: in OPS262, `scripts/instance/config.ts`'s
   resources-only refusal left 91 instance tests green. Add the missing case in the same cycle.
+- **A column rename's residue includes untyped row literals.** A test that hands a program a full row as a plain
+  object (a read result keyed by a read key) is typed by nothing, so `typecheck` stays clean and a grep for the field
+  "near the table name" misses it. Grep the old key as an object key (`\b<old>:`) in every test file that also names a
+  sibling column of the same table, and run every file that hits before handing over. [[CORE680]]'s
+  `packages/api/src/identity/programs.test.ts` (`notes: null` in a `tasks` row) cost a gate-fix round.
 - **Verify from a fresh database, and run the suite twice in a row.** A suite that passes only on the second
   run depends on leaked state.
 - **A test never spawns a real external tool** (wrangler, npm, a CLI that talks to a provider). Inject the runner
