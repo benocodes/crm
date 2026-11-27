@@ -65,7 +65,7 @@ const env = (db = w.d1) => ({
   GOOGLE_CLIENT_SECRET: 'fake-secret',
   OAUTH_STATE_SECRET: 'fake-state-secret',
   CREDENTIALS_KEY: keyEncoded,
-  MAIL_SYNC: {
+  GMAIL_SYNC: {
     create: async () => {
       starts++
     },

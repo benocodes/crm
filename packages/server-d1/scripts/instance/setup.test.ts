@@ -167,7 +167,7 @@ describe('fresh install, release mode', () => {
       d1: { name: 'vb-crm-demo', id: s.sim.d1s[0]!.uuid },
       control_d1: { name: 'vb-control-demo', id: s.sim.d1s[1]!.uuid },
       r2_bucket: 'vb-bodies-demo',
-      workflow: { name: 'vb-mail-sync-demo' },
+      workflow: { name: 'vb-gmail-sync-demo' },
       vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' },
     })
 

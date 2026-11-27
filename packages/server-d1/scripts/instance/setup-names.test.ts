@@ -32,7 +32,7 @@ const configsOf = (s: SetupWorld) =>
 const MARKER = { organization_id: 'org-1', auth_provider: 'none', auth_org_id: 'demo', organizations: 1 }
 
 describe('a new instance derives vb- names', () => {
-  it('creates vb-crm-<env> and vb-bodies-<env>, and records worker vb-<env> and workflow vb-mail-sync-<env>', async () => {
+  it('creates vb-crm-<env> and vb-bodies-<env>, and records worker vb-<env> and workflow vb-gmail-sync-<env>', async () => {
     const s = world({})
     expect(await run(s)).toBe(0)
     expect(
@@ -46,7 +46,7 @@ describe('a new instance derives vb- names', () => {
       worker: 'vb-demo',
       d1: { name: 'vb-crm-demo' },
       r2_bucket: 'vb-bodies-demo',
-      workflow: { name: 'vb-mail-sync-demo' },
+      workflow: { name: 'vb-gmail-sync-demo' },
     })
     for (const c of configsOf(s)) expect(JSON.stringify(c)).not.toContain('vault')
   })
@@ -74,8 +74,8 @@ describe('a new instance derives vb- names', () => {
     ['a given D1 name over 63 characters', [...NONE_ARGS, '--d1-name', long(64)]],
     ['a given worker name over 63 characters', [...NONE_ARGS, '--worker-name', long(64)]],
     [
-      'a derived workflow name over 63 characters (env of 51)',
-      ['--env', long(51), '--api-host', API_HOST, '--auth', 'none'],
+      'a derived workflow name over 63 characters (env of 50; vb-gmail-sync- is 14)',
+      ['--env', long(50), '--api-host', API_HOST, '--auth', 'none'],
     ],
   ])('refuses %s before any call', async (_n, argv) => {
     const s = world({})
@@ -84,13 +84,18 @@ describe('a new instance derives vb- names', () => {
     expect(s.w.wrangler).toHaveLength(0)
     expect(s.w.fetchUrls).toEqual([])
   })
+  it('refuses the 50-character env naming vb-gmail-sync-<env>, and accepts 49 (CORE688 P3)', () => {
+    const argv = (n: number) => ['--env', long(n), '--api-host', API_HOST, '--auth', 'none']
+    expect(() => parseInstanceSetupArgs(argv(49))).not.toThrow()
+    expect(() => parseInstanceSetupArgs(argv(50))).toThrow(new RegExp(`vb-gmail-sync-${long(50)} is 64 characters`))
+  })
   it('accepts names of exactly 63 characters', () => {
     expect(() => parseInstanceSetupArgs([...NONE_ARGS, '--d1-name', long(63)])).not.toThrow()
   })
 })
 
 describe('recorded names win (matrix: resource kind)', () => {
-  const VB = { worker: 'vb-demo', d1: 'vb-crm-demo', r2: 'vb-bodies-demo', workflow: 'vb-mail-sync-demo' }
+  const VB = { worker: 'vb-demo', d1: 'vb-crm-demo', r2: 'vb-bodies-demo', workflow: 'vb-gmail-sync-demo' }
   const LEGACY = { worker: 'vault-demo', d1: 'vault-demo', r2: 'vault-demo-bodies', workflow: 'vault-demo-mail-sync' }
   // A record that differs from the derivation in exactly one kind, so a kind left on the derivation turns its own case red.
   const cases = (['worker', 'd1', 'r2', 'workflow'] as const).map((kind) => {

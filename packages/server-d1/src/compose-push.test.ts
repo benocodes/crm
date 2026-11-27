@@ -52,7 +52,7 @@ const env = (extra: Partial<D1WorkerEnv> = {}): D1WorkerEnv => ({
   DB: w.d1,
   AUTH_PROVIDER: '',
   ...GMAIL_ENV,
-  MAIL_SYNC: binding,
+  GMAIL_SYNC: binding,
   BODIES: undefined,
   ...extra,
 })
@@ -155,7 +155,7 @@ describe('the cron with push on (D89)', () => {
     [{ GMAIL_PUSH_SUBSCRIPTION: undefined }],
     [{ GMAIL_PUSH_SERVICE_ACCOUNT: undefined }],
     [{ PUBLIC_BASE_URL: undefined }],
-    [{ MAIL_SYNC: undefined }],
+    [{ GMAIL_SYNC: undefined }],
     [{}],
   ] as const)('push off (%j): the cron makes no watch call and writes no row', async (missing) => {
     const t = await boot()
@@ -201,7 +201,7 @@ describe('POST /inbound/gmail through the composition', () => {
   it('is 404 when push is off, whatever the credentials', async () => {
     await boot()
     expect((await push(composeD1Worker(env()))).status).toBe(404)
-    expect((await push(composeD1Worker(env({ ...PUSH_ENV, MAIL_SYNC: undefined })))).status).toBe(404)
+    expect((await push(composeD1Worker(env({ ...PUSH_ENV, GMAIL_SYNC: undefined })))).status).toBe(404)
   })
   it('with push on and no bearer it is 401 and the JWKS is not fetched; a bearer that is not a JWT neither', async () => {
     await boot()

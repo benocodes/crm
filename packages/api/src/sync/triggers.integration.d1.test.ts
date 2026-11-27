@@ -8,7 +8,7 @@ import { FAKE_ENDPOINTS, FAKE_GMAIL_BASE, FakeGoogle } from '../test/google.js'
 import { seedGmailConnection } from '../test/gmail-sync.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../test/user-auth.js'
 import { requestDueSyncs } from './cron.js'
-import { requestSync, type MailSyncInstances, type MailSyncParams } from './request.js'
+import { requestSync, type GmailSyncInstances, type GmailSyncParams } from './request.js'
 
 // [[CHN141]]: the non-push triggers on local D1: `requestSync`, `connections.sync`, the connect flow's request and the cron's selection.
 const KEY = new Uint8Array(32).fill(3)
@@ -25,8 +25,8 @@ const MIN = 60_000
 let e: Engine
 let google: FakeGoogle
 let now: Date
-let created: Array<{ id: string; params: MailSyncParams }>
-let instances: MailSyncInstances
+let created: Array<{ id: string; params: GmailSyncParams }>
+let instances: GmailSyncInstances
 beforeAll(async () => {
   e = await openD1Engine()
   google = await FakeGoogle.create({ clientId: ENV.GOOGLE_CLIENT_ID, clientSecret: ENV.GOOGLE_CLIENT_SECRET })
@@ -73,7 +73,7 @@ describe('requestSync (D11)', () => {
   it('writes sync_requested_at in its own unit, then creates one instance named for the connection', async () => {
     const id = await seed()
     let seenInCreate: unknown = 'unset'
-    const spy: MailSyncInstances = {
+    const spy: GmailSyncInstances = {
       create: async (o) => {
         seenInCreate = (await stateOf(id)).sync_requested_at
         created.push(o)
@@ -85,7 +85,7 @@ describe('requestSync (D11)', () => {
     expect(seenInCreate).toBe(now.toISOString()) // the request was committed before the instance existed
     expect(created).toHaveLength(1)
     expect(created[0]!.params).toEqual({ connection_id: id })
-    expect(created[0]!.id).toMatch(new RegExp(`^mail-sync-${id}-[0-9a-f-]{36}$`))
+    expect(created[0]!.id).toMatch(new RegExp(`^gmail-sync-${id}-[0-9a-f-]{36}$`))
     expect(out.instance_id).toBe(created[0]!.id)
   })
   it('two requests make two distinct instance ids', async () => {
@@ -104,7 +104,7 @@ describe('requestSync (D11)', () => {
 })
 
 describe('connections.sync (D43, D75)', () => {
-  const app = (over: { config?: boolean; instances?: MailSyncInstances | null } = {}) => {
+  const app = (over: { config?: boolean; instances?: GmailSyncInstances | null } = {}) => {
     const { config } = parseGmailConfig(ENV)
     return createApp({
       storage: () => e.binding,
@@ -149,7 +149,7 @@ describe('connections.sync (D43, D75)', () => {
     expect((await stateOf(id)).sync_requested_at).toBe(now.toISOString())
     expect(created).toHaveLength(1)
     expect(created[0]!.params).toEqual({ connection_id: id })
-    expect(created[0]!.id).toMatch(new RegExp(`^mail-sync-${id}-[0-9a-f-]{36}$`))
+    expect(created[0]!.id).toMatch(new RegExp(`^gmail-sync-${id}-[0-9a-f-]{36}$`))
   })
   it('an agent is refused: without the scope 403 insufficient_scope; holding it, 403 user_required; nothing is requested', async () => {
     const id = await seed()
@@ -164,7 +164,7 @@ describe('connections.sync (D43, D75)', () => {
     const res = await post(app({ config: false }), unknownId, { kind: 'agent', scopes: ['connections:read'] })
     expect(res.status).toBe(403)
   })
-  it('501 provider_not_configured when Gmail is unconfigured, and when there is no MAIL_SYNC binding; before the 404', async () => {
+  it('501 provider_not_configured when Gmail is unconfigured, and when there is no GMAIL_SYNC binding; before the 404', async () => {
     const id = await seed()
     for (const a of [app({ config: false }), app({ instances: null })]) {
       const res = await post(a, id)
@@ -212,7 +212,7 @@ describe('connections.sync (D43, D75)', () => {
 
 describe('the connect flow requests a sync after its unit commits (D9, D55)', () => {
   const roles = new Map<string, Role | null>([['user_engine_1', 'owner']])
-  const build = (inst: MailSyncInstances | undefined) => {
+  const build = (inst: GmailSyncInstances | undefined) => {
     const { config, problems } = parseGmailConfig(ENV)
     return createApp({
       storage: () => e.binding,
@@ -252,7 +252,7 @@ describe('the connect flow requests a sync after its unit commits (D9, D55)', ()
   }
   it('a successful callback requests exactly one sync, after the connection exists', async () => {
     let existed: number | null = null
-    const inst: MailSyncInstances = {
+    const inst: GmailSyncInstances = {
       create: async (o) => {
         existed = (await e.rows('connections')).length
         created.push(o)
@@ -279,7 +279,7 @@ describe('the connect flow requests a sync after its unit commits (D9, D55)', ()
     expect(await e.rows('connections')).toEqual([])
     expect(await e.rows('connection_sync_state')).toEqual([])
   })
-  it('without a MAIL_SYNC binding the connection is still committed, and a line says no sync was requested', async () => {
+  it('without a GMAIL_SYNC binding the connection is still committed, and a line says no sync was requested', async () => {
     const lines: string[] = []
     vi.spyOn(console, 'warn').mockImplementation((...a: unknown[]) => void lines.push(a.map(String).join(' ')))
     const res = await connect(build(undefined))
@@ -346,7 +346,7 @@ describe('the cron: which connections get a request (D14, D75)', () => {
     const a = await seed()
     const b = await seed()
     let calls = 0
-    const flaky: MailSyncInstances = {
+    const flaky: GmailSyncInstances = {
       create: async (o) => {
         if (calls++ === 0) throw new Error('boom')
         created.push(o)

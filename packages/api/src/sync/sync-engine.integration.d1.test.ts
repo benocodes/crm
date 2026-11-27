@@ -12,10 +12,10 @@ import { seedGmailConnection } from '../test/gmail-sync.js'
 import { nodeStreams } from '../test/streams.js'
 import { makeWorkerdStepShim } from '../test/workerd-boundary.js'
 import { claimLease, extendLease, finishPass, LEASE_MS } from './lease.js'
-import { runMailSync, type MailSyncRuntime } from './workflow-run.js'
-import type { MailSyncParams } from './request.js'
+import { runGmailSyncWorkflow, type GmailSyncRuntime } from './workflow-run.js'
+import type { GmailSyncParams } from './request.js'
 
-// [[CHN141]] / [[CHN5]] cycle 4: the sync run (`runMailSync`) on local D1 over the real page service, FakeGmail, FakeGoogle's token endpoint and
+// [[CHN141]] / [[CHN5]] cycle 4: the sync run (`runGmailSyncWorkflow`) on local D1 over the real page service, FakeGmail, FakeGoogle's token endpoint and
 // the workerd step shim. Nothing reaches the network.
 const KEY = new Uint8Array(32).fill(3)
 const CONFIG = {
@@ -65,10 +65,10 @@ const many = (n: number, prefix: string): BuiltGmailMessage[] =>
 interface Setup {
   gmail: FakeGmail
   pages: GmailSyncDeps
-  rt: MailSyncRuntime
+  rt: GmailSyncRuntime
   id: string
   refreshToken: string
-  created: Array<{ id: string; params: MailSyncParams }>
+  created: Array<{ id: string; params: GmailSyncParams }>
   state: { behind: boolean; roles: Map<string, Role | null>; roleFailure: boolean; policy: ScopePolicy }
 }
 async function setup(
@@ -111,7 +111,7 @@ async function setup(
     roleFailure: false,
     policy: SCOPE_POLICY,
   }
-  const rt: MailSyncRuntime = {
+  const rt: GmailSyncRuntime = {
     pages,
     gate: async () => {
       if (state.behind) throw new Error('migrations_pending: the database is behind this build')
@@ -131,7 +131,7 @@ async function setup(
   return { gmail, pages, rt, id, refreshToken, created, state }
 }
 const run = (s: Setup, shim = makeWorkerdStepShim()) =>
-  runMailSync({ payload: { connection_id: s.id } }, shim.step, () => s.rt)
+  runGmailSyncWorkflow({ payload: { connection_id: s.id } }, shim.step, () => s.rt)
 const addHistory = (g: FakeGmail, id: string, added: string[]) =>
   g.history.push({ id, added: added.map((a) => ({ id: a, labels: ['INBOX'] })) })
 const stateRow = async () => (await e.rows('connection_sync_state'))[0]!
@@ -358,7 +358,7 @@ describe('again (D11)', () => {
     expect(shim.names).toContain('chain')
     expect(s.created).toHaveLength(1)
     expect(s.created[0]!.params).toEqual({ connection_id: s.id })
-    expect(s.created[0]!.id).toMatch(new RegExp(`^mail-sync-${s.id}-[0-9a-f-]{36}$`))
+    expect(s.created[0]!.id).toMatch(new RegExp(`^gmail-sync-${s.id}-[0-9a-f-]{36}$`))
     expect(await stateRow()).toMatchObject({ run_id: null, lease_until: null })
   })
   it('exactly one extra pass when only the first pass sees a request', async () => {

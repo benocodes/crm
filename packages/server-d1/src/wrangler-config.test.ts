@@ -157,23 +157,37 @@ describe('every run_worker_first list equals the constants the Worker serves (UI
 
 // [[CHN141]] D34, D76: the Workflow and the cron are Worker configuration of the instance they run in. `workflows` is not inherited by an env, so each states its own, and `triggers` is (OPS251: the replaced `smoked1` block carries no `triggers` key and runs both crons); `hq` got its cron after the supervised first backfill ([[CHN155]] D92; it takes effect at the user's deploy).
 // [[AGT8]] D54: every env also states the per-minute cron of the execution rail and the expiry sweep, beside the 15-minute one.
-describe('mail sync Workflow and crons (CHN141 D34, D76; AGT8 D54)', () => {
+describe('Gmail sync Workflow and crons (CHN141 D34, D76; AGT8 D54)', () => {
   const CRONS = ['*/15 * * * *', '* * * * *']
   it.each([
-    [undefined, 'vb-mail-sync', CRONS],
+    [undefined, 'vb-gmail-sync', CRONS],
     ['smoked1', 'vb-mail-sync-smoked1', CRONS],
     ['hq', 'vault-hq-mail-sync', CRONS],
-  ] as const)('env %s binds MAIL_SYNC to %s with crons %j', (env, name, crons) => {
+  ] as const)('env %s binds GMAIL_SYNC to %s with crons %j', (env, name, crons) => {
     const c = unstable_readConfig({ config: CONFIG, env })
     expect(c.workflows).toEqual([
-      expect.objectContaining({ binding: 'MAIL_SYNC', name, class_name: 'MailSyncWorkflow' }),
+      expect.objectContaining({ binding: 'GMAIL_SYNC', name, class_name: 'GmailSyncWorkflow' }),
     ])
     expect(c.workflows).toHaveLength(1)
     expect(c.triggers?.crons ?? []).toEqual(crons)
   })
+  // CORE688 group 5: every Workflow the real config records (top level and each env) is bound GMAIL_SYNC with a class the bundle exports; an env that kept its recorded name keeps it.
+  it('every recorded Workflow is bound GMAIL_SYNC with a class worker.ts exports', () => {
+    const root = parse(readFileSync(CONFIG, 'utf8')) as {
+      workflows?: Array<{ binding: string; class_name: string }>
+      env?: Record<string, { workflows?: Array<{ binding: string; class_name: string }> }>
+    }
+    const entries = [root.workflows, ...Object.values(root.env ?? {}).map((e) => e.workflows)].flatMap((w) => w ?? [])
+    expect(entries.length).toBeGreaterThanOrEqual(3)
+    const worker = readFileSync(fileURLToPath(new URL('./worker.ts', import.meta.url)), 'utf8')
+    for (const e of entries) {
+      expect(e.binding).toBe('GMAIL_SYNC')
+      expect(worker).toMatch(new RegExp(`export \\{[^}]*\\b${e.class_name}\\b[^}]*\\}`))
+    }
+  })
   it('the Worker entry exports the Workflow class the binding names', () => {
     expect(readFileSync(fileURLToPath(new URL('./worker.ts', import.meta.url)), 'utf8')).toMatch(
-      /export \{[^}]*MailSyncWorkflow[^}]*\}/,
+      /export \{[^}]*GmailSyncWorkflow[^}]*\}/,
     )
   })
 })

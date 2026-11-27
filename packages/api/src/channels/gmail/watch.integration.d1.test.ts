@@ -11,7 +11,7 @@ import { PUSH } from '../../test/push.js'
 import { fakeUserAuthenticator, mintTestUserToken } from '../../test/user-auth.js'
 import { GmailApiError } from './client.js'
 import { renewWatches, type WatchDeps } from './watch.js'
-import type { MailSyncInstances } from '../../sync/request.js'
+import type { GmailSyncInstances } from '../../sync/request.js'
 
 // [[CHN155]] / [[CHN5]] D89-D91: the watch at connect, its renewal and its stop on delete, on local D1 against FakeGoogle. Nothing reaches the network.
 const KEY = new Uint8Array(32).fill(3)
@@ -52,7 +52,7 @@ beforeEach(async () => {
 })
 afterEach(() => vi.restoreAllMocks())
 
-const instances: MailSyncInstances = { create: async () => {} }
+const instances: GmailSyncInstances = { create: async () => {} }
 const buildApp = (env: Record<string, string | undefined> = { ...ENV, ...PUSH_ENV }) => {
   const { config } = parseGmailConfig(env)
   const { config: push } = parsePushConfig(env)

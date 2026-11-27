@@ -14,7 +14,7 @@ import { type D1WorkerEnv } from './compose.js'
 import { readDeployment } from './init-deployment.js'
 import { bootstrapD1, NOW, openWorkerD1, type WorkerD1, composeD1Worker } from './test/kit.js'
 
-// [[CHN141]] D14, D37, D75: the composed Worker's `scheduled` handler and `runMailSync` over a local D1, with Google faked at the `fetch` seam.
+// [[CHN141]] D14, D37, D75: the composed Worker's `scheduled` handler and `runGmailSyncWorkflow` over a local D1, with Google faked at the `fetch` seam.
 const KEY = new Uint8Array(32).fill(7)
 const GMAIL_ENV = {
   GOOGLE_CLIENT_ID: 'fake-client-id.apps.test',
@@ -48,7 +48,7 @@ const env = (extra: Partial<D1WorkerEnv> = {}): D1WorkerEnv => ({
   DB: w.d1,
   AUTH_PROVIDER: '',
   ...GMAIL_ENV,
-  MAIL_SYNC: binding,
+  GMAIL_SYNC: binding,
   BODIES: undefined,
   ...extra,
 })
@@ -116,12 +116,12 @@ describe('the scheduled handler (D14, D37, D75)', () => {
     expect(created).toEqual([])
     expect(lines.some((l) => l.includes('unknown cron') && l.includes('0 0 1 1 *'))).toBe(true)
   })
-  it('skips Gmail work, with a log line, when Gmail is unconfigured or the MAIL_SYNC binding is missing', async () => {
+  it('skips Gmail work, with a log line, when Gmail is unconfigured or the GMAIL_SYNC binding is missing', async () => {
     const t = await boot()
     await seed(t)
     const lines = logs()
     await composeD1Worker(env({ GOOGLE_CLIENT_ID: undefined })).scheduled({ cron: CRON, scheduledTime: 0 })
-    await composeD1Worker(env({ MAIL_SYNC: undefined })).scheduled({ cron: CRON, scheduledTime: 0 })
+    await composeD1Worker(env({ GMAIL_SYNC: undefined })).scheduled({ cron: CRON, scheduledTime: 0 })
     expect(created).toEqual([])
     expect(lines.filter((l) => /skipped/.test(l) && l.includes(CRON))).toHaveLength(2)
   })
@@ -137,7 +137,7 @@ describe('the scheduled handler (D14, D37, D75)', () => {
   })
 })
 
-describe('the composed run (runMailSync)', () => {
+describe('the composed run (runGmailSyncWorkflow)', () => {
   const fake = (gmail: FakeGmail) =>
     (async (input: RequestInfo | URL, init?: RequestInit) => {
       const req = new Request(input as RequestInfo, init)
@@ -167,11 +167,11 @@ describe('the composed run (runMailSync)', () => {
     const gmail = new FakeGmail([msg('c1'), msg('c2')])
     const worker = composeD1Worker(env({ BODIES: fakeR2Bucket() }), { fetch: fake(gmail), streams: nodeStreams() })
     const shim = makeWorkerdStepShim()
-    const out = await worker.runMailSync({ payload: { connection_id: id } }, shim.step)
+    const out = await worker.runGmailSyncWorkflow({ payload: { connection_id: id } }, shim.step)
     expect(out).toEqual({ end: 'complete', passes: 1 })
     expect((await w.d1.prepare('select count(*) as n from message_sources').first())!.n).toBe(2)
   })
-  // [[CORE559]] P2: the mail-sync pipeline's context carries the composed set, so a captured sender's contact.created carries the extension fields.
+  // [[CORE559]] P2: the gmail-sync pipeline's context carries the composed set, so a captured sender's contact.created carries the extension fields.
   it('with an extend, the contact a sync creates has its extension field in contact.created; with none it is the core record', async () => {
     const EXTEND: ExtendDeclarations = {
       contacts: { lvl__c: { kind: 'enum', values: ['a', 'b'], required: true, default: 'a' } },
@@ -188,7 +188,7 @@ describe('the composed run (runMailSync)', () => {
         streams: nodeStreams(),
         ...(extend ? { extend } : {}),
       })
-      await worker.runMailSync({ payload: { connection_id: id } }, makeWorkerdStepShim().step)
+      await worker.runGmailSyncWorkflow({ payload: { connection_id: id } }, makeWorkerdStepShim().step)
       return (
         (await w.d1.prepare(`select after from events where type = 'contact.created'`).all()).results as Array<{
           after: string
@@ -208,7 +208,7 @@ describe('the composed run (runMailSync)', () => {
       fetch: fake(new FakeGmail([])),
       streams: nodeStreams(),
     })
-    await expect(worker.runMailSync({ payload: { connection_id: id } }, makeWorkerdStepShim().step)).rejects.toThrow(
+    await expect(worker.runGmailSyncWorkflow({ payload: { connection_id: id } }, makeWorkerdStepShim().step)).rejects.toThrow(
       /behind/,
     )
     expect((await w.d1.prepare('select run_id from connection_sync_state').first())!.run_id).toBeNull()
@@ -217,7 +217,7 @@ describe('the composed run (runMailSync)', () => {
     const t = await boot()
     const id = await seed(t)
     const worker = composeD1Worker(env({ GOOGLE_CLIENT_ID: undefined, BODIES: fakeR2Bucket() }))
-    await expect(worker.runMailSync({ payload: { connection_id: id } }, makeWorkerdStepShim().step)).rejects.toThrow(
+    await expect(worker.runGmailSyncWorkflow({ payload: { connection_id: id } }, makeWorkerdStepShim().step)).rejects.toThrow(
       /not configured/,
     )
   })

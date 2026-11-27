@@ -161,7 +161,7 @@ describe('the view model over real responses', () => {
   })
 })
 
-// [[UI468]] group 6 (D6 to D9): the new client methods against the same Worker. Unconfigured, `connections.sync` answers 501 (the Worker refuses before it reads the connection); configured with Google and a MAIL_SYNC binding it answers 409 on a reauth_required row and 202 on an active one.
+// [[UI468]] group 6 (D6 to D9): the new client methods against the same Worker. Unconfigured, `connections.sync` answers 501 (the Worker refuses before it reads the connection); configured with Google and a GMAIL_SYNC binding it answers 409 on a reauth_required row and 202 on an active one.
 describe('settings, sync and disconnect over real responses', () => {
   const created: unknown[] = []
   const configured = () =>
@@ -173,7 +173,7 @@ describe('settings, sync and disconnect over real responses', () => {
         GOOGLE_CLIENT_SECRET: 'fake-client-secret',
         OAUTH_STATE_SECRET: 'state-secret',
         CREDENTIALS_KEY: Buffer.from(KEY).toString('base64'),
-        MAIL_SYNC: { create: async (o: unknown) => void created.push(o) },
+        GMAIL_SYNC: { create: async (o: unknown) => void created.push(o) },
       } as never,
       { fetch: ck.fetch },
     )
@@ -224,7 +224,7 @@ describe('settings, sync and disconnect over real responses', () => {
     expect(saveAction(r)).toBe('reload')
   })
 
-  it('connections.sync: 501 without Google or MAIL_SYNC; 409 on reauth_required and 202 on an active row once configured', async () => {
+  it('connections.sync: 501 without Google or GMAIL_SYNC; 409 on reauth_required and 202 on an active row once configured', async () => {
     const plain = await callerApi('owner').syncConnection(ownerConn)
     expect(plain.status).toBe(501)
     expect(plain.code).toBe('provider_not_configured')

@@ -3,7 +3,7 @@ import { SignJWT } from 'jose'
 import { uuidv7 } from '@vibase/storage'
 import { parseGmailConfig, parsePushConfig } from '../../connections/config.js'
 import { createApp } from '../../rest/app.js'
-import { dueConnections, type MailSyncInstances, type MailSyncParams } from '../../sync/request.js'
+import { dueConnections, type GmailSyncInstances, type GmailSyncParams } from '../../sync/request.js'
 import { finishPass } from '../../sync/lease.js'
 import { openD1Engine, type Engine } from '../../test/engines.js'
 import { seedGmailConnection } from '../../test/gmail-sync.js'
@@ -29,8 +29,8 @@ const SEC = 1000
 let e: Engine
 let key: PushKey
 let now: Date
-let created: Array<{ id: string; params: MailSyncParams }>
-let instances: MailSyncInstances
+let created: Array<{ id: string; params: GmailSyncParams }>
+let instances: GmailSyncInstances
 let jwks: ReturnType<typeof jwksFetch>
 let connId: string
 beforeAll(async () => {
@@ -62,7 +62,7 @@ beforeEach(async () => {
 const app = (
   over: {
     env?: Record<string, string | undefined>
-    instances?: MailSyncInstances | null
+    instances?: GmailSyncInstances | null
     binding?: Engine['binding']
   } = {},
 ) => {
@@ -307,7 +307,7 @@ describe('push to sync (D88)', () => {
     expect((await state()).sync_requested_at).toBe(now.toISOString())
     expect(created).toHaveLength(1)
     expect(created[0]!.params).toEqual({ connection_id: connId })
-    expect(created[0]!.id).toMatch(new RegExp(`^mail-sync-${connId}-[0-9a-f-]{36}$`))
+    expect(created[0]!.id).toMatch(new RegExp(`^gmail-sync-${connId}-[0-9a-f-]{36}$`))
     expect((await e.rows('events')).length).toBe(eventsBefore)
   })
   it('the notification data may be standard or url base64', async () => {
@@ -497,7 +497,7 @@ describe('push off (D87): the route answers 404', () => {
   it('without PUBLIC_BASE_URL', async () => {
     expect((await post(app({ env: { ...ENV, ...PUSH_ENV, PUBLIC_BASE_URL: undefined } }))).status).toBe(404)
   })
-  it('without the MAIL_SYNC binding, and with Gmail unconfigured', async () => {
+  it('without the GMAIL_SYNC binding, and with Gmail unconfigured', async () => {
     expect((await post(app({ instances: null }))).status).toBe(404)
     expect((await post(app({ env: { ...PUSH_ENV, PUBLIC_BASE_URL: PUSH.publicBaseUrl } }))).status).toBe(404)
     expect(jwks.urls).toEqual([])
