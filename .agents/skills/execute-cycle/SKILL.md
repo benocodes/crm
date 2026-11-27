@@ -118,7 +118,10 @@ branch then carries no code, so there is no gate to run ([[DX422]] D2).
   Where the reference and common practice disagree (the history reference omits `labelIds` that real
   responses carry), parse the field when present and treat its absence as unknown, never as a value.
 - **No speculative dependencies.** Prefer the platform and Node builtins. A new dependency gets its own
-  commit.
+  commit, and its lockfile hunk names only that package: check `git diff main -- pnpm-lock.yaml`. `pnpm add`
+  can re-resolve unrelated entries ([[OPS670]]: a root `typescript` rewrote zod and better-call, +8/-24 lines
+  for a 3-line change, caught at review); if it did, restore `main`'s lockfile, add again, and confirm
+  `pnpm install --frozen-lockfile` passes.
 
 ## 3. Red
 
@@ -168,7 +171,9 @@ For every **Must be tested** obligation in the charter, write the test(s) that p
   worktree: every cycle worktree and the main checkout share it, so `pop` or `apply` without a name takes
   whoever pushed last. [[CORE639]]'s coder popped another session's stash into its branch (a conflict and a
   stray file to repair by hand). Use a WIP commit or a scratchpad copy; if you stash at all, give it a unique
-  message and apply it by that message (`git stash apply "stash^{/<tag>}"`), never by position.
+  message and apply it by that message (`git stash apply "stash^{/<tag>}"`), never by position. A quick check
+  against the committed state needs no stash: `git diff`, `git show HEAD:<path>` or a throwaway worktree
+  ([[OPS670]]'s coder stashed by reflex before such a check, despite this rule).
 - A migration's test goes red against the old schema **before** the migration exists (vitest runs
   untyped, so missing generated types don't block the run). Only then write the migration, run codegen
   and change the seeds ([[CORE3]] cycle 1).

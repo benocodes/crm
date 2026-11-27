@@ -42,4 +42,4 @@ read is "not run", never green.
 
 Never call `mcp__sprint-relay__next_cycle` (or any orchestrator tool you can see): it ends the orchestrator's
 cycle and only the orchestrator calls it. Your run ends with the report. (A gate-tester called it during
-[[UI246]].)
+[[UI246]] and again during [[OPS670]]; the relay refuses a subagent's call, so it does nothing but waste a turn.)
