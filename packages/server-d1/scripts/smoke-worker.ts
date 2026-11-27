@@ -547,8 +547,8 @@ try {
   res = await fetch(new URL(`${callbackUrl.pathname}${callbackUrl.search}`, base), { redirect: 'manual' })
   const returnedTo = res.headers.get('location') ?? ''
   const connectedPage = await res.text()
-  const conn = (await rows('select * from channel_connections'))[0]
-  const cred = (await rows('select * from channel_credentials'))[0]
+  const conn = (await rows('select * from connections'))[0]
+  const cred = (await rows('select * from connection_credentials'))[0]
   const refresh = google.refreshTokens.at(-1) ?? ''
   const opened = cred
     ? await openToken(CREDENTIALS_KEY_BYTES, String(cred.refresh_token_ciphertext)).catch(() => '')
@@ -557,27 +557,27 @@ try {
     String(r.value),
   )
   const newEvents = (await rows('select type, actor_id from events order by seq')).slice(eventsBeforeConnect)
-  const cursor = (await rows('select * from mail_sync_cursors'))[0]
+  const cursor = (await rows('select * from connection_sync_cursors'))[0]
   check(
     '44 the callback in workerd -> 302 to the Accounts page with the connection id; one connection owned by the user, an encrypted credential that opens to the refresh token, the cursor, own identities and the events; and the watch row (push is on), registered for INBOX and SENT',
     res.status === 302 &&
       new URL(returnedTo).origin === PUSH_BASE_URL &&
       new URL(returnedTo).pathname === '/app/accounts' &&
       new URL(returnedTo).searchParams.get('connection_id') === String(conn?.id) &&
-      (await count('channel_connections')) === 1 &&
+      (await count('connections')) === 1 &&
       conn?.account_id === 'smoke-sub' &&
       conn?.status === 'active' &&
       refresh !== '' &&
       String(cred?.refresh_token_ciphertext ?? '') !== '' &&
       !String(cred?.refresh_token_ciphertext).includes(refresh) &&
       opened === refresh &&
-      cursor?.history_id === '777' &&
-      (await count('mail_sync_state')) === 1 &&
-      (await count('gmail_watches')) === 1 &&
+      cursor?.cursor === '777' &&
+      (await count('connection_sync_state')) === 1 &&
+      (await count('connection_watches')) === 1 &&
       google.watchRequests.length === 1 &&
       JSON.stringify(google.watchRequests[0]?.body) ===
         JSON.stringify({ topicName: PUSH_TOPIC, labelIds: ['INBOX', 'SENT'], labelFilterBehavior: 'include' }) &&
-      (await rows('select mailbox from gmail_watches'))[0]?.mailbox === 'mailbox@smoke.test' &&
+      (await rows('select address from connection_watches'))[0]?.address === 'mailbox@smoke.test' &&
       ownValues.join() === 'alias@smoke.test,mailbox@smoke.test' &&
       newEvents.filter((x) => x.type === 'connection.created').length === 1 &&
       newEvents.filter((x) => x.type === 'identity.created').length === 2 &&
@@ -607,7 +607,7 @@ try {
   const stateOf = async () =>
     (
       await rows(
-        'select last_success_at, lease_until, run_id, sync_requested_at from mail_sync_state where connection_id = ?',
+        'select last_success_at, lease_until, run_id, sync_requested_at from connection_sync_state where connection_id = ?',
         connId,
       )
     )[0]
@@ -621,7 +621,7 @@ try {
     connId,
   )
   const syncCursor = (
-    await rows('select history_id, page_token, last_synced_at from mail_sync_cursors where connection_id = ?', connId)
+    await rows('select cursor, page_token, last_synced_at from connection_sync_cursors where connection_id = ?', connId)
   )[0]
   const msgEvents = await rows("select actor_id from events where type = 'message.created'")
   check(
@@ -843,9 +843,9 @@ try {
   const requestedAt = async () => String((await stateOf())?.sync_requested_at ?? '')
   const flat = async () =>
     JSON.stringify([
-      await rows('select * from mail_sync_state'),
-      await rows('select * from mail_sync_cursors'),
-      await rows('select * from gmail_watches'),
+      await rows('select * from connection_sync_state'),
+      await rows('select * from connection_sync_cursors'),
+      await rows('select * from connection_watches'),
       await count('events'),
     ])
 
@@ -932,7 +932,7 @@ try {
     res.status === 204 &&
       google.stopRequests.length === stops0 + 1 &&
       google.isAccessToken(google.stopRequests.at(-1)?.token ?? '') &&
-      (await count('gmail_watches')) === 0 &&
+      (await count('connection_watches')) === 0 &&
       stopKeys.length === 1 &&
       new Set(recKeysAfter.filter((k) => !k.endsWith('index.json')).map((k) => k.split('/')[1])).size >= 3,
     { status: res.status, stops: google.stopRequests.length - stops0, stopKeys },
@@ -1506,7 +1506,7 @@ try {
     "select provider_message_id as p, created_by as c from message_sources where provider_message_id like 'p-%'",
   )
   const pageCursor = (await pd1
-    .prepare('select history_id, page_token, last_synced_at from mail_sync_cursors where connection_id = ?')
+    .prepare('select cursor, page_token, last_synced_at from connection_sync_cursors where connection_id = ?')
     .bind(pages.connectionId ?? '')
     .first()) as Record<string, unknown> | null
   check(
@@ -1523,12 +1523,10 @@ try {
   )
   check(
     "P2 the capture pages in workerd: the cursor holds the history page's id and the last-synced stamp",
-    pageCursor?.history_id === '1002' &&
-      pageCursor?.page_token === null &&
-      typeof pageCursor.last_synced_at === 'string',
+    pageCursor?.cursor === '1002' && pageCursor?.page_token === null && typeof pageCursor.last_synced_at === 'string',
     pageCursor,
   )
-  const credRows = await pRows('select refresh_token_ciphertext as c from channel_credentials')
+  const credRows = await pRows('select refresh_token_ciphertext as c from connection_credentials')
   check(
     'P3 the capture pages in workerd: only the faked token host was reached, and the stored credential is not the refresh token',
     JSON.stringify(pages.hosts) === JSON.stringify(['https://oauth2.googleapis.com']) &&
@@ -1551,7 +1549,7 @@ try {
     error?: string
   }
   const poisonCursor = (await pd1
-    .prepare('select history_id, page_token from mail_sync_cursors where connection_id = ?')
+    .prepare('select cursor, page_token from connection_sync_cursors where connection_id = ?')
     .bind(poison.connectionId ?? '')
     .first()) as Record<string, unknown> | null
   check(
@@ -1560,7 +1558,7 @@ try {
       poison.result?.outcome === 'page' &&
       poison.result.captured === 2 &&
       poison.result.skipped === 1 &&
-      poisonCursor?.history_id === '1002' &&
+      poisonCursor?.cursor === '1002' &&
       poisonCursor?.page_token === null,
     { status: poisonRun.status, poison, poisonCursor },
   )

@@ -136,7 +136,7 @@ export const actionRequests = withColumnFilters(
         sending_mailbox: {
           kind: 'text',
           expression: (_qc, parent) =>
-            sql`(select "identities"."value" from "channel_connections" join "identities" on "identities"."id" = "channel_connections"."identity_id" and "identities"."organization_id" = "channel_connections"."organization_id" where ${parent('operation')} = 'messages.send' and "channel_connections"."id" = json_extract(${parent('arguments')}, '$.connection_id') and "channel_connections"."organization_id" = ${parent('organization_id')} and "channel_connections"."deleted_at" is null)`,
+            sql`(select "identities"."value" from "connections" join "identities" on "identities"."id" = "connections"."identity_id" and "identities"."organization_id" = "connections"."organization_id" where ${parent('operation')} = 'messages.send' and "connections"."id" = json_extract(${parent('arguments')}, '$.connection_id') and "connections"."organization_id" = ${parent('organization_id')} and "connections"."deleted_at" is null)`,
         },
       },
       filters: {

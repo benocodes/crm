@@ -39,11 +39,11 @@ const ANN: FakeAccount = {
   ],
 }
 const CONNECTION_TABLES = [
-  'channel_connections',
-  'channel_credentials',
-  'gmail_watches',
-  'mail_sync_state',
-  'mail_sync_cursors',
+  'connections',
+  'connection_credentials',
+  'connection_watches',
+  'connection_sync_state',
+  'connection_sync_cursors',
   'identities',
   'contacts',
   'events',
@@ -189,7 +189,7 @@ describe('connect, happy path (one unit, acting as the user)', () => {
   it('writes the connection, one credential, the cursor, the sync-state row, the own identities and the events', async () => {
     const res = await connect()
     expect(res.status).toBe(200)
-    const conns = await rows('channel_connections')
+    const conns = await rows('connections')
     expect(conns).toHaveLength(1)
     const c = conns[0]!
     expect(c).toMatchObject({
@@ -209,23 +209,23 @@ describe('connect, happy path (one unit, acting as the user)', () => {
     ])
     expect(idents.find((i) => i.id === c.identity_id)!.value).toBe('ann@example.test')
     // The credential: the stored text is not the token, and opens to it under the key.
-    const creds = await rows('channel_credentials')
+    const creds = await rows('connection_credentials')
     expect(creds).toHaveLength(1)
     expect(creds[0]).toMatchObject({ connection_id: c.id, key_version: 1, created_by: e.userId })
     expect(google.refreshTokens.at(-1)).toBeDefined()
     expect(creds[0]!.refresh_token_ciphertext).not.toContain(google.refreshTokens.at(-1))
     expect(await openToken(KEY_BYTES, creds[0]!.refresh_token_ciphertext as string)).toBe(google.refreshTokens.at(-1))
     // The cursor holds the profile's history id; the state row exists and is blank; nothing watches (D55).
-    expect(await rows('mail_sync_cursors')).toEqual([
+    expect(await rows('connection_sync_cursors')).toEqual([
       expect.objectContaining({
         connection_id: c.id,
-        history_id: '555',
+        cursor: '555',
         page_token: null,
         last_synced_at: null,
         created_by: e.userId,
       }),
     ])
-    expect(await rows('mail_sync_state')).toEqual([
+    expect(await rows('connection_sync_state')).toEqual([
       expect.objectContaining({
         connection_id: c.id,
         sync_requested_at: null,
@@ -235,7 +235,7 @@ describe('connect, happy path (one unit, acting as the user)', () => {
         last_error_code: null,
       }),
     ])
-    expect(await rows('gmail_watches')).toEqual([])
+    expect(await rows('connection_watches')).toEqual([])
     // Events: connection.created and identity.created, all by the user.
     const ev = await events()
     expect(ev.map((x) => x.type).sort()).toEqual(['connection.created', 'identity.created', 'identity.created'])
@@ -290,7 +290,7 @@ describe('connect, happy path (one unit, acting as the user)', () => {
       granted_scopes: SCOPES_ALL,
       ciphertext: 'c2VhbGVk',
       key_version: 1,
-      history_id: '555',
+      cursor: '555',
     })
     const faulty = {
       ...op,
@@ -316,7 +316,7 @@ describe('requested and granted Gmail scopes (user decision 2026-11-05)', () => 
 
   it('a grant with readonly but without send still connects, and the stored grant records what was granted', async () => {
     expect((await connect(ANN, { consent: { granted: ['openid', 'email', GMAIL_READONLY] } })).status).toBe(200)
-    expect((await rows('channel_connections'))[0]!.granted_scopes).toEqual(['openid', 'email', GMAIL_READONLY])
+    expect((await rows('connections'))[0]!.granted_scopes).toEqual(['openid', 'email', GMAIL_READONLY])
   })
 
   it('a grant with send but without readonly is scope_missing and writes nothing', async () => {
@@ -360,13 +360,13 @@ describe('own identities (D10)', () => {
 describe('reconnect (D31, D56)', () => {
   it('the same Google account by another connections:write holder updates the row: owner moves, active again, scopes replaced, created_by stays, one new credential replaces the old', async () => {
     await connect(ANN, { consent: { granted: [...SCOPES_ALL, 'https://www.googleapis.com/auth/calendar.readonly'] } })
-    const first = (await rows('channel_connections'))[0]!
-    const firstCred = (await rows('channel_credentials'))[0]!
-    await e.update('channel_connections', first.id as string, { status: 'reauth_required' })
+    const first = (await rows('connections'))[0]!
+    const firstCred = (await rows('connection_credentials'))[0]!
+    await e.update('connections', first.id as string, { status: 'reauth_required' })
     now = new Date('2026-11-06T10:00:00.000Z')
     const res = await connect({ ...ANN, historyId: '900' }, { as: e.user2Id })
     expect(res.status).toBe(200)
-    const conns = await rows('channel_connections')
+    const conns = await rows('connections')
     expect(conns).toHaveLength(1)
     expect(conns[0]).toMatchObject({
       id: first.id,
@@ -377,7 +377,7 @@ describe('reconnect (D31, D56)', () => {
       deleted_at: null,
     })
     expect(conns[0]!.granted_scopes).toEqual(SCOPES_ALL)
-    const creds = await rows('channel_credentials')
+    const creds = await rows('connection_credentials')
     expect(creds).toHaveLength(1)
     expect(creds[0]!.id).not.toBe(firstCred.id)
     expect(await openToken(KEY_BYTES, creds[0]!.refresh_token_ciphertext as string)).toBe(google.refreshTokens.at(-1))
@@ -386,24 +386,24 @@ describe('reconnect (D31, D56)', () => {
     ])
     expect((await events()).filter((x) => x.type === 'connection.created')).toHaveLength(1)
     // The cursor is kept (a new history id would open a gap), the old error is cleared, one row each.
-    expect(await rows('mail_sync_cursors')).toEqual([
-      expect.objectContaining({ connection_id: first.id, history_id: '555' }),
+    expect(await rows('connection_sync_cursors')).toEqual([
+      expect.objectContaining({ connection_id: first.id, cursor: '555' }),
     ])
-    expect(await rows('mail_sync_state')).toHaveLength(1)
+    expect(await rows('connection_sync_state')).toHaveLength(1)
   })
 
   it('a reconnect after a disconnect creates a new connection; the deleted row stays', async () => {
     await connect()
-    const first = (await rows('channel_connections'))[0]!
+    const first = (await rows('connections'))[0]!
     expect((await api('DELETE', `/meta/v1/connections/${first.id}`)).status).toBe(204)
     await connect()
-    const conns = await rows('channel_connections')
+    const conns = await rows('connections')
     expect(conns).toHaveLength(2)
     expect(conns.find((c) => c.id === first.id)!.deleted_at).not.toBeNull()
     const second = conns.find((c) => c.id !== first.id)!
     expect(second).toMatchObject({ deleted_at: null, status: 'active' })
     expect((await events()).filter((x) => x.type === 'connection.created')).toHaveLength(2)
-    expect(await rows('channel_credentials')).toEqual([expect.objectContaining({ connection_id: second.id })])
+    expect(await rows('connection_credentials')).toEqual([expect.objectContaining({ connection_id: second.id })])
   })
 })
 
@@ -416,7 +416,7 @@ describe('default capture settings (CHN406 D4, D12)', () => {
 
   it('a new connection gets INBOX and SENT in the callback unit, and connection.created carries the five fields', async () => {
     await connect()
-    const c = (await rows('channel_connections'))[0]!
+    const c = (await rows('connections'))[0]!
     expect(await labelsOf(c.id as string)).toEqual(['INBOX', 'SENT'])
     expect(c).toMatchObject({
       exclude_group_addresses: true,
@@ -442,7 +442,7 @@ describe('default capture settings (CHN406 D4, D12)', () => {
       granted_scopes: SCOPES_ALL,
       ciphertext: 'c2VhbGVk',
       key_version: 1,
-      history_id: '555',
+      cursor: '555',
     })
     const faulty = {
       ...op,
@@ -457,19 +457,19 @@ describe('default capture settings (CHN406 D4, D12)', () => {
     }
     await expect(e.run(faulty as never)).rejects.toThrow()
     expect((await rows('connection_capture_labels')).length).toBe(before)
-    expect(await rows('channel_connections')).toEqual([])
+    expect(await rows('connections')).toEqual([])
   })
 
   it('a live reconnect keeps the rows and scalars changed beforehand by direct SQL', async () => {
     await connect()
-    const c = (await rows('channel_connections'))[0]!
+    const c = (await rows('connections'))[0]!
     const sent = (await rows('connection_capture_labels')).find((r) => r.label_id === 'SENT')!
     await e.d1!.prepare('delete from connection_capture_labels where id = ?').bind(sent.id).run()
     await e.insert('connection_capture_labels', { connection_id: c.id, label_id: 'Label_5' })
-    await e.update('channel_connections', c.id as string, { contact_creation: 'none', exclude_group_addresses: true })
+    await e.update('connections', c.id as string, { contact_creation: 'none', exclude_group_addresses: true })
     await connect({ ...ANN })
     expect(await labelsOf(c.id as string)).toEqual(['INBOX', 'Label_5'])
-    expect((await rows('channel_connections'))[0]).toMatchObject({
+    expect((await rows('connections'))[0]).toMatchObject({
       contact_creation: 'none',
       exclude_group_addresses: true,
     })
@@ -477,15 +477,15 @@ describe('default capture settings (CHN406 D4, D12)', () => {
 
   it('a reconnect after a disconnect is a new connection with fresh defaults; the old rows stay with the deleted one', async () => {
     await connect()
-    const first = (await rows('channel_connections'))[0]!
+    const first = (await rows('connections'))[0]!
     await e
       .d1!.prepare('delete from connection_capture_labels where connection_id = ? and label_id = ?')
       .bind(first.id, 'SENT')
       .run()
-    await e.update('channel_connections', first.id as string, { contact_creation: 'none' })
+    await e.update('connections', first.id as string, { contact_creation: 'none' })
     expect((await api('DELETE', `/meta/v1/connections/${first.id}`)).status).toBe(204)
     await connect()
-    const second = (await rows('channel_connections')).find((c) => c.id !== first.id)!
+    const second = (await rows('connections')).find((c) => c.id !== first.id)!
     expect(await labelsOf(second.id as string)).toEqual(['INBOX', 'SENT'])
     expect(second.contact_creation).toBe('sent')
     expect(await labelsOf(first.id as string)).toEqual(['INBOX'])
@@ -733,7 +733,7 @@ describe('result surface (D32)', () => {
     expect(ok.status).toBe(302)
     const location = new URL(ok.headers.get('location')!)
     expect(`${location.origin}${location.pathname}`).toBe('https://app.example.test/connected')
-    expect(location.searchParams.get('connection_id')).toBe((await rows('channel_connections'))[0]!.id)
+    expect(location.searchParams.get('connection_id')).toBe((await rows('connections'))[0]!.id)
     expect(location.searchParams.get('error')).toBeNull()
     const denied = await connect(ANN, { consent: { deny: true } })
     expect(denied.status).toBe(302)
@@ -896,7 +896,7 @@ describe('the return target (UI469 D5)', () => {
         const expectedBase = returnUrl ? SET : `${publicBase ? PUBLIC : REQUEST_ORIGIN}/accounts`
         expect(`${location.origin}${location.pathname}`).toBe(expectedBase)
         expect(location.searchParams.get(param)).toBe(
-          kind === 'refusal' ? 'state_invalid' : (await rows('channel_connections'))[0]!.id,
+          kind === 'refusal' ? 'state_invalid' : (await rows('connections'))[0]!.id,
         )
       } else {
         expect(res.status).toBe(kind === 'refusal' ? 400 : 200)

@@ -204,7 +204,7 @@ try {
         ],
         ciphertext: await sealToken(key, 'hook-e2e-refresh', crypto.getRandomValues(new Uint8Array(12))),
         key_version: 1,
-        history_id: '1000',
+        cursor: '1000',
       }),
     )
   ).value.connection_id

@@ -612,12 +612,12 @@ describe('the messaging slice (CORE25 C1)', () => {
       // 0010 (CHN140 D27) rebuilt both source tables with the connection key, 0024 (CHN421 D10) added the form key; the rest is 0004's.
       message_sources: [
         ['organization_id,message_id', 'messages', 'organization_id,id'],
-        ['organization_id,connection_id', 'channel_connections', 'organization_id,id'],
+        ['organization_id,connection_id', 'connections', 'organization_id,id'],
         ['organization_id,form_id', 'forms', 'organization_id,id'],
       ],
       thread_sources: [
         ['organization_id,thread_id', 'threads', 'organization_id,id'],
-        ['organization_id,connection_id', 'channel_connections', 'organization_id,id'],
+        ['organization_id,connection_id', 'connections', 'organization_id,id'],
         ['organization_id,form_id', 'forms', 'organization_id,id'],
       ],
     }

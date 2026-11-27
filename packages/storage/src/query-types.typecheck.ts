@@ -74,7 +74,7 @@ projectAs<{ id: string; title: string }>()(selectColumns(qc, 'tasks', ['id']))
 
 // secret column in a public projection
 // @ts-expect-error refresh_token_ciphertext is a secret column
-publicSelect(qc, 'channel_credentials', ['id', 'refresh_token_ciphertext'])
+publicSelect(qc, 'connection_credentials', ['id', 'refresh_token_ciphertext'])
 
 // async hook where a synchronous one is required
 declare function defineHook<R extends object>(hook: SyncHook<{ title: string }, R>): void

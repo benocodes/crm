@@ -213,7 +213,7 @@ Gmail sync ([[CHN141]], CHN5 cycle 4) is the first Workflow. Paths are real:
 
 - `packages/api/src/sync/workflow-run.ts`: Node-safe orchestrator `runMailSync(event, step, resolve)`. Step names are unique per instance
   (`seed`, `claim`, `p<pass>-history-<n>`, `p<pass>-finish`, `record-failure`, `chain`); every step re-resolves the runtime from `resolve()` and
-  returns only ids, counts, page tokens, history ids, bounds and outcomes. `lease.ts` (lease on `mail_sync_state`: one conditional write plus a
+  returns only ids, counts, page tokens, history ids, bounds and outcomes. `lease.ts` (lease on `connection_sync_state`: one conditional write plus a
   `result` select in the same D1 batch, so "did I get it" needs no drift handling), `request.ts` (`requestSync`, `dueConnections`), `cron.ts`.
 - `packages/server-d1/src/mail-sync-workflow.ts`: the workerd class (`MailSyncWorkflow`, imports `cloudflare:workers`, typed by
   `src/cloudflare-workers.d.ts`); `src/instance.ts` is the one per-isolate composition that `fetch`, `scheduled` and the Workflow share;

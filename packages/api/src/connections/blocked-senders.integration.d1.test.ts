@@ -281,7 +281,7 @@ describe('validation (P4): the matrix', () => {
       contact_id: null,
       own: true,
     })
-    const c = await e.insert('channel_connections', {
+    const c = await e.insert('connections', {
       provider: 'google',
       account_id: 'sub-1',
       identity_id: identity.id,
@@ -370,7 +370,7 @@ describe('effective settings (D11): captureSettingsRead sees what the operation 
       contact_id: null,
       own: true,
     })
-    return e.insert('channel_connections', {
+    return e.insert('connections', {
       provider: 'google',
       account_id: `sub-${n}`,
       identity_id: identity.id,

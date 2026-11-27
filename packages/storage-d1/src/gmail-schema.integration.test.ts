@@ -130,7 +130,7 @@ describe('gmail capture tables', () => {
   })
 
   it('accepts sources of a real connection; UPDATE is still refused (append_only), a connection with sources cannot be deleted', async () => {
-    expect(await insert('channel_connections', conn())).toBeNull()
+    expect(await insert('connections', conn())).toBeNull()
     expect(await insert('message_sources', msgSource())).toBeNull()
     expect(await insert('thread_sources', thrSource())).toBeNull()
     expect(await run('UPDATE message_sources SET provider_message_id = ? WHERE id = ?', 'x', id(30))).toContain(
@@ -143,7 +143,7 @@ describe('gmail capture tables', () => {
       (await all<{ provider_message_id: string }>('select provider_message_id from message_sources'))[0]!
         .provider_message_id,
     ).toBe('gm-1')
-    expect(await run('DELETE FROM channel_connections WHERE id = ?', CONN)).toMatch(/FOREIGN KEY/)
+    expect(await run('DELETE FROM connections WHERE id = ?', CONN)).toMatch(/FOREIGN KEY/)
   })
 
   it("re-creates the source tables' indexes: the unique provider id per connection and the message/thread lookups", async () => {
@@ -177,28 +177,26 @@ describe('gmail capture tables', () => {
   })
 
   it('constrains the connection: provider google, status, scopes a JSON array, unique live account, composite identity key', async () => {
-    expect(await insert('channel_connections', conn({ id: id(12), provider: 'microsoft' }))).toMatch(/CHECK/)
-    expect(await insert('channel_connections', conn({ id: id(12), account_id: 'sub-2', status: 'paused' }))).toMatch(
+    expect(await insert('connections', conn({ id: id(12), provider: 'microsoft' }))).toMatch(/CHECK/)
+    expect(await insert('connections', conn({ id: id(12), account_id: 'sub-2', status: 'paused' }))).toMatch(/CHECK/)
+    expect(await insert('connections', conn({ id: id(12), account_id: 'sub-2', granted_scopes: '{"a":1}' }))).toMatch(
       /CHECK/,
     )
-    expect(
-      await insert('channel_connections', conn({ id: id(12), account_id: 'sub-2', granted_scopes: '{"a":1}' })),
-    ).toMatch(/CHECK/)
-    expect(
-      await insert('channel_connections', conn({ id: id(12), account_id: 'sub-2', granted_scopes: 'nope' })),
-    ).toMatch(/CHECK/)
-    expect(await insert('channel_connections', conn({ id: id(12), account_id: '' }))).toMatch(/CHECK/)
-    expect(await insert('channel_connections', conn({ id: 'x', account_id: 'sub-2' }))).toMatch(/CHECK/)
-    expect(await insert('channel_connections', conn({ id: id(12), account_id: 'sub-2', identity_id: id(98) }))).toMatch(
+    expect(await insert('connections', conn({ id: id(12), account_id: 'sub-2', granted_scopes: 'nope' }))).toMatch(
+      /CHECK/,
+    )
+    expect(await insert('connections', conn({ id: id(12), account_id: '' }))).toMatch(/CHECK/)
+    expect(await insert('connections', conn({ id: 'x', account_id: 'sub-2' }))).toMatch(/CHECK/)
+    expect(await insert('connections', conn({ id: id(12), account_id: 'sub-2', identity_id: id(98) }))).toMatch(
       /FOREIGN KEY/,
     )
-    expect(await insert('channel_connections', conn({ id: id(12), account_id: 'sub-2', owner_id: id(97) }))).toMatch(
+    expect(await insert('connections', conn({ id: id(12), account_id: 'sub-2', owner_id: id(97) }))).toMatch(
       /FOREIGN KEY/,
     )
     // The same Google account twice among live rows is refused; once soft-deleted it is free again (D56).
-    expect(await insert('channel_connections', conn({ id: id(12) }))).toMatch(/UNIQUE/)
-    expect(await run('UPDATE channel_connections SET deleted_at = ? WHERE id = ?', AT, CONN)).toBeNull()
-    expect(await insert('channel_connections', conn({ id: id(12) }))).toBeNull()
+    expect(await insert('connections', conn({ id: id(12) }))).toMatch(/UNIQUE/)
+    expect(await run('UPDATE connections SET deleted_at = ? WHERE id = ?', AT, CONN)).toBeNull()
+    expect(await insert('connections', conn({ id: id(12) }))).toBeNull()
   })
 
   it('the machinery tables hang on the connection by the composite key, hold no secret in clear and need no deleted_at', async () => {
@@ -208,13 +206,18 @@ describe('gmail capture tables', () => {
           `select * from pragma_foreign_key_list('${t}') order by id, seq`,
         )
       )
-        .filter((f) => f.table === 'channel_connections')
+        .filter((f) => f.table === 'connections')
         .map((f) => f.from)
         .sort()
-    for (const t of ['channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors'])
+    for (const t of [
+      'connection_credentials',
+      'connection_watches',
+      'connection_sync_state',
+      'connection_sync_cursors',
+    ])
       expect(await fks(t), t).toEqual(['connection_id', 'organization_id'])
     expect(
-      await insert('channel_credentials', {
+      await insert('connection_credentials', {
         id: id(50),
         ...base,
         connection_id: id(98),
@@ -223,7 +226,7 @@ describe('gmail capture tables', () => {
       }),
     ).toMatch(/FOREIGN KEY/)
     expect(
-      await insert('channel_credentials', {
+      await insert('connection_credentials', {
         id: id(50),
         ...base,
         connection_id: id(12),
@@ -232,7 +235,7 @@ describe('gmail capture tables', () => {
       }),
     ).toMatch(/CHECK/)
     expect(
-      await insert('channel_credentials', {
+      await insert('connection_credentials', {
         id: id(50),
         ...base,
         connection_id: id(12),
@@ -241,7 +244,7 @@ describe('gmail capture tables', () => {
       }),
     ).toMatch(/CHECK/)
     expect(
-      await insert('channel_credentials', {
+      await insert('connection_credentials', {
         id: id(50),
         ...base,
         connection_id: id(12),
@@ -250,22 +253,32 @@ describe('gmail capture tables', () => {
       }),
     ).toBeNull()
     expect(
-      await insert('gmail_watches', { connection_id: id(12), ...base, mailbox: 'Ann@Example.test', expires_at: AT }),
+      await insert('connection_watches', {
+        connection_id: id(12),
+        ...base,
+        address: 'Ann@Example.test',
+        expires_at: AT,
+      }),
     ).toMatch(/CHECK/)
     expect(
-      await insert('gmail_watches', { connection_id: id(12), ...base, mailbox: 'ann@example.test', expires_at: AT }),
+      await insert('connection_watches', {
+        connection_id: id(12),
+        ...base,
+        address: 'ann@example.test',
+        expires_at: AT,
+      }),
     ).toBeNull()
-    expect(await insert('mail_sync_state', { connection_id: id(12), ...base })).toBeNull()
-    expect(await insert('mail_sync_cursors', { connection_id: id(12), ...base, history_id: '' })).toMatch(/CHECK/)
-    expect(await insert('mail_sync_cursors', { connection_id: id(12), ...base, history_id: '555' })).toBeNull()
-    expect(await insert('mail_sync_cursors', { connection_id: id(12), ...base, history_id: '556' })).toMatch(
+    expect(await insert('connection_sync_state', { connection_id: id(12), ...base })).toBeNull()
+    expect(await insert('connection_sync_cursors', { connection_id: id(12), ...base, cursor: '' })).toMatch(/CHECK/)
+    expect(await insert('connection_sync_cursors', { connection_id: id(12), ...base, cursor: '555' })).toBeNull()
+    expect(await insert('connection_sync_cursors', { connection_id: id(12), ...base, cursor: '556' })).toMatch(
       /UNIQUE|PRIMARY/,
     )
     const idx = async (t: string) =>
       (await all<{ name: string }>(`select name from pragma_index_list('${t}') where name like 'idx_%'`))
         .map((r) => r.name)
         .sort()
-    expect(await idx('channel_credentials')).toEqual(['idx_channel_credentials_connection'])
-    expect(await idx('gmail_watches')).toEqual(['idx_gmail_watches_mailbox'])
+    expect(await idx('connection_credentials')).toEqual(['idx_connection_credentials_connection'])
+    expect(await idx('connection_watches')).toEqual(['idx_connection_watches_address'])
   })
 })

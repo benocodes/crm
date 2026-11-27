@@ -189,9 +189,9 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
 - **The D1 splitter knows triggers.** `splitStatements` (`@vibase/storage-d1/test`) ends a `CREATE TRIGGER` at the line that
   closes it with `END;`; wrangler applies the same file as written.
 - **Source tables are machinery** (`message_sources`, `thread_sources`): no events, no API; the provider's ids map to ours.
-  Since `0010` ([[CHN140]]) their `connection_id` is a composite FK to `channel_connections`; since `0024` ([[CHN421]]) it
+  Since `0010` ([[CHN140]]) their `connection_id` is a composite FK to `connections`; since `0024` ([[CHN421]]) it
   is nullable beside a `form_id` FK to `forms`, exactly one set (below).
-- **Adding a foreign key to an existing D1 table is a rebuild** (`channel_connections` and the source tables in genesis, from `0010_gmail_capture.sql`, are the worked example):
+- **Adding a foreign key to an existing D1 table is a rebuild** (`connections` and the source tables in genesis, from `0010_gmail_capture.sql`, are the worked example):
   `PRAGMA defer_foreign_keys = on;`, create `<t>_new` with the key, `INSERT … SELECT` the explicit column list, `DROP`,
   `RENAME`, then re-create **every** index and trigger the old table had (they go with the drop). Diff the new definition
   against the original migration's, column by column. Test it as a migration over data (apply up to the previous file
@@ -373,7 +373,12 @@ and the control chain starts the same way at `control-migrations/0001_genesis.sq
 writes the lasting one): milestone AA's specs ([[CORE679]], [[CORE680]]) edit genesis in place (user ruling, decision
 678.2) and update its hash in the manifest; every other change appends a new numbered file.** Each cycle that
 migrates a resource appends a file, outside that milestone. Local tests apply the files to disposable Miniflare bindings
-(`@vibase/storage-d1/test`); never point tooling at a remote database id.
+(`@vibase/storage-d1/test`); never point tooling at a remote database id. **An in-place genesis rename is proven by one
+diff:** apply the rename map (old to new for every table, column, constraint and index) to `main`'s genesis and compare
+it with the branch genesis byte for byte; an empty diff shows nothing else moved. Plain substring replacement is enough
+only when each old name occurs nowhere else in the file (check first). The conventions test's `check_named` rule ties a
+CHECK's name to its table's prefix, so a constraint left on the old prefix turns it red. [[CORE686]] kept the map and
+script in its cycle folder (`genesis-rename-map.pl`, `check-genesis.sh`).
 
 - **Tenancy is the database** (spec D18). A singleton `deployment` row fixes the organisation id,
   `organizations.id` references it, and every tenant table's `organization_id` references

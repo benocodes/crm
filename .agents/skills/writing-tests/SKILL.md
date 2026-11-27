@@ -750,6 +750,11 @@ One program, two engines: the same assertions run on Postgres and D1.
   "near the table name" misses it. Grep the old key as an object key (`\b<old>:`) in every test file that also names a
   sibling column of the same table, and run every file that hits before handing over. [[CORE680]]'s
   `packages/api/src/identity/programs.test.ts` (`notes: null` in a `tasks` row) cost a gate-fix round.
+- **A table rename moves the discoverable schema's goldens.** `schema_get` lists tables by name, so a renamed table
+  re-sorts the golden `schema.json`, the table order pinned in `packages/api/src/schema/build.test.ts`, and the
+  `golden` and `schema-get` digests in `packages/api/fixtures/wire-core554/digests.json`. Prove the golden moved only by
+  the rename: apply the rename to `main`'s file and compare the sorted line sets (`sort | diff` empty). The OpenAPI,
+  MCP and error digests must not move; if one does, a record or parameter shape changed ([[CORE686]]).
 - **Verify from a fresh database, and run the suite twice in a row.** A suite that passes only on the second
   run depends on leaked state.
 - **A test never spawns a real external tool** (wrangler, npm, a CLI that talks to a provider). Inject the runner

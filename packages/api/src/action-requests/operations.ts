@@ -322,7 +322,7 @@ function buildCreate(
         // [[AGT588]] D8, D10: the summary of a send names the connection's mailbox and a reply's thread subject. Both are plain reads (a missing one is a gap in
         // the sentence, never a refusal: authorisation of the send is at approval, D11).
         reads['ar:mailbox'] = readMaybe(
-          sql<Row>`select "identities"."value" as mailbox from "channel_connections" join "identities" on "identities"."id" = "channel_connections"."identity_id" and "identities"."organization_id" = "channel_connections"."organization_id" where "channel_connections"."id" = ${String(body.arguments.connection_id)} and "channel_connections"."organization_id" = ${env.organizationId} and "channel_connections"."deleted_at" is null`.compile(
+          sql<Row>`select "identities"."value" as mailbox from "connections" join "identities" on "identities"."id" = "connections"."identity_id" and "identities"."organization_id" = "connections"."organization_id" where "connections"."id" = ${String(body.arguments.connection_id)} and "connections"."organization_id" = ${env.organizationId} and "connections"."deleted_at" is null`.compile(
             qc.db,
           ),
         )

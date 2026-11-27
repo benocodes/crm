@@ -62,7 +62,7 @@ export const CONTACT_REFERENCES: readonly ContactReference[] = [
  */
 export const IDENTITY_REFERENCES: readonly { table: string; column: string }[] = [
   { table: 'interaction_participants', column: 'identity_id' },
-  { table: 'channel_connections', column: 'identity_id' },
+  { table: 'connections', column: 'identity_id' },
 ]
 
 /**

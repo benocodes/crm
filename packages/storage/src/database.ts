@@ -281,7 +281,7 @@ export interface DealsTable {
  * [[CHN5]] D3, D31: a grant to one Google account, owned by a user. D1 only. `account_id` is Google's `sub`; `granted_scopes` is a
  * JSON array of text. `last_synced_at` and `last_error_code` are joined into the read ([[CHN5]] D42), not stored here.
  */
-export interface ChannelConnectionsTable {
+export interface ConnectionsTable {
   id: string
   created_at: Timestamp
   updated_at: Timestamp
@@ -363,7 +363,7 @@ export interface FormTagsTable {
   created_at: Timestamp
 }
 /** [[CHN5]] D4, D41: the refresh token as AES-256-GCM ciphertext (base64url of iv || ciphertext || tag). Insert-only; the newest row is live. Machinery, no events. D1 only. */
-export interface ChannelCredentialsTable {
+export interface ConnectionCredentialsTable {
   id: string
   organization_id: string
   created_by: string
@@ -373,16 +373,16 @@ export interface ChannelCredentialsTable {
   key_version: IntegerColumn
 }
 /** [[CHN5]] D14: the Gmail `watch` registration of a connection. Machinery; nothing writes it until CHN141. D1 only. */
-export interface GmailWatchesTable {
+export interface ConnectionWatchesTable {
   connection_id: string
   organization_id: string
   created_by: string
   created_at: Timestamp
-  mailbox: string
+  address: string
   expires_at: Timestamp
 }
 /** [[CHN5]] D11: the lease and health of a connection's sync. Machinery. D1 only. */
-export interface MailSyncStateTable {
+export interface ConnectionSyncStateTable {
   connection_id: string
   organization_id: string
   created_by: string
@@ -395,12 +395,12 @@ export interface MailSyncStateTable {
   last_error_at: NullableTimestamp
 }
 /** [[CHN5]] D9, D12: where a connection's history walk stands. Machinery. D1 only. */
-export interface MailSyncCursorsTable {
+export interface ConnectionSyncCursorsTable {
   connection_id: string
   organization_id: string
   created_by: string
   created_at: Timestamp
-  history_id: string
+  cursor: string
   page_token: string | null
   last_synced_at: NullableTimestamp
 }
@@ -567,17 +567,17 @@ export interface StorageDatabase {
   pipelines: PipelinesTable
   pipeline_stages: PipelineStagesTable
   deals: DealsTable
-  channel_connections: ChannelConnectionsTable
+  connections: ConnectionsTable
   connection_capture_labels: ConnectionCaptureLabelsTable
   connection_blocked_senders: ConnectionBlockedSendersTable
   blocked_senders: BlockedSendersTable
   forms: FormsTable
   form_allowed_origins: FormAllowedOriginsTable
   form_tags: FormTagsTable
-  channel_credentials: ChannelCredentialsTable
-  gmail_watches: GmailWatchesTable
-  mail_sync_state: MailSyncStateTable
-  mail_sync_cursors: MailSyncCursorsTable
+  connection_credentials: ConnectionCredentialsTable
+  connection_watches: ConnectionWatchesTable
+  connection_sync_state: ConnectionSyncStateTable
+  connection_sync_cursors: ConnectionSyncCursorsTable
   interaction_participants: InteractionParticipantsTable
   message_attachments: MessageAttachmentsTable
   message_sources: MessageSourcesTable
@@ -598,7 +598,7 @@ export interface SecretColumns {
   messages: 'content_key' | 'content_sha256'
   files: 'storage_key'
   /** [[CHN5]] D41: the ciphertext of the refresh token; only the credentials module selects it, by an explicit column list. */
-  channel_credentials: 'refresh_token_ciphertext'
+  connection_credentials: 'refresh_token_ciphertext'
 }
 export type PublicColumn<T extends Table> = Exclude<
   ColumnOf<T>,
@@ -848,7 +848,7 @@ export const COLUMN_KINDS = {
     deleted_at: 'timestamp',
     additional_props: 'json',
   },
-  channel_connections: {
+  connections: {
     id: 'uuid',
     created_at: 'timestamp',
     updated_at: 'timestamp',
@@ -921,7 +921,7 @@ export const COLUMN_KINDS = {
     tag_id: 'uuid',
     created_at: 'timestamp',
   },
-  channel_credentials: {
+  connection_credentials: {
     id: 'uuid',
     organization_id: 'uuid',
     created_by: 'uuid',
@@ -930,15 +930,15 @@ export const COLUMN_KINDS = {
     refresh_token_ciphertext: 'text',
     key_version: 'integer',
   },
-  gmail_watches: {
+  connection_watches: {
     connection_id: 'uuid',
     organization_id: 'uuid',
     created_by: 'uuid',
     created_at: 'timestamp',
-    mailbox: 'text',
+    address: 'text',
     expires_at: 'timestamp',
   },
-  mail_sync_state: {
+  connection_sync_state: {
     connection_id: 'uuid',
     organization_id: 'uuid',
     created_by: 'uuid',
@@ -950,12 +950,12 @@ export const COLUMN_KINDS = {
     last_error_code: 'text',
     last_error_at: 'timestamp',
   },
-  mail_sync_cursors: {
+  connection_sync_cursors: {
     connection_id: 'uuid',
     organization_id: 'uuid',
     created_by: 'uuid',
     created_at: 'timestamp',
-    history_id: 'text',
+    cursor: 'text',
     page_token: 'text',
     last_synced_at: 'timestamp',
   },

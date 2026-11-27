@@ -62,7 +62,7 @@ beforeEach(async () => {
         ],
         ciphertext: 'fake-encrypted-token',
         key_version: 1,
-        history_id: '1000',
+        cursor: '1000',
       }),
     )
   ).value.connection_id

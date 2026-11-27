@@ -145,7 +145,7 @@ beforeEach(async () => {
         ],
         ciphertext: await sealToken(key, 'fake-refresh-token', crypto.getRandomValues(new Uint8Array(12))),
         key_version: 1,
-        history_id: '1000',
+        cursor: '1000',
       }),
     )
   ).value.connection_id
@@ -225,7 +225,7 @@ it('a failed capture start retains its mark and never downgrades confirmed deliv
     },
   }
   expect((await gmailTransport(d).dispatch(await call())).kind).toBe('sent')
-  expect((await k.rows('mail_sync_state'))[0]!.sync_requested_at).toBe(k.now().toISOString())
+  expect((await k.rows('connection_sync_state'))[0]!.sync_requested_at).toBe(k.now().toISOString())
   expect(posts).toBe(1)
 })
 it('missing body and revoked connection fail before any POST, missing credential is reauth_required', async () => {
@@ -236,7 +236,7 @@ it('missing body and revoked connection fail before any POST, missing credential
   expect(await gmailTransport(deps()).dispatch(c)).toEqual({ kind: 'not_sent', code: 'provider_rejected' })
   expect(posts).toBe(0)
   const good = await call()
-  await k.d1.prepare('delete from channel_credentials where connection_id=?').bind(connection).run()
+  await k.d1.prepare('delete from connection_credentials where connection_id=?').bind(connection).run()
   expect(await gmailTransport(deps()).dispatch(good)).toEqual({ kind: 'not_sent', code: 'reauth_required' })
   expect(posts).toBe(0)
 })
@@ -247,10 +247,10 @@ it.each(['invalid_grant', 'unreadable', 'key_version', 'inactive', 'grant'] as c
     const c = await call()
     if (fault === 'invalid_grant') refreshInvalid = true
     if (fault === 'unreadable')
-      await k.d1.prepare("update channel_credentials set refresh_token_ciphertext='unreadable'").run()
-    if (fault === 'key_version') await k.d1.prepare('update channel_credentials set key_version=99').run()
-    if (fault === 'inactive') await k.d1.prepare("update channel_connections set status='suspended'").run()
-    if (fault === 'grant') await k.d1.prepare("update channel_connections set granted_scopes='[]'").run()
+      await k.d1.prepare("update connection_credentials set refresh_token_ciphertext='unreadable'").run()
+    if (fault === 'key_version') await k.d1.prepare('update connection_credentials set key_version=99').run()
+    if (fault === 'inactive') await k.d1.prepare("update connections set status='suspended'").run()
+    if (fault === 'grant') await k.d1.prepare("update connections set granted_scopes='[]'").run()
     expect(await gmailTransport(deps()).dispatch(c)).toEqual({
       kind: 'not_sent',
       code: ['inactive', 'grant'].includes(fault) ? 'permission_missing' : 'reauth_required',
@@ -258,7 +258,7 @@ it.each(['invalid_grant', 'unreadable', 'key_version', 'inactive', 'grant'] as c
     expect(posts).toBe(0)
     expect(kicks).toBe(0)
     if (fault === 'invalid_grant') {
-      expect((await k.rows('channel_connections'))[0].status).toBe('reauth_required')
+      expect((await k.rows('connections'))[0].status).toBe('reauth_required')
       const event = (await k.events('connection.updated')).at(-1)!
       expect(event.actor_id).toBe(owner)
       expect(JSON.stringify(event)).not.toContain('PROVIDER_SECRET')
@@ -274,7 +274,7 @@ it('malformed success is unknown, and credential failure while reconciling never
   refreshInvalid = true
   expect(await t.reconcile!(c)).toEqual({ kind: 'unknown' })
   expect(posts).toBe(1)
-  expect((await k.rows('channel_connections'))[0].status).toBe('reauth_required')
+  expect((await k.rows('connections'))[0].status).toBe('reauth_required')
   expect((await k.events('connection.updated')).at(-1)!.actor_id).toBe(owner)
 })
 it('late abort-ignoring refresh cannot POST or rotate after the shared signal expires', async () => {

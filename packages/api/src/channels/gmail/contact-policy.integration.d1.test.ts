@@ -85,7 +85,7 @@ async function setup(contact_creation: 'sent_and_received' | 'sent' | 'none', me
   })
   await e
     .d1!.prepare(
-      'update channel_connections set contact_creation = ?, exclude_group_addresses = 0, exclude_personal_domains = 0 where id = ?',
+      'update connections set contact_creation = ?, exclude_group_addresses = 0, exclude_personal_domains = 0 where id = ?',
     )
     .bind(contact_creation, id)
     .run()

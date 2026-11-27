@@ -41,7 +41,7 @@ const identity = (own: boolean, contactId: string | null = null) =>
   e.insert('identities', { kind: 'email', value: `i${++n}@h.test`, contact_id: own ? null : contactId, own })
 const contact = (name = 'C') => e.insert('contacts', { name })
 const connect = (identityId: string, over: Record<string, unknown> = {}) =>
-  e.insert('channel_connections', {
+  e.insert('connections', {
     provider: 'google',
     account_id: `acct-${++n}`,
     identity_id: identityId,

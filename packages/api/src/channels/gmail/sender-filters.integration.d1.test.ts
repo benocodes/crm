@@ -106,9 +106,7 @@ const blockOwn = (connection_id: string, kind: 'address' | 'domain', value: stri
   e.insert('connection_blocked_senders', { connection_id, kind, value })
 const flags = (id: string, over: { group?: boolean; personal?: boolean }) =>
   e
-    .d1!.prepare(
-      'update channel_connections set exclude_group_addresses = ?, exclude_personal_domains = ? where id = ?',
-    )
+    .d1!.prepare('update connections set exclude_group_addresses = ?, exclude_personal_domains = ? where id = ?')
     .bind(over.group ? 1 : 0, over.personal ? 1 : 0, id)
     .run()
 const page = (r: PageResult) => {

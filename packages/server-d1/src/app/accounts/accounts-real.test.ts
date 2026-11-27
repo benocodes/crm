@@ -52,7 +52,7 @@ const connect = async (actor: string, mailbox: string) => {
       granted_scopes: ['openid', 'email', 'https://www.googleapis.com/auth/gmail.readonly'],
       ciphertext: await sealToken(KEY, 'refresh', crypto.getRandomValues(new Uint8Array(12))),
       key_version: 1,
-      history_id: '1',
+      cursor: '1',
     }),
   )
   return out.value.connection_id as string
@@ -79,9 +79,9 @@ beforeEach(async () => {
   memberId = (await callerApi('member').me()).body!.user!.id
   ownerConn = await connect(ownerId, 'own-mailbox@vibase.test')
   memberConn = await connect(memberId, 'a-member-mailbox@vibase.test')
-  await w.d1.prepare("update channel_connections set status = 'reauth_required' where id = ?").bind(memberConn).run()
+  await w.d1.prepare("update connections set status = 'reauth_required' where id = ?").bind(memberConn).run()
   await w.d1
-    .prepare("update mail_sync_state set last_error_code = 'invalid_grant' where connection_id = ?")
+    .prepare("update connection_sync_state set last_error_code = 'invalid_grant' where connection_id = ?")
     .bind(memberConn)
     .run()
 })

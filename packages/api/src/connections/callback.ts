@@ -301,7 +301,7 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
             granted_scopes: tokens.scopes,
             ciphertext,
             key_version: config.keyVersion,
-            history_id: profile.historyId,
+            cursor: profile.historyId,
             ...(watchExpiresAt ? { watch_expires_at: watchExpiresAt } : {}),
           }),
         )

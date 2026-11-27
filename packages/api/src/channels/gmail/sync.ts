@@ -92,7 +92,7 @@ export interface SyncState {
   deleted_at: string | null
   owner_id: string
   mailbox: string
-  history_id: string | null
+  cursor: string | null
   page_token: string | null
   last_synced_at: string | null
 }
@@ -138,10 +138,10 @@ async function loadPageState(
     mutates: false,
     reads: (qc) => ({
       state: readMaybe(
-        sql`select c.status as status, c.deleted_at as deleted_at, c.owner_id as owner_id, i.value as mailbox, k.history_id as history_id, k.page_token as page_token, k.last_synced_at as last_synced_at
-          from channel_connections c
+        sql`select c.status as status, c.deleted_at as deleted_at, c.owner_id as owner_id, i.value as mailbox, k.cursor as cursor, k.page_token as page_token, k.last_synced_at as last_synced_at
+          from connections c
           join identities i on i.id = c.identity_id and i.organization_id = c.organization_id
-          left join mail_sync_cursors k on k.connection_id = c.id and k.organization_id = c.organization_id
+          left join connection_sync_cursors k on k.connection_id = c.id and k.organization_id = c.organization_id
           where c.id = ${connectionId} and c.organization_id = ${deps.organizationId}`.compile(qc.db),
       ),
       settings: captureSettingsRead(qc, deps.organizationId, connectionId).read,
@@ -161,7 +161,7 @@ async function loadPageState(
               deleted_at: text(r.deleted_at),
               owner_id: String(r.owner_id),
               mailbox: String(r.mailbox),
-              history_id: text(r.history_id),
+              cursor: text(r.cursor),
               page_token: text(r.page_token),
               last_synced_at: text(r.last_synced_at),
             },
@@ -177,7 +177,7 @@ async function loadPageState(
 function cursorProgram(
   deps: GmailSyncDeps,
   connectionId: string,
-  set: { history_id?: string; page_token: string | null; last_synced_at?: string },
+  set: { cursor?: string; page_token: string | null; last_synced_at?: string },
 ): Program<unknown> {
   return {
     reads: () => ({}),
@@ -186,7 +186,7 @@ function cursorProgram(
         steps: [
           step(
             qc.db
-              .updateTable('mail_sync_cursors')
+              .updateTable('connection_sync_cursors')
               .set(set)
               .where('connection_id', '=', connectionId)
               .where('organization_id', '=', deps.organizationId),
@@ -225,9 +225,9 @@ export async function markConnectionStatus(
     reads: (qc) => ({
       connection: readMaybe(
         selectRecord(connections, qc, env, undefined, { derived: false })
-          .where(sql<SqlBool>`${sql.ref('channel_connections.id')} = ${connectionId}`)
-          .where(sql<SqlBool>`${sql.ref('channel_connections.status')} = 'active'`)
-          .select(ts.exact(qc, 'channel_connections.updated_at').as('__stamp')),
+          .where(sql<SqlBool>`${sql.ref('connections.id')} = ${connectionId}`)
+          .where(sql<SqlBool>`${sql.ref('connections.status')} = 'active'`)
+          .select(ts.exact(qc, 'connections.updated_at').as('__stamp')),
       ),
     }),
     build: (found, qc) => {
@@ -245,13 +245,13 @@ export async function markConnectionStatus(
         steps: [
           step(
             qc.db
-              .updateTable('channel_connections')
+              .updateTable('connections')
               .set({ status, updated_at: at })
-              .where('channel_connections.id', '=', before.id)
-              .where('channel_connections.organization_id', '=', env.organizationId)
-              .where('channel_connections.deleted_at', 'is', null)
-              .where('channel_connections.status', '=', 'active')
-              .where(sql<SqlBool>`${ts.exact(qc, 'channel_connections.updated_at')} = ${String(__stamp)}`),
+              .where('connections.id', '=', before.id)
+              .where('connections.organization_id', '=', env.organizationId)
+              .where('connections.deleted_at', 'is', null)
+              .where('connections.status', '=', 'active')
+              .where(sql<SqlBool>`${ts.exact(qc, 'connections.updated_at')} = ${String(__stamp)}`),
             'first-mutation',
             { expect: 'affected' },
           ),
@@ -271,7 +271,7 @@ export async function markConnectionStatus(
           ),
           step(
             qc.db
-              .updateTable('mail_sync_state')
+              .updateTable('connection_sync_state')
               .set({ last_error_code: errorCode, last_error_at: at })
               .where('connection_id', '=', before.id)
               .where('organization_id', '=', env.organizationId),
@@ -456,12 +456,12 @@ export async function captureHistoryPage(
 ): Promise<PageResult> {
   return withPage<PageResult>(deps, connectionId, async (c) => {
     const { state } = c
-    if (state.history_id === null) throw new Error('connection has no cursor')
+    if (state.cursor === null) throw new Error('connection has no cursor')
     const pageToken = opts.pageToken === undefined ? state.page_token : opts.pageToken
     let listed
     try {
       listed = await c.client.listHistory({
-        startHistoryId: state.history_id,
+        startHistoryId: state.cursor,
         pageToken,
         maxResults: PAGE_SIZE,
         historyTypes: ['messageAdded'],
@@ -482,12 +482,12 @@ export async function captureHistoryPage(
       }
     }
     const next = listed.nextPageToken
-    const historyAfter = next === null ? (listed.historyId ?? state.history_id) : state.history_id
+    const historyAfter = next === null ? (listed.historyId ?? state.cursor) : state.cursor
     const final = cursorProgram(
       deps,
       connectionId,
       next === null
-        ? { history_id: historyAfter, page_token: null, last_synced_at: deps.clock().toISOString() }
+        ? { cursor: historyAfter, page_token: null, last_synced_at: deps.clock().toISOString() }
         : { page_token: next },
     )
     // A record without labels is checked on the fetched message, as the scans are.
@@ -548,11 +548,11 @@ export async function captureScanPage(
       maxResults: PAGE_SIZE,
     })
     const next = listed.nextPageToken
-    const historyAfter = next === null && scan.history_id !== null ? scan.history_id : (c.state.history_id ?? '')
+    const historyAfter = next === null && scan.history_id !== null ? scan.history_id : (c.state.cursor ?? '')
     const final =
       next === null
         ? cursorProgram(deps, connectionId, {
-            ...(scan.history_id !== null ? { history_id: scan.history_id } : {}),
+            ...(scan.history_id !== null ? { cursor: scan.history_id } : {}),
             page_token: null,
             last_synced_at: deps.clock().toISOString(),
           })

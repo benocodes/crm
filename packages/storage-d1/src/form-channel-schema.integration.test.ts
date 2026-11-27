@@ -44,7 +44,7 @@ beforeAll(async () => {
   expect(await insert('identities', ident(10, { value: 'me@example.test', contact_id: null, own: 1 }))).toBeNull()
   expect(await insert('identities', ident(12, { contact_id: CONTACT, own: 0 }))).toBeNull()
   expect(
-    await insert('channel_connections', {
+    await insert('connections', {
       id: CONN,
       ...base,
       updated_at: AT,

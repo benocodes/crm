@@ -87,13 +87,13 @@ const record = z.object({
 
 /** The correlated scalar of a derived field: one indexed lookup by the connection id (the machinery tables key on it). */
 const fromMachinery =
-  (table: 'mail_sync_cursors' | 'mail_sync_state', column: string) =>
+  (table: 'connection_sync_cursors' | 'connection_sync_state', column: string) =>
   (_qc: QueryContext, parent: (column: string) => Expression<unknown>): Expression<unknown> =>
     sql`(select ${sql.ref(`${table}.${column}`)} from ${sql.table(table)} where ${sql.ref(`${table}.connection_id`)} = ${parent('id')} and ${sql.ref(`${table}.organization_id`)} = ${parent('organization_id')})`
 
 const derived = {
-  last_synced_at: { kind: 'timestamp', expression: fromMachinery('mail_sync_cursors', 'last_synced_at') },
-  last_error_code: { kind: 'text', expression: fromMachinery('mail_sync_state', 'last_error_code') },
+  last_synced_at: { kind: 'timestamp', expression: fromMachinery('connection_sync_cursors', 'last_synced_at') },
+  last_error_code: { kind: 'text', expression: fromMachinery('connection_sync_state', 'last_error_code') },
 } as const satisfies Record<string, DerivedDecl>
 
 /**
@@ -109,7 +109,7 @@ export const connections = withColumnFilters(
       surface: 'meta',
       name: 'connections',
       eventName: 'connection',
-      table: 'channel_connections',
+      table: 'connections',
       d1Only: true,
       operations: ['list', 'get', 'delete'],
       derived,
@@ -135,22 +135,25 @@ export const connections = withColumnFilters(
         return [
           {
             query: qc.db
-              .deleteFrom('channel_credentials')
-              .where('connection_id', '=', id)
-              .where('organization_id', '=', org),
-          },
-          {
-            query: qc.db.deleteFrom('gmail_watches').where('connection_id', '=', id).where('organization_id', '=', org),
-          },
-          {
-            query: qc.db
-              .deleteFrom('mail_sync_state')
+              .deleteFrom('connection_credentials')
               .where('connection_id', '=', id)
               .where('organization_id', '=', org),
           },
           {
             query: qc.db
-              .deleteFrom('mail_sync_cursors')
+              .deleteFrom('connection_watches')
+              .where('connection_id', '=', id)
+              .where('organization_id', '=', org),
+          },
+          {
+            query: qc.db
+              .deleteFrom('connection_sync_state')
+              .where('connection_id', '=', id)
+              .where('organization_id', '=', org),
+          },
+          {
+            query: qc.db
+              .deleteFrom('connection_sync_cursors')
               .where('connection_id', '=', id)
               .where('organization_id', '=', org),
           },

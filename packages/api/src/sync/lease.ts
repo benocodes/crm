@@ -1,4 +1,4 @@
-// The sync lease on `mail_sync_state` ([[CHN5]] D11). Every function is one internal unit of one conditional write plus a `result` select of the row
+// The sync lease on `connection_sync_state` ([[CHN5]] D11). Every function is one internal unit of one conditional write plus a `result` select of the row
 // as the same batch left it, so "did I get it" is a database fact (D1 runs the batch atomically) and no drift handling is needed. The lease is
 // machinery, not a resource: no event (invariant 5, [[CHN5]] D22).
 import { sql, type SqlBool } from 'kysely'
@@ -15,7 +15,7 @@ export const LEASE_MS = 5 * 60_000
 type LeaseRow = { run_id: string | null; lease_until: string | null; sync_requested_at: string | null }
 const text = (v: unknown): string | null => (v === null || v === undefined ? null : String(v))
 
-/** Runs `write` (one statement on `mail_sync_state` for the connection) and reads the row back in the same unit. */
+/** Runs `write` (one statement on `connection_sync_state` for the connection) and reads the row back in the same unit. */
 async function leaseUnit(
   d: LeaseDeps,
   name: string,
@@ -32,10 +32,14 @@ async function leaseUnit(
           write(qc),
           step(
             qc.db
-              .selectFrom('mail_sync_state')
-              .select(['mail_sync_state.run_id', 'mail_sync_state.lease_until', 'mail_sync_state.sync_requested_at'])
-              .where('mail_sync_state.connection_id', '=', connectionId)
-              .where('mail_sync_state.organization_id', '=', d.organizationId),
+              .selectFrom('connection_sync_state')
+              .select([
+                'connection_sync_state.run_id',
+                'connection_sync_state.lease_until',
+                'connection_sync_state.sync_requested_at',
+              ])
+              .where('connection_sync_state.connection_id', '=', connectionId)
+              .where('connection_sync_state.organization_id', '=', d.organizationId),
             'result',
           ),
         ],
@@ -64,7 +68,7 @@ export async function claimLease(d: LeaseDeps, connectionId: string, runId: stri
   const row = await leaseUnit(d, 'sync.claim_lease', connectionId, (qc) =>
     step(
       qc.db
-        .updateTable('mail_sync_state')
+        .updateTable('connection_sync_state')
         .set({ lease_until: iso(now + LEASE_MS), run_id: runId })
         .where('connection_id', '=', connectionId)
         .where('organization_id', '=', d.organizationId)
@@ -80,7 +84,7 @@ export async function extendLease(d: LeaseDeps, connectionId: string, runId: str
   const row = await leaseUnit(d, 'sync.extend_lease', connectionId, (qc) =>
     step(
       qc.db
-        .updateTable('mail_sync_state')
+        .updateTable('connection_sync_state')
         .set({ lease_until: iso(now + LEASE_MS) })
         .where('connection_id', '=', connectionId)
         .where('organization_id', '=', d.organizationId)
@@ -95,7 +99,7 @@ export async function releaseLease(d: LeaseDeps, connectionId: string, runId: st
   await leaseUnit(d, 'sync.release_lease', connectionId, (qc) =>
     step(
       qc.db
-        .updateTable('mail_sync_state')
+        .updateTable('connection_sync_state')
         .set({ lease_until: null, run_id: null })
         .where('connection_id', '=', connectionId)
         .where('organization_id', '=', d.organizationId)
@@ -121,7 +125,7 @@ export async function finishPass(
   const row = await leaseUnit(d, 'sync.finish_pass', connectionId, (qc) =>
     step(
       qc.db
-        .updateTable('mail_sync_state')
+        .updateTable('connection_sync_state')
         .set({
           last_success_at: at,
           lease_until: sql<

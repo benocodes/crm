@@ -212,7 +212,7 @@ describe('measured limits (local Miniflare, one request = one invocation)', () =
         created_at: now.toISOString(),
         ...row,
       }
-      if (['contact_files', 'company_files', 'identities', 'channel_connections'].includes(table))
+      if (['contact_files', 'company_files', 'identities', 'connections'].includes(table))
         full.updated_at ??= now.toISOString()
       const cols = Object.keys(full)
       const vals = cols.map((c) =>

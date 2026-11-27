@@ -387,55 +387,55 @@ CREATE INDEX idx_deals_organization_id_stage_id ON deals (organization_id, stage
 
 CREATE INDEX idx_deals_organization_id_owner_id ON deals (organization_id, owner_id);
 
-CREATE TABLE channel_credentials (
+CREATE TABLE connection_credentials (
   id TEXT PRIMARY KEY NOT NULL
-    CONSTRAINT channel_credentials_id_uuid CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
+    CONSTRAINT connection_credentials_id_uuid CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
   organization_id TEXT NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
   created_by TEXT NOT NULL REFERENCES principals (id),
-  created_at TEXT NOT NULL CONSTRAINT channel_credentials_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
+  created_at TEXT NOT NULL CONSTRAINT connection_credentials_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
   connection_id TEXT NOT NULL,
-  refresh_token_ciphertext TEXT NOT NULL CONSTRAINT channel_credentials_refresh_token_ciphertext CHECK (length(refresh_token_ciphertext) > 0),
-  key_version INTEGER NOT NULL CONSTRAINT channel_credentials_key_version CHECK (key_version >= 1),
-  CONSTRAINT channel_credentials_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES channel_connections (organization_id, id)
+  refresh_token_ciphertext TEXT NOT NULL CONSTRAINT connection_credentials_refresh_token_ciphertext CHECK (length(refresh_token_ciphertext) > 0),
+  key_version INTEGER NOT NULL CONSTRAINT connection_credentials_key_version CHECK (key_version >= 1),
+  CONSTRAINT connection_credentials_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES connections (organization_id, id)
 ) STRICT;
 
-CREATE INDEX idx_channel_credentials_connection ON channel_credentials (organization_id, connection_id, created_at);
+CREATE INDEX idx_connection_credentials_connection ON connection_credentials (organization_id, connection_id, created_at);
 
-CREATE TABLE gmail_watches (
+CREATE TABLE connection_watches (
   connection_id TEXT PRIMARY KEY NOT NULL,
   organization_id TEXT NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
   created_by TEXT NOT NULL REFERENCES principals (id),
-  created_at TEXT NOT NULL CONSTRAINT gmail_watches_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
-  mailbox TEXT NOT NULL CONSTRAINT gmail_watches_mailbox CHECK (mailbox = lower(mailbox) AND length(mailbox) > 0),
-  expires_at TEXT NOT NULL CONSTRAINT gmail_watches_expires_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', expires_at) = expires_at, 0)),
-  CONSTRAINT gmail_watches_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES channel_connections (organization_id, id)
+  created_at TEXT NOT NULL CONSTRAINT connection_watches_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
+  address TEXT NOT NULL CONSTRAINT connection_watches_address CHECK (address = lower(address) AND length(address) > 0),
+  expires_at TEXT NOT NULL CONSTRAINT connection_watches_expires_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', expires_at) = expires_at, 0)),
+  CONSTRAINT connection_watches_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES connections (organization_id, id)
 ) STRICT;
 
-CREATE INDEX idx_gmail_watches_mailbox ON gmail_watches (mailbox);
+CREATE INDEX idx_connection_watches_address ON connection_watches (address);
 
-CREATE TABLE mail_sync_state (
+CREATE TABLE connection_sync_state (
   connection_id TEXT PRIMARY KEY NOT NULL,
   organization_id TEXT NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
   created_by TEXT NOT NULL REFERENCES principals (id),
-  created_at TEXT NOT NULL CONSTRAINT mail_sync_state_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
-  sync_requested_at TEXT CONSTRAINT mail_sync_state_sync_requested_at_timestamp CHECK (sync_requested_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', sync_requested_at) = sync_requested_at, 0))),
-  lease_until TEXT CONSTRAINT mail_sync_state_lease_until_timestamp CHECK (lease_until IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', lease_until) = lease_until, 0))),
+  created_at TEXT NOT NULL CONSTRAINT connection_sync_state_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
+  sync_requested_at TEXT CONSTRAINT connection_sync_state_sync_requested_at_timestamp CHECK (sync_requested_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', sync_requested_at) = sync_requested_at, 0))),
+  lease_until TEXT CONSTRAINT connection_sync_state_lease_until_timestamp CHECK (lease_until IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', lease_until) = lease_until, 0))),
   run_id TEXT,
-  last_success_at TEXT CONSTRAINT mail_sync_state_last_success_at_timestamp CHECK (last_success_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', last_success_at) = last_success_at, 0))),
+  last_success_at TEXT CONSTRAINT connection_sync_state_last_success_at_timestamp CHECK (last_success_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', last_success_at) = last_success_at, 0))),
   last_error_code TEXT,
-  last_error_at TEXT CONSTRAINT mail_sync_state_last_error_at_timestamp CHECK (last_error_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', last_error_at) = last_error_at, 0))),
-  CONSTRAINT mail_sync_state_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES channel_connections (organization_id, id)
+  last_error_at TEXT CONSTRAINT connection_sync_state_last_error_at_timestamp CHECK (last_error_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', last_error_at) = last_error_at, 0))),
+  CONSTRAINT connection_sync_state_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES connections (organization_id, id)
 ) STRICT;
 
-CREATE TABLE mail_sync_cursors (
+CREATE TABLE connection_sync_cursors (
   connection_id TEXT PRIMARY KEY NOT NULL,
   organization_id TEXT NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
   created_by TEXT NOT NULL REFERENCES principals (id),
-  created_at TEXT NOT NULL CONSTRAINT mail_sync_cursors_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
-  history_id TEXT NOT NULL CONSTRAINT mail_sync_cursors_history_id CHECK (length(history_id) > 0),
+  created_at TEXT NOT NULL CONSTRAINT connection_sync_cursors_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
+  cursor TEXT NOT NULL CONSTRAINT connection_sync_cursors_cursor CHECK (length(cursor) > 0),
   page_token TEXT,
-  last_synced_at TEXT CONSTRAINT mail_sync_cursors_last_synced_at_timestamp CHECK (last_synced_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', last_synced_at) = last_synced_at, 0))),
-  CONSTRAINT mail_sync_cursors_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES channel_connections (organization_id, id)
+  last_synced_at TEXT CONSTRAINT connection_sync_cursors_last_synced_at_timestamp CHECK (last_synced_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', last_synced_at) = last_synced_at, 0))),
+  CONSTRAINT connection_sync_cursors_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES connections (organization_id, id)
 ) STRICT;
 
 CREATE TABLE action_requests (
@@ -524,7 +524,7 @@ CREATE TABLE action_executions (
   CONSTRAINT action_executions_finished CHECK ((status IN ('done', 'failed')) = (done_at IS NOT NULL)),
   CONSTRAINT action_executions_outcome CHECK ((status <> 'done' OR error_code IS NULL) AND (status <> 'failed' OR result IS NULL)),
   CONSTRAINT action_executions_lease CHECK ((status = 'claimed' AND lease_token IS NOT NULL AND lease_until IS NOT NULL) OR (status <> 'claimed' AND lease_token IS NULL AND lease_until IS NULL)),
-  CONSTRAINT action_executions_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES channel_connections (organization_id, id),
+  CONSTRAINT action_executions_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES connections (organization_id, id),
   CONSTRAINT action_executions_request_fk FOREIGN KEY (organization_id, action_request_id) REFERENCES action_requests (organization_id, id)
 ) STRICT;
 
@@ -628,7 +628,7 @@ CREATE TABLE connection_capture_labels (
   connection_id TEXT NOT NULL,
   label_id TEXT NOT NULL CONSTRAINT connection_capture_labels_label_id CHECK (length(label_id) BETWEEN 1 AND 100 AND label_id NOT GLOB '*[^A-Za-z0-9_-]*'),
   created_at TEXT NOT NULL CONSTRAINT connection_capture_labels_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
-  CONSTRAINT connection_capture_labels_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES channel_connections (organization_id, id),
+  CONSTRAINT connection_capture_labels_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES connections (organization_id, id),
   CONSTRAINT connection_capture_labels_unique UNIQUE (connection_id, label_id)
 ) STRICT;
 
@@ -641,7 +641,7 @@ CREATE TABLE connection_blocked_senders (
   value TEXT NOT NULL,
   created_at TEXT NOT NULL CONSTRAINT connection_blocked_senders_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
   CONSTRAINT connection_blocked_senders_value CHECK (value = lower(value) AND value = trim(value) AND length(value) > 0 AND ((kind = 'address' AND instr(value, '@') > 1) OR (kind = 'domain' AND instr(value, '@') = 0))),
-  CONSTRAINT connection_blocked_senders_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES channel_connections (organization_id, id),
+  CONSTRAINT connection_blocked_senders_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES connections (organization_id, id),
   CONSTRAINT connection_blocked_senders_unique UNIQUE (connection_id, kind, value)
 ) STRICT;
 
@@ -832,7 +832,7 @@ CREATE TABLE message_sources (
   provider_thread_id TEXT NOT NULL,
   CONSTRAINT message_sources_one_source CHECK ((connection_id IS NULL) <> (form_id IS NULL)),
   CONSTRAINT message_sources_message_fk FOREIGN KEY (organization_id, message_id) REFERENCES messages (organization_id, id),
-  CONSTRAINT message_sources_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES channel_connections (organization_id, id),
+  CONSTRAINT message_sources_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES connections (organization_id, id),
   CONSTRAINT message_sources_form_fk FOREIGN KEY (organization_id, form_id) REFERENCES forms (organization_id, id)
 ) STRICT;
 
@@ -859,7 +859,7 @@ CREATE TABLE thread_sources (
   provider_thread_id TEXT NOT NULL,
   CONSTRAINT thread_sources_one_source CHECK ((connection_id IS NULL) <> (form_id IS NULL)),
   CONSTRAINT thread_sources_thread_fk FOREIGN KEY (organization_id, thread_id) REFERENCES threads (organization_id, id),
-  CONSTRAINT thread_sources_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES channel_connections (organization_id, id),
+  CONSTRAINT thread_sources_connection_fk FOREIGN KEY (organization_id, connection_id) REFERENCES connections (organization_id, id),
   CONSTRAINT thread_sources_form_fk FOREIGN KEY (organization_id, form_id) REFERENCES forms (organization_id, id)
 ) STRICT;
 
@@ -874,32 +874,32 @@ BEGIN
   SELECT RAISE(ABORT, 'append_only');
 END;
 
-CREATE TABLE channel_connections (
+CREATE TABLE connections (
   id TEXT PRIMARY KEY NOT NULL
-    CONSTRAINT channel_connections_id_uuid CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
-  created_at TEXT NOT NULL CONSTRAINT channel_connections_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
-  updated_at TEXT NOT NULL CONSTRAINT channel_connections_updated_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', updated_at) = updated_at, 0)),
+    CONSTRAINT connections_id_uuid CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
+  created_at TEXT NOT NULL CONSTRAINT connections_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
+  updated_at TEXT NOT NULL CONSTRAINT connections_updated_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', updated_at) = updated_at, 0)),
   organization_id TEXT NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
   created_by TEXT NOT NULL REFERENCES principals (id),
-  deleted_at TEXT CONSTRAINT channel_connections_deleted_at_timestamp CHECK (deleted_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', deleted_at) = deleted_at, 0))),
-  provider TEXT NOT NULL CONSTRAINT channel_connections_provider CHECK (provider IN ('google')),
-  account_id TEXT NOT NULL CONSTRAINT channel_connections_account_id CHECK (length(account_id) > 0),
+  deleted_at TEXT CONSTRAINT connections_deleted_at_timestamp CHECK (deleted_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', deleted_at) = deleted_at, 0))),
+  provider TEXT NOT NULL CONSTRAINT connections_provider CHECK (provider IN ('google')),
+  account_id TEXT NOT NULL CONSTRAINT connections_account_id CHECK (length(account_id) > 0),
   identity_id TEXT NOT NULL,
   owner_id TEXT NOT NULL REFERENCES users (id),
-  status TEXT NOT NULL CONSTRAINT channel_connections_status CHECK (status IN ('active', 'reauth_required', 'suspended')),
-  granted_scopes TEXT NOT NULL CONSTRAINT channel_connections_granted_scopes CHECK (json_valid(granted_scopes) AND json_type(granted_scopes) = 'array'),
-  connected_at TEXT NOT NULL CONSTRAINT channel_connections_connected_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', connected_at) = connected_at, 0)),
-  exclude_group_addresses INTEGER NOT NULL DEFAULT 1 CONSTRAINT channel_connections_exclude_group_addresses CHECK (exclude_group_addresses IN (0, 1)),
-  exclude_personal_domains INTEGER NOT NULL DEFAULT 1 CONSTRAINT channel_connections_exclude_personal_domains CHECK (exclude_personal_domains IN (0, 1)),
-  contact_creation TEXT NOT NULL DEFAULT 'sent' CONSTRAINT channel_connections_contact_creation CHECK (contact_creation IN ('sent_and_received', 'sent', 'none')),
-  CONSTRAINT channel_connections_identity_fk FOREIGN KEY (organization_id, identity_id) REFERENCES identities (organization_id, id)
+  status TEXT NOT NULL CONSTRAINT connections_status CHECK (status IN ('active', 'reauth_required', 'suspended')),
+  granted_scopes TEXT NOT NULL CONSTRAINT connections_granted_scopes CHECK (json_valid(granted_scopes) AND json_type(granted_scopes) = 'array'),
+  connected_at TEXT NOT NULL CONSTRAINT connections_connected_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', connected_at) = connected_at, 0)),
+  exclude_group_addresses INTEGER NOT NULL DEFAULT 1 CONSTRAINT connections_exclude_group_addresses CHECK (exclude_group_addresses IN (0, 1)),
+  exclude_personal_domains INTEGER NOT NULL DEFAULT 1 CONSTRAINT connections_exclude_personal_domains CHECK (exclude_personal_domains IN (0, 1)),
+  contact_creation TEXT NOT NULL DEFAULT 'sent' CONSTRAINT connections_contact_creation CHECK (contact_creation IN ('sent_and_received', 'sent', 'none')),
+  CONSTRAINT connections_identity_fk FOREIGN KEY (organization_id, identity_id) REFERENCES identities (organization_id, id)
 ) STRICT;
 
-CREATE UNIQUE INDEX idx_channel_connections_organization_id_id ON channel_connections (organization_id, id);
+CREATE UNIQUE INDEX idx_connections_organization_id_id ON connections (organization_id, id);
 
-CREATE UNIQUE INDEX idx_channel_connections_live_account ON channel_connections (organization_id, provider, account_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_connections_live_account ON connections (organization_id, provider, account_id) WHERE deleted_at IS NULL;
 
-CREATE INDEX idx_channel_connections_owner ON channel_connections (owner_id);
+CREATE INDEX idx_connections_owner ON connections (owner_id);
 
 CREATE TRIGGER messages_append_only BEFORE UPDATE ON messages
 BEGIN

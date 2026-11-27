@@ -182,7 +182,7 @@ describe('the composed run (runMailSync)', () => {
       await w.d1.prepare('drop table if exists d1_migrations').run()
       const t = await boot()
       const id = await seed(t, google.issueRefreshToken())
-      await w.d1.prepare(`update channel_connections set contact_creation = 'sent_and_received'`).run()
+      await w.d1.prepare(`update connections set contact_creation = 'sent_and_received'`).run()
       const worker = composeD1Worker(env({ BODIES: fakeR2Bucket() }), {
         fetch: fake(new FakeGmail([msg('c1')])),
         streams: nodeStreams(),
@@ -211,7 +211,7 @@ describe('the composed run (runMailSync)', () => {
     await expect(worker.runMailSync({ payload: { connection_id: id } }, makeWorkerdStepShim().step)).rejects.toThrow(
       /behind/,
     )
-    expect((await w.d1.prepare('select run_id from mail_sync_state').first())!.run_id).toBeNull()
+    expect((await w.d1.prepare('select run_id from connection_sync_state').first())!.run_id).toBeNull()
   })
   it('a step that finds Gmail unconfigured throws to the retry policy', async () => {
     const t = await boot()

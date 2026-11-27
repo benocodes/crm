@@ -21,7 +21,7 @@ export const fixtures: Record<string, ContractFixture> = {
         contact_id: null,
         own: true,
       })
-      const c = await kit.insert('channel_connections', {
+      const c = await kit.insert('connections', {
         provider: 'google',
         account_id: `sub-${randomUUID()}`,
         identity_id: own.id,
@@ -30,13 +30,13 @@ export const fixtures: Record<string, ContractFixture> = {
         granted_scopes: ['openid', 'email'],
         connected_at: '2026-11-05T09:00:00.000Z',
       })
-      await kit.insert('channel_credentials', {
+      await kit.insert('connection_credentials', {
         connection_id: c.id,
         refresh_token_ciphertext: 'c2VhbGVk',
         key_version: 1,
       })
-      await kit.insert('mail_sync_state', { connection_id: c.id })
-      await kit.insert('mail_sync_cursors', { connection_id: c.id, history_id: '1' })
+      await kit.insert('connection_sync_state', { connection_id: c.id })
+      await kit.insert('connection_sync_cursors', { connection_id: c.id, cursor: '1' })
       return { id: c.id as string }
     },
     actors: ['user'],

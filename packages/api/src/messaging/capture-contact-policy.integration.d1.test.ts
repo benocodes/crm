@@ -327,7 +327,7 @@ describe('several mailboxes and going forward (group 3: D7, D10)', () => {
       contact_id: null,
       own: true,
     })
-    const c = await e.insert('channel_connections', {
+    const c = await e.insert('connections', {
       provider: 'google',
       account_id: 'sub-upd',
       identity_id: own.id,

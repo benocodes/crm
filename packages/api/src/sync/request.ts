@@ -36,7 +36,7 @@ export async function markRequested(
         steps: [
           step(
             qc.db
-              .updateTable('mail_sync_state')
+              .updateTable('connection_sync_state')
               .set({ sync_requested_at: at })
               .where('connection_id', '=', connectionId)
               .where('organization_id', '=', d.organizationId),
@@ -70,8 +70,8 @@ export async function dueConnections(d: Pick<RequestDeps, 'binding' | 'organizat
     mutates: false,
     reads: (qc) => ({
       due: readSet(
-        sql`select c.id as id from channel_connections c
-          join mail_sync_state s on s.connection_id = c.id and s.organization_id = c.organization_id
+        sql`select c.id as id from connections c
+          join connection_sync_state s on s.connection_id = c.id and s.organization_id = c.organization_id
           where c.organization_id = ${d.organizationId} and c.deleted_at is null and c.status = 'active'
             and not (s.lease_until is not null and s.lease_until >= ${at})
             and (s.last_success_at is null or s.last_success_at <= ${stale} or (s.lease_until is not null and s.lease_until < ${at})

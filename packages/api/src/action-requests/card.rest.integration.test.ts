@@ -379,7 +379,7 @@ describe('the sending mailbox (D10) and the refusals that stay (D11)', () => {
     const c = await prereq(k).connection()
     const send = await propose('messages.send', sendArgs(c))
     expect((await k.call(owner, 'GET', `${AR}/${send.id}`)).body.sending_mailbox).toBe(MAILBOX)
-    await k.d1.prepare("update channel_connections set status = 'suspended' where id = ?").bind(c).run()
+    await k.d1.prepare("update connections set status = 'suspended' where id = ?").bind(c).run()
     const after = await k.call(owner, 'GET', `${AR}/${send.id}`)
     expect(after.body.sending_mailbox).toBe(MAILBOX)
     expect(after.body.target_summary).toContain(`from ${MAILBOX}`)
@@ -394,28 +394,25 @@ describe('the sending mailbox (D10) and the refusals that stay (D11)', () => {
   it('after the connection is disconnected (soft-deleted) or its row is gone, sending_mailbox is NULL and the request still reads', async () => {
     const c = await prereq(k).connection()
     const send = await propose('messages.send', sendArgs(c))
-    await k.d1
-      .prepare("update channel_connections set deleted_at = '2026-11-06T09:30:00.000Z' where id = ?")
-      .bind(c)
-      .run()
+    await k.d1.prepare("update connections set deleted_at = '2026-11-06T09:30:00.000Z' where id = ?").bind(c).run()
     expect((await k.call(owner, 'GET', `${AR}/${send.id}`)).body).toMatchObject({
       sending_mailbox: null,
       operation: 'messages.send',
     })
-    await k.d1.prepare('update channel_connections set deleted_at = null where id = ?').bind(c).run()
+    await k.d1.prepare('update connections set deleted_at = null where id = ?').bind(c).run()
     expect((await k.call(owner, 'GET', `${AR}/${send.id}`)).body.sending_mailbox).toBe(MAILBOX)
     for (const child of [
-      'channel_credentials',
-      'gmail_watches',
-      'mail_sync_state',
-      'mail_sync_cursors',
+      'connection_credentials',
+      'connection_watches',
+      'connection_sync_state',
+      'connection_sync_cursors',
       'connection_capture_labels',
       'connection_blocked_senders',
       'message_sources',
       'thread_sources',
     ])
       await k.d1.prepare(`delete from ${child} where connection_id = ?`).bind(c).run()
-    await k.d1.prepare('delete from channel_connections where id = ?').bind(c).run()
+    await k.d1.prepare('delete from connections where id = ?').bind(c).run()
     const got = await k.call(owner, 'GET', `${AR}/${send.id}`)
     expect(got.status).toBe(200)
     expect(got.body.sending_mailbox).toBeNull()

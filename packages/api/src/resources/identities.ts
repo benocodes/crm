@@ -63,7 +63,7 @@ const changesOwner = (row: { own: unknown; contact_id: unknown }, values: Record
   return own !== values.own || (row.contact_id ?? null) !== (values.contact_id ?? null)
 }
 const heldBy = (id: string, organizationId: string) =>
-  sql<SqlBool>`exists (select 1 from "channel_connections" where "channel_connections"."identity_id" = ${id} and "channel_connections"."organization_id" = ${organizationId} and "channel_connections"."deleted_at" is null)`
+  sql<SqlBool>`exists (select 1 from "connections" where "connections"."identity_id" = ${id} and "connections"."organization_id" = ${organizationId} and "connections"."deleted_at" is null)`
 
 /**
  * Identities on the prepared path ([[CORE36]]). Pure preparation: the owner rule, then the normalised value (the
