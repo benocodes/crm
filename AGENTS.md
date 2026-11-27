@@ -288,7 +288,7 @@ in-place edits ([[CORE29]] retro).
   `vb-<env>`, `vb-crm-<env>`, `vb-bodies-<env>` for a new instance and take an existing instance's names from its
   record (settings file, or `wrangler.jsonc`'s env block), refusing a differing name flag ([[OPS276]]).
 - UUIDv7 primary keys (`uuid_generate_v7()`), never v4.
-- Migrations: Kysely, forward-only, one squashed baseline to start.
+- Migrations: forward-only; D1 starts at `0001_genesis.sql` per database, frozen at the first public release (`genesis-freeze.test.ts`), every change a new numbered file.
 - Commits: Conventional Commits (`feat`, `fix`, `docs`, `chore`, `refactor`, `test`, ...). Branches:
   `<type>/<issue#>-<slug>`.
 - Work in a git **worktree** per cycle; never switch branches in the main checkout.

@@ -17,7 +17,7 @@ const statements = (text: string) =>
     .filter(Boolean)
 
 // [[CORE243]] D4, [[CORE259]] D4/D13, [[CORE678]] D6: control genesis BEGINS with the offline-generated DDL, then the control marker, then the rest of the control schema. A library upgrade
-// or an option change that alters the schema fails here until the change is written into genesis by hand (before the first public release) or into a new migration (after it).
+// or an option change that alters the schema fails here; genesis is frozen ([[OPS681]]), so the change goes into a new control migration and this test is then reworked to compare against the migrated schema.
 // SQLite's catalogue spells the leading CREATE keywords in capitals, so those are compared in lower case.
 describe('the auth schema (D4)', () => {
   it('control genesis begins with exactly what Better Auth generates for the composed options, then control_deployment', async () => {

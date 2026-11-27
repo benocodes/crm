@@ -369,11 +369,11 @@ expectations in the same change (it turned the gate red at both [[CORE679]] and 
 `packages/db` is the Postgres package. D1's schema lives in the open `@vibase/storage-d1`, as
 `packages/storage-d1/migrations/NNNN_<name>.sql`: forward-only and wrangler-compatible. The chain starts at
 `0001_genesis.sql` ([[CORE678]]): the whole schema as the 31 earlier files left it, generated from their catalogue,
-and the control chain starts the same way at `control-migrations/0001_genesis.sql`. **Interim rule (until [[OPS681]]
-writes the lasting one): milestone AA's specs ([[CORE679]], [[CORE680]]) edit genesis in place (user ruling, decision
-678.2) and update its hash in the manifest; every other change appends a new numbered file.** Each cycle that
-migrates a resource appends a file, outside that milestone. Local tests apply the files to disposable Miniflare bindings
-(`@vibase/storage-d1/test`); never point tooling at a remote database id. **An in-place genesis rename is proven by one
+and the control chain starts the same way at `control-migrations/0001_genesis.sql`. **Genesis was edited in place during milestone AA
+(decision 678.2); since the first public release it is frozen ([[OPS681]]): both genesis files are immutable like every
+committed migration, `genesis-freeze.test.ts` in `@vibase/storage-d1` pins their sha256 apart from the manifest, and
+every change appends a numbered file (`0002_<name>.sql`).** Each cycle that migrates a resource appends a file. Local tests apply the files to disposable Miniflare bindings
+(`@vibase/storage-d1/test`); never point tooling at a remote database id. **History (no longer applies to genesis): an in-place genesis rename was proven by one
 diff:** apply the rename map (old to new for every table, column, constraint and index) to `main`'s genesis and compare
 it with the branch genesis byte for byte; an empty diff shows nothing else moved. Plain substring replacement is enough
 only when each old name occurs nowhere else in the file (check first). The conventions test's `check_named` rule ties a
@@ -398,14 +398,13 @@ script in its cycle folder (`genesis-rename-map.pl`, `check-genesis.sh`).
   - a statement is at most 100 KB.
 - **The D1 migration test is red before the migration exists.** `packages/storage-d1/src/schema.integration.test.ts`
   inspects `sqlite_master`/PRAGMA for FKs, constraints and behaviour; it no longer snapshots every table's columns and
-  nullability (deleted by user ruling 666.33: they only restated the migrations). A new column is proven by a final-schema test (its default, its CHECK, its null); until [[OPS681]], a test that applies a prefix
-  of the chain and seeds rows before one step is not written, because genesis is edited in place ([[CORE678]] D4: the old ones went with the squash). After the release a
-  migration that rewrites existing rows is tested over data, as the rebuild guidance below says. `packages/storage-d1/src/schema-parity.integration.test.ts` and `packages/storage-postgres/src/schema-parity.integration.postgres.test.ts` (one per engine) tie the
+  nullability (deleted by user ruling 666.33: they only restated the migrations). A new column is proven by a final-schema test (its default, its CHECK, its null). A
+  migration that rewrites existing rows is tested over data (apply a prefix of the chain, seed rows, apply the step), as the rebuild guidance below says. `packages/storage-d1/src/schema-parity.integration.test.ts` and `packages/storage-postgres/src/schema-parity.integration.postgres.test.ts` (one per engine) tie the
   physical columns to `COLUMN_KINDS` in `@vibase/storage`, so a new column changes all three together. On contacts,
   companies, deals and tasks a column also changes the table's declaration (`packages/api/src/declarations/`):
   `drift.integration.d1.test.ts` fails on a column, type, nullability, foreign key or unique index the declaration
   does not state, in both directions ([[CORE554]]).
-- **Each implementation cycle adds one numbered file** (outside milestone AA's genesis edits, [[CORE678]]; genesis covers companies,
+- **Each implementation cycle adds one numbered file** (genesis covers companies,
   contacts, identities and the rest). Copy every constraint the Postgres table has: composite intra-org FKs, partial unique indexes,
   owner and tombstone CHECKs, the email CHECK `value = lower(value) AND value NOT GLOB '*[^ -~]*'`. Add the new
   tables to `clearD1`'s delete `order` (children first) in the same step, even a table no code writes yet: the miss
@@ -414,7 +413,7 @@ script in its cycle folder (`genesis-rename-map.pl`, `check-genesis.sh`).
 - **Add every new file to the manifest in the same change** ([[CORE61]] D2, D5). `MIGRATIONS` in
   `packages/storage-d1/src/migrations-manifest.ts` lists `{ name, sha256 }` in file order, and
   `migrations-manifest.test.ts` hashes the real files. It fails on an unlisted file, an entry with no file, a
-  changed byte or a wrong order. **A committed D1 migration file is immutable**: fix a mistake with a new file (until [[OPS681]], genesis is the one file milestone AA edits in place).
+  changed byte or a wrong order. **A committed D1 migration file is immutable**: fix a mistake with a new file. Genesis is no exception: `genesis-freeze.test.ts` fails on an edited genesis even when its manifest hash is updated with it ([[OPS681]]).
   The Worker refuses work (`503 migrations_pending`) until wrangler's `d1_migrations` holds every name in the
   manifest, so an instance is migrated **before** the Worker is deployed to it (`ship-branch`).
   A new file also goes into the recorded wrangler output `packages/server-d1/scripts/fixtures/d1-execute-migrations.json`
