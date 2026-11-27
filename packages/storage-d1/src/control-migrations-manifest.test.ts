@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { CONTROL_MIGRATIONS } from './control-migrations-manifest.js'
-import { MIGRATIONS } from './migrations-manifest.js'
 import { CONTROL_MIGRATIONS_DIR } from './test/index.js'
 
 type Entry = { readonly name: string; readonly sha256: string }
@@ -43,35 +42,28 @@ afterEach(() => {
 })
 
 describe('control migrations manifest (CORE259 D4)', () => {
-  it('matches the real control-migrations/ directory exactly, and is its own set apart from the CRM one', () => {
+  it('matches the real control-migrations/ directory exactly (its own directory and tracker, apart from the CRM one)', () => {
     expect(manifestProblems(CONTROL_MIGRATIONS, CONTROL_MIGRATIONS_DIR)).toEqual([])
-    expect(CONTROL_MIGRATIONS.map((e) => e.name)).toEqual([
-      '0001_control_plane.sql',
-      '0002_invitations.sql',
-      '0003_invitation_delivery.sql',
-      '0004_webhooks.sql',
-      '0005_api_keys.sql',
-    ])
-    expect(CONTROL_MIGRATIONS.map((e) => e.name).filter((n) => MIGRATIONS.some((m) => m.name === n))).toEqual([])
+    expect(CONTROL_MIGRATIONS.map((e) => e.name)).toEqual(['0001_genesis.sql'])
   })
   it('catches one edited byte', () => {
     const dir = copyOfTree()
-    writeFileSync(join(dir, '0001_control_plane.sql'), readFileSync(join(dir, '0001_control_plane.sql'), 'utf-8') + ' ')
-    expect(manifestProblems(CONTROL_MIGRATIONS, dir)).toEqual(['hash mismatch: 0001_control_plane.sql'])
+    writeFileSync(join(dir, '0001_genesis.sql'), readFileSync(join(dir, '0001_genesis.sql'), 'utf-8') + ' ')
+    expect(manifestProblems(CONTROL_MIGRATIONS, dir)).toEqual(['hash mismatch: 0001_genesis.sql'])
   })
   it('catches a dropped manifest entry (a file the manifest does not list)', () => {
     expect(manifestProblems(CONTROL_MIGRATIONS.slice(1), copyOfTree())).toEqual([
-      'file without a manifest entry: 0001_control_plane.sql',
+      'file without a manifest entry: 0001_genesis.sql',
     ])
   })
   it('catches an unlisted file', () => {
     const dir = copyOfTree()
-    writeFileSync(join(dir, '0006_stray.sql'), 'select 1;')
-    expect(manifestProblems(CONTROL_MIGRATIONS, dir)).toEqual(['file without a manifest entry: 0006_stray.sql'])
+    writeFileSync(join(dir, '0002_stray.sql'), 'select 1;')
+    expect(manifestProblems(CONTROL_MIGRATIONS, dir)).toEqual(['file without a manifest entry: 0002_stray.sql'])
   })
   it('catches an entry without a file', () => {
     const dir = copyOfTree()
-    rmSync(join(dir, '0001_control_plane.sql'))
-    expect(manifestProblems(CONTROL_MIGRATIONS, dir)).toEqual(['manifest entry without a file: 0001_control_plane.sql'])
+    rmSync(join(dir, '0001_genesis.sql'))
+    expect(manifestProblems(CONTROL_MIGRATIONS, dir)).toEqual(['manifest entry without a file: 0001_genesis.sql'])
   })
 })
