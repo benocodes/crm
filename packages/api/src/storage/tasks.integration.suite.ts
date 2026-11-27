@@ -119,7 +119,7 @@ export function engineSuite(engineName: EngineName): void {
     it('event `before` is the exact prior record and `after` the stored one', async () => {
       const created = (await e.run(createOperation(tasks, e.env({ now: new Date(EARLIER) }), { title: 'x' }))).value
       const updated = (
-        await e.run(updateOperation(tasks, e.env({ now: NOW }), created.id, { status: 'done', notes: 'n' }))
+        await e.run(updateOperation(tasks, e.env({ now: NOW }), created.id, { status: 'done', description: 'n' }))
       ).value
       const events = await e.events()
       expect(events[1]!.before).toEqual(created)

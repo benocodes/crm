@@ -3,7 +3,7 @@ import { createClient, isVibaseError } from './index.js'
 import { BASE, fakeFetch, jsonResponse } from './testing.js'
 
 // DX608 D11 (P4): .propose() calls action_requests.create.
-const record = { id: 'ar1', status: 'pending', operation: 'tasks.update', arguments: { id: 't1', notes: null } }
+const record = { id: 'ar1', status: 'pending', operation: 'tasks.update', arguments: { id: 't1', description: null } }
 
 describe('DX608 D11 .propose()', () => {
   it('POSTs action_requests.create with the operation id, the flat args and the proposal fields', async () => {

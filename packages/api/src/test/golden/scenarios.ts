@@ -154,7 +154,7 @@ export const taskScenarios: readonly GoldenScenario[] = [
     steps: [
       { as: 'user', at: at(0), method: 'POST', path: '/api/v1/tasks', body: { title: 'Complete me' }, save: 'a' },
       { as: 'user', at: at(1), method: 'PATCH', path: '/api/v1/tasks/{a}', body: { status: 'done' } },
-      { as: 'user', at: at(2), method: 'PATCH', path: '/api/v1/tasks/{a}', body: { status: 'done', notes: 'again' } },
+      { as: 'user', at: at(2), method: 'PATCH', path: '/api/v1/tasks/{a}', body: { status: 'done', description: 'again' } },
       { as: 'user', at: at(3), method: 'PATCH', path: '/api/v1/tasks/{a}', body: { title: 'Renamed while done' } },
       { as: 'user', at: at(4), method: 'PATCH', path: '/api/v1/tasks/{a}', body: { status: 'open' } },
       { as: 'user', at: at(5), method: 'PATCH', path: '/api/v1/tasks/{a}', body: { status: 'open' } },

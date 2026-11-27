@@ -81,7 +81,7 @@ const SPECS: Spec[] = [
   { table: 'companies', column: 'name', min: 1, max: 500, nullable: false },
   { table: 'companies', column: 'domain', max: 253, nullable: true },
   { table: 'tasks', column: 'title', min: 1, max: 500, nullable: false },
-  { table: 'tasks', column: 'notes', max: 10_000, nullable: true },
+  { table: 'tasks', column: 'description', max: 10_000, nullable: true },
   { table: 'deals', column: 'name', min: 1, max: 200, nullable: false },
 ]
 

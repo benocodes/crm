@@ -72,7 +72,7 @@ export function engineSuite(engineName: EngineName): void {
         const id = await fresh()
         const settled = await together([
           () => mapped(e.run(updateOperation(tasks, e.env({ now: T(1) }), id, { title: 'T' }))),
-          () => mapped(e.run(updateOperation(tasks, e.env({ now: T(2), as: 'agent' }), id, { notes: 'N' }), 'agent')),
+          () => mapped(e.run(updateOperation(tasks, e.env({ now: T(2), as: 'agent' }), id, { description: 'N' }), 'agent')),
         ])
         const ok = settled.filter((r) => r.status === 'fulfilled').length
         const [stored] = await e.tasks()

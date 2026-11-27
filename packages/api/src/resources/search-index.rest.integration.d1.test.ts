@@ -66,8 +66,8 @@ const CASES = [
   {
     table: 'tasks',
     path: '/api/v1/tasks',
-    create: { title: 'Quokka call', notes: 'wombat follow up' },
-    patch: { notes: 'numbat follow up' },
+    create: { title: 'Quokka call', description: 'wombat follow up' },
+    patch: { description: 'numbat follow up' },
     oldTerm: 'wombat',
     newTerm: 'numbat',
   },

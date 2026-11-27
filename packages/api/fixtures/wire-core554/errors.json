@@ -1403,7 +1403,7 @@
       }
     }
   },
-  "tasks create: notes long": {
+  "tasks create: description long": {
     "status": 400,
     "body": {
       "error": {
@@ -1412,7 +1412,7 @@
       }
     }
   },
-  "tasks update: notes long": {
+  "tasks update: description long": {
     "status": 400,
     "body": {
       "error": {

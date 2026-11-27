@@ -187,7 +187,7 @@ describe('the D1 schema slice of CORE35 (C6)', () => {
     })
 
     it('accepts a valid task and reads it back as stored text', async () => {
-      await insertTaskOk(task({ due_at: AT, notes: 'n' }))
+      await insertTaskOk(task({ due_at: AT, description: 'n' }))
       const rows = await all<Record<string, unknown>>('SELECT * FROM tasks')
       expect(rows).toHaveLength(1)
       expect(rows[0]).toMatchObject({

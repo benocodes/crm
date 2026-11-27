@@ -480,7 +480,7 @@ describe('search index cost (CORE194 D14)', () => {
             st.push(
               d
                 .prepare(
-                  'INSERT INTO tasks (id, organization_id, created_by, created_at, updated_at, title, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                  'INSERT INTO tasks (id, organization_id, created_by, created_at, updated_at, title, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
                 )
                 .bind(sid(j + 1), ORG, USER, AT, AT, text(4), text(20)),
             )
