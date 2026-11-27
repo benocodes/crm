@@ -104,7 +104,9 @@ branch then carries no code, so there is no gate to run ([[DX422]] D2).
 - **A deletion's blast-radius grep is a floor.** Grep the deleted file's basename, its exports, and
   operation names as string literals; treat every surprise as a decision to make and record. A move or rename
   of an entry point is a deletion too: grep for importers of each export the old module had, since a default
-  export nothing imports survives every suite ([[OPS240]] review).
+  export nothing imports survives every suite ([[OPS240]] review). A rename's grep covers `.agents/` and
+  `AGENTS.md` too, and the coder fixes the skill text in the same cycle: [[CORE673]] renamed `agentGrant` to
+  `approvalBound` and left three stale skill mentions for the retro.
 - **A migration's number can go stale.** Check `ls packages/db/migrations | tail -3` (and the D1
   migrations folder) right before creating one.
 - **Third-party APIs:** fetch the current docs before writing code that calls them. Invented endpoints,
