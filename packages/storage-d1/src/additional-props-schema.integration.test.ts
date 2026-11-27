@@ -1,9 +1,6 @@
-import { cpSync, mkdtempSync, readdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
-import { MIGRATIONS_DIR, applyMigrations, openLocalD1, type LocalD1 } from './test/index.js'
+import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
 // [[CORE318]] D1 (cycle 1): migration 0026 adds `additional_props TEXT NOT NULL DEFAULT '{}'` with a json-object CHECK to contacts, companies,
@@ -26,8 +23,10 @@ const ROW: Record<(typeof TABLES)[number], string> = {
 let local: LocalD1
 let d1: D1Like
 beforeAll(async () => {
-  local = await openLocalD1(['G'], { migrate: false })
+  local = await openLocalD1(['G'])
   d1 = local.bindings.G!
+  await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
+  await seedPrincipal(d1, { id: USER, kind: 'user' })
 })
 afterAll(async () => {
   await local.dispose()
@@ -57,13 +56,8 @@ const insertRow = (table: (typeof TABLES)[number], rowId: string, extraCols = ''
   return run(sqls[table], rowId, ORG, USER, AT, AT, ...extraVals)
 }
 
-describe('migration 0026_additional_props over a database at 0025', () => {
-  it('leaves every existing row with {} and refuses a non-object bag on each table', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'mig25-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f < '0026')) cpSync(join(MIGRATIONS_DIR, f), join(dir, f))
-    await applyMigrations(d1, dir)
-    await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
-    await seedPrincipal(d1, { id: USER, kind: 'user' })
+describe('additional_props on the built-in tables', () => {
+  it('defaults to {} for a row that names no bag, and refuses a non-object bag on each table', async () => {
     await run(
       `INSERT INTO pipelines (id, organization_id, created_by, created_at, updated_at, name) VALUES (?, ?, ?, ?, ?, 'p')`,
       PIPE,
@@ -82,12 +76,6 @@ describe('migration 0026_additional_props over a database at 0025', () => {
       PIPE,
     )
     for (const t of TABLES) await insertRow(t, ROW[t])
-
-    const name = readdirSync(MIGRATIONS_DIR).find((f) => f.startsWith('0026'))
-    expect(name).toBe('0026_additional_props.sql')
-    const lone = mkdtempSync(join(tmpdir(), 'mig26only-'))
-    cpSync(join(MIGRATIONS_DIR, name!), join(lone, name!))
-    expect(await applyMigrations(d1, lone)).toEqual([name])
 
     for (const t of TABLES) {
       expect(await all(`select additional_props from ${t} where id = ?`, ROW[t])).toEqual([{ additional_props: '{}' }])

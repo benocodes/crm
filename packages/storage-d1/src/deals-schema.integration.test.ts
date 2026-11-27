@@ -1,9 +1,6 @@
-import { cpSync, mkdtempSync, readdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
-import { MIGRATIONS_DIR, applyMigrations, openLocalD1, type LocalD1 } from './test/index.js'
+import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
 // CORE130 D2, D7, D9, D19, D21a: the three deal tables and migration 0009 applied over a database at 0008 that already holds data.
@@ -21,8 +18,10 @@ const S1_DELETED = id(22) // in P1, soft-deleted
 let local: LocalD1
 let d1: D1Like
 beforeAll(async () => {
-  local = await openLocalD1(['D1'], { migrate: false })
+  local = await openLocalD1(['D1'])
   d1 = local.bindings.D1!
+  await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
+  await seedPrincipal(d1, { id: USER, kind: 'user' })
 })
 afterAll(async () => {
   await local.dispose()
@@ -65,45 +64,7 @@ const deal = (over: Record<string, unknown> = {}) => ({
 const count = async (table: string) =>
   ((await d1.prepare(`select count(*) as n from "${table}"`).first()) as { n: number }).n
 
-describe('migration 0009_deals over a database at 0008 with data', () => {
-  it('applies, keeps companies, contacts, tags and edges unchanged, and creates the three tables', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'mig-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f < '0009')) cpSync(join(MIGRATIONS_DIR, f), join(dir, f))
-    expect(readdirSync(dir).sort().pop()).toBe('0008_tags.sql')
-    await applyMigrations(d1, dir)
-    await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
-    await seedPrincipal(d1, { id: USER, kind: 'user' })
-    const co = id(40)
-    const ct = id(41)
-    const tg = id(42)
-    expect(await insert('companies', { id: co, name: 'Acme', ...base })).toBeNull()
-    expect(await insert('contacts', { id: ct, name: 'Ann', company_id: co, ...base })).toBeNull()
-    expect(await insert('tags', { id: tg, name: 'Prospects', ...base })).toBeNull()
-    expect(
-      await insert('associations', { id: id(43), a_type: 'companies', a_id: co, b_type: 'tags', b_id: tg, ...base }),
-    ).toBeNull()
-    const before = async () => ({
-      companies: (await d1.prepare('select * from companies').all()).results,
-      contacts: (await d1.prepare('select * from contacts').all()).results,
-      tags: (await d1.prepare('select * from tags').all()).results,
-      associations: (await d1.prepare('select * from associations').all()).results,
-    })
-    const snapshot = await before()
-    for (const t of ['pipelines', 'pipeline_stages', 'deals'])
-      expect((await d1.prepare('select name from sqlite_master where name = ?').bind(t).all()).results, t).toEqual([])
-    const only = mkdtempSync(join(tmpdir(), 'mig9-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('0009')))
-      cpSync(join(MIGRATIONS_DIR, f), join(only, f))
-    expect(await applyMigrations(d1, only)).toEqual(['0009_deals.sql'])
-    expect(await before()).toEqual(snapshot)
-    for (const t of ['pipelines', 'pipeline_stages', 'deals'])
-      expect((await d1.prepare('select name from sqlite_master where name = ?').bind(t).all()).results, t).toEqual([
-        { name: t },
-      ])
-    for (const t of ['pipelines', 'pipeline_stages', 'deals'])
-      expect(await count(t), `${t} starts empty (D5: nothing seeded)`).toBe(0)
-  })
-
+describe('deals, pipelines and stages', () => {
   it('constrains pipelines and stages: names 1..100, kind, position >= 0, uuid ids, ISO stamps, declared FKs', async () => {
     expect(await insert('pipelines', pipeline())).toBeNull()
     expect(await insert('pipelines', pipeline({ id: P2, name: 'x'.repeat(100) }))).toBeNull()

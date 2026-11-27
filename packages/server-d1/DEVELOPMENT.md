@@ -41,7 +41,7 @@ In another terminal, with `KEY` set to the `vk_...` key step 2 printed:
 
 ```bash
 curl http://localhost:8787/health
-# {"status":"ok","initialised":true,"version":"dev","migrations":{"status":"unknown","applied":0,"expected":4,"latest_applied":null,"latest_expected":"0004_messaging_model.sql"}}
+# {"status":"ok","initialised":true,"version":"dev","migrations":{"status":"unknown","applied":0,"expected":1,"latest_applied":null,"latest_expected":"0001_genesis.sql"}}
 # (`unknown` locally: `bootstrap` applies the migration files without wrangler, so there is no d1_migrations tracker)
 
 curl -H "authorization: Bearer $KEY" http://localhost:8787/api/v1/tasks

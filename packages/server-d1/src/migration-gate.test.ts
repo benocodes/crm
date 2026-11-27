@@ -81,7 +81,7 @@ describe('/health.migrations (D3)', () => {
       status: 'behind',
       applied: NAMES.length - 1,
       expected: NAMES.length,
-      latest_applied: NAMES[NAMES.length - 2],
+      latest_applied: NAMES[NAMES.length - 2] ?? null,
       latest_expected: LAST,
     })
   })

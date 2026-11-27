@@ -57,7 +57,7 @@ const files = readdirSync(MIGRATIONS_DIR)
   .filter((f) => f.endsWith('.sql'))
   .sort()
 describe('D10: core migrations leave the extensible tables additive (P8)', () => {
-  it('reads the migrations', () => expect(files.length).toBeGreaterThan(20))
+  it('reads the migrations', () => expect(files.length).toBeGreaterThan(0))
   it('every real migration passes, apart from the listed ones', () => {
     const created = new Set<string>()
     const cascading = new Set<string>()

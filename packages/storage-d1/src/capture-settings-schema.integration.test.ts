@@ -1,9 +1,6 @@
-import { cpSync, mkdtempSync, readdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
-import { MIGRATIONS_DIR, applyMigrations, openLocalD1, type LocalD1 } from './test/index.js'
+import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
 // [[CHN406]] D1, D2, D8, D12, D14: migration 0021 applied over a database at 0020 that already holds a live and a soft-deleted
@@ -20,8 +17,24 @@ const DELETED = id(12)
 let local: LocalD1
 let d1: D1Like
 beforeAll(async () => {
-  local = await openLocalD1(['G'], { migrate: false })
+  local = await openLocalD1(['G'])
   d1 = local.bindings.G!
+  await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
+  await seedPrincipal(d1, { id: USER, kind: 'user' })
+  expect(
+    await insert('identities', {
+      id: IDENT,
+      ...base,
+      created_by: USER,
+      updated_at: AT,
+      kind: 'email',
+      value: 'ann@example.test',
+      contact_id: null,
+      own: 1,
+    }),
+  ).toBeNull()
+  expect(await insert('channel_connections', conn({ id: LIVE, account_id: 'sub-live' }))).toBeNull()
+  expect(await insert('channel_connections', conn({ id: DELETED, account_id: 'sub-gone', deleted_at: AT }))).toBeNull()
 })
 afterAll(async () => {
   await local.dispose()
@@ -42,13 +55,6 @@ const insert = (table: string, row: Record<string, unknown>) => {
       (e: Error) => e.message,
     )
 }
-const all = async <T = Record<string, unknown>>(sqlText: string, ...binds: unknown[]) =>
-  ((
-    await d1
-      .prepare(sqlText)
-      .bind(...binds)
-      .all()
-  ).results ?? []) as T[]
 const base = { organization_id: ORG, created_at: AT }
 const conn = (over: Record<string, unknown>) => ({
   ...base,
@@ -85,69 +91,6 @@ const workspace = (over: Record<string, unknown> = {}) => ({
   kind: 'domain',
   value: 'spam.example',
   ...over,
-})
-
-describe('migration 0021_capture_settings over a database at 0020 with connections', () => {
-  it('gives a live and a soft-deleted connection exactly INBOX and SENT and the scalar defaults', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'mig-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f < '0021')) cpSync(join(MIGRATIONS_DIR, f), join(dir, f))
-    expect(readdirSync(dir).sort().pop()).toBe('0020_drop_api_key_webhook_tables.sql')
-    await applyMigrations(d1, dir)
-    await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
-    await seedPrincipal(d1, { id: USER, kind: 'user' })
-    expect(
-      await insert('identities', {
-        id: IDENT,
-        ...base,
-        created_by: USER,
-        updated_at: AT,
-        kind: 'email',
-        value: 'ann@example.test',
-        contact_id: null,
-        own: 1,
-      }),
-    ).toBeNull()
-    expect(await insert('channel_connections', conn({ id: LIVE, account_id: 'sub-live' }))).toBeNull()
-    expect(
-      await insert('channel_connections', conn({ id: DELETED, account_id: 'sub-gone', deleted_at: AT })),
-    ).toBeNull()
-    for (const t of ['connection_capture_labels', 'connection_blocked_senders', 'blocked_senders'])
-      expect(await all('select name from sqlite_master where name = ?', t), t).toEqual([])
-
-    const only = mkdtempSync(join(tmpdir(), 'mig21-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('0021')))
-      cpSync(join(MIGRATIONS_DIR, f), join(only, f))
-    expect(await applyMigrations(d1, only)).toEqual(['0021_capture_settings.sql'])
-
-    const labels = await all<{ connection_id: string; label_id: string }>(
-      'select connection_id, label_id from connection_capture_labels order by connection_id, label_id',
-    )
-    expect(labels).toEqual([
-      { connection_id: LIVE, label_id: 'INBOX' },
-      { connection_id: LIVE, label_id: 'SENT' },
-      { connection_id: DELETED, label_id: 'INBOX' },
-      { connection_id: DELETED, label_id: 'SENT' },
-    ])
-    expect(
-      await all(
-        'select id, exclude_group_addresses, exclude_personal_domains, contact_creation from channel_connections order by id',
-      ),
-    ).toEqual([
-      { id: LIVE, exclude_group_addresses: 0, exclude_personal_domains: 0, contact_creation: 'sent_and_received' },
-      { id: DELETED, exclude_group_addresses: 0, exclude_personal_domains: 0, contact_creation: 'sent_and_received' },
-    ])
-    expect(await all('select count(*) as n from connection_blocked_senders')).toEqual([{ n: 0 }])
-    expect(await all('select count(*) as n from blocked_senders')).toEqual([{ n: 0 }])
-    // The backfilled rows are valid rows: ids are UUIDs the id check accepts, in the organisation of their connection.
-    const ids = await all<{ id: string; organization_id: string }>(
-      'select id, organization_id from connection_capture_labels',
-    )
-    for (const r of ids) {
-      expect(r.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
-      expect(r.organization_id).toBe(ORG)
-    }
-    expect(new Set(ids.map((r) => r.id)).size).toBe(4)
-  })
 })
 
 describe('the capture-settings constraints hold whatever writes (one drift case per constraint)', () => {

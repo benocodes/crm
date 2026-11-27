@@ -1,9 +1,6 @@
-import { cpSync, mkdtempSync, readdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
-import { MIGRATIONS_DIR, applyMigrations, openLocalD1, type LocalD1 } from './test/index.js'
+import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
 // [[CORE574]] D6: migration 0028 adds the nullable `messages.content_sha256` (the capture fingerprint of [[CORE571]] D6/D7). Seeded at 0027
@@ -19,8 +16,10 @@ const HEX = 'ab'.repeat(32)
 let local: LocalD1
 let d1: D1Like
 beforeAll(async () => {
-  local = await openLocalD1(['G'], { migrate: false })
+  local = await openLocalD1(['G'])
   d1 = local.bindings.G!
+  await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
+  await seedPrincipal(d1, { id: USER, kind: 'user' })
 })
 afterAll(async () => {
   await local.dispose()
@@ -52,13 +51,8 @@ const insertMessage = (rowId: string, extra = '', vals: unknown[] = []) =>
     ...vals,
   )
 
-describe('migration 0028_content_sha256 over a database at 0027 holding messages', () => {
-  it('adds a nullable column: existing rows read back null, a digest is stored, a malformed one is refused', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'mig27-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f < '0028')) cpSync(join(MIGRATIONS_DIR, f), join(dir, f))
-    await applyMigrations(d1, dir)
-    await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
-    await seedPrincipal(d1, { id: USER, kind: 'user' })
+describe('messages.content_sha256', () => {
+  it('is a nullable column: a row naming none reads back null, a digest is stored, a malformed one is refused', async () => {
     await run(
       `INSERT INTO threads (id, organization_id, created_by, created_at, channel, subject) VALUES (?, ?, ?, ?, 'email', 's')`,
       THREAD,
@@ -67,12 +61,6 @@ describe('migration 0028_content_sha256 over a database at 0027 holding messages
       AT,
     )
     await insertMessage(OLD)
-
-    const name = readdirSync(MIGRATIONS_DIR).find((f) => f.startsWith('0028'))
-    expect(name).toBe('0028_content_sha256.sql')
-    const lone = mkdtempSync(join(tmpdir(), 'mig28only-'))
-    cpSync(join(MIGRATIONS_DIR, name!), join(lone, name!))
-    expect(await applyMigrations(d1, lone)).toEqual([name])
 
     expect(await all('select content_sha256 from messages where id = ?', OLD)).toEqual([{ content_sha256: null }])
     const column = (await all<{ name: string; notnull: number }>('pragma table_info(messages)')).find(

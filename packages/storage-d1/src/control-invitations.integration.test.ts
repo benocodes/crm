@@ -1,6 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { D1Like, D1PreparedLike } from './binding.js'
-import { CONTROL_MIGRATIONS } from './control-migrations-manifest.js'
 import {
   acceptInvitation,
   createInvitation,
@@ -81,18 +80,7 @@ const seedAccepted = (email: string) =>
     plus(NOW, 1000),
   )
 
-describe('control migration 0002: invitations and control_audit exist only in the control plane', () => {
-  it('the control manifest lists 0002, applied under the control tracker alongside 0001', async () => {
-    expect(CONTROL_MIGRATIONS.map((m) => m.name).slice(0, 2)).toEqual([
-      '0001_control_plane.sql',
-      '0002_invitations.sql',
-    ])
-    expect((await rows(control, 'select name from d1_migrations order by id')).map((r) => r.name).slice(0, 2)).toEqual([
-      '0001_control_plane.sql',
-      '0002_invitations.sql',
-    ])
-  })
-
+describe('invitations and control_audit exist only in the control plane', () => {
   it('the two tables are in the control database with the charter columns, and in no CRM database', async () => {
     const cols = async (t: string) =>
       (await rows(control, `select name from pragma_table_info('${t}')`)).map((r) => r.name)

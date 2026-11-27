@@ -1,9 +1,6 @@
-import { cpSync, mkdtempSync, readdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
-import { MIGRATIONS_DIR, applyMigrations, openLocalD1, type LocalD1 } from './test/index.js'
+import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
 // CORE129 D2, D4, D16: the `tags` table and migration 0008 applied over a database that already holds data at 0007.
@@ -15,8 +12,10 @@ const id = (n: number) => `0190b2c4-0000-7000-8000-0000000000${String(n).padStar
 let local: LocalD1
 let d1: D1Like
 beforeAll(async () => {
-  local = await openLocalD1(['D1'], { migrate: false })
+  local = await openLocalD1(['D1'])
   d1 = local.bindings.D1!
+  await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
+  await seedPrincipal(d1, { id: USER, kind: 'user' })
 })
 afterAll(async () => {
   await local.dispose()
@@ -47,31 +46,7 @@ const refused = async (row: Record<string, unknown>) => {
     )
 }
 
-describe('migration 0008_tags over a database at 0007 with data', () => {
-  it('applies, keeps the existing rows, and creates the table', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'mig-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f < '0008')) cpSync(join(MIGRATIONS_DIR, f), join(dir, f))
-    expect(readdirSync(dir).sort().pop()).toBe('0007_agent_principals.sql')
-    await applyMigrations(d1, dir)
-    await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
-    await seedPrincipal(d1, { id: USER, kind: 'user' })
-    await d1
-      .prepare(
-        'INSERT INTO tasks (id, organization_id, title, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      )
-      .bind(id(50), ORG, 'keep me', USER, AT, AT)
-      .run()
-    expect((await d1.prepare("select name from sqlite_master where name = 'tags'").all()).results).toEqual([])
-    const only = mkdtempSync(join(tmpdir(), 'mig8-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('0008')))
-      cpSync(join(MIGRATIONS_DIR, f), join(only, f))
-    expect(await applyMigrations(d1, only)).toEqual(['0008_tags.sql'])
-    expect((await d1.prepare('select title from tasks').all()).results).toEqual([{ title: 'keep me' }])
-    expect((await d1.prepare("select name from sqlite_master where name = 'tags'").all()).results).toEqual([
-      { name: 'tags' },
-    ])
-  })
-
+describe('tags', () => {
   it('constrains the table: name 1..100, description null or 1..1000, uuid id, ISO stamps, declared FKs', async () => {
     expect(await refused(tag())).toBeNull()
     expect(await refused(tag({ id: id(2), name: 'x'.repeat(100), description: 'y'.repeat(1000) }))).toBeNull()

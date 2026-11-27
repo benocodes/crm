@@ -1,5 +1,5 @@
 // [[CHN420]] D6: the public id of a form, `frm_` plus 26 lowercase Crockford base32 characters (0-9 and a-z without i, l, o, u) encoding 128 random bits.
-// The migration's CHECK holds the same alphabet (`0023_forms.sql`); there is no other base32 helper in the repository to share (recorded as a decision).
+// The migration's CHECK holds the same alphabet (`migrations/0001_genesis.sql`, [[CORE678]]); there is no other base32 helper in the repository to share (recorded as a decision).
 const ALPHABET = '0123456789abcdefghjkmnpqrstvwxyz'
 
 /** 16 bytes as 26 base32 characters, 5 bits each, most significant first; the last character carries 3 bits and two zero bits. */

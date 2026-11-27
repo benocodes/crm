@@ -2,7 +2,6 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
-import { CONTROL_MIGRATIONS } from './control-migrations-manifest.js'
 import {
   createInvitation,
   listInvitations,
@@ -20,7 +19,7 @@ const DAY = 86_400_000
 const plus = (iso: string, ms: number) => new Date(new Date(iso).getTime() + ms).toISOString()
 let local: LocalD1
 beforeAll(async () => {
-  local = await openLocalD1(['EMPTY', 'OLD', 'NEW'], { migrate: false, control: [] })
+  local = await openLocalD1(['EMPTY', 'NEW'], { migrate: false, control: [] })
 })
 afterAll(() => local.dispose())
 
@@ -58,26 +57,8 @@ const insert = (d1: D1Like, email: string, extra = '') =>
     ...[nextId(), ORG, email, hash(), plus(NOW, 7 * DAY), ACTOR, NOW, ...(extra ? [extra] : [])],
   )
 
-describe('control migration 0003', () => {
-  it('is the third control migration and is listed in the manifest', () => {
-    expect(files[2]).toMatch(/^0003_/)
-    expect(CONTROL_MIGRATIONS.map((m) => m.name)).toEqual(files)
-  })
-
-  it('migrates a 0002 database holding a pending and a revoked invitation: both rows become delivery link', async () => {
-    const d1 = local.bindings.OLD!
-    await apply(d1, (f) => !f.startsWith('0003_'))
-    expect(await insert(d1, 'pending@x.test')).toBeNull()
-    expect(await insert(d1, 'revoked@x.test')).toBeNull()
-    await apply(d1, (f) => f.startsWith('0003_'))
-    const got = await rows(d1, 'select email, delivery from invitations order by email')
-    expect(got).toEqual([
-      { email: 'pending@x.test', delivery: 'link' },
-      { email: 'revoked@x.test', delivery: 'link' },
-    ])
-  })
-
-  it('migrates a database with no invitations cleanly, and the check refuses another value', async () => {
+describe('the delivery column of the control schema', () => {
+  it('an empty database has no invitations, the check refuses another value, and the default is link', async () => {
     const d1 = local.bindings.EMPTY!
     await apply(d1, () => true)
     expect(await rows(d1, 'select count(*) n from invitations')).toEqual([{ n: 0 }])

@@ -48,10 +48,7 @@ describe('migrations manifest (D5)', () => {
   })
   it('catches one edited byte', () => {
     const dir = copyOfTree()
-    writeFileSync(
-      join(dir, '0001_genesis.sql'),
-      readFileSync(join(dir, '0001_genesis.sql'), 'utf-8') + ' ',
-    )
+    writeFileSync(join(dir, '0001_genesis.sql'), readFileSync(join(dir, '0001_genesis.sql'), 'utf-8') + ' ')
     expect(manifestProblems(MIGRATIONS, dir)).toEqual(['hash mismatch: 0001_genesis.sql'])
   })
   it('catches a dropped manifest entry', () => {

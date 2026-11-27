@@ -1,9 +1,6 @@
-import { cpSync, mkdtempSync, readdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
-import { MIGRATIONS_DIR, applyMigrations, openLocalD1, type LocalD1 } from './test/index.js'
+import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
 // [[CHN421]] D10, D11, D19 (cycle 1): migration 0024 rebuilds threads, messages, interactions and the two source tables over a
@@ -32,8 +29,121 @@ const FORM2 = id(31)
 let local: LocalD1
 let d1: D1Like
 beforeAll(async () => {
-  local = await openLocalD1(['G'], { migrate: false })
+  local = await openLocalD1(['G'])
   d1 = local.bindings.G!
+  await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
+  await seedPrincipal(d1, { id: USER, kind: 'user' })
+  const ident = (n: number, over: Record<string, unknown>) => ({
+    id: id(n),
+    ...base,
+    updated_at: AT,
+    kind: 'email',
+    value: `a${n}@example.test`,
+    ...over,
+  })
+  expect(await insert('contacts', { id: CONTACT, ...base, updated_at: AT, name: 'Ann' })).toBeNull()
+  expect(await insert('identities', ident(10, { value: 'me@example.test', contact_id: null, own: 1 }))).toBeNull()
+  expect(await insert('identities', ident(12, { contact_id: CONTACT, own: 0 }))).toBeNull()
+  expect(
+    await insert('channel_connections', {
+      id: CONN,
+      ...base,
+      updated_at: AT,
+      provider: 'google',
+      account_id: 'sub-1',
+      identity_id: OWN,
+      owner_id: USER,
+      status: 'active',
+      granted_scopes: '["openid"]',
+      connected_at: AT,
+    }),
+  ).toBeNull()
+  expect(await insert('threads', { id: THREAD, ...base, channel: 'email', subject: 's' })).toBeNull()
+  expect(await insert('messages', msg(16))).toBeNull()
+  expect(
+    await insert('interactions', {
+      id: INTER,
+      ...base,
+      kind: 'message',
+      channel: 'email',
+      direction: 'inbound',
+      occurred_at: AT,
+      thread_id: THREAD,
+      message_id: MSG,
+    }),
+  ).toBeNull()
+  expect(
+    await insert('interaction_participants', {
+      id: PART,
+      ...base,
+      interaction_id: INTER,
+      identity_id: IDENT,
+      role: 'from',
+    }),
+  ).toBeNull()
+  expect(
+    await insert('files', {
+      id: FILE,
+      ...base,
+      name: 'a.png',
+      mime_type: 'image/png',
+      size_bytes: 3,
+      sha256: 'a'.repeat(64),
+      storage_key: 'k',
+    }),
+  ).toBeNull()
+  expect(
+    await insert('message_attachments', {
+      id: ATT,
+      ...base,
+      message_id: MSG,
+      position: 0,
+      file_id: FILE,
+      type: 'image',
+      name: 'a.png',
+      mime_type: 'image/png',
+      size_bytes: 3,
+      inline: 0,
+      content_id: null,
+      fetch_status: 'stored',
+      fetch_metadata: null,
+      fetch_error: null,
+    }),
+  ).toBeNull()
+  expect(
+    await insert('message_sources', {
+      id: MSRC,
+      ...base,
+      message_id: MSG,
+      connection_id: CONN,
+      provider_message_id: 'pm1',
+      provider_thread_id: 'pt1',
+    }),
+  ).toBeNull()
+  expect(
+    await insert('thread_sources', {
+      id: TSRC,
+      ...base,
+      thread_id: THREAD,
+      connection_id: CONN,
+      provider_thread_id: 'pt1',
+    }),
+  ).toBeNull()
+  expect(
+    await insert('action_requests', {
+      id: REQ,
+      ...base,
+      updated_at: AT,
+      operation: 'tasks.update',
+      arguments: '{"id":"x"}',
+      status: 'pending',
+      reason: 'r',
+      evidence: '[]',
+      thread_id: THREAD,
+      interaction_id: INTER,
+      expires_at: '2026-11-18T09:00:00.000Z',
+    }),
+  ).toBeNull()
 })
 afterAll(async () => {
   await local.dispose()
@@ -51,33 +161,7 @@ const insert = (table: string, row: Record<string, unknown>) => {
     ...Object.values(row),
   )
 }
-const all = async <T = Record<string, unknown>>(sqlText: string, ...binds: unknown[]) =>
-  ((
-    await d1
-      .prepare(sqlText)
-      .bind(...binds)
-      .all()
-  ).results ?? []) as T[]
 const base = { organization_id: ORG, created_at: AT, created_by: USER }
-const dump = async () => {
-  const out: Record<string, unknown[]> = {}
-  for (const t of [
-    'threads',
-    'messages',
-    'interactions',
-    'interaction_participants',
-    'message_attachments',
-    'action_requests',
-  ])
-    out[t] = await all(`select * from ${t} order by id`)
-  return out
-}
-const schema = async () =>
-  all<{ type: string; name: string; tbl_name: string; sql: string }>(
-    `select type, name, tbl_name, sql from sqlite_master
-     where tbl_name in ('threads','messages','interactions','message_sources','thread_sources') and type in ('index','trigger')
-     order by name`,
-  )
 const msg = (n: number, over: Record<string, unknown> = {}) => ({
   id: id(n),
   ...base,
@@ -95,161 +179,7 @@ const msg = (n: number, over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
-describe('migration 0024_form_channel over a database at 0023 holding data', () => {
-  let before: Record<string, unknown[]>
-  let schemaBefore: Awaited<ReturnType<typeof schema>>
-  it('keeps every row and column, the foreign keys, and every index and trigger', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'mig-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f < '0024')) cpSync(join(MIGRATIONS_DIR, f), join(dir, f))
-    expect(readdirSync(dir).sort().pop()).toBe('0023_forms.sql')
-    await applyMigrations(d1, dir)
-    await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
-    await seedPrincipal(d1, { id: USER, kind: 'user' })
-    const ident = (n: number, over: Record<string, unknown>) => ({
-      id: id(n),
-      ...base,
-      updated_at: AT,
-      kind: 'email',
-      value: `a${n}@example.test`,
-      ...over,
-    })
-    expect(await insert('contacts', { id: CONTACT, ...base, updated_at: AT, name: 'Ann' })).toBeNull()
-    expect(await insert('identities', ident(10, { value: 'me@example.test', contact_id: null, own: 1 }))).toBeNull()
-    expect(await insert('identities', ident(12, { contact_id: CONTACT, own: 0 }))).toBeNull()
-    expect(
-      await insert('channel_connections', {
-        id: CONN,
-        ...base,
-        updated_at: AT,
-        provider: 'google',
-        account_id: 'sub-1',
-        identity_id: OWN,
-        owner_id: USER,
-        status: 'active',
-        granted_scopes: '["openid"]',
-        connected_at: AT,
-      }),
-    ).toBeNull()
-    expect(await insert('threads', { id: THREAD, ...base, channel: 'email', subject: 's' })).toBeNull()
-    expect(await insert('messages', msg(16))).toBeNull()
-    expect(
-      await insert('interactions', {
-        id: INTER,
-        ...base,
-        kind: 'message',
-        channel: 'email',
-        direction: 'inbound',
-        occurred_at: AT,
-        thread_id: THREAD,
-        message_id: MSG,
-      }),
-    ).toBeNull()
-    expect(
-      await insert('interaction_participants', {
-        id: PART,
-        ...base,
-        interaction_id: INTER,
-        identity_id: IDENT,
-        role: 'from',
-      }),
-    ).toBeNull()
-    expect(
-      await insert('files', {
-        id: FILE,
-        ...base,
-        name: 'a.png',
-        mime_type: 'image/png',
-        size_bytes: 3,
-        sha256: 'a'.repeat(64),
-        storage_key: 'k',
-      }),
-    ).toBeNull()
-    expect(
-      await insert('message_attachments', {
-        id: ATT,
-        ...base,
-        message_id: MSG,
-        position: 0,
-        file_id: FILE,
-        type: 'image',
-        name: 'a.png',
-        mime_type: 'image/png',
-        size_bytes: 3,
-        inline: 0,
-        content_id: null,
-        fetch_status: 'stored',
-        fetch_metadata: null,
-        fetch_error: null,
-      }),
-    ).toBeNull()
-    expect(
-      await insert('message_sources', {
-        id: MSRC,
-        ...base,
-        message_id: MSG,
-        connection_id: CONN,
-        provider_message_id: 'pm1',
-        provider_thread_id: 'pt1',
-      }),
-    ).toBeNull()
-    expect(
-      await insert('thread_sources', {
-        id: TSRC,
-        ...base,
-        thread_id: THREAD,
-        connection_id: CONN,
-        provider_thread_id: 'pt1',
-      }),
-    ).toBeNull()
-    expect(
-      await insert('action_requests', {
-        id: REQ,
-        ...base,
-        updated_at: AT,
-        operation: 'tasks.update',
-        arguments: '{"id":"x"}',
-        status: 'pending',
-        reason: 'r',
-        evidence: '[]',
-        thread_id: THREAD,
-        interaction_id: INTER,
-        expires_at: '2026-11-18T09:00:00.000Z',
-      }),
-    ).toBeNull()
-    before = await dump()
-    expect(before.messages).toHaveLength(1)
-    const sources = [await all('select * from message_sources'), await all('select * from thread_sources')]
-    schemaBefore = await schema()
-
-    const only = mkdtempSync(join(tmpdir(), 'mig24-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('0024')))
-      cpSync(join(MIGRATIONS_DIR, f), join(only, f))
-    expect(await applyMigrations(d1, only)).toEqual(['0024_form_channel.sql'])
-
-    expect(await dump()).toEqual(before)
-    // the source rows keep every old column; form_id is the new one, null
-    expect(await all('select * from message_sources')).toEqual(
-      sources[0]!.map((r) => ({ ...(r as object), form_id: null })),
-    )
-    expect(await all('select * from thread_sources')).toEqual(
-      sources[1]!.map((r) => ({ ...(r as object), form_id: null })),
-    )
-    expect(await all('PRAGMA foreign_key_check')).toEqual([])
-
-    // every index and trigger is still there; the only difference is the new form-keyed unique indexes
-    const after = await schema()
-    const names = (rows: typeof after) => rows.map((r) => r.name)
-    expect(names(after).filter((n) => !names(schemaBefore).includes(n))).toEqual([
-      'idx_message_sources_form_unique',
-      'idx_thread_sources_form_unique',
-    ])
-    expect(names(schemaBefore).filter((n) => !names(after).includes(n))).toEqual([])
-    // every index and trigger keeps its definition byte for byte, not only its name
-    for (const row of schemaBefore) {
-      expect(after.find((a) => a.name === row.name)?.sql, row.name).toBe(row.sql)
-    }
-  })
-
+describe('the form channel on the source tables', () => {
   it('each append-only trigger still refuses an UPDATE', async () => {
     for (const [table, col, val] of [
       ['threads', 'subject', 'x'],

@@ -1,9 +1,6 @@
-import { cpSync, mkdtempSync, readdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
-import { MIGRATIONS_DIR, applyMigrations, openLocalD1, type LocalD1 } from './test/index.js'
+import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
 // #451 (user ruling 451.1): migration 0025 rebuilds channel_connections for new column defaults (exclusions on, contact_creation 'sent'), keeping every
@@ -20,8 +17,10 @@ const NEW = id(12)
 let local: LocalD1
 let d1: D1Like
 beforeAll(async () => {
-  local = await openLocalD1(['G'], { migrate: false })
+  local = await openLocalD1(['G'])
   d1 = local.bindings.G!
+  await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
+  await seedPrincipal(d1, { id: USER, kind: 'user' })
 })
 afterAll(async () => {
   await local.dispose()
@@ -51,13 +50,8 @@ const connection = (cid: string, account: string, extra = '') =>
     AT,
   )
 
-describe('migration 0025_capture_defaults over a database at 0024', () => {
-  it('keeps existing connections and their children, and gives a new one the new defaults', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'mig24-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f < '0025')) cpSync(join(MIGRATIONS_DIR, f), join(dir, f))
-    await applyMigrations(d1, dir)
-    await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
-    await seedPrincipal(d1, { id: USER, kind: 'user' })
+describe('capture defaults on channel_connections', () => {
+  it('keeps an explicit connection as written, and gives a new one the defaults (exclusions on, contact_creation sent)', async () => {
     await run(
       `INSERT INTO identities (id, organization_id, created_by, created_at, updated_at, kind, value, contact_id, own) VALUES (?, ?, ?, ?, ?, 'email', 'ann@example.test', NULL, 1)`,
       IDENT,
@@ -74,13 +68,6 @@ describe('migration 0025_capture_defaults over a database at 0024', () => {
       OLD,
       AT,
     )
-
-    // the earlier files are re-applied by the helper only on a fresh database; apply 0025 alone over this one
-    const sqlText = readdirSync(MIGRATIONS_DIR).find((f) => f.startsWith('0025'))!
-    expect(sqlText).toBe('0025_capture_defaults.sql')
-    const lone = mkdtempSync(join(tmpdir(), 'mig25only-'))
-    cpSync(join(MIGRATIONS_DIR, sqlText), join(lone, sqlText))
-    expect(await applyMigrations(d1, lone)).toEqual([sqlText])
 
     expect(
       await all(
