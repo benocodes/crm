@@ -221,7 +221,12 @@ Gmail sync ([[CHN141]], CHN5 cycle 4) is the first Workflow. Paths are real:
 - `packages/server-d1/wrangler.jsonc`: `workflows` is **not inherited by an env** (a binding: each env states its own, `vb-gmail-sync`,
   `vb-mail-sync-smoked1`, `vault-hq-mail-sync`), but `triggers` **is**: an env with no `triggers` key runs the top-level crons (proven on
   `smoked1` by the resolved config and the deploy output, OPS251 decision 251.10), so an env that must run none states
-  `"triggers": { "crons": [] }`, as `hq` does. Config test: `src/wrangler-config.test.ts`.
+  `"triggers": { "crons": [] }`, as `hq` does. Config test: `src/wrangler-config.test.ts`, which also proves every
+  recorded Workflow is bound `GMAIL_SYNC` with a `class_name` that `worker.ts` exports ([[CORE688]]). A recorded instance
+  keeps its Workflow *name* when the derived default changes (records win, OPS276), so `smoked1`/`hq` run
+  `GmailSyncWorkflow` under names created with `MailSyncWorkflow`. Whether Cloudflare accepts a changed `class_name`
+  on an existing Workflow name on deploy is **unproven** (CORE688 decision 688.6): the plan is to reinstall those
+  instances; a charter that upgrades one in place proves it on a throwaway instance first.
 - `packages/api/src/test/workerd-boundary.ts` (`makeWorkerdStepShim`): the step shim. It walks returns with workerd's accept-list (constructor name and
   path), clones them, turns thrown errors into bare `Error`s, records `sleep`s and `returns`, and has `retries`, `beforeStep` (kill the instance at a
   step) and `afterCommit` (fail after the step's unit committed) hooks. Use it in every workflow test.
