@@ -1,5 +1,0 @@
----
-'@vibase/server-d1': minor
----
-
-A person who signs in through a first-party OAuth app (one an owner registers with `oauth_clients.create`) now acts as themselves: `me.get` names the user, writes are attributed to them, and no delegated agent is created for the app. Their scopes are their own role met with the app's scopes, read on every request: the token's own scope list no longer narrows them, and an app that was given no list (the new default: `scopes` omitted on create answers `scopes: null`, and `oauth_clients.update` accepts `scopes: null`) holds every scope a first-party app may hold, including ones you declare later, never an administrative scope. An edit to an app's scopes, or deleting the app, now reaches tokens already issued within about a minute; a token whose app no longer exists is refused (this applies to dynamically registered clients too). Apps registered before this release keep the list they were created with; set `scopes: null` on one to have it follow new scopes. Delegated agents that earlier first-party sign-ins created are left as they are. No migration.
