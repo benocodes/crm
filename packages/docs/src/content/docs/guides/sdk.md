@@ -134,7 +134,10 @@ import { workspaceOperations } from './vibase/operations.js'
 
 const vibase = createClient({ url, auth, operations: workspaceOperations })
 await vibase.projects__c.list({ budget: { gte: 5000 } })
+await vibase.sessionRecordings__c.list({ length_seconds: { gte: 30 } }) // the object `session_recordings__c`
 await vibase.contacts.update({ id, tier__c: 'gold' })
 ```
+
+A custom object's name follows each surface's own case rule and keeps its `__c` suffix: the SDK camelCases the stem (`sessionRecordings__c`), REST and the CLI use hyphens (`/api/v1/session-recordings__c`, `vibase session-recordings__c list`). Argument and field names stay `snake_case` everywhere in the SDK and the API.
 
 Nothing checks at run time that the generated table matches the instance.

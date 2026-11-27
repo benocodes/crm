@@ -97,11 +97,11 @@ describe('REST', () => {
     const made = await s.call(a, 'user', ALL, 'POST', '/api/v1/contacts', { name: 'Ada', referral_source__c: 'web' })
     expect(made.status).toBe(201)
     expect(((await made.json()) as any).referral_source__c).toBe('web')
-    const list = (await (
-      await s.call(a, 'user', ALL, 'GET', '/api/v1/contacts?referral_source__c=web')
-    ).json()) as any
+    const list = (await (await s.call(a, 'user', ALL, 'GET', '/api/v1/contacts?referral_source__c=web')).json()) as any
     expect(list.data.map((c: any) => c.name)).toEqual(['Ada'])
-    const doc = JSON.stringify(((await (await s.app.request('/api/v1/openapi.json')).json()) as any).paths['/api/v1/contacts'])
+    const doc = JSON.stringify(
+      ((await (await s.app.request('/api/v1/openapi.json')).json()) as any).paths['/api/v1/contacts'],
+    )
     expect(doc).toContain('referral_source__c')
     expect(doc).not.toContain('referral-source')
   })

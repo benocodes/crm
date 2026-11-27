@@ -23,14 +23,17 @@ beforeEach(async () => {
   const agentId = await k.seedAgent()
   await k.e
     .d1!.prepare('update agents set scopes = ? where id = ?')
-    .bind(JSON.stringify([
+    .bind(
+      JSON.stringify([
         'projects__c:read',
         'projects__c:write',
         'session_recordings__c:read',
         'session_recordings__c:write',
         'contacts:read',
         'contacts:write',
-      ]), agentId)
+      ]),
+      agentId,
+    )
     .run()
   key = (await k.ctlKey({ agent_id: agentId })).key
 })

@@ -23,7 +23,11 @@ const recordings = op({
     schema: {
       type: 'object',
       required: ['title'],
-      properties: { title: { type: 'string' }, length_seconds: { type: 'integer' }, referral_source__c: { type: 'string' } },
+      properties: {
+        title: { type: 'string' },
+        length_seconds: { type: 'integer' },
+        referral_source__c: { type: 'string' },
+      },
     },
   },
 })
@@ -69,7 +73,13 @@ describe('the command of a custom object', () => {
       operationId: 'session_recordings__c.create',
     })
     expect(
-      deriveCommand(op({ id: 'session_recordings__c.property_keys', method: 'get', path: '/api/v1/session-recordings__c/property-keys' })),
+      deriveCommand(
+        op({
+          id: 'session_recordings__c.property_keys',
+          method: 'get',
+          path: '/api/v1/session-recordings__c/property-keys',
+        }),
+      ),
     ).toMatchObject({ resource: 'session-recordings__c', action: 'property-keys' })
   })
   it('typing the snake spelling still resolves to the command (normalisation through kebab, not an alias)', () => {
@@ -158,7 +168,11 @@ describe('the flags', () => {
   })
   it('--referral-source__c sends the wire name in the body and the query; --referral_source__c is an unknown flag (D4)', async () => {
     const cmd = deriveCommand(recordings)
-    const created = await parseInvocation(cmd, ['--title', 'Call', '--length-seconds', '9', '--referral-source__c', 'web'], io)
+    const created = await parseInvocation(
+      cmd,
+      ['--title', 'Call', '--length-seconds', '9', '--referral-source__c', 'web'],
+      io,
+    )
     expect(created.body).toEqual({ title: 'Call', length_seconds: 9, referral_source__c: 'web' })
     const list = deriveCommand(
       op({
@@ -168,7 +182,9 @@ describe('the flags', () => {
         parameters: [{ name: 'referral_source__c', in: 'query', required: false, schema: { type: 'string' } }],
       }),
     )
-    expect((await parseInvocation(list, ['--referral-source__c', 'web'], io)).query).toEqual([['referral_source__c', 'web']])
+    expect((await parseInvocation(list, ['--referral-source__c', 'web'], io)).query).toEqual([
+      ['referral_source__c', 'web'],
+    ])
     await expect(parseInvocation(list, ['--referral_source__c', 'web'], io)).rejects.toThrow(/referral_source__c/)
   })
 })

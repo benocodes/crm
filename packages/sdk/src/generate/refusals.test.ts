@@ -106,7 +106,9 @@ describe('CORE692 D1 __c namespaces', () => {
   })
 
   it('CORE692 D5: two ids that camelCase to one custom namespace are refused, naming both; a set with no collision generates', async () => {
-    const error = await generateSdk(documents({ '/a': get('item_2__c.list'), '/b': get('item2__c.list') })).catch((e) => e)
+    const error = await generateSdk(documents({ '/a': get('item_2__c.list'), '/b': get('item2__c.list') })).catch(
+      (e) => e,
+    )
     expect(error).toBeInstanceOf(Error)
     expect(error.message).toContain('item_2__c.list')
     expect(error.message).toContain('item2__c.list')

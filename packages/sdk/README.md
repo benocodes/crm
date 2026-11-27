@@ -272,8 +272,13 @@ import { createClient } from '@vibase/sdk'
 import { workspaceOperations } from './vibase/operations.js'
 
 const vibase = createClient({ url: 'https://crm.acme.example', auth: () => getToken(), operations: workspaceOperations })
-await vibase.projects__c.list({ budget: { gte: 5000 } }) // a custom namespace keeps its `__c` key, untranslated
+await vibase.projects__c.list({ budget: { gte: 5000 } }) // a one-word custom object keeps its key
+await vibase.sessionRecordings__c.list({ length_seconds: { gte: 30 } }) // `session_recordings__c`: the stem is camelCased, the `__c` suffix kept; argument keys stay snake_case
 await vibase.contacts.update({ id, tier__c: 'gold' }) // 'platinum' is a type error
 ```
+
+A custom object's namespace is its key with the stem camelCased and the `__c` suffix kept (`session_recordings__c` is
+`vibase.sessionRecordings__c`); the arguments and the results keep the snake_case names of the API. The generator refuses two
+operation ids that camelCase to the same member (`item_2__c` and `item2__c`), naming both.
 
 `Client<WorkspaceOperations>` (from `./vibase/types.js`) is the type to pass around.

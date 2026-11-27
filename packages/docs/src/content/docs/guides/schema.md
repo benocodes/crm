@@ -48,6 +48,7 @@ The file is plain data: nothing in it is executed, and it is checked against a J
 ```
 
 - **`define`** declares new custom objects, keyed by `<key>__c`. Each object has `fields`, and optionally a `label` and a `description`.
+- **Names on each surface.** The key is stored, and named in scopes, events, MCP tools and `schema.get`, exactly as written (`session_recordings__c`). REST and the CLI spell the part before `__c` with hyphens, like every built-in (`/api/v1/session-recordings__c`, `vibase session-recordings__c list`, and a flag for a field `referral_source__c` is `--referral-source__c`); the SDK camelCases it (`vibase.sessionRecordings__c`). The `__c` suffix is never changed, and JSON fields and query parameters keep their `snake_case` name on every surface.
 - **`extend`** adds fields to `contacts`, `companies`, `deals` or `tasks`, keyed `extend.<object>.fields.<name>__c`. No other built-in can be extended.
 - **Field kinds:** `text`, `integer`, `boolean`, `timestamp`, `enum` (with `values`) and `reference` (with `target`: a contact, company, deal, task, principal, or a custom object of the same file). A field can also take `label`, `description`, `required`, `default` and `unique`.
 - **Limits:** at most 256 KiB.

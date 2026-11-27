@@ -73,7 +73,7 @@ function analyseAggregate(id: string, raw: unknown, filters: Analysed['filters']
 
 const RESERVED_METHODS = ['all', 'propose']
 
-/** D4: an id splits at its first dot; both parts are camelCased (`deals.move_stage` is `deals.moveStage`). DX604 D5: a namespace ending in `__c` is a custom object's key and stays verbatim (`projects__c.list` is `projects__c.list`). */
+/** D4: an id splits at its first dot; both parts are camelCased (`deals.move_stage` is `deals.moveStage`). [[CORE692]] D1: a namespace ending in `__c` is a custom object's key: its stem is camelCased and the suffix kept (`session_recordings__c.list` is `sessionRecordings__c.list`, `projects__c.list` stays). */
 export function memberNames(operationId: string): { namespace: string; method: string } {
   const dot = operationId.indexOf('.')
   if (dot <= 0 || dot === operationId.length - 1)
@@ -81,7 +81,7 @@ export function memberNames(operationId: string): { namespace: string; method: s
   const camel = (s: string) => s.replace(/[_.]+([a-zA-Z0-9])/g, (_, c: string) => c.toUpperCase())
   const namespace = operationId.slice(0, dot)
   return {
-    namespace: namespace.endsWith('__c') ? namespace : camel(namespace),
+    namespace: namespace.endsWith('__c') ? camel(namespace.slice(0, -3)) + '__c' : camel(namespace),
     method: camel(operationId.slice(dot + 1)),
   }
 }
