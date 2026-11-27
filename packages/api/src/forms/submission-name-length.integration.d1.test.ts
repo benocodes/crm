@@ -115,4 +115,11 @@ describe('the contact name a form submission writes meets contacts_name_length',
     await submit(form, [f('email', 'ghost@acme.test'), f('name', '\u200b\u200b')])
     expect(await nameOf('ghost@acme.test')).toBeNull()
   })
+
+  it('a repeat submission whose name is only invisible characters does not fill a nameless contact with an empty string', async () => {
+    const form = await seedForm()
+    await submit(form, [f('email', 'ghost2@acme.test')])
+    await submit(form, [f('email', 'ghost2@acme.test'), f('name', '\u200b')], { submission_id: uuidv7(new Date(NOW)) })
+    expect(await nameOf('ghost2@acme.test')).toBeNull()
+  })
 })
