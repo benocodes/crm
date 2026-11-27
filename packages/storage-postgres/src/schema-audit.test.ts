@@ -73,6 +73,9 @@ describe('schema audit normalisers', () => {
   it('D1 check names: one, from an added column', () => {
     expect(d1CheckNames(createTable('0001_genesis.sql', 'tasks'))).toEqual(['tasks_additional_props'])
   })
+  it('D1 check names: none, when every CHECK is unnamed', () => {
+    expect(d1CheckNames(createTable('0001_genesis.sql', 'contact_files'))).toEqual([])
+  })
 })
 
 describe('diffShapes', () => {

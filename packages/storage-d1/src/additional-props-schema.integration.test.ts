@@ -3,9 +3,8 @@ import type { D1Like } from './binding.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// [[CORE318]] D1 (cycle 1): migration 0026 adds `additional_props TEXT NOT NULL DEFAULT '{}'` with a json-object CHECK to contacts, companies,
-// deals and tasks. Seeded at 0025 with a row in each table; raw inserts are the permitted exception (the test proves what the database
-// does, which no operation reaches).
+// [[CORE318]] D1 (cycle 1): `additional_props TEXT NOT NULL DEFAULT '{}'` with a json-object CHECK on contacts, companies, deals and tasks, as genesis has it.
+// Raw inserts are the permitted exception (the test proves what the database does, which no operation reaches).
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'
 const AT = '2026-11-24T09:00:00.000Z'

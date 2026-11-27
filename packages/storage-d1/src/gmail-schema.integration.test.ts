@@ -3,8 +3,8 @@ import type { D1Like } from './binding.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// CHN140 D22, D27, D30, D41: migration 0010 applied over a database at 0009 that already holds data, the five new tables and the two
-// rebuilt source tables. The raw inserts are the permitted exception (the schema test proves what the database refuses, which no operation reaches).
+// CHN140 D22, D27, D30, D41: the five Gmail capture tables and the two source tables that reference the connection, in genesis.
+// The raw inserts are the permitted exception (the schema test proves what the database refuses, which no operation reaches).
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'
 const AT = '2026-11-05T09:00:00.000Z'

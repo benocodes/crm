@@ -3,9 +3,8 @@ import type { D1Like } from './binding.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// [[CHN421]] D10, D11, D19 (cycle 1): migration 0024 rebuilds threads, messages, interactions and the two source tables over a
-// database at 0023 holding data, then the channel and source-key constraints. Raw inserts are the permitted exception: the
-// schema test proves what the database refuses, which no operation reaches.
+// [[CHN421]] D10, D11, D19 (cycle 1): the channel and source-key constraints on threads, messages, interactions and the two source tables in genesis, over rows seeded in beforeAll.
+// Raw inserts are the permitted exception: the schema test proves what the database refuses, which no operation reaches.
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'
 const AT = '2026-11-17T09:00:00.000Z'
@@ -197,7 +196,7 @@ describe('the form channel on the source tables', () => {
   })
 })
 
-describe('constraints after 0024', () => {
+describe('the channel and source-key constraints', () => {
   const agent = async (agentId: string) => {
     await seedPrincipal(d1, { id: agentId, kind: 'agent' })
     expect(

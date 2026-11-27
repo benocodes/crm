@@ -2,8 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
 import { applyControlMigrations, openLocalD1, type LocalD1 } from './test/index.js'
 
-// [[CORE243]] D4, [[CORE259]] D13, [[OPS260]]: the auth tables' DDL is proven on the CONTROL database (control 0001 carries it). The CRM database got them from migration 0018 (dormant) and
-// loses them in 0019: that migration is applied here over a database at 0018 that holds vault rows AND a row in every auth table. The raw inserts are the permitted exception: the schema
+// [[CORE243]] D4, [[CORE259]] D13, [[OPS260]]: the auth tables' DDL is proven on the CONTROL database (control genesis carries it), and the CRM genesis holds none. The raw inserts are the permitted exception: the schema
 // test proves what the database refuses, which Better Auth's own writes never reach.
 const AT = '2026-11-13T09:00:00.000Z'
 const id = (n: number) => `0190b2c4-0000-7000-8000-0000000000${String(n).padStart(2, '0')}`

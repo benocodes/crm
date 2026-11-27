@@ -3,8 +3,7 @@ import type { D1Like } from './binding.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// [[CHN406]] D1, D2, D8, D12, D14: migration 0021 applied over a database at 0020 that already holds a live and a soft-deleted
-// connection (seeded at the previous migration, never through the new code), then the constraints each new table holds whatever writes it.
+// [[CHN406]] D1, D2, D8, D12, D14: the capture-settings tables and the constraints each holds whatever writes it, over a live and a soft-deleted connection seeded in beforeAll.
 // The raw inserts are the permitted exception (the schema test proves what the database refuses, which no operation reaches).
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'

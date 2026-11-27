@@ -3,7 +3,7 @@ import type { D1Like } from './binding.js'
 import { applyMigrations, clearD1, openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// CORE194 cycle 1 (D4, D5, D6, D14): the three single-table FTS5 trigram indexes (migration 0014), their triggers and population,
+// CORE194 cycle 1 (D4, D5, D6, D14): the three single-table FTS5 trigram indexes in genesis, their triggers and population,
 // proven at SQL level. Nothing in the API reads them yet.
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'

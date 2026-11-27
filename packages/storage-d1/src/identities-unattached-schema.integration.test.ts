@@ -3,8 +3,7 @@ import type { D1Like } from './binding.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// [[CORE408]] D3, group 1: migration 0022 rebuilds `identities` over a database at 0021 holding an own identity on a
-// connection, a contact's identity with an interaction participant, and a soft-deleted identity; then the new owner rule.
+// [[CORE408]] D3, group 1: `identities` in genesis, over an own identity on a connection, a contact's identity with an interaction participant and a soft-deleted identity: the owner rule, the partial unique index and the contact key.
 // Raw inserts are the permitted exception: the schema test proves what the database refuses, which no operation reaches.
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'

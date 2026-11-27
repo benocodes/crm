@@ -3,7 +3,7 @@ import type { D1Like } from './binding.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// CORE74 D17, D22: the `notes` table and migration 0006 applied over a database that already holds data at 0005.
+// CORE74 D17, D22: the `notes` table in genesis and what it refuses.
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'
 const AT = '2026-10-22T09:00:00.000Z'

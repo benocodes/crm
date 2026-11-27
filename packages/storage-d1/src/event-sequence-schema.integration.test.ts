@@ -3,7 +3,7 @@ import type { D1Like } from './binding.js'
 import { applyMigrations, clearD1, openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// API105 (D1, D15, D16): `events.seq` is the commit order, `events` is append-only, and migration 0015 rebuilds the table over existing rows.
+// API105 (D1, D15, D16): `events.seq` is the commit order, `events` is append-only, and the table is keyed by `seq` with a unique UUID `id`.
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'
 const AT = '2026-10-22T09:00:00.000Z'

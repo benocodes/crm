@@ -3,7 +3,7 @@ import type { D1Like } from './binding.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// CORE77 D23: the four `agents` columns and migration 0007, applied over a database at 0006 that already holds an agent and a key.
+// CORE77 D23: the four `agents` columns in genesis (auth_subject, auth_client_id, auth_provider, delegated_by): their CHECKs and partial unique indexes.
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const SYSTEM = '0190b2c4-0000-7000-8000-00000000b000'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'

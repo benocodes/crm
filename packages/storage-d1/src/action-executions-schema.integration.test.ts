@@ -3,8 +3,7 @@ import type { D1Like } from './binding.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// AGT8 cycle 2 (D11, D48, D51, D56, D59): migration 0012 applied over a database at 0011 that already holds data (a request among it), and what the table
-// refuses. The raw inserts are the permitted exception: the schema test proves what the database refuses, which no operation reaches.
+// AGT8 cycle 2 (D11, D48, D51, D56, D59): what `action_executions` in genesis refuses and keeps (a request among the seeded rows). The raw inserts are the permitted exception: the schema test proves what the database refuses, which no operation reaches.
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'
 const AGENT = '0190b2c4-0000-7000-8000-00000000b002'

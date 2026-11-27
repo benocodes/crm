@@ -3,7 +3,7 @@ import type { D1Like } from './binding.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// CORE130 D2, D7, D9, D19, D21a: the three deal tables and migration 0009 applied over a database at 0008 that already holds data.
+// CORE130 D2, D7, D9, D19, D21a: the three deal tables in genesis and what they refuse.
 // The raw inserts below are the permitted exception (D21a): the schema test proves what the database refuses, which no operation can reach.
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'

@@ -361,14 +361,15 @@ migrates a resource appends a file, outside that milestone. Local tests apply th
   - a statement is at most 100 KB.
 - **The D1 migration test is red before the migration exists.** `packages/storage-d1/src/schema.integration.test.ts`
   inspects `sqlite_master`/PRAGMA for FKs, constraints and behaviour; it no longer snapshots every table's columns and
-  nullability (deleted by user ruling 666.33: they only restated the migrations). A new column is proven by a final-schema test (its default, its CHECK, its null); a test that applies a prefix of the
-  chain and seeds rows before one step is not written ([[CORE678]] D4: the old ones went with the squash). `packages/storage-d1/src/schema-parity.integration.test.ts` and `packages/storage-postgres/src/schema-parity.integration.postgres.test.ts` (one per engine) tie the
+  nullability (deleted by user ruling 666.33: they only restated the migrations). A new column is proven by a final-schema test (its default, its CHECK, its null); until [[OPS681]], a test that applies a prefix
+  of the chain and seeds rows before one step is not written, because genesis is edited in place ([[CORE678]] D4: the old ones went with the squash). After the release a
+  migration that rewrites existing rows is tested over data, as the rebuild guidance below says. `packages/storage-d1/src/schema-parity.integration.test.ts` and `packages/storage-postgres/src/schema-parity.integration.postgres.test.ts` (one per engine) tie the
   physical columns to `COLUMN_KINDS` in `@vibase/storage`, so a new column changes all three together. On contacts,
   companies, deals and tasks a column also changes the table's declaration (`packages/api/src/declarations/`):
   `drift.integration.d1.test.ts` fails on a column, type, nullability, foreign key or unique index the declaration
   does not state, in both directions ([[CORE554]]).
-- **Each implementation cycle adds one numbered file** (from the first public release; genesis covers companies, contacts,
-  identities and the rest). Copy every constraint the Postgres table has: composite intra-org FKs, partial unique indexes,
+- **Each implementation cycle adds one numbered file** (outside milestone AA's genesis edits, [[CORE678]]; genesis covers companies,
+  contacts, identities and the rest). Copy every constraint the Postgres table has: composite intra-org FKs, partial unique indexes,
   owner and tombstone CHECKs, the email CHECK `value = lower(value) AND value NOT GLOB '*[^ -~]*'`. Add the new
   tables to `clearD1`'s delete `order` (children first) in the same step, even a table no code writes yet: the miss
   stays silent until a child holds rows, then rest-order deletes hit the FK (`forms` and its child tables, added only
