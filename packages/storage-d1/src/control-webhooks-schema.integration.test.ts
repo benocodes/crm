@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
-import { MIGRATIONS } from './migrations-manifest.js'
 import { applyControlMigrations, applyMigrations, openLocalD1, type LocalD1 } from './test/index.js'
 
 // [[CORE327]] group 1 (P1, [[CORE259]] D8, D13): control 0004 creates the four webhook tables with 0016/0017's columns, checks, unique keys, lease check and the UPDATE-refusing trigger on
@@ -346,8 +345,7 @@ describe('control 0004: the four webhook tables', () => {
     ])
   })
 
-  it('the CRM schema no longer holds the four tables ([[CORE329]]: 0020 dropped them; the control database holds them)', async () => {
-    expect(MIGRATIONS[19]?.name).toBe('0020_drop_api_key_webhook_tables.sql')
+  it('the CRM schema no longer holds the four tables ([[CORE329]]: the control database holds them)', async () => {
     const names = (await all(crm, "select name from sqlite_master where type = 'table'")).map((r) => r.name)
     for (const t of TABLES) expect(names, t).not.toContain(t)
   })

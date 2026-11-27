@@ -44,51 +44,16 @@ afterEach(() => {
 describe('migrations manifest (D5)', () => {
   it('matches the real migrations/ directory', () => {
     expect(manifestProblems(MIGRATIONS, MIGRATIONS_DIR)).toEqual([])
-    expect(MIGRATIONS.map((e) => e.name)).toEqual([
-      '0001_typed_storage_core.sql',
-      '0002_identity_model.sql',
-      '0003_administration.sql',
-      '0004_messaging_model.sql',
-      '0005_associations.sql',
-      '0006_notes.sql',
-      '0007_agent_principals.sql',
-      '0008_tags.sql',
-      '0009_deals.sql',
-      '0010_gmail_capture.sql',
-      '0011_action_requests.sql',
-      '0012_action_executions.sql',
-      '0013_send_connection.sql',
-      '0014_search_indexes.sql',
-      '0015_event_sequence.sql',
-      '0016_webhooks.sql',
-      '0017_webhook_deliveries.sql',
-      '0018_auth_tables.sql',
-      '0019_drop_auth_tables.sql',
-      '0020_drop_api_key_webhook_tables.sql',
-      '0021_capture_settings.sql',
-      '0022_unattached_identities.sql',
-      '0023_forms.sql',
-      '0024_form_channel.sql',
-      '0025_capture_defaults.sql',
-      '0026_additional_props.sql',
-      '0027_form_challenge.sql',
-      '0028_content_sha256.sql',
-      '0029_reset_content_sha256.sql',
-      '0030_action_request_target_summary.sql',
-      '0031_connector_consented_scopes.sql',
-    ])
+    expect(MIGRATIONS.map((e) => e.name)).toEqual(['0001_genesis.sql'])
   })
   it('catches one edited byte', () => {
     const dir = copyOfTree()
-    writeFileSync(
-      join(dir, '0002_identity_model.sql'),
-      readFileSync(join(dir, '0002_identity_model.sql'), 'utf-8') + ' ',
-    )
-    expect(manifestProblems(MIGRATIONS, dir)).toEqual(['hash mismatch: 0002_identity_model.sql'])
+    writeFileSync(join(dir, '0001_genesis.sql'), readFileSync(join(dir, '0001_genesis.sql'), 'utf-8') + ' ')
+    expect(manifestProblems(MIGRATIONS, dir)).toEqual(['hash mismatch: 0001_genesis.sql'])
   })
   it('catches a dropped manifest entry', () => {
     expect(manifestProblems(MIGRATIONS.slice(1), copyOfTree())).toEqual([
-      'file without a manifest entry: 0001_typed_storage_core.sql',
+      'file without a manifest entry: 0001_genesis.sql',
     ])
   })
   it('catches an unlisted file', () => {
@@ -98,11 +63,13 @@ describe('migrations manifest (D5)', () => {
   })
   it('catches an entry without a file', () => {
     const dir = copyOfTree()
-    rmSync(join(dir, '0004_messaging_model.sql'))
-    expect(manifestProblems(MIGRATIONS, dir)).toEqual(['manifest entry without a file: 0004_messaging_model.sql'])
+    rmSync(join(dir, '0001_genesis.sql'))
+    expect(manifestProblems(MIGRATIONS, dir)).toEqual(['manifest entry without a file: 0001_genesis.sql'])
   })
   it('catches a swapped order', () => {
-    const swapped = [MIGRATIONS[1]!, MIGRATIONS[0]!, ...MIGRATIONS.slice(2)]
-    expect(manifestProblems(swapped, copyOfTree())).toEqual(['order differs from the sorted file names'])
+    const dir = copyOfTree()
+    writeFileSync(join(dir, '0002_next.sql'), 'select 1;')
+    const next = { name: '0002_next.sql', sha256: createHash('sha256').update('select 1;').digest('hex') }
+    expect(manifestProblems([next, MIGRATIONS[0]!], dir)).toEqual(['order differs from the sorted file names'])
   })
 })

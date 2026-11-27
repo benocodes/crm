@@ -1,25 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
 import { CONTROL_MIGRATIONS } from './control-migrations-manifest.js'
-import { MIGRATIONS } from './migrations-manifest.js'
 import { readMigrationState } from './migration-state.js'
-import {
-  CONTROL_MIGRATIONS_DIR,
-  applyControlMigrations,
-  applyMigrations,
-  openLocalD1,
-  type LocalD1,
-} from './test/index.js'
+import { CONTROL_MIGRATIONS_DIR, applyControlMigrations, openLocalD1, type LocalD1 } from './test/index.js'
 
 // [[CORE259]] D4, D13: control 0001 applied to an EMPTY D1 under its own tracker; it holds the auth tables and the control marker and nothing of the CRM.
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 let local: LocalD1
 let control: D1Like
-let crm: D1Like
 beforeAll(async () => {
-  local = await openLocalD1(['CONTROL', 'CRM'], { migrate: false })
+  local = await openLocalD1(['CONTROL'], { migrate: false })
   control = local.bindings.CONTROL!
-  crm = local.bindings.CRM!
 })
 afterAll(() => local.dispose())
 
@@ -43,28 +34,16 @@ const run = (d1: D1Like, text: string, ...binds: unknown[]) =>
       (e: Error) => e.message,
     )
 
-describe('control migration 0001_control_plane on an empty database', () => {
+describe('control genesis on an empty database', () => {
   it('applies from its own directory, tracked in its own d1_migrations, and the tracker equals the shipped manifest', async () => {
-    expect(await applyControlMigrations(control)).toEqual([
-      '0001_control_plane.sql',
-      '0002_invitations.sql',
-      '0003_invitation_delivery.sql',
-      '0004_webhooks.sql',
-      '0005_api_keys.sql',
-    ])
+    expect(await applyControlMigrations(control)).toEqual(['0001_genesis.sql'])
     const state = await readMigrationState(
       control,
       CONTROL_MIGRATIONS.map((m) => m.name),
     )
     expect(state).toMatchObject({
       status: 'current',
-      applied: [
-        '0001_control_plane.sql',
-        '0002_invitations.sql',
-        '0003_invitation_delivery.sql',
-        '0004_webhooks.sql',
-        '0005_api_keys.sql',
-      ],
+      applied: ['0001_genesis.sql'],
     })
     expect(CONTROL_MIGRATIONS_DIR).toMatch(/storage-d1\/control-migrations$/)
   })
@@ -79,12 +58,6 @@ describe('control migration 0001_control_plane on an empty database', () => {
     expect(names).toHaveLength(22)
     for (const crmTable of ['deployment', 'organizations', 'principals', 'events'])
       expect(names).not.toContain(crmTable)
-  })
-
-  it('the CRM migrations are not the control ones: the control tracker never lists a CRM migration and vice versa', async () => {
-    await applyMigrations(crm)
-    const crmNames = MIGRATIONS.map((m) => m.name)
-    expect((await readMigrationState(control, crmNames)).status).not.toBe('current')
   })
 
   it('control_deployment is a singleton holding one organisation id', async () => {

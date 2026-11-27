@@ -82,7 +82,7 @@ const fresh = async (over: Record<string, unknown> = {}) => {
   return form({ id: formId, name: `Form ${n}`, public_id: `frm_${String(n).padStart(26, '0')}`, ...over })
 }
 
-describe('migration 0023_forms', () => {
+describe('forms', () => {
   it('creates forms, form_allowed_origins and form_tags', async () => {
     for (const t of ['forms', 'form_allowed_origins', 'form_tags'])
       expect(await all('select name from sqlite_master where type = ? and name = ?', 'table', t), t).toHaveLength(1)

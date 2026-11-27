@@ -1,12 +1,9 @@
-import { cpSync, mkdtempSync, readdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
-import { MIGRATIONS_DIR, applyMigrations, openLocalD1, type LocalD1 } from './test/index.js'
+import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// AGT8 cycle 1 (D3, D4, D5, D20, D23, D27): migration 0011 applied over a database at 0010 that already holds data, and what the table refuses.
+// AGT8 cycle 1 (D3, D4, D5, D20, D23, D27): what `action_requests` in genesis refuses and keeps.
 // The raw inserts are the permitted exception: the schema test proves what the database refuses, which no operation reaches.
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'
@@ -18,8 +15,13 @@ const CONTACT = id(10)
 let local: LocalD1
 let d1: D1Like
 beforeAll(async () => {
-  local = await openLocalD1(['G'], { migrate: false })
+  local = await openLocalD1(['G'])
   d1 = local.bindings.G!
+  await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
+  await seedPrincipal(d1, { id: USER, kind: 'user' })
+  await seedPrincipal(d1, { id: AGENT, kind: 'agent' })
+  expect(await insert('contacts', { id: CONTACT, ...base, name: 'Ann' })).toBeNull()
+  expect(await insert('tasks', { id: id(11), ...base, title: 'T', status: 'open' })).toBeNull()
 })
 afterAll(async () => {
   await local.dispose()
@@ -70,44 +72,7 @@ const req = (over: Record<string, unknown> = {}) => ({
 })
 const decided = { decided_by: AGENT, decided_at: AT }
 
-describe('migration 0011_action_requests over a database at 0010 with data', () => {
-  it('applies, keeps every existing row, and adds the one table empty', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'mig-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f < '0011')) cpSync(join(MIGRATIONS_DIR, f), join(dir, f))
-    expect(readdirSync(dir).sort().pop()).toBe('0010_gmail_capture.sql')
-    await applyMigrations(d1, dir)
-    await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
-    await seedPrincipal(d1, { id: USER, kind: 'user' })
-    await seedPrincipal(d1, { id: AGENT, kind: 'agent' })
-    expect(await insert('contacts', { id: CONTACT, ...base, name: 'Ann' })).toBeNull()
-    expect(await insert('tasks', { id: id(11), ...base, title: 'T', status: 'open' })).toBeNull()
-    expect(
-      await insert('events', {
-        id: id(12),
-        created_at: AT,
-        organization_id: ORG,
-        type: 'task.created',
-        resource_type: 'task',
-        resource_id: id(11),
-        actor_id: USER,
-      }),
-    ).toBeNull()
-    const snapshot = async () => ({
-      contacts: await all('select * from contacts'),
-      tasks: await all('select * from tasks'),
-      events: await all('select * from events'),
-      principals: await all('select * from principals'),
-    })
-    const before = await snapshot()
-    expect(await all("select name from sqlite_master where name = 'action_requests'")).toEqual([])
-    const only = mkdtempSync(join(tmpdir(), 'mig11-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('0011')))
-      cpSync(join(MIGRATIONS_DIR, f), join(only, f))
-    expect(await applyMigrations(d1, only)).toEqual(['0011_action_requests.sql'])
-    expect(await snapshot()).toEqual(before)
-    expect(await all('select count(*) as n from action_requests')).toEqual([{ n: 0 }])
-  })
-
+describe('action_requests', () => {
   it('the status CHECK admits the eight statuses and refuses any other', async () => {
     expect(await insert('action_requests', req({ id: id(20), status: 'paused' }))).toMatch(/action_requests_status/)
     for (const [i, status] of (

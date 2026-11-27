@@ -38,6 +38,13 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
 - **A constant that both the code and the test derive from gives a vacuous mutation.** Mutating it moves both sides together
   and stays green ([[CORE549]] M6). Mutate the function that uses the constant (drop one mention), or assert against a
   literal in one place, so only one side moves.
+- **A proof needed once is a saved script, not a permanent test.** When the thing compared goes away in the same
+  cycle (an old migration chain against its squash, an old layout against the new), a permanent test would have no
+  subject after merge. Write the check as a test file kept in the cycle folder (never committed under `packages/`),
+  with a header giving the exact commands to copy it in and run it against the merge base; run it on a commit that
+  holds both sides, quote counts and hashes in RESULT.md, and show one absence mutation turning it red. The reviewer
+  re-runs it independently, with a mutation of their own choosing ([[CORE678]] D2, 678.25:
+  `knowledge/specs/049-CORE678-genesis-squash/genesis-equivalence.test.ts`).
 - **Some sites have no observable absence mutation, and the reason is the construction.** A site that applies a rule
   can be one whose only consumer reads something the rule never produces. [[API518]]'s scope closure at dispatch
   eligibility fed only an `events:read` check, and the closure never adds `events:read`. Removing that closure

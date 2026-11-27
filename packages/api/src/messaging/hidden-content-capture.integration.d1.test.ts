@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { uuidv7 } from '@vibase/storage'
 import { stripInvisibleCharacters } from '../channels/invisible-characters.js'
@@ -132,53 +131,5 @@ describe('hidden content at capture, Gmail path on D1', () => {
     const body = await bodyOf(msg)
     expect(body).toBe('Hello\n\nlogo\n')
     expect(msg.preview).toBe('Hello logo')
-  })
-
-  describe('D5 the fingerprint reset', () => {
-    const RESET = readFileSync(
-      new URL('../../../storage-d1/migrations/0029_reset_content_sha256.sql', import.meta.url),
-      'utf8',
-    )
-    /** A message stored before the strip shipped: its stored fingerprint is one the stripped render no longer produces. */
-    const storePreStrip = async () => {
-      const m = gmailFixture('htmlOnly', withHeaders({ 'Message-ID': '<old@acme.test>' }, '<p>Old body</p>'))
-      await capture([m], C1)
-      // messages is append-only: the test lifts the guard for its own seed and puts it back (the migration does the same for its reset).
-      await e.d1!.batch([
-        e.d1!.prepare('DROP TRIGGER messages_append_only'),
-        e.d1!.prepare('UPDATE messages SET content_sha256 = ?').bind('ff'.repeat(32)),
-        e.d1!.prepare(
-          "CREATE TRIGGER messages_append_only BEFORE UPDATE ON messages BEGIN SELECT RAISE(ABORT, 'append_only'); END",
-        ),
-      ])
-      return m
-    }
-    const reset = () =>
-      e.d1!.batch(
-        RESET.split('\n')
-          .filter((l) => !l.startsWith('--'))
-          .join('\n')
-          .split(/;\s*\n(?=\s*(?:DROP|UPDATE|CREATE)\b)/)
-          .filter((q) => q.trim() !== '')
-          .map((q) => e.d1!.prepare(q)),
-      )
-
-    it('without the reset, a copy of a pre-strip message is a message of its own (the control)', async () => {
-      const m = await storePreStrip()
-      await capture([m], C2)
-      expect(await e.rows('messages')).toHaveLength(2)
-    })
-    it('after the reset, a re-scan of the same mailbox and a copy in another mailbox store nothing new', async () => {
-      const m = await storePreStrip()
-      const eventsBefore = (await e.rows('events')).length
-      await reset()
-      expect((await e.rows('messages')).map((r) => r.content_sha256)).toEqual([null])
-      const again = await capture([m], C1)
-      const other = await capture([m], C2)
-      expect(again.captured).toBe(0)
-      expect(other.captured).toBe(0)
-      expect(await e.rows('messages')).toHaveLength(1)
-      expect((await e.rows('events')).length).toBe(eventsBefore)
-    })
   })
 })

@@ -142,7 +142,7 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   On D1 (SQLite) the parent of a composite FK must have a UNIQUE index on exactly those columns, or every
   insert fails with `foreign key mismatch`; a table whose id is already the primary key (`agents`) gets an
   additive `CREATE UNIQUE INDEX … (organization_id, id)` in the migration that first references it
-  (`packages/storage-d1/migrations/0016_webhooks.sql`, [[API7]]).
+  (the webhook tables in `packages/storage-d1/migrations/0001_genesis.sql`, [[API7]]).
 - **A new foreign key to `contacts(id)` must join merge's re-point list** (`CONTACT_REFERENCES` in
   `packages/api/src/identity/merge.ts`) or its exemptions; `merge-catalog.integration.suite.ts` fails
   otherwise ([[CORE2]] D11). A `__c` or custom-object reference to contacts needs no entry: merge derives it from the
@@ -191,7 +191,7 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
 - **Source tables are machinery** (`message_sources`, `thread_sources`): no events, no API; the provider's ids map to ours.
   Since `0010` ([[CHN140]]) their `connection_id` is a composite FK to `channel_connections`; since `0024` ([[CHN421]]) it
   is nullable beside a `form_id` FK to `forms`, exactly one set (below).
-- **Adding a foreign key to an existing D1 table is a rebuild** (`0010_gmail_capture.sql` is the worked example):
+- **Adding a foreign key to an existing D1 table is a rebuild** (`channel_connections` and the source tables in genesis, from `0010_gmail_capture.sql`, are the worked example):
   `PRAGMA defer_foreign_keys = on;`, create `<t>_new` with the key, `INSERT … SELECT` the explicit column list, `DROP`,
   `RENAME`, then re-create **every** index and trigger the old table had (they go with the drop). Diff the new definition
   against the original migration's, column by column. Test it as a migration over data (apply up to the previous file
@@ -206,14 +206,14 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   `CREATE TABLE <t>` with the new definition, `INSERT … SELECT` the explicit column list from the backup (these inserts
   clear the counter), `DROP <t>_backup`, then re-create every index and trigger. Keep `UNIQUE (organization_id, id)`
   verbatim: the children's composite FKs depend on it. Test it over data with child rows present and
-  `PRAGMA foreign_key_check` empty after (`0022_unattached_identities.sql`, `identities-unattached-schema.integration.test.ts`,
+  `PRAGMA foreign_key_check` empty after (the `identities` rebuild, `identities-unattached-schema.integration.test.ts`,
   [[CORE408]]).
 - **A rebuild's test compares each re-created index and trigger by its `sqlite_master.sql`, not by its name.** If the test
   compares names only, a re-created index with a wrong column list still passes ([[CHN421]]'s first review). For an
   independent check before review, apply `0001..N-1` to a scratch file with the `sqlite3` CLI, dump `sqlite_master` for
   the rebuilt tables, apply `N`, and diff: only the intended changes may show. macOS `sqlite3` has no `fts5`, so `0014`
   errors there; that is harmless unless a rebuilt table has a search index.
-- **A row owned by one of two sources** (`message_sources`/`thread_sources` since `0024_form_channel.sql`, [[CHN421]] D10):
+- **A row owned by one of two sources** (`message_sources`/`thread_sources` since [[CHN421]] D10):
   make both keys nullable, each with its own composite FK; add an exactly-one CHECK (`(a IS NULL) <> (b IS NULL)`, named
   `<table>_one_source`); give each key its own plain unique index. NULLs never conflict, so each insert names its own
   key's index as the `ON CONFLICT` target. Every read filters on the caller's own column, never on `coalesce(a, b)`.
@@ -222,7 +222,7 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
 - **A D1 `INTEGER PRIMARY KEY` needs an explicit `NOT NULL`.** It is the rowid, but `pragma_table_info` reports
   `notnull = 0` without it, so `schema.get` publishes the key as `nullable: true`. `INTEGER PRIMARY KEY AUTOINCREMENT
   NOT NULL` still auto-assigns. `AUTOINCREMENT` creates `sqlite_sequence` (hidden from `schema.get`), which clearing the
-  table does not reset: compare relative order in tests, never absolute values (`events.seq`, `0015_event_sequence.sql`,
+  table does not reset: compare relative order in tests, never absolute values (`events.seq`,
   [[API105]]).
 - **Vocabulary CHECKs are named identically on both engines** (`<table>_<purpose>`) so the schema audit needs no difference.
   Widening one later is a Postgres `DROP/ADD CONSTRAINT` and, on D1, a table rebuild under `PRAGMA defer_foreign_keys` (a parent table rebuilds through a side table, above): budget for it.
@@ -335,8 +335,12 @@ tests.
 ## D1 migrations ([[CORE35]])
 
 `packages/db` is the Postgres package. D1's schema lives in the open `@vibase/storage-d1`, as
-`packages/storage-d1/migrations/NNNN_<name>.sql`: forward-only and wrangler-compatible. Each cycle that
-migrates a resource appends a file. Local tests apply the files to disposable Miniflare bindings
+`packages/storage-d1/migrations/NNNN_<name>.sql`: forward-only and wrangler-compatible. The chain starts at
+`0001_genesis.sql` ([[CORE678]]): the whole schema as the 31 earlier files left it, generated from their catalogue,
+and the control chain starts the same way at `control-migrations/0001_genesis.sql`. **Interim rule (until [[OPS681]]
+writes the lasting one): milestone AA's specs ([[CORE679]], [[CORE680]]) edit genesis in place (user ruling, decision
+678.2) and update its hash in the manifest; every other change appends a new numbered file.** Each cycle that
+migrates a resource appends a file, outside that milestone. Local tests apply the files to disposable Miniflare bindings
 (`@vibase/storage-d1/test`); never point tooling at a remote database id.
 
 - **Tenancy is the database** (spec D18). A singleton `deployment` row fixes the organisation id,
@@ -357,15 +361,15 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
   - a statement is at most 100 KB.
 - **The D1 migration test is red before the migration exists.** `packages/storage-d1/src/schema.integration.test.ts`
   inspects `sqlite_master`/PRAGMA for FKs, constraints and behaviour; it no longer snapshots every table's columns and
-  nullability (deleted by user ruling 666.33: they only restated the migrations). A new column is proven by its own
-  migration test over a database at the previous version holding rows (`connector-consent-migration.integration.test.ts`,
-  [[CORE666]]). `packages/storage-d1/src/schema-parity.integration.test.ts` and `packages/storage-postgres/src/schema-parity.integration.postgres.test.ts` (one per engine) tie the
+  nullability (deleted by user ruling 666.33: they only restated the migrations). A new column is proven by a final-schema test (its default, its CHECK, its null); until [[OPS681]], a test that applies a prefix
+  of the chain and seeds rows before one step is not written, because genesis is edited in place ([[CORE678]] D4: the old ones went with the squash). After the release a
+  migration that rewrites existing rows is tested over data, as the rebuild guidance below says. `packages/storage-d1/src/schema-parity.integration.test.ts` and `packages/storage-postgres/src/schema-parity.integration.postgres.test.ts` (one per engine) tie the
   physical columns to `COLUMN_KINDS` in `@vibase/storage`, so a new column changes all three together. On contacts,
   companies, deals and tasks a column also changes the table's declaration (`packages/api/src/declarations/`):
   `drift.integration.d1.test.ts` fails on a column, type, nullability, foreign key or unique index the declaration
   does not state, in both directions ([[CORE554]]).
-- **Each implementation cycle adds one numbered file** (`0002_identity_model.sql`: companies, contacts,
-  identities). Copy every constraint the Postgres table has: composite intra-org FKs, partial unique indexes,
+- **Each implementation cycle adds one numbered file** (outside milestone AA's genesis edits, [[CORE678]]; genesis covers companies,
+  contacts, identities and the rest). Copy every constraint the Postgres table has: composite intra-org FKs, partial unique indexes,
   owner and tombstone CHECKs, the email CHECK `value = lower(value) AND value NOT GLOB '*[^ -~]*'`. Add the new
   tables to `clearD1`'s delete `order` (children first) in the same step, even a table no code writes yet: the miss
   stays silent until a child holds rows, then rest-order deletes hit the FK (`forms` and its child tables, added only
@@ -373,7 +377,7 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
 - **Add every new file to the manifest in the same change** ([[CORE61]] D2, D5). `MIGRATIONS` in
   `packages/storage-d1/src/migrations-manifest.ts` lists `{ name, sha256 }` in file order, and
   `migrations-manifest.test.ts` hashes the real files. It fails on an unlisted file, an entry with no file, a
-  changed byte or a wrong order. **A committed D1 migration file is immutable**: fix a mistake with a new file.
+  changed byte or a wrong order. **A committed D1 migration file is immutable**: fix a mistake with a new file (until [[OPS681]], genesis is the one file milestone AA edits in place).
   The Worker refuses work (`503 migrations_pending`) until wrangler's `d1_migrations` holds every name in the
   manifest, so an instance is migrated **before** the Worker is deployed to it (`ship-branch`).
   A new file also goes into the recorded wrangler output `packages/server-d1/scripts/fixtures/d1-execute-migrations.json`
@@ -422,7 +426,7 @@ migrates a resource appends a file. Local tests apply the files to disposable Mi
 ### Two D1 databases: CRM and control plane ([[CORE259]])
 
 The Worker binds `DB` (CRM data, `migrations/`) and `CONTROL_DB` (auth and other control-plane machinery,
-`packages/storage-d1/control-migrations/NNNN_*.sql`, numbered from `0001`). Each directory has its own manifest
+`packages/storage-d1/control-migrations/NNNN_*.sql`, from `0001_genesis.sql`). Each directory has its own manifest
 (`control-migrations-manifest.ts` mirrors `migrations-manifest.ts`, same rules) and its own `d1_migrations`
 tracker inside its own database. No foreign key or trigger crosses them; they link by value.
 
@@ -434,8 +438,9 @@ tracker inside its own database. No foreign key or trigger crosses them; they li
 - **The control gate refuses `unknown`** (no tracker = no tables), unlike the CRM gate. A test that needs a
   served control plane applies the files with their tracker: `applyControlMigrations` or
   `openLocalD1(..., { control })` (`@vibase/storage-d1/test`); locally, `wrangler d1 migrations apply CONTROL_DB --local`.
-- **Control `0001` is generated** (`pnpm -C packages/auth schema:generate --write`) and `packages/auth/src/schema.test.ts`
-  compares it with Better Auth's schema; that test splits on `;`, so a header comment must contain none.
+- **Control genesis begins with Better Auth's DDL** (`pnpm -C packages/auth schema:generate` prints it and writes nothing) and
+  `packages/auth/src/schema.test.ts` compares the head of the file with it, then `CONTROL_DEPLOYMENT_DDL`; that test splits on
+  `;`, so a header comment must contain none. A Better Auth upgrade that changes the schema is written into genesis by hand.
 - **Tooling maps each database by its `binding`, never by position** ([[OPS260]]): `DB` → `migrations/`,
   `CONTROL_DB` → `control-migrations/`, each with its own `database_id` and `migrations_dir`
   (`packages/release/src/check-config.ts`). `db:migrate:remote` applies control first and stops on its failure;
@@ -478,7 +483,7 @@ tracker inside its own database. No foreign key or trigger crosses them; they li
 - **Drop children before parents on D1.** D1 enforces foreign keys during `DROP TABLE` (it is an implicit
   `DELETE`), and `pragma foreign_keys = off` is ignored, so dropping a referenced table that holds rows fails
   `FOREIGN KEY constraint failed`. Order the drops leaf first and prove it over seeded rows in every table, with
-  the parent-first order as the absence mutation (`0020_drop_api_key_webhook_tables.sql`, [[CORE329]]). A dropped
+  the parent-first order as the absence mutation ([[CORE329]]). A dropped
   table's triggers go with it; remove them from any schema suite that lists triggers.
 - Adding a binding means updating every harness that composes the Worker (storage-d1 test support, the server
   kit, the auth harness, `smoke:worker`) and every test that composes `better-auth` without it, which otherwise
@@ -500,8 +505,8 @@ tracker inside its own database. No foreign key or trigger crosses them; they li
   table exports with `--table`. Time Travel is the backup: `wrangler d1 time-travel info <database name> --env <env> --json`
   prints `{"bookmark": "..."}` (read-only, confirmed on `smoked1` by [[OPS365]]); a tool that restores two databases
   (CRM and control) reads one bookmark per database name before its first row read.
-- **Scripts that replay migrations up to a cut-off** pin it by name and then apply every later file, so a new migration does not
-  leave the database `behind` (`packages/server-d1/scripts/e2e-gmail-send.ts`).
+- **A script that replays a prefix of the chain** pins the cut-off by name and applies every later file, so a new migration does
+  not leave the database `behind`; none exists since [[CORE678]] (one genesis file).
 
 ## Neon notes
 

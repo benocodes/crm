@@ -1,19 +1,15 @@
-import { cpSync, mkdtempSync, readdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
-import { MIGRATIONS_DIR, applyMigrations, clearD1, openLocalD1, type LocalD1 } from './test/index.js'
+import { applyMigrations, clearD1, openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// CORE194 cycle 1 (D4, D5, D6, D14): the three single-table FTS5 trigram indexes (migration 0014), their triggers and population,
+// CORE194 cycle 1 (D4, D5, D6, D14): the three single-table FTS5 trigram indexes in genesis, their triggers and population,
 // proven at SQL level. Nothing in the API reads them yet.
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'
 const AT = '2026-10-22T09:00:00.000Z'
 const DEL = '2026-10-23T09:00:00.000Z'
 const id = (n: number) => `0190b2c4-0000-7000-8000-${String(n).padStart(12, '0')}`
-const MIGRATION = '0014_search_indexes.sql'
 
 let local: LocalD1
 let d1: D1Like
@@ -114,49 +110,7 @@ const quote = (s: string) => `"${s.replaceAll('"', '""')}"`
 const indexIds = async (db: D1Like, table: string) =>
   (await all(db, `SELECT id FROM "${table}_search" ORDER BY id`)).map((r) => r.id as string)
 
-describe('migration 0014 over a database at 0013 with data', () => {
-  it('indexes exactly the live rows of each resource, NULL fields included, and keeps the rows', async () => {
-    const old = local.bindings.OLD!
-    const before = mkdtempSync(join(tmpdir(), 'mig-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f < '0014'))
-      cpSync(join(MIGRATIONS_DIR, f), join(before, f))
-    expect(readdirSync(before).sort().pop()).toBe('0013_send_connection.sql')
-    await applyMigrations(old, before)
-    await seedDeployment(old, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
-    await seedPrincipal(old, { id: USER, kind: 'user' })
-    for (const s of SPECS) {
-      await s.insert(old, 1, 'Alpha one', s.table === 'notes' ? 'body one' : 'x.example')
-      await s.insert(old, 2, 'Beta two', s.table === 'notes' ? 'body two' : null) // NULL domain / tasks.notes (notes.content is NOT NULL)
-      await s.insert(old, 3, 'Gone three', s.table === 'notes' ? 'body three' : 'gone.example', DEL) // soft-deleted
-    }
-    await run(
-      old,
-      'INSERT INTO notes (id, organization_id, created_by, created_at, updated_at, title, content) VALUES (?, ?, ?, ?, ?, NULL, ?)',
-      id(4),
-      ORG,
-      USER,
-      AT,
-      AT,
-      'untitled note',
-    ) // NULL title
-    expect(await all(old, "SELECT name FROM sqlite_master WHERE name LIKE '%_search'")).toEqual([])
-
-    const only = mkdtempSync(join(tmpdir(), 'mig14-'))
-    cpSync(join(MIGRATIONS_DIR, MIGRATION), join(only, MIGRATION))
-    expect(await applyMigrations(old, only)).toEqual([MIGRATION])
-
-    expect(await indexIds(old, 'companies')).toEqual([id(1), id(2)])
-    expect(await indexIds(old, 'notes')).toEqual([id(1), id(2), id(4)])
-    expect(await indexIds(old, 'tasks')).toEqual([id(1), id(2)])
-    expect(await matchIds(old, 'companies', quote('x.example'))).toEqual([id(1)])
-    expect(await matchIds(old, 'companies', quote('gone.example'))).toEqual([])
-    expect(await matchIds(old, 'notes', quote('untitled'))).toEqual([id(4)])
-    // the existing rows are untouched
-    expect((await all(old, 'SELECT count(*) AS n FROM companies')).map((r) => r.n)).toEqual([3])
-    // a NULL field is stored as NULL, not as text
-    expect((await all(old, 'SELECT title FROM notes_search WHERE id = ?', id(4))).map((r) => r.title)).toEqual([null])
-  })
-
+describe('search indexes on an empty database and their shape', () => {
   it('creates empty indexes on an empty database', async () => {
     const fresh = await openLocalD1(['E'])
     try {

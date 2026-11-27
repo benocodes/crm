@@ -1,13 +1,9 @@
-import { cpSync, mkdtempSync, readdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
-import { MIGRATIONS_DIR, applyMigrations, openLocalD1, type LocalD1 } from './test/index.js'
+import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// AGT8 cycle 2 (D11, D48, D51, D56, D59): migration 0012 applied over a database at 0011 that already holds data (a request among it), and what the table
-// refuses. The raw inserts are the permitted exception: the schema test proves what the database refuses, which no operation reaches.
+// AGT8 cycle 2 (D11, D48, D51, D56, D59): what `action_executions` in genesis refuses and keeps (a request among the seeded rows). The raw inserts are the permitted exception: the schema test proves what the database refuses, which no operation reaches.
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'
 const AGENT = '0190b2c4-0000-7000-8000-00000000b002'
@@ -19,8 +15,28 @@ const HASH = 'a'.repeat(64)
 let local: LocalD1
 let d1: D1Like
 beforeAll(async () => {
-  local = await openLocalD1(['G'], { migrate: false })
+  local = await openLocalD1(['G'])
   d1 = local.bindings.G!
+  await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
+  await seedPrincipal(d1, { id: USER, kind: 'user' })
+  await seedPrincipal(d1, { id: AGENT, kind: 'agent' })
+  expect(
+    await insert('action_requests', {
+      id: id(1),
+      organization_id: ORG,
+      created_by: USER,
+      created_at: AT,
+      updated_at: AT,
+      operation: 'tasks.create',
+      arguments: '{"title":"t"}',
+      status: 'approved',
+      reason: 'r',
+      evidence: '[]',
+      expires_at: LATER,
+      decided_by: AGENT,
+      decided_at: AT,
+    }),
+  ).toBeNull()
 })
 afterAll(async () => {
   await local.dispose()
@@ -81,50 +97,7 @@ const claimed = { status: 'claimed', lease_token: 'tok', lease_until: LATER, att
 const done = { status: 'done', done_at: LATER, result: '{"ok":true}' }
 const failed = { status: 'failed', done_at: LATER, error_code: 'provider_rejected' }
 
-describe('migration 0012_action_executions over a database at 0011 with data', () => {
-  it('applies, keeps every existing row (a request included), and adds the one table empty', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'mig-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f < '0012')) cpSync(join(MIGRATIONS_DIR, f), join(dir, f))
-    expect(readdirSync(dir).sort().pop()).toBe('0011_action_requests.sql')
-    await applyMigrations(d1, dir)
-    await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
-    await seedPrincipal(d1, { id: USER, kind: 'user' })
-    await seedPrincipal(d1, { id: AGENT, kind: 'agent' })
-    const reqBase = { organization_id: ORG, created_by: USER, created_at: AT, updated_at: AT }
-    expect(
-      await insert('action_requests', {
-        id: id(1),
-        ...reqBase,
-        operation: 'tasks.create',
-        arguments: '{"title":"t"}',
-        status: 'approved',
-        reason: 'r',
-        evidence: '[]',
-        expires_at: LATER,
-        decided_by: AGENT,
-        decided_at: AT,
-      }),
-    ).toBeNull()
-    expect(await insert('tasks', { id: id(11), ...reqBase, title: 'T', status: 'open' })).toBeNull()
-    const snapshot = async () => ({
-      requests: await all('select * from action_requests'),
-      tasks: await all('select * from tasks'),
-      principals: await all('select * from principals'),
-    })
-    const before = await snapshot()
-    expect(await all("select name from sqlite_master where name = 'action_executions'")).toEqual([])
-    const only = mkdtempSync(join(tmpdir(), 'mig12-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('0012')))
-      cpSync(join(MIGRATIONS_DIR, f), join(only, f))
-    expect(await applyMigrations(d1, only)).toEqual(['0012_action_executions.sql'])
-    expect(await snapshot()).toEqual(before)
-    expect(await all('select count(*) as n from action_executions')).toEqual([{ n: 0 }])
-    // action_requests is not rebuilt (D48): its own columns are those of 0011.
-    expect(
-      (await all<{ name: string }>("select name from pragma_table_info('action_requests')")).map((c) => c.name),
-    ).not.toContain('resolution')
-  })
-
+describe('action_executions', () => {
   it('the status CHECK admits the four statuses and refuses any other', async () => {
     expect(await insert('action_executions', exec({ status: 'paused' }))).toMatch(/action_executions_status/)
     expect(await insert('action_executions', exec())).toBeNull()

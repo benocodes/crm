@@ -1,13 +1,10 @@
-import { cpSync, mkdtempSync, readdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from './binding.js'
-import { MIGRATIONS_DIR, applyMigrations, openLocalD1, type LocalD1 } from './test/index.js'
+import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// CHN140 D22, D27, D30, D41: migration 0010 applied over a database at 0009 that already holds data, the five new tables and the two
-// rebuilt source tables. The raw inserts are the permitted exception (the schema test proves what the database refuses, which no operation reaches).
+// CHN140 D22, D27, D30, D41: the five Gmail capture tables and the two source tables that reference the connection, in genesis.
+// The raw inserts are the permitted exception (the schema test proves what the database refuses, which no operation reaches).
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'
 const AT = '2026-11-05T09:00:00.000Z'
@@ -20,8 +17,40 @@ const MSG = id(21)
 let local: LocalD1
 let d1: D1Like
 beforeAll(async () => {
-  local = await openLocalD1(['G'], { migrate: false })
+  local = await openLocalD1(['G'])
   d1 = local.bindings.G!
+  await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
+  await seedPrincipal(d1, { id: USER, kind: 'user' })
+  expect(
+    await insert('identities', {
+      id: IDENT,
+      ...base,
+      updated_at: AT,
+      kind: 'email',
+      value: 'ann@example.test',
+      contact_id: null,
+      own: 1,
+    }),
+  ).toBeNull()
+  expect(await insert('companies', { id: id(40), name: 'Acme', ...base, updated_at: AT })).toBeNull()
+  expect(await insert('threads', { id: THREAD, ...base, channel: 'email', subject: 's' })).toBeNull()
+  expect(
+    await insert('messages', {
+      id: MSG,
+      ...base,
+      thread_id: THREAD,
+      channel: 'email',
+      kind: 'message',
+      external_id: 'm@x',
+      in_reply_to: null,
+      author: '{"user_id":"u"}',
+      occurred_at: AT,
+      preview: 'p',
+      content_key: 'orgs/x/',
+      version: 1,
+      retracted_at: null,
+    }),
+  ).toBeNull()
 })
 afterAll(async () => {
   await local.dispose()
@@ -92,72 +121,7 @@ const thrSource = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
-const NEW_TABLES = [
-  'channel_connections',
-  'channel_credentials',
-  'gmail_watches',
-  'mail_sync_state',
-  'mail_sync_cursors',
-]
-
-describe('migration 0010_gmail_capture over a database at 0009 with data', () => {
-  it('applies, keeps the rows of the other tables, creates the five tables and rebuilds the source tables', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'mig-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f < '0010')) cpSync(join(MIGRATIONS_DIR, f), join(dir, f))
-    expect(readdirSync(dir).sort().pop()).toBe('0009_deals.sql')
-    await applyMigrations(d1, dir)
-    await seedDeployment(d1, { organizationId: ORG, provider: 'clerk', externalId: 'org_x' })
-    await seedPrincipal(d1, { id: USER, kind: 'user' })
-    expect(
-      await insert('identities', {
-        id: IDENT,
-        ...base,
-        updated_at: AT,
-        kind: 'email',
-        value: 'ann@example.test',
-        contact_id: null,
-        own: 1,
-      }),
-    ).toBeNull()
-    expect(await insert('companies', { id: id(40), name: 'Acme', ...base, updated_at: AT })).toBeNull()
-    expect(await insert('threads', { id: THREAD, ...base, channel: 'email', subject: 's' })).toBeNull()
-    expect(
-      await insert('messages', {
-        id: MSG,
-        ...base,
-        thread_id: THREAD,
-        channel: 'email',
-        kind: 'message',
-        external_id: 'm@x',
-        in_reply_to: null,
-        author: '{"user_id":"u"}',
-        occurred_at: AT,
-        preview: 'p',
-        content_key: 'orgs/x/',
-        version: 1,
-        retracted_at: null,
-      }),
-    ).toBeNull()
-    const snapshot = async () => ({
-      identities: await all('select * from identities'),
-      companies: await all('select * from companies'),
-      threads: await all('select * from threads'),
-      messages: await all('select * from messages'),
-      events: await all('select * from events'),
-    })
-    const before = await snapshot()
-    expect(before.identities).toHaveLength(1)
-    for (const t of NEW_TABLES) expect(await all('select name from sqlite_master where name = ?', t), t).toEqual([])
-    const only = mkdtempSync(join(tmpdir(), 'mig10-'))
-    for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('0010')))
-      cpSync(join(MIGRATIONS_DIR, f), join(only, f))
-    expect(await applyMigrations(d1, only)).toEqual(['0010_gmail_capture.sql'])
-    expect(await snapshot()).toEqual(before)
-    for (const t of NEW_TABLES)
-      expect(await all('select name from sqlite_master where name = ?', t), t).toEqual([{ name: t }])
-    for (const t of NEW_TABLES) expect(await count(t), `${t} starts empty`).toBe(0)
-  })
-
+describe('gmail capture tables', () => {
   it('the rebuilt source tables refuse a row whose connection_id names no connection, on both tables', async () => {
     const before = [await count('message_sources'), await count('thread_sources')]
     expect(await insert('message_sources', msgSource({ connection_id: id(99) }))).toMatch(/FOREIGN KEY/)
@@ -192,10 +156,15 @@ describe('migration 0010_gmail_capture over a database at 0009 with data', () =>
         .map((r) => `${r.name}:${r.unique}`)
         .sort()
     expect(await idx('message_sources')).toEqual([
+      'idx_message_sources_form_unique:1',
       'idx_message_sources_message:0',
       'idx_message_sources_provider_unique:1',
     ])
-    expect(await idx('thread_sources')).toEqual(['idx_thread_sources_provider_unique:1', 'idx_thread_sources_thread:0'])
+    expect(await idx('thread_sources')).toEqual([
+      'idx_thread_sources_form_unique:1',
+      'idx_thread_sources_provider_unique:1',
+      'idx_thread_sources_thread:0',
+    ])
     expect(await insert('message_sources', msgSource({ id: id(32) }))).toMatch(/UNIQUE/)
     expect(await insert('thread_sources', thrSource({ id: id(33) }))).toMatch(/UNIQUE/)
   })

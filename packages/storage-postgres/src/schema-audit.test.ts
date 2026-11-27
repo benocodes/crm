@@ -19,7 +19,7 @@ const shape = (tables: Record<string, Partial<TableShape>>): SchemaShape => ({
   byTable: Object.fromEntries(Object.entries(tables).map(([t, s]) => [t, { ...empty(), ...s }])),
 })
 
-/** The CREATE TABLE text of `table` from a D1 migration file. */
+/** The CREATE TABLE text of `table` from a D1 migration file (today the genesis file, [[CORE678]]). */
 function createTable(file: string, table: string): string {
   const text = readFileSync(join(MIGRATIONS_DIR, file), 'utf-8')
   const start = text.indexOf(`CREATE TABLE ${table} (`)
@@ -64,13 +64,17 @@ describe('schema audit normalisers', () => {
     )
   })
   it('D1 check names', () => {
-    expect(d1CheckNames(createTable('0002_identity_model.sql', 'contacts'))).toEqual([
+    expect(d1CheckNames(createTable('0001_genesis.sql', 'contacts'))).toEqual([
+      'contacts_additional_props',
       'contacts_merged_is_deleted',
       'contacts_not_merged_into_self',
     ])
   })
-  it('D1 check names: none', () => {
-    expect(d1CheckNames(createTable('0001_typed_storage_core.sql', 'tasks'))).toEqual([])
+  it('D1 check names: one, from an added column', () => {
+    expect(d1CheckNames(createTable('0001_genesis.sql', 'tasks'))).toEqual(['tasks_additional_props'])
+  })
+  it('D1 check names: none, when every CHECK is unnamed', () => {
+    expect(d1CheckNames(createTable('0001_genesis.sql', 'contact_files'))).toEqual([])
   })
 })
 

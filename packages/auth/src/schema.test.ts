@@ -4,21 +4,25 @@ import { describe, expect, it } from 'vitest'
 import { AUTH_TABLES } from './index.js'
 import { CONTROL_DEPLOYMENT_DDL, generateAuthDdl } from './test/schema-gen.js'
 
-const MIGRATION = fileURLToPath(new URL('../../storage-d1/control-migrations/0001_control_plane.sql', import.meta.url))
+const MIGRATION = fileURLToPath(new URL('../../storage-d1/control-migrations/0001_genesis.sql', import.meta.url))
 const statements = (text: string) =>
   text
     .split(';')
-    .map((s) => s.replace(/--.*$/gm, '').trim())
+    .map((s) =>
+      s
+        .replace(/--.*$/gm, '')
+        .trim()
+        .replace(/^create (unique )?(table|index)\b/i, (m) => m.toLowerCase()),
+    )
     .filter(Boolean)
 
-// [[CORE243]] D4, [[CORE259]] D4/D13: control migration 0001 IS the offline-generated DDL, then the control marker. A library upgrade or an option change that alters the schema
-// fails here until a new reviewed control migration is written.
+// [[CORE243]] D4, [[CORE259]] D4/D13, [[CORE678]] D6: control genesis BEGINS with the offline-generated DDL, then the control marker, then the rest of the control schema. A library upgrade
+// or an option change that alters the schema fails here until the change is written into genesis by hand (before the first public release) or into a new migration (after it).
+// SQLite's catalogue spells the leading CREATE keywords in capitals, so those are compared in lower case.
 describe('the auth schema (D4)', () => {
-  it('control migration 0001 is exactly what Better Auth generates for the composed options, then control_deployment', async () => {
-    expect(statements(readFileSync(MIGRATION, 'utf8'))).toEqual([
-      ...statements(await generateAuthDdl()),
-      ...statements(CONTROL_DEPLOYMENT_DDL),
-    ])
+  it('control genesis begins with exactly what Better Auth generates for the composed options, then control_deployment', async () => {
+    const expected = [...statements(await generateAuthDdl()), ...statements(CONTROL_DEPLOYMENT_DDL)]
+    expect(statements(readFileSync(MIGRATION, 'utf8')).slice(0, expected.length)).toEqual(expected)
   })
 
   it('every table is auth_ prefixed, every column snake_case, and the tables are the exported list', async () => {

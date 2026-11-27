@@ -272,7 +272,7 @@ describe('order and --only (D11, D6)', () => {
 
 describe('migrate', () => {
   it('behind: applies, then reports update; current: ok with no apply', async () => {
-    const w = smoked1World({ applied: EXPECTED_MIGRATIONS.slice(0, 3) })
+    const w = smoked1World({ applied: [] })
     const o = await runSetup([...SMOKED1, '--only', 'migrate'], CONFIRM, w.deps)
     expect(states(o)).toEqual(['migrate:update'])
     expect(w.writes().length).toBe(1)
