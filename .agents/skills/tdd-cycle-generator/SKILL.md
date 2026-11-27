@@ -110,7 +110,13 @@ Over budget on any line means split, at plan time. Do not write a fallback cut (
 ~1,500 lines"): a coder deep in a cycle does not stop to split it, and lines do not predict tokens ([[AGT165]]
 D47's tripwire never fired). The one exception is OPS92's: a large mechanical change (renames, file
 splits) that one check proves whole, such as a before/after test-name manifest, is one cycle, because a split
-only adds an interim state where old and new mechanisms live side by side. Say so in the Size line. A rename
+only adds an interim state where old and new mechanisms live side by side. Say so in the Size line. The exception
+covers the generated or renamed artifact, **not the tests it breaks**: a test whose later cases lean on state an
+earlier, now-deleted case set up must be rebuilt by hand, and that is not mechanical. Before claiming the exception,
+count those suites and put the count in the Size line; for a migration squash, count every suite that opens a database
+with `migrate: false` or applies a prefix copy of the chain, not only files that name a migration. [[CORE678]]'s
+charter counted the three named chain-step files and missed 14 suites whose first case was the step and whose later
+cases needed its rows (678.30); more than a handful of such suites is a cycle of its own before the swap. A rename
 charter also asks for: the docs' samples parsed by the shipped code (a renamed key is an ordinary word no token ban
 catches), the old name refused by a test that the guard's allow-list names, and the changesets read back after the
 replace (lowercase sentence starts survive into the CHANGELOG) ([[CORE569]] review).
