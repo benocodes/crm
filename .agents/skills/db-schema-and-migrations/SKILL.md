@@ -359,7 +359,10 @@ Layout (identifiers unquoted unless SQL requires, one column per line, a table's
 against the code that writes it that it is never a UUID Vibase mints. The checker reports an entry whose table or column no
 longer exists as `exemption_stale`, so a rename must edit the list in the same change. **Changing or adding a rule**:
 grep `.agents/skills/` for DDL advice in the old form and fix it in the same change (the parent-rebuild recipe above
-still said "keep `UNIQUE (organization_id, id)`" after C5, caught only at [[CORE679]]'s review).
+still said "keep `UNIQUE (organization_id, id)`" after C5, caught only at [[CORE679]]'s review). **Adding, naming or
+renaming a CHECK on `contacts`, `tasks` or another audited CRM table**: `packages/storage-postgres/src/schema-audit.test.ts`
+pins the D1 CHECK names (`d1CheckNames`) and, having no `.postgres.` infix, runs in the default gate; update its
+expectations in the same change (it turned the gate red at both [[CORE679]] and [[CORE683]]).
 
 ## D1 migrations ([[CORE35]])
 
