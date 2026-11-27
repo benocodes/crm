@@ -87,7 +87,8 @@ const SPECS: Spec[] = [
 
 describe.each(SPECS)('$table.$column length CHECK', ({ table, column, min, max, nullable }) => {
   const name = `${table}_${column}_length`
-  const val = (len: number) => (column === 'domain' ? `${'a'.repeat(Math.max(len - 4, 0))}.com`.slice(0, len) : 'x'.repeat(len))
+  const val = (len: number) =>
+    column === 'domain' ? `${'a'.repeat(Math.max(len - 4, 0))}.com`.slice(0, len) : 'x'.repeat(len)
 
   it('passes at the upper bound', async () => {
     expect(await insert(table, row(table, column, val(max)))).toBeNull()

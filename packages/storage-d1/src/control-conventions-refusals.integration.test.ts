@@ -142,10 +142,13 @@ describe('the control database refuses a misplaced dash in every id column (P3)'
         /FOREIGN KEY constraint failed/i,
       )
     expect(
-      await insert('webhook_dispatch_state', { ...(await rows.webhook_dispatch_state!()), subscription_id: NO_SUCH_SUB }),
+      await insert('webhook_dispatch_state', {
+        ...(await rows.webhook_dispatch_state!()),
+        subscription_id: NO_SUCH_SUB,
+      }),
     ).toMatch(/FOREIGN KEY constraint failed/i)
-    expect(await insert('webhook_dispatch_state', { ...(await rows.webhook_dispatch_state!()), subscription_id: MISPLACED })).toMatch(
-      /FOREIGN KEY constraint failed/i,
-    )
+    expect(
+      await insert('webhook_dispatch_state', { ...(await rows.webhook_dispatch_state!()), subscription_id: MISPLACED }),
+    ).toMatch(/FOREIGN KEY constraint failed/i)
   })
 })

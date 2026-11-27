@@ -1,6 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { D1Like } from '@vibase/storage-d1'
-import { CONVENTION_EXEMPTIONS, checkConventions, openLocalD1, readCatalogue, type LocalD1 } from '@vibase/storage-d1/test'
+import {
+  CONVENTION_EXEMPTIONS,
+  checkConventions,
+  openLocalD1,
+  readCatalogue,
+  type LocalD1,
+} from '@vibase/storage-d1/test'
 import { applySchemaFile } from './apply.js'
 import { createTableStatements } from './ddl.js'
 import type { ExtendDeclarations } from './extend.js'

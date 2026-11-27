@@ -58,8 +58,6 @@ async function seedForm(over: Partial<FormIngress> = {}): Promise<FormIngress> {
   })
   return form
 }
-const tag = async (over: Record<string, unknown> = {}) =>
-  (await e.insert('tags', { name: `Tag ${++n}`, ...over })).id as string
 const f = (name: string, value: string | string[]): FormAnswer => ({ name, value })
 const ctxOf = (over: Partial<FormSubmissionContext> = {}): FormSubmissionContext => ({
   binding: e.binding,
@@ -106,7 +104,9 @@ describe('the contact name a form submission writes meets contacts_name_length',
     const form = await seedForm()
     await submit(form, [f('email', 'fill@acme.test')])
     expect(await nameOf('fill@acme.test')).toBeNull()
-    await submit(form, [f('email', 'fill@acme.test'), f('name', 'f'.repeat(700))], { submission_id: uuidv7(new Date(NOW)) })
+    await submit(form, [f('email', 'fill@acme.test'), f('name', 'f'.repeat(700))], {
+      submission_id: uuidv7(new Date(NOW)),
+    })
     expect(await nameOf('fill@acme.test')).toBe('f'.repeat(500))
   })
 

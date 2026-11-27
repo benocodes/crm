@@ -92,7 +92,9 @@ describe('identities.resolve (the operation and the promotion path) meets the sa
     const [made] = await resolve([{ kind: 'email', value: 'a@x.test', name: 'a'.repeat(900) }])
     expect(made!.contact!.name).toHaveLength(500)
     await e.insert('identities', { kind: 'email', value: 'u@x.test', contact_id: null, own: false })
-    const [promoted] = await resolve([{ kind: 'email', value: 'u@x.test', name: 'p'.repeat(900), mayCreateContact: true }])
+    const [promoted] = await resolve([
+      { kind: 'email', value: 'u@x.test', name: 'p'.repeat(900), mayCreateContact: true },
+    ])
     expect(promoted!.contact!.name).toHaveLength(500)
     expect(await nameOf('u@x.test')).toBe('p'.repeat(500))
   })
