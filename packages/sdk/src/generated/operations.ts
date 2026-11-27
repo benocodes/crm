@@ -4749,7 +4749,7 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
       "additional_props": "query",
       "id": "query",
       "title": "query",
-      "notes": "query",
+      "description": "query",
       "due_at": "query",
       "completed_at": "query",
       "created_by": "query",
@@ -4810,7 +4810,7 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
         ],
         "max": 4
       },
-      "notes": {
+      "description": {
         "kind": "text",
         "operators": [
           "eq",
@@ -4903,7 +4903,7 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
     "path": "/api/v1/tasks",
     "fields": {
       "title": "body",
-      "notes": "body",
+      "description": "body",
       "status": "body",
       "due_at": "body",
       "assignee_id": "body",
@@ -4959,7 +4959,7 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
       "additional_props": "query",
       "id": "query",
       "title": "query",
-      "notes": "query",
+      "description": "query",
       "due_at": "query",
       "completed_at": "query",
       "created_by": "query",
@@ -5022,7 +5022,7 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
         ],
         "max": 4
       },
-      "notes": {
+      "description": {
         "kind": "text",
         "operators": [
           "eq",
@@ -5123,7 +5123,7 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
     "fields": {
       "id": "path",
       "title": "body",
-      "notes": "body",
+      "description": "body",
       "status": "body",
       "due_at": "body",
       "assignee_id": "body",

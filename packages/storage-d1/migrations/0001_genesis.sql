@@ -52,7 +52,7 @@ CREATE TABLE tasks (
   updated_at TEXT NOT NULL CONSTRAINT tasks_updated_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', updated_at) = updated_at, 0)),
   organization_id TEXT NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
   title TEXT NOT NULL CONSTRAINT tasks_title_length CHECK (length(title) BETWEEN 1 AND 500),
-  notes TEXT CONSTRAINT tasks_notes_length CHECK (notes IS NULL OR (length(notes) <= 10000)),
+  description TEXT CONSTRAINT tasks_description_length CHECK (description IS NULL OR (length(description) <= 10000)),
   status TEXT NOT NULL DEFAULT 'open' CONSTRAINT tasks_status CHECK (status IN ('open', 'done')),
   due_at TEXT CONSTRAINT tasks_due_at_timestamp CHECK (due_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', due_at) = due_at, 0))),
   completed_at TEXT CONSTRAINT tasks_completed_at_timestamp CHECK (completed_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', completed_at) = completed_at, 0))),
@@ -580,18 +580,18 @@ BEGIN
   DELETE FROM notes_search WHERE id = old.id;
 END;
 
-CREATE VIRTUAL TABLE tasks_search USING fts5(id UNINDEXED, title, notes, tokenize = 'trigram');
+CREATE VIRTUAL TABLE tasks_search USING fts5(id UNINDEXED, title, description, tokenize = 'trigram');
 
 CREATE TRIGGER tasks_search_ai AFTER INSERT ON tasks
 WHEN new.deleted_at IS NULL
 BEGIN
-  INSERT INTO tasks_search (id, title, notes) VALUES (new.id, new.title, new.notes);
+  INSERT INTO tasks_search (id, title, description) VALUES (new.id, new.title, new.description);
 END;
 
-CREATE TRIGGER tasks_search_au AFTER UPDATE OF title, notes, deleted_at ON tasks
+CREATE TRIGGER tasks_search_au AFTER UPDATE OF title, description, deleted_at ON tasks
 BEGIN
   DELETE FROM tasks_search WHERE id = old.id;
-  INSERT INTO tasks_search (id, title, notes) SELECT new.id, new.title, new.notes WHERE new.deleted_at IS NULL;
+  INSERT INTO tasks_search (id, title, description) SELECT new.id, new.title, new.description WHERE new.deleted_at IS NULL;
 END;
 
 CREATE TRIGGER tasks_search_ad AFTER DELETE ON tasks

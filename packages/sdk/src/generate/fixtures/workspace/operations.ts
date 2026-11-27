@@ -5098,7 +5098,7 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
       "additional_props": "query",
       "id": "query",
       "title": "query",
-      "notes": "query",
+      "description": "query",
       "due_at": "query",
       "completed_at": "query",
       "created_by": "query",
@@ -5159,7 +5159,7 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
         ],
         "max": 4
       },
-      "notes": {
+      "description": {
         "kind": "text",
         "operators": [
           "eq",
@@ -5252,7 +5252,7 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
     "path": "/api/v1/tasks",
     "fields": {
       "title": "body",
-      "notes": "body",
+      "description": "body",
       "status": "body",
       "due_at": "body",
       "assignee_id": "body",
@@ -5308,7 +5308,7 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
       "additional_props": "query",
       "id": "query",
       "title": "query",
-      "notes": "query",
+      "description": "query",
       "due_at": "query",
       "completed_at": "query",
       "created_by": "query",
@@ -5371,7 +5371,7 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
         ],
         "max": 4
       },
-      "notes": {
+      "description": {
         "kind": "text",
         "operators": [
           "eq",
@@ -5472,7 +5472,7 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
     "fields": {
       "id": "path",
       "title": "body",
-      "notes": "body",
+      "description": "body",
       "status": "body",
       "due_at": "body",
       "assignee_id": "body",

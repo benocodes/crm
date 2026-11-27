@@ -36,7 +36,7 @@ const EXECUTION =
 
 export const STATED_FILTER_COSTS: readonly StatedFilterCost[] = [
   { list: 'tasks', filter: 'title', reason: COLUMN },
-  { list: 'tasks', filter: 'notes', reason: COLUMN },
+  { list: 'tasks', filter: 'description', reason: COLUMN },
   { list: 'tasks', filter: 'status', reason: COLUMN },
   { list: 'tasks', filter: 'due_at', reason: COLUMN },
   { list: 'tasks', filter: 'completed_at', reason: COLUMN },

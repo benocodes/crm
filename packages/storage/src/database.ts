@@ -69,7 +69,7 @@ export interface TasksTable {
   updated_at: Timestamp
   organization_id: string
   title: string
-  notes: string | null
+  description: string | null
   status: 'open' | 'done'
   due_at: NullableTimestamp
   completed_at: NullableTimestamp
@@ -642,7 +642,7 @@ export const COLUMN_KINDS = {
     updated_at: 'timestamp',
     organization_id: 'uuid',
     title: 'text',
-    notes: 'text',
+    description: 'text',
     status: 'text',
     due_at: 'timestamp',
     completed_at: 'timestamp',

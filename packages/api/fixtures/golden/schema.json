@@ -7981,12 +7981,12 @@
                       "description": "Filter by title (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: title=ilike.*acme*. A range is two conditions: title=gte.a&title=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send title=eq.<value> for a literal."
                     },
                     {
-                      "name": "notes",
+                      "name": "description",
                       "custom": false,
                       "kind": "text",
                       "operators": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "is", "like", "ilike"],
                       "indexed": false,
-                      "description": "Filter by notes (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: notes=ilike.*acme*. A range is two conditions: notes=gte.a&notes=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send notes=eq.<value> for a literal."
+                      "description": "Filter by description (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: description=ilike.*acme*. A range is two conditions: description=gte.a&description=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send description=eq.<value> for a literal."
                     },
                     {
                       "name": "status",
@@ -8072,10 +8072,10 @@
                   "aggregate": {
                     "sum": [],
                     "avg": [],
-                    "min": ["title", "notes", "status", "due_at", "completed_at", "created_at", "updated_at"],
-                    "max": ["title", "notes", "status", "due_at", "completed_at", "created_at", "updated_at"],
+                    "min": ["title", "description", "status", "due_at", "completed_at", "created_at", "updated_at"],
+                    "max": ["title", "description", "status", "due_at", "completed_at", "created_at", "updated_at"],
                     "money": {},
-                    "group_by": ["title", "notes", "status", "assignee_id", "created_by"]
+                    "group_by": ["title", "description", "status", "assignee_id", "created_by"]
                   }
                 },
                 "columns": [
@@ -8148,13 +8148,13 @@
                     "references": null
                   },
                   {
-                    "name": "notes",
+                    "name": "description",
                     "type": "TEXT",
                     "kind": "text",
                     "nullable": true,
                     "primary_key": false,
                     "default": null,
-                    "label": "Notes",
+                    "label": "Description",
                     "description": "The task's own description. Research and context belong in associated notes.",
                     "values": null,
                     "exposed": true,

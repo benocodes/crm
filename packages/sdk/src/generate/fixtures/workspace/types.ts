@@ -33,7 +33,7 @@ export interface paths {
         };
         /**
          * Count tasks, and sum, average or take the minimum or maximum of their fields
-         * @description Counts the live tasks that match the filters, which are exactly the filters of tasks.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields. The answer is { count, sum?, avg?, min?, max?, currency?, groups? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all. With group_by (up to 2 of title, notes, status, assignee_id, created_by) the answer is { count, groups: [{ key, count, sum?, avg?, min?, max?, currency? }] }: count is every matching row, and each group is the answer the call would give with the key added as filters, ordered by the group fields with the null group last; more than 200 groups is refused, never truncated. Cost: reads every live task that matches the filters, with no page limit; a filter schema.get marks `indexed` narrows that read through an index; any other filter, or none, reads every live task of the workspace. With group_by the same rows are read and sorted by the group fields (no index).
+         * @description Counts the live tasks that match the filters, which are exactly the filters of tasks.list (no after, limit, sort or order), and optionally sums, averages or takes the minimum or maximum of fields. The answer is { count, sum?, avg?, min?, max?, currency?, groups? }: count always, and each function you ask for as an object keyed by field. Nulls are ignored, a function with no values is null, sum is refused above 9007199254740991 (the largest exact integer), avg is not rounded, min and max return the value as the record shows it. At most 10 field terms in all. With group_by (up to 2 of title, description, status, assignee_id, created_by) the answer is { count, groups: [{ key, count, sum?, avg?, min?, max?, currency? }] }: count is every matching row, and each group is the answer the call would give with the key added as filters, ordered by the group fields with the null group last; more than 200 groups is refused, never truncated. Cost: reads every live task that matches the filters, with no page limit; a filter schema.get marks `indexed` narrows that read through an index; any other filter, or none, reads every live task of the workspace. With group_by the same rows are read and sorted by the group fields (no index).
          */
         get: operations["tasks.aggregate"];
         put?: never;
@@ -1082,8 +1082,8 @@ export interface operations {
                 id?: string | string[];
                 /** @description Filter by title (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: title=ilike.*acme*. A range is two conditions: title=gte.a&title=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send title=eq.<value> for a literal. */
                 title?: string | string[];
-                /** @description Filter by notes (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: notes=ilike.*acme*. A range is two conditions: notes=gte.a&notes=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send notes=eq.<value> for a literal. */
-                notes?: string | string[];
+                /** @description Filter by description (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: description=ilike.*acme*. A range is two conditions: description=gte.a&description=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send description=eq.<value> for a literal. */
+                description?: string | string[];
                 /** @description Filter by due_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: due_at=gte.2026-11-01. A range is two conditions: due_at=gte.2026-11-01&due_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send due_at=eq.<value> for a literal. */
                 due_at?: string | string[];
                 /** @description Filter by completed_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: completed_at=gte.2026-11-01. A range is two conditions: completed_at=gte.2026-11-01&completed_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send completed_at=eq.<value> for a literal. */
@@ -1118,7 +1118,7 @@ export interface operations {
                             /** Format: uuid */
                             organization_id: string;
                             title: string;
-                            notes: string | null;
+                            description: string | null;
                             /** @enum {string} */
                             status: "open" | "done";
                             due_at: string | null;
@@ -1152,7 +1152,7 @@ export interface operations {
             content: {
                 "application/json": {
                     title: string;
-                    notes?: string | null;
+                    description?: string | null;
                     /** @enum {string} */
                     status?: "open" | "done";
                     /** Format: date-time */
@@ -1179,7 +1179,7 @@ export interface operations {
                         /** Format: uuid */
                         organization_id: string;
                         title: string;
-                        notes: string | null;
+                        description: string | null;
                         /** @enum {string} */
                         status: "open" | "done";
                         due_at: string | null;
@@ -1202,11 +1202,11 @@ export interface operations {
     "tasks.aggregate": {
         parameters: {
             query?: {
-                /** @description Minimum of fields, comma-separated: title, notes, status, due_at, completed_at, created_at, updated_at. The answer has min as an object keyed by field. Nulls are ignored; no values gives null. */
+                /** @description Minimum of fields, comma-separated: title, description, status, due_at, completed_at, created_at, updated_at. The answer has min as an object keyed by field. Nulls are ignored; no values gives null. */
                 min?: string;
-                /** @description Maximum of fields, comma-separated: title, notes, status, due_at, completed_at, created_at, updated_at. The answer has max as an object keyed by field. Nulls are ignored; no values gives null. */
+                /** @description Maximum of fields, comma-separated: title, description, status, due_at, completed_at, created_at, updated_at. The answer has max as an object keyed by field. Nulls are ignored; no values gives null. */
                 max?: string;
-                /** @description Group the answer by up to 2 fields, comma-separated: title, notes, status, assignee_id, created_by. The answer is { count, groups } with one entry per group (key, count and each function you ask for), ordered by the group fields with the null group last. More than 200 groups is refused. A function over a money field is judged in each group. */
+                /** @description Group the answer by up to 2 fields, comma-separated: title, description, status, assignee_id, created_by. The answer is { count, groups } with one entry per group (key, count and each function you ask for), ordered by the group fields with the null group last. More than 200 groups is refused. A function over a money field is judged in each group. */
                 group_by?: string;
                 /** @description Filter by status (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: status=ilike.*acme*. A range is two conditions: status=gte.a&status=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send status=eq.<value> for a literal. */
                 status?: string | string[];
@@ -1222,8 +1222,8 @@ export interface operations {
                 id?: string | string[];
                 /** @description Filter by title (text). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, like, ilike. Example: title=ilike.*acme*. A range is two conditions: title=gte.a&title=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send title=eq.<value> for a literal. */
                 title?: string | string[];
-                /** @description Filter by notes (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: notes=ilike.*acme*. A range is two conditions: notes=gte.a&notes=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send notes=eq.<value> for a literal. */
-                notes?: string | string[];
+                /** @description Filter by description (text, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is, like, ilike. Example: description=ilike.*acme*. A range is two conditions: description=gte.a&description=lt.n. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. Patterns: * is the wildcard; like is case-sensitive, ilike folds ASCII case only. Comparison is by byte order. A value that starts with not. or an operator name and a dot is read as an operator: send description=eq.<value> for a literal. */
+                description?: string | string[];
                 /** @description Filter by due_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: due_at=gte.2026-11-01. A range is two conditions: due_at=gte.2026-11-01&due_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send due_at=eq.<value> for a literal. */
                 due_at?: string | string[];
                 /** @description Filter by completed_at (timestamp, can be null). A bare value means equals; otherwise [not.]<operator>.<value>. Repeat the parameter up to 4 times to combine conditions on the field; they AND together and with the other filters. Operators: eq, neq, gt, gte, lt, lte, in, is. Example: completed_at=gte.2026-11-01. A range is two conditions: completed_at=gte.2026-11-01&completed_at=lt.2026-12-01. Comparisons, neq and not. never match a null value; is.null does. neq, not., like and ilike read every live row of the organisation, whatever the index. A value is a date (midnight UTC) or an ISO 8601 date-time with an offset. A value that starts with not. or an operator name and a dot is read as an operator: send completed_at=eq.<value> for a literal. */
@@ -1352,7 +1352,7 @@ export interface operations {
                         /** Format: uuid */
                         organization_id: string;
                         title: string;
-                        notes: string | null;
+                        description: string | null;
                         /** @enum {string} */
                         status: "open" | "done";
                         due_at: string | null;
@@ -1418,7 +1418,7 @@ export interface operations {
             content: {
                 "application/json": {
                     title?: string;
-                    notes?: string | null;
+                    description?: string | null;
                     /** @enum {string} */
                     status?: "open" | "done";
                     /** Format: date-time */
@@ -1445,7 +1445,7 @@ export interface operations {
                         /** Format: uuid */
                         organization_id: string;
                         title: string;
-                        notes: string | null;
+                        description: string | null;
                         /** @enum {string} */
                         status: "open" | "done";
                         due_at: string | null;
@@ -10450,9 +10450,9 @@ export type WorkspaceOperations = {
   'tasks.aggregate': {
     namespace: 'tasks'
     method: 'aggregate'
-    args: WithFilters<ArgsOf<ApiDocument.operations['tasks.aggregate']>, { 'status': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'assignee_id': ['uuid', 'eq' | 'neq' | 'in' | 'is']; 'id': ['uuid', 'eq' | 'neq' | 'in']; 'title': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'notes': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike']; 'due_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'completed_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'created_by': ['uuid', 'eq' | 'neq' | 'in']; 'created_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'updated_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in'] }>
+    args: WithFilters<ArgsOf<ApiDocument.operations['tasks.aggregate']>, { 'status': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'assignee_id': ['uuid', 'eq' | 'neq' | 'in' | 'is']; 'id': ['uuid', 'eq' | 'neq' | 'in']; 'title': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'description': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike']; 'due_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'completed_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'created_by': ['uuid', 'eq' | 'neq' | 'in']; 'created_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'updated_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in'] }>
     result: ResultOf<ApiDocument.operations['tasks.aggregate'], 200>
-    aggregate: { fields: { sum: never; avg: never; min: 'title' | 'notes' | 'status' | 'due_at' | 'completed_at' | 'created_at' | 'updated_at'; max: 'title' | 'notes' | 'status' | 'due_at' | 'completed_at' | 'created_at' | 'updated_at'; group_by: 'title' | 'notes' | 'status' | 'assignee_id' | 'created_by' }; kinds: { 'title': 'text'; 'notes': 'text'; 'status': 'text'; 'due_at': 'timestamp'; 'completed_at': 'timestamp'; 'created_at': 'timestamp'; 'updated_at': 'timestamp'; 'assignee_id': 'uuid'; 'created_by': 'uuid' }; money: {  } }
+    aggregate: { fields: { sum: never; avg: never; min: 'title' | 'description' | 'status' | 'due_at' | 'completed_at' | 'created_at' | 'updated_at'; max: 'title' | 'description' | 'status' | 'due_at' | 'completed_at' | 'created_at' | 'updated_at'; group_by: 'title' | 'description' | 'status' | 'assignee_id' | 'created_by' }; kinds: { 'title': 'text'; 'description': 'text'; 'status': 'text'; 'due_at': 'timestamp'; 'completed_at': 'timestamp'; 'created_at': 'timestamp'; 'updated_at': 'timestamp'; 'assignee_id': 'uuid'; 'created_by': 'uuid' }; money: {  } }
     proposable: false
     paginated: false
   }
@@ -10483,7 +10483,7 @@ export type WorkspaceOperations = {
   'tasks.list': {
     namespace: 'tasks'
     method: 'list'
-    args: WithFilters<ArgsOf<ApiDocument.operations['tasks.list']>, { 'status': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'assignee_id': ['uuid', 'eq' | 'neq' | 'in' | 'is']; 'id': ['uuid', 'eq' | 'neq' | 'in']; 'title': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'notes': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike']; 'due_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'completed_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'created_by': ['uuid', 'eq' | 'neq' | 'in']; 'created_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'updated_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in'] }>
+    args: WithFilters<ArgsOf<ApiDocument.operations['tasks.list']>, { 'status': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'assignee_id': ['uuid', 'eq' | 'neq' | 'in' | 'is']; 'id': ['uuid', 'eq' | 'neq' | 'in']; 'title': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'ilike']; 'description': ['text', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is' | 'like' | 'ilike']; 'due_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'completed_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'is']; 'created_by': ['uuid', 'eq' | 'neq' | 'in']; 'created_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in']; 'updated_at': ['timestamp', 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in'] }>
     result: ResultOf<ApiDocument.operations['tasks.list'], 200>
     item: ItemOf<ResultOf<ApiDocument.operations['tasks.list'], 200>>
     proposable: false

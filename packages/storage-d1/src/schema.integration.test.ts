@@ -83,7 +83,7 @@ describe('the D1 schema slice of CORE35 (C6)', () => {
       id: true,
       organization_id: true,
       title: true,
-      notes: false,
+      description: false,
       status: true,
       due_at: false,
       completed_at: false,
@@ -194,7 +194,7 @@ describe('the D1 schema slice of CORE35 (C6)', () => {
         title: 't',
         status: 'open',
         due_at: AT,
-        notes: 'n',
+        description: 'n',
         completed_at: null,
         deleted_at: null,
       })

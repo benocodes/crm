@@ -49,7 +49,7 @@ describe('task preparation is pure and keeps the old validation', () => {
     expect(prepareUpdate(tasks, user, {})).toEqual({})
     expect(prepareUpdate(tasks, user, { title: 'same' })).toEqual({ title: 'same' })
     expect(prepareUpdate(tasks, user, { description: null, due_at: null, assignee_id: null })).toEqual({
-      notes: null,
+      description: null,
       due_at: null,
       assignee_id: null,
     })

@@ -77,7 +77,10 @@ describe('the agent-field rule of the prepared write', () => {
     expect(() => prepareUpdate(readOnly, user, { title: 'x' })).toThrow('ro has no update schema')
   })
   it('without agentWritable an agent may write every field of the schemas', () => {
-    expect(prepareCreate(tasks, agent, { title: 'a', description: 'n' })).toMatchObject({ title: 'a', description: 'n' })
+    expect(prepareCreate(tasks, agent, { title: 'a', description: 'n' })).toMatchObject({
+      title: 'a',
+      description: 'n',
+    })
   })
 })
 

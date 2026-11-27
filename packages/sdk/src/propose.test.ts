@@ -9,7 +9,7 @@ describe('DX608 D11 .propose()', () => {
   it('POSTs action_requests.create with the operation id, the flat args and the proposal fields', async () => {
     const fetch = fakeFetch(() => jsonResponse(record, 201))
     const vibase = createClient({ url: BASE, auth: 'tok', fetch })
-    const args = { id: 't1', notes: null, title: 'x' }
+    const args = { id: 't1', description: null, title: 'x' }
     const result = await vibase.tasks.update.propose(args, { reason: 'because', dedup_key: 'k' })
     expect(result).toEqual(record)
     expect(fetch.calls).toHaveLength(1)

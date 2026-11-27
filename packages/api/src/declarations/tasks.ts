@@ -19,7 +19,7 @@ export const tasksDeclaration = {
       maxLength: 500,
       description: 'What needs doing.',
     },
-    notes: {
+    description: {
       kind: 'text',
       nullable: true,
       maxLength: 10_000,
