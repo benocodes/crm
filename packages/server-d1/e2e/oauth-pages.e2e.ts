@@ -551,6 +551,114 @@ test("3d. [[CORE666]] a connector's record follows its sign-in: a narrowed conse
   expect(await record()).toEqual(widened)
 })
 
+test('3e. [[CORE673]] a member approves only what their role holds: the page disables the rest, the token and the record follow, and a hand-made accept is narrowed', async () => {
+  // Leg 3d left the owner signed in. The owner invites a member; the member signs up through the link in the same context.
+  await visit(`${BASE}/app/home`)
+  const invited = await page.evaluate(async () => {
+    const { token } = (await (await fetch('/auth/token')).json()) as { token: string }
+    const res = await fetch('/meta/v1/invitations', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'member@e2e.test', role: 'member', delivery: 'link' }),
+    })
+    return { status: res.status, body: (await res.json()) as { url?: string } }
+  })
+  expect(invited.status).toBe(201)
+  await signOutHere()
+  // Dynamic registration is for a signed-out caller (a signed-in session is judged as an owner's client call), so both clients register before the member signs up.
+  const ASKED = 'openid offline_access contacts:read webhooks:read'
+  const id = await register('E2E Member Client', ASKED)
+  const id2 = await register('E2E Member Hand-made Client', ASKED)
+  await visit(invited.body.url!)
+  await page.getByLabel('Name').fill('Member Person')
+  await page.getByLabel('Email').fill('member@e2e.test')
+  await page.getByLabel('Password').fill(PASSWORD)
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.waitForURL((u) => u.pathname === '/app/home')
+
+  const tokenOf = async (clientId: string, verifier: string, code: string) => {
+    const tok = await page.request.post('/auth/oauth2/token', {
+      headers: { origin: BASE },
+      form: {
+        grant_type: 'authorization_code',
+        code,
+        code_verifier: verifier,
+        redirect_uri: CALLBACK,
+        client_id: clientId,
+        resource: `${BASE}/mcp`,
+      },
+    })
+    expect(tok.status(), await tok.text()).toBe(200)
+    return (await tok.json()) as { access_token: string; scope: string }
+  }
+  const mcpOk = async (access: string) => {
+    const mcp = await page.request.post('/mcp', {
+      headers: { authorization: `Bearer ${access}`, accept: 'application/json, text/event-stream' },
+      data: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+    })
+    expect(mcp.status(), await mcp.text()).toBe(200)
+  }
+
+  // (a) the page: Integrations Read (webhooks:read) is off, disabled and says why; Contacts Read is enabled
+  const first = pkce()
+  const back = await callbackOf(async () => {
+    await visit(authorizeUrl(id, first.challenge, 'state-member', ASKED))
+    await page.waitForURL(/\/app\/consent\?/)
+    const integrations = page.getByRole('switch', { name: 'Integrations Read', exact: true })
+    await expect(integrations).toBeDisabled()
+    await expect(integrations).toHaveAttribute('aria-checked', 'false')
+    await expect(page.getByText("Your role in this workspace doesn't include this")).toBeVisible()
+    const contacts = page.getByRole('switch', { name: 'CRM records Read', exact: true })
+    await expect(contacts).toBeEnabled()
+    await expect(contacts).toHaveAttribute('aria-checked', 'true')
+    await axeBoth('consent-member')
+    await page.getByRole('button', { name: 'Allow' }).click()
+  })
+  // (b) the token holds contacts:read and not webhooks:read, and works at /mcp
+  const granted = await tokenOf(id, first.verifier, back.searchParams.get('code')!)
+  expect(granted.scope.split(' ')).toContain('contacts:read')
+  expect(granted.scope.split(' ')).not.toContain('webhooks:read')
+  await mcpOk(granted.access_token)
+
+  // (c) a hand-made accept naming the out-of-role scope succeeds and is narrowed, with a fresh client
+  const second = pkce()
+  await visit(authorizeUrl(id2, second.challenge, 'state-hand', ASKED))
+  await page.waitForURL(/\/app\/consent\?/)
+  const handMade = await page.evaluate(async () => {
+    const res = await fetch('/auth/oauth2/consent', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        accept: true,
+        oauth_query: location.search.slice(1),
+        scope: 'contacts:read webhooks:read',
+      }),
+    })
+    return { status: res.status, body: (await res.json()) as { url?: string } }
+  })
+  expect(handMade.status).toBe(200)
+  const handToken = await tokenOf(id2, second.verifier, new URL(handMade.body.url!).searchParams.get('code')!)
+  expect(handToken.scope.split(' ')).toContain('contacts:read')
+  expect(handToken.scope.split(' ')).not.toContain('webhooks:read')
+  await mcpOk(handToken.access_token)
+
+  // (d) the owner reads the delegated agent's record: exactly the closed contacts:read list
+  await signOutHere()
+  await visit('/app/sign-in')
+  await signInHere()
+  await page.waitForURL((u) => u.pathname === '/app/home')
+  const record = await page.evaluate(async () => {
+    const { token } = (await (await fetch('/auth/token')).json()) as { token: string }
+    const agents = (
+      (await (await fetch('/meta/v1/agents?limit=200', { headers: { authorization: `Bearer ${token}` } })).json()) as {
+        data: { name: string; scopes: string[] }[]
+      }
+    ).data
+    return agents.filter((a) => a.name.startsWith('E2E Member')).map((a) => [...a.scopes].sort())
+  })
+  expect(record).toEqual([['contacts:read'], ['contacts:read']])
+})
+
 test('4. MCP-style client: Deny reaches the callback with error=access_denied', async () => {
   const id = await register('E2E MCP Client 2')
   const { challenge } = pkce()
@@ -608,7 +716,8 @@ test('6. /app/agents signed in: the delegated agent agents.list returns is liste
     const res = await fetch('/meta/v1/agents?limit=200', { headers: { authorization: `Bearer ${token}` } })
     return ((await res.json()) as { data: { name: string; delegated_by: string | null }[] }).data
   })
-  const delegated = listed.filter((a) => a.delegated_by !== null)
+  // [[CORE673]] leg 3e's connectors are the member's: the page rightly says "through another member" for them.
+  const delegated = listed.filter((a) => a.delegated_by !== null && !a.name.startsWith('E2E Member'))
   expect(delegated.length, 'leg 2 left a delegated agent').toBeGreaterThan(0)
   const list = page.getByRole('list', { name: 'Connected agents' })
   for (const a of delegated)
