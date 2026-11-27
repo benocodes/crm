@@ -66,10 +66,13 @@ describe('DX604 the schema-file source', () => {
     expect(fromSchema.types).not.toContain('BuiltInOperations')
   })
 
-  it('holds the built-ins and the custom namespace verbatim', () => {
+  it('holds the built-ins, a one-word custom namespace verbatim and a multi-word one camelCased with its __c suffix (CORE692 D1)', () => {
     expect(fromSchema.operations).toContain(`'projects__c.list': {\n    "namespace": "projects__c"`)
+    expect(fromSchema.operations).toContain(`'session_recordings__c.list': {\n    "namespace": "sessionRecordings__c"`)
     expect(fromSchema.operations).toContain(`'contacts.list'`)
     expect(fromSchema.operations).not.toContain('projectsC')
+    expect(fromSchema.operations).not.toContain('sessionRecordingsC')
+    expect(fromSchema.operations).not.toContain('"session_recordings__c"')
   })
 
   it('writes a header with the command, the file name and digest, and info.version, and no timestamp (D7)', async () => {

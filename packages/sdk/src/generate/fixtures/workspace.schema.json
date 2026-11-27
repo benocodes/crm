@@ -8,12 +8,20 @@
         "budget": { "kind": "integer" },
         "stage": { "kind": "enum", "values": ["planned", "active", "done"], "default": "planned" }
       }
+    },
+    "session_recordings__c": {
+      "label": "Session recordings",
+      "fields": {
+        "title": { "kind": "text", "required": true },
+        "length_seconds": { "kind": "integer" }
+      }
     }
   },
   "extend": {
     "contacts": {
       "fields": {
-        "tier__c": { "kind": "enum", "values": ["bronze", "gold"] }
+        "tier__c": { "kind": "enum", "values": ["bronze", "gold"] },
+        "referral_source__c": { "kind": "text" }
       }
     }
   }

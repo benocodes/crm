@@ -23,7 +23,14 @@ beforeEach(async () => {
   const agentId = await k.seedAgent()
   await k.e
     .d1!.prepare('update agents set scopes = ? where id = ?')
-    .bind(JSON.stringify(['projects__c:read', 'projects__c:write', 'contacts:read', 'contacts:write']), agentId)
+    .bind(JSON.stringify([
+        'projects__c:read',
+        'projects__c:write',
+        'session_recordings__c:read',
+        'session_recordings__c:write',
+        'contacts:read',
+        'contacts:write',
+      ]), agentId)
     .run()
   key = (await k.ctlKey({ agent_id: agentId })).key
 })
@@ -50,6 +57,32 @@ describe('DX604 round trip on D1', () => {
     expect((await vibase.contacts.get({ id: contact.id })).tier__c).toBe('gold')
     expect((await vibase.contacts.list({ tier__c: 'gold' })).data.map((c) => c.id)).toEqual([contact.id])
     expect((await vibase.contacts.list({ tier__c: 'bronze' })).data).toEqual([])
+  })
+
+  it('CORE692: a multi-word custom object is sessionRecordings__c on the client and calls /api/v1/session-recordings__c', async () => {
+    const urls: string[] = []
+    const vibase = createClient({
+      url: 'https://api.acme.example',
+      auth: key,
+      fetch: ((url: string, init: RequestInit) => {
+        urls.push(new URL(url).pathname)
+        return k.app.request(url, init)
+      }) as typeof fetch,
+      operations: workspaceOperations,
+    })
+    const made = await vibase.sessionRecordings__c.create({ title: 'Kick-off', length_seconds: 60 })
+    expect((await vibase.sessionRecordings__c.get({ id: made.id })).title).toBe('Kick-off')
+    expect((await vibase.sessionRecordings__c.list({ length_seconds: { gte: 30 } })).data.map((r) => r.title)).toEqual([
+      'Kick-off',
+    ])
+    expect(urls).toEqual([
+      '/api/v1/session-recordings__c',
+      `/api/v1/session-recordings__c/${made.id}`,
+      '/api/v1/session-recordings__c',
+    ])
+    const contact = await vibase.contacts.create({ name: 'Ada' })
+    await vibase.contacts.update({ id: contact.id, referral_source__c: 'web' })
+    expect((await vibase.contacts.list({ referral_source__c: 'web' })).data.map((c) => c.id)).toEqual([contact.id])
   })
 
   it('DX616: a typed aggregate on the custom object, ungrouped and grouped, equals the REST answer', async () => {

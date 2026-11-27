@@ -91,15 +91,28 @@ describe('DX603 generation refusals', () => {
   })
 })
 
-describe('DX604 D5 __c namespaces', () => {
+describe('CORE692 D1 __c namespaces', () => {
   it.each([
     ['projects__c.list', 'projects__c', 'list'],
     ['projects__c.move_stage', 'projects__c', 'moveStage'],
+    ['session_recordings__c.list', 'sessionRecordings__c', 'list'],
+    ['session_recordings__c.property_keys', 'sessionRecordings__c', 'propertyKeys'],
+    ['item_2__c.list', 'item2__c', 'list'],
     ['action_requests.approve', 'actionRequests', 'approve'],
     ['deals.move_stage', 'deals', 'moveStage'],
     ['contacts.property_keys', 'contacts', 'propertyKeys'],
   ])('%s maps to %s.%s', (id, namespace, method) => {
     expect(memberNames(id)).toEqual({ namespace, method })
+  })
+
+  it('CORE692 D5: two ids that camelCase to one custom namespace are refused, naming both; a set with no collision generates', async () => {
+    const error = await generateSdk(documents({ '/a': get('item_2__c.list'), '/b': get('item2__c.list') })).catch((e) => e)
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toContain('item_2__c.list')
+    expect(error.message).toContain('item2__c.list')
+    const clean = await generateSdk(documents({ '/a': get('item_2__c.list'), '/b': get('item_3__c.list') }))
+    expect(clean.operations).toContain("'item_2__c.list'")
+    expect(clean.operations).toContain('item2__c')
   })
 
   it('a method part ending in __c is still camelCased: only the namespace keeps its key', () => {
