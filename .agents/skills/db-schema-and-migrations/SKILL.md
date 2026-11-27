@@ -204,8 +204,9 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   children holding rows, `DROP TABLE <t>` under `defer_foreign_keys` raises the deferred FK counter and the rename does
   not clear it, so the migration fails at commit. Instead: `CREATE TABLE <t>_backup AS SELECT * FROM <t>`, `DROP <t>`,
   `CREATE TABLE <t>` with the new definition, `INSERT … SELECT` the explicit column list from the backup (these inserts
-  clear the counter), `DROP <t>_backup`, then re-create every index and trigger. Keep `UNIQUE (organization_id, id)`
-  verbatim: the children's composite FKs depend on it. Test it over data with child rows present and
+  clear the counter), `DROP <t>_backup`, then re-create every index and trigger. Re-create the pair's unique index
+  `idx_<t>_organization_id_id` (C5, never a table-level `UNIQUE (organization_id, id)`) before the children are
+  written: their composite FKs depend on it. Test it over data with child rows present and
   `PRAGMA foreign_key_check` empty after (the `identities` rebuild, `identities-unattached-schema.integration.test.ts`,
   [[CORE408]]).
 - **A rebuild's test compares each re-created index and trigger by its `sqlite_master.sql`, not by its name.** If the test

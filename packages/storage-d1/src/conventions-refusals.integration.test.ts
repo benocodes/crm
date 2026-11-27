@@ -260,8 +260,9 @@ describe('a keyed id column that lost its CHECK still refuses a value that is no
   }
 })
 
-describe('the canonical CHECKs refuse what the old forms let through', () => {
-  // 36 characters with the first dash one place early: the short form (length and alphabet only) accepted it.
+describe('the canonical CHECKs refuse what a short-form CHECK would let through', () => {
+  // 36 characters with the first dash one place early: a short form (length and alphabet only) would accept it.
+  // Every CRM id CHECK was already the full form (decision 679.28); the short form lives in the control database.
   const DASH_MISPLACED = '0190b2c40-000-7000-8000-000000000001'
   it('an id with a dash out of place is refused by the named canonical CHECK', async () => {
     expect(DASH_MISPLACED).toHaveLength(36)

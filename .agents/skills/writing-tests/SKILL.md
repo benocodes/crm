@@ -34,7 +34,12 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   fixtures that exist before the code ([[CORE69]]: the zod half of the shape contract passed at once; retyping one
   fixture field turned 14 red). **A vendored copy of a dependency's function** keeps a parity test against the
   original in Node, proven by swapping in a near-miss implementation ([[CORE69]]: `mdast-util-to-string` for
-  `toPlainText`, 7 parity tests red).
+  `toPlainText`, 7 parity tests red). **A checker with named rules** is proven one mutation per rule: silence that rule
+  alone (a temporary early return keyed on its name), run the matrix, and expect exactly that rule's rows red, then
+  restore with an empty `git diff` ([[CORE679]]: 8 runs over `packages/storage-d1/src/test/conventions.ts`, accepted in
+  place of a red import, 679.30). **On D1 a foreign-key absence mutation edits the schema** (drop the `CONSTRAINT …
+  FOREIGN KEY` from genesis, then restore it byte for byte): `PRAGMA foreign_keys = OFF` is ignored, so a charter that
+  asks for it cannot be met ([[CORE679]] 679.28).
 - **A constant that both the code and the test derive from gives a vacuous mutation.** Mutating it moves both sides together
   and stays green ([[CORE549]] M6). Mutate the function that uses the constant (drop one mention), or assert against a
   literal in one place, so only one side moves.
