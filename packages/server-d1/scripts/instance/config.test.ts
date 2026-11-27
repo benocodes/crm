@@ -44,7 +44,7 @@ describe('D11 generated config', () => {
     ])
     expect(c.r2_buckets).toEqual([{ binding: 'BODIES', bucket_name: 'vault-demo-bodies' }])
     expect(c.workflows).toEqual([
-      { binding: 'MAIL_SYNC', name: 'vault-demo-mail-sync', class_name: 'MailSyncWorkflow' },
+      { binding: 'GMAIL_SYNC', name: 'vault-demo-mail-sync', class_name: 'GmailSyncWorkflow' },
     ])
     expect(c.vars).toEqual({ AUTH_PROVIDER: '' })
     expect(c.compatibility_date).toBe(base().compatibility_date)

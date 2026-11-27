@@ -171,7 +171,7 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   before writing the fake; Google's redirect flow needs only the token endpoint.
 - **A wiring choice is proven where it is wired.** A reader proven by a unit or route suite does not prove the
   composition picks it: [[CORE244]]'s `membershipRoleReader` was proven in the api callback suite, but nothing tested
-  that `packages/server-d1/src/compose.ts` passes it as the mail-sync claim's `roleOf` on `better-auth` (a regression
+  that `packages/server-d1/src/compose.ts` passes it as the Gmail sync claim's `roleOf` on `better-auth` (a regression
   there suspends every connection; #284). When code selects an implementation per configuration, add one composed
   case per branch whose absence mutation is "the other branch's implementation".
 - **A matrix obligation is the full cross product unless the charter removes cells.** List the cells the RESULT
@@ -1122,8 +1122,8 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   A program `@vibase/api` does not export is imported from `../../api/src`; any raw adjustment after it is test-only and
   recorded as a decision (`packages/server-d1/e2e/seed-connection.ts`, [[UI468]] 468.20).
 - **`connections.sync` refuses `501 provider_not_configured` before it reads the connection** when the Worker has no
-  Google config or `MAIL_SYNC`, so an unconfigured Worker never answers `409` or `202`. Test those on a second Worker
-  with Google env and a fake `MAIL_SYNC` binding (`packages/server-d1/src/app/accounts/accounts-real.test.ts`, 468.15).
+  Google config or `GMAIL_SYNC`, so an unconfigured Worker never answers `409` or `202`. Test those on a second Worker
+  with Google env and a fake `GMAIL_SYNC` binding (`packages/server-d1/src/app/accounts/accounts-real.test.ts`, 468.15).
 - **A Worker that switches provider mid-run gets its Clerk sessions from the Backend API**, not `@clerk/testing`:
   `POST /v1/sessions` with the user id, then `POST /v1/sessions/<id>/tokens`, and send the JWT as a bearer; the dev JWT
   carries the session-token claims (`vibase_role`). Keep Playwright for the pages the scenario asserts ([[OPS397]], 397.14).
@@ -1217,5 +1217,5 @@ pnpm -C packages/server-d1 e2e:auth-migration     # the hq auth migration end to
 pnpm -C packages/server-d1 e2e:forms               # a website form posted to the real Worker under `wrangler dev --local` (CHN432): real Turnstile siteverify with the always-pass test secret (needs network; it passes any non-empty token, so the script proves no wrong-token refusal), live `ratelimits` bindings, owner-created form in-process; own temp state and env file, removed at the end; no browser, no Clerk; not in the gate
 pnpm -C packages/server-d1 e2e:agents-clerk        # the Clerk-only legs on /app/home and /app/agents (UI479, paths UI507): Account Portal round trip, owner Disable/Enable, agent role, member, sign out; Playwright + @clerk/testing against a local Worker and the Clerk dev instance (.env.dev only, E2E_AGENT_KEY from bootstrap); same harness and config as the two below; not in the gate
 pnpm -C packages/server-d1 e2e:mcp-oauth          # MCP OAuth end to end (DCR, consent, delegated agent, revocation) on the Clerk dev instance; same harness, not in the gate
-pnpm -C packages/server-d1 e2e:metadata-scope     # messages:read_metadata live (API516): Miniflare Worker on better-auth with an auth_jwks key seeded from @vibase/api/test/better-auth (minted tokens verify), messages captured in-process over FakeGmail (not the MAIL_SYNC leg), agents A/B/C over REST, MCP, the feed and webhook deliveries, delegated agent D's narrowed token; own temp dir; no browser, no Clerk; not in the gate
+pnpm -C packages/server-d1 e2e:metadata-scope     # messages:read_metadata live (API516): Miniflare Worker on better-auth with an auth_jwks key seeded from @vibase/api/test/better-auth (minted tokens verify), messages captured in-process over FakeGmail (not the GMAIL_SYNC leg), agents A/B/C over REST, MCP, the feed and webhook deliveries, delegated agent D's narrowed token; own temp dir; no browser, no Clerk; not in the gate
 ```

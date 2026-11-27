@@ -1,6 +1,6 @@
 import { gmailClientFor, markConnectionStatus, type ClientDeps } from './sync.js'
 import type { ObjectStore } from '../../objects/store.js'
-import { requestSync, type MailSyncInstances } from '../../sync/request.js'
+import { requestSync, type GmailSyncInstances } from '../../sync/request.js'
 import type { DispatchOutcome, Transport, TransportCall } from '../../executions/transport.js'
 import { defineOperation, execute, readMaybe, unit, type Row } from '@vibase/storage'
 import { sendConnectionQuery } from '../../messaging/send.js'
@@ -8,7 +8,7 @@ import { readSendBody } from '../../messaging/send-body.js'
 import { GmailApiError, isGmailThrottle, type GmailClient } from './client.js'
 import { GmailCredentialError, GoogleRefreshError } from './token.js'
 import { GmailChannel, GmailAnchorError } from './channel.js'
-export type GmailTransportDeps = ClientDeps & { objects: ObjectStore; instances?: MailSyncInstances }
+export type GmailTransportDeps = ClientDeps & { objects: ObjectStore; instances?: GmailSyncInstances }
 
 export function gmailTransport(d: GmailTransportDeps): Transport {
   async function live(call: TransportCall): Promise<Row | null> {

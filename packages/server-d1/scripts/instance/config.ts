@@ -21,7 +21,7 @@ export function generateConfig(
   paths: InstalledPaths,
 ): Record<string, any> {
   const { env: _env, ...top } = base
-  const workflow = (top.workflows?.[0] ?? { binding: 'MAIL_SYNC', class_name: 'MailSyncWorkflow' }) as {
+  const workflow = (top.workflows?.[0] ?? { binding: 'GMAIL_SYNC', class_name: 'GmailSyncWorkflow' }) as {
     binding: string
     class_name: string
   }

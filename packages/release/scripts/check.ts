@@ -268,7 +268,7 @@ export async function checkRelease(
       api_host: 'api.check.invalid',
       d1: { name: 'vb-check', id: '0f5a1c2e-3b4d-4e6f-8a9b-1c2d3e4f5a6b' },
       r2_bucket: 'vb-check-bodies',
-      workflow: { name: 'vb-check-mail-sync' },
+      workflow: { name: 'vb-check-gmail-sync' },
       vars: { AUTH_PROVIDER: '', SAMPLE_SETTING: 'kept-by-var' },
     }
     const dryRun = withGeneratedConfig({ packageDir: installed, settings: sample, tmpRoot: root }, (configPath) =>
@@ -404,7 +404,7 @@ export async function checkRelease(
       d1Persist: join(persist, 'v3', 'd1'),
       r2Persist: false,
       r2Buckets: ['BODIES'],
-      workflows: { MAIL_SYNC: { name: 'vibase-check-mail-sync', className: 'MailSyncWorkflow' } },
+      workflows: { GMAIL_SYNC: { name: 'vibase-check-gmail-sync', className: 'GmailSyncWorkflow' } },
       workflowsPersist: false,
       assets: {
         directory: join(installed, 'assets'),

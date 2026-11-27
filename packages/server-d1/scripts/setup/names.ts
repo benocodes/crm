@@ -10,7 +10,7 @@ export interface RecordedNames {
   /** The control database ([[OPS279]]): absent for an instance that has none yet (P4). */
   controlD1Name?: string
   r2Name?: string
-  /** The `MAIL_SYNC` workflow's name; read only for a replace ([[OPS250]], 250.19). */
+  /** The `GMAIL_SYNC` workflow's name; read only for a replace ([[OPS250]], 250.19). */
   workflowName?: string
   /** The recorded database ids, only to refuse a record whose control database is the CRM database. */
   d1Id?: string
@@ -18,7 +18,7 @@ export interface RecordedNames {
 }
 
 /** [[OPS262]] D5: a new instance's Workflow; shared by `vibase-server setup` (an existing record's name wins there) and a `--replace-instance` block ([[OPS250]]). */
-export const workflowName = (env: string): string => `vb-mail-sync-${env}`
+export const workflowName = (env: string): string => `vb-gmail-sync-${env}`
 
 const KINDS = [
   ['workerName', '--worker-name', 'Worker'],

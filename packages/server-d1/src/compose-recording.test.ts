@@ -48,7 +48,7 @@ const env = (extra: Partial<D1WorkerEnv> = {}): D1WorkerEnv => ({
   DB: w.d1,
   AUTH_PROVIDER: '',
   ...GMAIL_ENV,
-  MAIL_SYNC: binding,
+  GMAIL_SYNC: binding,
   BODIES: undefined,
   ...extra,
 })
@@ -140,7 +140,7 @@ async function runSync(
     streams: nodeStreams(),
     clock: () => NOW,
   })
-  const out = await worker.runMailSync(
+  const out = await worker.runGmailSyncWorkflow(
     { payload: { connection_id: id }, ...(opts.event ?? {}) } as never,
     makeWorkerdStepShim().step,
   )
@@ -196,9 +196,9 @@ describe('the switch through the composition', () => {
       streams: nodeStreams(),
       clock: () => NOW,
     })
-    await expect(worker.runMailSync({ payload: { connection_id: id } }, makeWorkerdStepShim().step)).rejects.toThrow(
-      /BODIES/,
-    )
+    await expect(
+      worker.runGmailSyncWorkflow({ payload: { connection_id: id } }, makeWorkerdStepShim().step),
+    ).rejects.toThrow(/BODIES/)
   })
   it("a failing recording write leaves the sync run's outcome unchanged and logs", async () => {
     const lines = logs()
@@ -215,7 +215,7 @@ describe('the switch through the composition', () => {
       streams: nodeStreams(),
       clock: () => NOW,
     })
-    const out = await worker.runMailSync(
+    const out = await worker.runGmailSyncWorkflow(
       { payload: { connection_id: id }, instanceId: 'inst-fail', timestamp: NOW } as never,
       makeWorkerdStepShim().step,
     )
@@ -233,7 +233,7 @@ describe('the switch through the composition', () => {
       streams: nodeStreams(),
       clock: () => NOW,
     })
-    await worker.runMailSync(
+    await worker.runGmailSyncWorkflow(
       { payload: { connection_id: id }, instanceId: 'inst-shim', timestamp: NOW } as never,
       shim.step,
     )

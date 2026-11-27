@@ -170,7 +170,7 @@ describe('4. config:write adopts the init file (D4)', () => {
       d1: { name: 'vb-crm-demo', id: UUID },
       control_d1: { name: 'vb-control-demo', id: CONTROL_UUID },
       r2_bucket: 'vb-bodies-demo',
-      workflow: { name: 'vb-mail-sync-demo' },
+      workflow: { name: 'vb-gmail-sync-demo' },
       vars: { AUTH_PROVIDER: 'better-auth', PUBLIC_BASE_URL: `https://${API_HOST}`, CORS_ALLOWED_ORIGINS: '' },
       ...extra,
     })
@@ -208,7 +208,7 @@ describe('5. the host flags are optional for a recorded instance (D6)', () => {
       d1: { name: 'vb-crm-demo', id: UUID },
       control_d1: { name: 'vb-control-demo', id: CONTROL_UUID },
       r2_bucket: 'vb-bodies-demo',
-      workflow: { name: 'vb-mail-sync-demo' },
+      workflow: { name: 'vb-gmail-sync-demo' },
       vars: { AUTH_PROVIDER: '', CORS_ALLOWED_ORIGINS: '' },
       ...over,
     })

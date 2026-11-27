@@ -137,7 +137,7 @@ export const isValidPushVar = (name: (typeof PUSH_VARS)[number], value: string):
 /**
  * Reads the push configuration ([[CHN5]] D87). Push is *configured* when any of the three `GMAIL_*` values is set (`PUBLIC_BASE_URL` alone is the redirect
  * base, not push). A configured set with a value missing or malformed is a problem NAMED here, never a value; `config` is non-null only for a complete,
- * well formed set. Whether push is *on* also needs Gmail itself and the `MAIL_SYNC` binding: the composition decides that.
+ * well formed set. Whether push is *on* also needs Gmail itself and the `GMAIL_SYNC` binding: the composition decides that.
  */
 export function parsePushConfig(env: Record<string, string | undefined>): {
   config: PushConfig | null

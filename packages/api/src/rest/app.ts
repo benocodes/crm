@@ -11,7 +11,7 @@ import { createUserAuthenticator } from '../auth/user-authenticator.js'
 import { createProfileCache, createWorkspaceAuthenticator, workspaceRole } from '../auth/workspace-authenticator.js'
 import { SCOPE_POLICY, type Role, type ScopePolicy } from '../auth/roles.js'
 import { googleCallbackHandler, type CallbackSession } from '../connections/callback.js'
-import type { MailSyncInstances } from '../sync/request.js'
+import type { GmailSyncInstances } from '../sync/request.js'
 import { gmailConfigNotice, gmailUnconfigured, type GmailConfig, type PushConfig } from '../connections/config.js'
 import { PUSH_PATH, gmailPushHandler } from '../channels/gmail/push.js'
 import { createGoogleKeyCache, type GoogleKeyCache } from '../connections/google-keys.js'
@@ -72,8 +72,8 @@ export interface GmailAppOptions {
   policy?: ScopePolicy
   /** [[UI469]] D5: the page of this instance the callback returns to when `CONNECT_RETURN_URL` is unset (the composition passes `/app/accounts` when it serves the app). Absent: the built-in result page. */
   defaultReturnPath?: string
-  /** The `MAIL_SYNC` Workflow binding ([[CHN141]] D75). Absent: `connections.sync` answers `501 provider_not_configured` and the callback requests no sync. */
-  instances?: MailSyncInstances
+  /** The `GMAIL_SYNC` Workflow binding ([[CHN141]] D75). Absent: `connections.sync` answers `501 provider_not_configured` and the callback requests no sync. */
+  instances?: GmailSyncInstances
   /** Push configuration from `parsePushConfig` ([[CHN5]] D87). Push is on only when this is set AND `config` and `instances` are too; otherwise `POST /inbound/gmail` answers 404 and no watch is registered. */
   push?: PushConfig | null
   /** The variables `parsePushConfig` found missing or malformed (names only), logged at startup. */
@@ -374,7 +374,7 @@ export function createApp(options: AppOptions): OpenAPIHono<AppEnv> {
     console.warn(`[gmail] push is off: set or fix ${gmail.pushProblems.join(', ')}`)
   else if (gmail?.push && !push)
     console.warn(
-      `[gmail] push is off: ${gmail.config ? 'the MAIL_SYNC binding is missing' : 'Gmail is not configured'}`,
+      `[gmail] push is off: ${gmail.config ? 'the GMAIL_SYNC binding is missing' : 'Gmail is not configured'}`,
     )
   const profiles = options.workspace?.adapter ? createProfileCache(options.workspace.adapter) : null
   const userAuthenticator =

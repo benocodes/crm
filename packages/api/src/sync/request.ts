@@ -3,21 +3,21 @@
 import { sql } from 'kysely'
 import { defineOperation, execute, readSet, step, unit, type StorageBinding } from '@vibase/storage'
 
-export interface MailSyncParams {
+export interface GmailSyncParams {
   connection_id: string
 }
-/** The Workflow binding's surface the vault uses: `MAIL_SYNC.create`. */
-export interface MailSyncInstances {
-  create(options: { id: string; params: MailSyncParams }): Promise<unknown>
+/** The Workflow binding's surface the vault uses: `GMAIL_SYNC.create`. */
+export interface GmailSyncInstances {
+  create(options: { id: string; params: GmailSyncParams }): Promise<unknown>
 }
 export interface RequestDeps {
   binding: StorageBinding
   organizationId: string
   clock: () => Date
   newId: () => string
-  instances: MailSyncInstances
+  instances: GmailSyncInstances
 }
-export const instanceId = (connectionId: string, uuid: string): string => `mail-sync-${connectionId}-${uuid}`
+export const instanceId = (connectionId: string, uuid: string): string => `gmail-sync-${connectionId}-${uuid}`
 /** The cron's staleness bound ([[CHN5]] D14). */
 export const STALE_MS = 15 * 60_000
 

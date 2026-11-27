@@ -121,7 +121,9 @@ charter also asks for: the docs' samples parsed by the shipped code (a renamed k
 catches), the old name refused by a test that the guard's allow-list names, and the changesets read back after the
 replace (lowercase sentence starts survive into the CHANGELOG) ([[CORE569]] review). Its residue grep covers the
 pending `.changeset/*.md` of earlier unreleased cycles too: they ship in the same CHANGELOG entry, so a hit there is
-fixed, not classed as history ([[CORE680]] review). Its surface matrix lists only the paths the old name already had
+fixed, not classed as history ([[CORE680]] review). When the new name contains the old one (`GMAIL_SYNC` ⊃ `MAIL_SYNC`,
+`gmail-sync` ⊃ `mail-sync`), a plain grep hits every renamed site and proves nothing: the charter writes the residue grep
+with a lookbehind, `git grep -nP '(?<![Gg])(mail-sync|MAIL_SYNC)'` ([[CORE688]]). Its surface matrix lists only the paths the old name already had
 (read the declaration's filters, sorts and `group_by` at plan time): a rename adds no capability, and CORE680's
 "sort on `description` works" named a sort tasks never had.
 
@@ -274,7 +276,7 @@ connector's `/oauth/google/callback`): name each URI a consequence line must car
 scripts-only, one front-end. It cost ~196k / 57 calls over two runs (+121 code / +300 test lines, 11 files), one review round.
 The budget holds; the round came from the charter. It listed the resource kinds a rebuilt env block must cover from setup's
 record reader ("the Workflow too if the coder finds the record reads it"), and the reader shares setup's blind spot: the real
-`smoked1`/`hq` blocks carry a hand-added `MAIL_SYNC` Workflow that no setup path writes (#368). When a charter rebuilds,
+`smoked1`/`hq` blocks carry a hand-added `GMAIL_SYNC` Workflow that no setup path writes (#368). When a charter rebuilds,
 replaces or compares an env block, diff a real recorded block in `wrangler.jsonc` against what setup writes at plan time and
 name every binding the real one holds, each with an obligation.
 **OPS251** (`knowledge/specs/015-OPS251-smoked1-cutover/RETRO.md`): a remote cutover as a coder cycle plus a remote E2E, 6
@@ -546,6 +548,11 @@ and each cost a free round when absent. A Watch out naming the existing assertio
 rename on every surface, 6 groups (1 matrix), 5 decisions, no migration or E2E, riders named. ~170k / 71 calls over
 three runs (+18 code / +222 test / +140 generated lines, 39 files), one free gate-fix round, approved round 1. The
 tokens went to the fixture sweep (~25 files), not code: a field rename costs like API503's path rename.
+**CORE688** (`knowledge/specs/051-CORE688-gmail-sync-workflow/RETRO.md`, [[CORE680]] cycle 3 of 3, split off CORE686 at
+plan time): a binding, class and derived-name rename where records keep their names, 6 groups (1 matrix: front-end ×
+new / recorded / replace), 4 decisions + 4 planner rules, no migration or E2E. ~150k / 38 calls in one run (+123 code /
++104 test lines, 51 files), approved round 0. A Size line that counts the fixture files by `git grep -l` and a Watch out
+naming the scripts outside the gate left nothing to find late.
 
 **DX624 cycle 1** (`knowledge/specs/046-DX624-sdk-browser-sign-in/RETRO.md`, split at plan time from 10 decisions): 6 groups
 (1 matrix), 6 decisions + 4 planner rules, no migration or E2E, a new SDK module plus a workerd round trip. 191k / 61 calls in

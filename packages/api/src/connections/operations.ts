@@ -23,14 +23,14 @@ import type { TenantOperation } from '../registry.js'
 import type { GmailConfig, PushConfig } from './config.js'
 import { GOOGLE_ENDPOINTS, buildAuthorizeUrl, type GoogleEndpoints } from './google.js'
 import { pkceChallenge, pkceVerifier, signState } from './state.js'
-import { instanceId, type MailSyncInstances } from '../sync/request.js'
+import { instanceId, type GmailSyncInstances } from '../sync/request.js'
 
 /** What the registry needs to answer `connections.authorize`: the Gmail configuration (null: unconfigured, D58) and Google's endpoints. */
 export interface ConnectionsRuntime {
   config: GmailConfig | null
   endpoints?: GoogleEndpoints
-  /** The `MAIL_SYNC` Workflow binding ([[CHN141]] D75). Absent: `connections.sync` answers `501 provider_not_configured`. */
-  instances?: MailSyncInstances
+  /** The `GMAIL_SYNC` Workflow binding ([[CHN141]] D75). Absent: `connections.sync` answers `501 provider_not_configured`. */
+  instances?: GmailSyncInstances
   /** The effective push configuration ([[CHN5]] D87): null when push is off. `connections.delete` stops the watch only when it is set. */
   push?: PushConfig | null
   /** The `fetch` and Gmail base of the stop call, as the rest of the surface. */

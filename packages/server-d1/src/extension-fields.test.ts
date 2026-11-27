@@ -129,7 +129,7 @@ describe('a proposal is approved and stores the value', () => {
   })
 })
 
-// [[CORE559]] P2: the capture paths take the composed set from the composition, not a default: a form submission through the Worker (the mail-sync pipeline is in compose-sync.test.ts).
+// [[CORE559]] P2: the capture paths take the composed set from the composition, not a default: a form submission through the Worker (the gmail-sync pipeline is in compose-sync.test.ts).
 describe('a form submission through the composed Worker', () => {
   const DEFAULTED: ExtendDeclarations = {
     contacts: { lvl__c: { kind: 'enum', values: ['a', 'b'], required: true, default: 'a' } },

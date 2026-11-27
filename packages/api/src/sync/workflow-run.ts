@@ -1,4 +1,4 @@
-// The sync run ([[CHN5]] D11, D12, D16, D33, D37, D66): Node-safe orchestrator. `MailSyncWorkflow` (in `@vibase/server-d1`, which imports
+// The sync run ([[CHN5]] D11, D12, D16, D33, D37, D66): Node-safe orchestrator. `GmailSyncWorkflow` (in `@vibase/server-d1`, which imports
 // `cloudflare:workers`) delegates here with Cloudflare's `step`; tests pass the workerd step shim.
 //
 // Rules this file keeps (`cloudflare-workflows`): every non-determinism (the run id, the start time) is captured by the `seed` step; every step re-resolves
@@ -20,7 +20,7 @@ import {
 } from '../channels/gmail/sync.js'
 import { userSubjectOperation } from '../connections/callback.js'
 import { claimLease, extendLease, finishPass, releaseLease, type LeaseDeps } from './lease.js'
-import { instanceId, type MailSyncInstances, type MailSyncParams } from './request.js'
+import { instanceId, type GmailSyncInstances, type GmailSyncParams } from './request.js'
 
 export interface StepConfig {
   retries?: { limit: number; delay: string | number; backoff?: 'constant' | 'linear' | 'exponential' }
@@ -38,7 +38,7 @@ export interface WorkflowEventLike<P> {
   timestamp?: Date
 }
 /** What every step re-resolves from module factories; none of it is ever returned from a step. */
-export interface MailSyncRuntime {
+export interface GmailSyncRuntime {
   pages: GmailSyncDeps
   /** Throws retryably while the database is `behind` ([[CHN5]] D37). */
   gate: () => Promise<void>
@@ -46,11 +46,11 @@ export interface MailSyncRuntime {
   roleOf: ((authSubject: string) => Promise<Role | null>) | null
   policy: ScopePolicy
   declaredScopes: readonly string[]
-  instances: MailSyncInstances
+  instances: GmailSyncInstances
 }
-export type MailSyncEnd = 'complete' | 'held' | 'inactive' | 'suspended' | 'reauth' | 'lease_lost'
-export interface MailSyncSummary {
-  end: MailSyncEnd
+export type GmailSyncEnd = 'complete' | 'held' | 'inactive' | 'suspended' | 'reauth' | 'lease_lost'
+export interface GmailSyncSummary {
+  end: GmailSyncEnd
   passes: number
 }
 
@@ -75,16 +75,16 @@ type Claim =
   | { claimed: true; owner_id: string; needs_backfill: boolean }
   | { claimed: false; reason: 'held' | 'inactive' | 'suspended' }
 type PageOutcome = PageResult | ScanStart | { outcome: 'lease_lost' }
-type Stop = Exclude<MailSyncEnd, 'complete' | 'held' | 'suspended'>
+type Stop = Exclude<GmailSyncEnd, 'complete' | 'held' | 'suspended'>
 
-const leaseOf = (rt: MailSyncRuntime): LeaseDeps => ({
+const leaseOf = (rt: GmailSyncRuntime): LeaseDeps => ({
   binding: rt.pages.binding,
   organizationId: rt.pages.organizationId,
   clock: rt.pages.clock,
 })
 
 /** The claim ([[CHN5]] D11, D33): the connection must be live and active, its owner admitted (else `suspended`, one event), and the lease free. */
-async function claim(rt: MailSyncRuntime, connectionId: string, runId: string): Promise<Claim> {
+async function claim(rt: GmailSyncRuntime, connectionId: string, runId: string): Promise<Claim> {
   const deps = rt.pages
   const state = await loadSyncState(deps, connectionId)
   if (state?.status !== 'active' || state.deleted_at !== null) return { claimed: false, reason: 'inactive' }
@@ -110,11 +110,11 @@ async function claim(rt: MailSyncRuntime, connectionId: string, runId: string): 
   return { claimed: true, owner_id: state.owner_id, needs_backfill: state.last_synced_at === null }
 }
 
-export async function runMailSync(
-  event: WorkflowEventLike<MailSyncParams>,
+export async function runGmailSyncWorkflow(
+  event: WorkflowEventLike<GmailSyncParams>,
   step: WorkflowStepLike,
-  resolve: () => Promise<MailSyncRuntime> | MailSyncRuntime,
-): Promise<MailSyncSummary> {
+  resolve: () => Promise<GmailSyncRuntime> | GmailSyncRuntime,
+): Promise<GmailSyncSummary> {
   const connectionId = event.payload.connection_id
 
   // Captured once: a replay re-reads these from the step, never from the clock.

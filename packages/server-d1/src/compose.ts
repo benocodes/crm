@@ -6,7 +6,7 @@ import {
   TickBudget,
   countFetch,
   sendWebhooks,
-  MAIL_SYNC_CRON,
+  GMAIL_SYNC_CRON,
   RAIL_CRON,
   railTick,
   dispatchWebhooks,
@@ -38,7 +38,7 @@ import {
   passwordResetUrl,
   r2ObjectStore,
   requestDueSyncs,
-  runMailSync,
+  runGmailSyncWorkflow,
   workerdStreams,
   workspaceRole,
   type ApiKeyControlRuntime,
@@ -48,10 +48,10 @@ import {
   type InvitationsRuntime,
   type OAuthClientsRuntime,
   type MembersRuntime,
-  type MailSyncInstances,
-  type MailSyncParams,
-  type MailSyncRuntime,
-  type MailSyncSummary,
+  type GmailSyncInstances,
+  type GmailSyncParams,
+  type GmailSyncRuntime,
+  type GmailSyncSummary,
   type ObjectStore,
   type R2BucketLike,
   type RateLimiter,
@@ -172,7 +172,7 @@ export interface D1WorkerEnv {
   CONNECT_RETURN_URL?: string
   /**
    * Gmail push ([[CHN5]] D87): `GMAIL_TOPIC_NAME` (`projects/<p>/topics/<t>`), `GMAIL_PUSH_SUBSCRIPTION` (`projects/<p>/subscriptions/<s>`), `GMAIL_PUSH_SERVICE_ACCOUNT` (the
-   * email Pub/Sub signs its token as) and `PUBLIC_BASE_URL` (the endpoint's origin; `https`) must all be set, with Gmail and the `MAIL_SYNC` binding, for push to be on.
+   * email Pub/Sub signs its token as) and `PUBLIC_BASE_URL` (the endpoint's origin; `https`) must all be set, with Gmail and the `GMAIL_SYNC` binding, for push to be on.
    * Public values, vars rather than secrets. Partly set: push is off and a startup line names the missing ones.
    */
   GMAIL_TOPIC_NAME?: string
@@ -192,8 +192,8 @@ export interface D1WorkerEnv {
   /** [[CHN432]] D7: the `ratelimits` bindings of the form route (per IP and form: 10 per 60 s; per form: 60 per 60 s). Absent: that limit is skipped. */
   FORM_IP_LIMITER?: RateLimiter
   FORM_LIMITER?: RateLimiter
-  /** The `MailSyncWorkflow` binding ([[CHN141]] D34). Absent: `connections.sync` answers 501, connect requests no sync, the cron skips Gmail work. */
-  MAIL_SYNC?: MailSyncInstances
+  /** The `GmailSyncWorkflow` binding ([[CHN141]] D34). Absent: `connections.sync` answers 501, connect requests no sync, the cron skips Gmail work. */
+  GMAIL_SYNC?: GmailSyncInstances
 }
 
 /** What the runtime hands `fetch` besides the request: only `waitUntil` is used ([[AGT8]] D49). */
@@ -349,7 +349,7 @@ export function composeD1Worker(
 ): {
   fetch(req: Request, ctx?: ExecutionContextLike): Promise<Response>
   scheduled(controller: ScheduledControllerLike): Promise<void>
-  runMailSync(event: WorkflowEventLike<MailSyncParams>, step: WorkflowStepLike): Promise<MailSyncSummary>
+  runGmailSyncWorkflow(event: WorkflowEventLike<GmailSyncParams>, step: WorkflowStepLike): Promise<GmailSyncSummary>
 } {
   const vars: Record<string, string | undefined> = {}
   for (const name of STRING_VARS) vars[name] = typeof env[name] === 'string' ? env[name] : undefined
@@ -408,19 +408,19 @@ export function composeD1Worker(
     ...parsedWebhooks,
     runtime: { ...parsedWebhooks.runtime, port: control ? webhookStore(control) : null },
   }
-  // [[CHN5]] D87: push is judged once, by the parser `setup:remote` shares. It is ON only with Gmail and the MAIL_SYNC binding too; the app logs why when it is not.
+  // [[CHN5]] D87: push is judged once, by the parser `setup:remote` shares. It is ON only with Gmail and the GMAIL_SYNC binding too; the app logs why when it is not.
   const pushParsed = parsePushConfig(vars)
-  const pushOn = gmail.config !== null && env.MAIL_SYNC !== undefined && pushParsed.config !== null
+  const pushOn = gmail.config !== null && env.GMAIL_SYNC !== undefined && pushParsed.config !== null
 
   const clock = deps.clock ?? (() => new Date())
   // [[AGT8]] D52/D70: the real Gmail transport is shared by waitUntil and cron; test transports only arrive through `deps`.
   const transportsFor = (
     binding: D1Binding,
-    counted?: { fetch: typeof fetch; bodies: R2BucketLike; instances: MailSyncInstances | undefined },
+    counted?: { fetch: typeof fetch; bodies: R2BucketLike; instances: GmailSyncInstances | undefined },
   ): TransportRegistry => {
     if (deps.transports) return deps.transports
     if (!gmail.config || !env.BODIES) return {}
-    const instances = counted ? counted.instances : env.MAIL_SYNC
+    const instances = counted ? counted.instances : env.GMAIL_SYNC
     return {
       gmail: gmailTransport({
         binding,
@@ -734,7 +734,7 @@ export function composeD1Worker(
         pushProblems: pushParsed.problems,
         ...(googleFetch ? { fetch: googleFetch } : {}),
         keys: googleKeys,
-        ...(env.MAIL_SYNC ? { instances: env.MAIL_SYNC } : {}),
+        ...(env.GMAIL_SYNC ? { instances: env.GMAIL_SYNC } : {}),
       },
       webhooks,
       corsOrigins,
@@ -783,16 +783,16 @@ export function composeD1Worker(
     return { binding: d1Binding(db, link), organizationId: link.organizationId }
   }
 
-  /** [[CORE559]] P2: the built-ins composed with the deployment's `extend` (undefined when it has none), created once per composition; the mail-sync runtime and the form ingress context receive it so their contact events carry the extension fields. */
+  /** [[CORE559]] P2: the built-ins composed with the deployment's `extend` (undefined when it has none), created once per composition; the Gmail sync runtime and the form ingress context receive it so their contact events carry the extension fields. */
   const builtIns = deps.extend ? createBuiltIns(deps.extend) : undefined
 
   /** Re-resolved by every Workflow step ([[CHN5]] D11): nothing here is ever returned from a step. Throws (retryably) when the deployment cannot sync. */
-  async function mailSyncRuntime(googleFetch: typeof fetch | undefined): Promise<MailSyncRuntime> {
+  async function gmailSyncRuntime(googleFetch: typeof fetch | undefined): Promise<GmailSyncRuntime> {
     if (!gmail.config) throw new Error('Gmail is not configured on this deployment')
-    if (!env.MAIL_SYNC) throw new Error('the MAIL_SYNC Workflow binding is missing')
+    if (!env.GMAIL_SYNC) throw new Error('the GMAIL_SYNC Workflow binding is missing')
     if (!env.BODIES) throw new Error('the BODIES bucket is missing')
     const found = await syncBinding()
-    if ('why' in found) throw new Error(`mail sync cannot run: ${found.why} (migrations_pending or not initialised)`)
+    if ('why' in found) throw new Error(`Gmail sync cannot run: ${found.why} (migrations_pending or not initialised)`)
     const c = gmail.config
     return {
       pages: {
@@ -829,7 +829,7 @@ export function composeD1Worker(
           : null,
       policy: SCOPE_POLICY,
       declaredScopes: discovery.declaredScopes,
-      instances: env.MAIL_SYNC,
+      instances: env.GMAIL_SYNC,
     }
   }
 
@@ -878,7 +878,7 @@ export function composeD1Worker(
             ['get', 'put', 'delete', 'createMultipartUpload'],
             budget,
           ),
-          instances: env.MAIL_SYNC ? countCalls(env.MAIL_SYNC, ['create'], budget) : undefined,
+          instances: env.GMAIL_SYNC ? countCalls(env.GMAIL_SYNC, ['create'], budget) : undefined,
         }),
         clock,
         newId,
@@ -976,13 +976,13 @@ export function composeD1Worker(
   /** The shared `scheduled` handler ([[CHN5]] D14, [[AGT8]] D54): dispatches on the cron expression; an unknown one is logged, not thrown. */
   async function scheduled(controller: ScheduledControllerLike): Promise<void> {
     if (controller.cron === RAIL_CRON) return railScheduled(controller)
-    if (controller.cron !== MAIL_SYNC_CRON) {
+    if (controller.cron !== GMAIL_SYNC_CRON) {
       console.warn(`[cron] unknown cron expression "${controller.cron}": nothing to do`)
       return
     }
     try {
-      if (!gmail.config || !env.MAIL_SYNC) {
-        console.log(`[cron] ${controller.cron}: Gmail work skipped (Gmail or the MAIL_SYNC binding is not configured)`)
+      if (!gmail.config || !env.GMAIL_SYNC) {
+        console.log(`[cron] ${controller.cron}: Gmail work skipped (Gmail or the GMAIL_SYNC binding is not configured)`)
         return
       }
       const found = await syncBinding()
@@ -995,7 +995,7 @@ export function composeD1Worker(
         organizationId: found.organizationId,
         clock,
         newId,
-        instances: env.MAIL_SYNC,
+        instances: env.GMAIL_SYNC,
       })
       console.log(
         `[cron] ${controller.cron}: requested ${out.requested.length} sync run(s), ${out.failed} could not be started`,
@@ -1067,12 +1067,12 @@ export function composeD1Worker(
   return {
     scheduled,
     // One recorder per run() call, named by the Workflow instance ([[CHN5]] D78); its caps are seeded from R2's index, so a replayed run() does not exceed them.
-    runMailSync: (event, step) => {
+    runGmailSyncWorkflow: (event, step) => {
       const googleFetch = recording.fetchFor({
         id: event.instanceId ?? `connection-${event.payload.connection_id}`,
         start: event.timestamp ?? clock(),
       })
-      return runMailSync(event, step, () => mailSyncRuntime(googleFetch))
+      return runGmailSyncWorkflow(event, step, () => gmailSyncRuntime(googleFetch))
     },
     async fetch(req, ctx) {
       try {

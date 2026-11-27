@@ -211,22 +211,27 @@ Webhook delivery is the same shape with a dead-letter queue behind it.
 
 Gmail sync ([[CHN141]], CHN5 cycle 4) is the first Workflow. Paths are real:
 
-- `packages/api/src/sync/workflow-run.ts`: Node-safe orchestrator `runMailSync(event, step, resolve)`. Step names are unique per instance
+- `packages/api/src/sync/workflow-run.ts`: Node-safe orchestrator `runGmailSyncWorkflow(event, step, resolve)`. Step names are unique per instance
   (`seed`, `claim`, `p<pass>-history-<n>`, `p<pass>-finish`, `record-failure`, `chain`); every step re-resolves the runtime from `resolve()` and
   returns only ids, counts, page tokens, history ids, bounds and outcomes. `lease.ts` (lease on `connection_sync_state`: one conditional write plus a
   `result` select in the same D1 batch, so "did I get it" needs no drift handling), `request.ts` (`requestSync`, `dueConnections`), `cron.ts`.
-- `packages/server-d1/src/mail-sync-workflow.ts`: the workerd class (`MailSyncWorkflow`, imports `cloudflare:workers`, typed by
+- `packages/server-d1/src/gmail-sync-workflow.ts`: the workerd class (`GmailSyncWorkflow`, imports `cloudflare:workers`, typed by
   `src/cloudflare-workers.d.ts`); `src/instance.ts` is the one per-isolate composition that `fetch`, `scheduled` and the Workflow share;
-  `compose.ts` returns `{ fetch, scheduled, runMailSync }`. `src/worker.ts` must **export the class by name**: the binding names it.
-- `packages/server-d1/wrangler.jsonc`: `workflows` is **not inherited by an env** (a binding: each env states its own, `vb-mail-sync`,
+  `compose.ts` returns `{ fetch, scheduled, runGmailSyncWorkflow }`. `src/worker.ts` must **export the class by name**: the binding names it.
+- `packages/server-d1/wrangler.jsonc`: `workflows` is **not inherited by an env** (a binding: each env states its own, `vb-gmail-sync`,
   `vb-mail-sync-smoked1`, `vault-hq-mail-sync`), but `triggers` **is**: an env with no `triggers` key runs the top-level crons (proven on
   `smoked1` by the resolved config and the deploy output, OPS251 decision 251.10), so an env that must run none states
-  `"triggers": { "crons": [] }`, as `hq` does. Config test: `src/wrangler-config.test.ts`.
+  `"triggers": { "crons": [] }`, as `hq` does. Config test: `src/wrangler-config.test.ts`, which also proves every
+  recorded Workflow is bound `GMAIL_SYNC` with a `class_name` that `worker.ts` exports ([[CORE688]]). A recorded instance
+  keeps its Workflow *name* when the derived default changes (records win, OPS276), so `smoked1`/`hq` run
+  `GmailSyncWorkflow` under names created with `MailSyncWorkflow`. Whether Cloudflare accepts a changed `class_name`
+  on an existing Workflow name on deploy is **unproven** (CORE688 decision 688.6): the plan is to reinstall those
+  instances; a charter that upgrades one in place proves it on a throwaway instance first.
 - `packages/api/src/test/workerd-boundary.ts` (`makeWorkerdStepShim`): the step shim. It walks returns with workerd's accept-list (constructor name and
   path), clones them, turns thrown errors into bare `Error`s, records `sleep`s and `returns`, and has `retries`, `beforeStep` (kill the instance at a
   step) and `afterCommit` (fail after the step's unit committed) hooks. Use it in every workflow test.
-- `packages/server-d1/scripts/smoke-worker.ts` (`smoke:worker`, checks W1-W5) runs the real `MailSyncWorkflow` from the real bundle in Miniflare's
-  Workflows engine (`workflows: { MAIL_SYNC: { name, className } }`; esbuild needs `external: ['cloudflare:workers']`), Google faked by the
+- `packages/server-d1/scripts/smoke-worker.ts` (`smoke:worker`, checks W1-W5) runs the real `GmailSyncWorkflow` from the real bundle in Miniflare's
+  Workflows engine (`workflows: { GMAIL_SYNC: { name, className } }`; esbuild needs `external: ['cloudflare:workers']`), Google faked by the
   outbound service (`FakeGmail.handle` serves Gmail over HTTP). `scheduled` is driven with `(await mf.getWorker()).scheduled({ cron })`.
 - `packages/db/src/pg-types.ts`: driver-level parsers that keep results serialisable (the Postgres engine).
 

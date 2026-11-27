@@ -10,7 +10,7 @@ import type { Context } from 'hono'
 import { defineOperation, execute, readSet, unit, uuidv7, type D1Binding, type StorageBinding } from '@vibase/storage'
 import type { PushConfig } from '../../connections/config.js'
 import type { GoogleKeyCache } from '../../connections/google-keys.js'
-import { instanceId, markRequested, type MailSyncInstances } from '../../sync/request.js'
+import { instanceId, markRequested, type GmailSyncInstances } from '../../sync/request.js'
 
 export const PUSH_PATH = '/inbound/gmail'
 /** Google's signing keys. A constant: tests inject it only through the composition's `fetch`, never a variable ([[CHN5]] D87). */
@@ -27,7 +27,7 @@ export interface PushDeps {
   push: PushConfig | null
   /** The Google signing-key cache ([[CORE577]] D21): shared with the connect callback, one per isolate. */
   keys: GoogleKeyCache
-  instances?: MailSyncInstances
+  instances?: GmailSyncInstances
   storage: (c: Context) => StorageBinding
   clock?: () => Date
   newId?: () => string

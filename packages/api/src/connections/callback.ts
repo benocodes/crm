@@ -17,7 +17,7 @@ import type { GoogleKeyCache } from './google-keys.js'
 import { GMAIL_READONLY, GoogleExchangeError, exchangeCode, verifyIdToken, type GoogleEndpoints } from './google.js'
 import { redirectUriOf } from './operations.js'
 import { pkceVerifier, verifyState } from './state.js'
-import { requestSync, type MailSyncInstances } from '../sync/request.js'
+import { requestSync, type GmailSyncInstances } from '../sync/request.js'
 
 export type ConnectError =
   | 'state_invalid'
@@ -80,8 +80,8 @@ export interface CallbackDeps {
   declaredScopes: readonly string[]
   /** [[UI469]] D5: where the callback returns when `CONNECT_RETURN_URL` is unset: `<PUBLIC_BASE_URL or the request's origin><defaultReturnPath>`. Absent: the built-in result page. */
   defaultReturnPath?: string
-  /** The `MAIL_SYNC` Workflow binding ([[CHN141]] D55, D75). Absent: the connection is committed and no sync is requested. */
-  instances?: MailSyncInstances
+  /** The `GMAIL_SYNC` Workflow binding ([[CHN141]] D55, D75). Absent: the connection is committed and no sync is requested. */
+  instances?: GmailSyncInstances
   /** The effective push configuration ([[CHN5]] D87): when set, the callback registers the watch. */
   push?: PushConfig | null
   storage: (c: Context) => StorageBinding
@@ -317,7 +317,7 @@ export function googleCallbackHandler(deps: CallbackDeps): (c: Context) => Promi
           console.error(`[gmail] sync request failed after connect: ${err instanceof Error ? err.name : 'error'}`)
         }
       } else {
-        console.warn('[gmail] connected, but no sync was requested: the MAIL_SYNC Workflow binding is missing')
+        console.warn('[gmail] connected, but no sync was requested: the GMAIL_SYNC Workflow binding is missing')
       }
       const target = returnTarget()
       if (target) return redirectTo(target, { connection_id: result.connection_id })

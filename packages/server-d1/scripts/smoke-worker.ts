@@ -158,8 +158,8 @@ try {
     d1Databases: { DB: `smoke-${crypto.randomUUID()}`, CONTROL_DB: `smoke-control-${crypto.randomUUID()}` },
     d1Persist: false,
     r2Buckets: ['BODIES'],
-    // [[CHN141]] D34: the real MailSyncWorkflow, exported by the real bundle, run by Miniflare's Workflows engine.
-    workflows: { MAIL_SYNC: { name: 'vb-smoke-mail-sync', className: 'MailSyncWorkflow' } },
+    // [[CHN141]] D34: the real GmailSyncWorkflow, exported by the real bundle, run by Miniflare's Workflows engine.
+    workflows: { GMAIL_SYNC: { name: 'vb-smoke-gmail-sync', className: 'GmailSyncWorkflow' } },
     assets: {
       directory: assetsDir,
       binding: 'ASSETS',
@@ -186,7 +186,7 @@ try {
       CREDENTIALS_KEY: Buffer.from(CREDENTIALS_KEY_BYTES).toString('base64'),
       // [[CHN153]]: the Google recorder is on, as a deployed var would set it, a day ahead of the real clock workerd runs on.
       GOOGLE_RECORDING_UNTIL: new Date(Date.now() + 86_400_000).toISOString(),
-      // [[CHN155]] D87: push on (Gmail, the MAIL_SYNC workflow binding and these four). PUBLIC_BASE_URL is also the connect flow's redirect base.
+      // [[CHN155]] D87: push on (Gmail, the GMAIL_SYNC workflow binding and these four). PUBLIC_BASE_URL is also the connect flow's redirect base.
       GMAIL_TOPIC_NAME: PUSH_TOPIC,
       GMAIL_PUSH_SUBSCRIPTION: PUSH_SUBSCRIPTION,
       GMAIL_PUSH_SERVICE_ACCOUNT: PUSH_SERVICE_ACCOUNT,
@@ -593,7 +593,7 @@ try {
     undefined,
   )
 
-  // W1-W5: the sync engine in workerd ([[CHN141]]): the callback above requested a sync, so the REAL `MailSyncWorkflow` (exported by this very bundle) ran in
+  // W1-W5: the sync engine in workerd ([[CHN141]]): the callback above requested a sync, so the REAL `GmailSyncWorkflow` (exported by this very bundle) ran in
   // Miniflare's Workflows engine against Google faked at the outbound fetch. A backfill, the cursor, the lease and the owner as actor are read back from D1.
   const connId = String(conn?.id ?? '')
   const waitFor = async (what: string, ok: () => Promise<boolean>) => {
@@ -625,7 +625,7 @@ try {
   )[0]
   const msgEvents = await rows("select actor_id from events where type = 'message.created'")
   check(
-    "W1 the real MailSyncWorkflow ran from the real bundle in workerd: the callback's sync request backfilled the mailbox, released the lease and stamped last_success_at",
+    "W1 the real GmailSyncWorkflow ran from the real bundle in workerd: the callback's sync request backfilled the mailbox, released the lease and stamped last_success_at",
     done &&
       sourced.map((r) => r.p).join() === SYNC_MAILBOX_MESSAGES.join() &&
       sourced.every((r) => r.c === conn?.owner_id) &&
@@ -809,7 +809,7 @@ try {
   )
 
   // PU1-PU8: Gmail push in workerd ([[CHN155]], [[CHN5]] D87, D88): the real bundle, `jose` verifying RS256 against Google's keys served through the outbound service, the
-  // route through the real composition, and `MAIL_SYNC.create` (one instance per burst, counted by the Worker's own log line). The connection is the one the callback
+  // route through the real composition, and `GMAIL_SYNC.create` (one instance per burst, counted by the Worker's own log line). The connection is the one the callback
   // connected above, with the watch row it registered.
   const lineCount = (needle: string) => logLines.filter((l) => l.includes(needle)).length
   const instancesCreated = () => lineCount('[gmail-push] sync requested')
@@ -862,7 +862,7 @@ try {
   res = await pushNow(await pushToken())
   const afterFirst = await requestedAt()
   check(
-    'PU2 a locally signed push for Mailbox@Smoke.test (mixed case) -> 204, jose verified it against the one JWKS fetch the isolate made (the shared key cache, CORE577 D21: the connect callback fetched it earlier, the push reuses it), sync_requested_at advanced, one MAIL_SYNC instance created',
+    'PU2 a locally signed push for Mailbox@Smoke.test (mixed case) -> 204, jose verified it against the one JWKS fetch the isolate made (the shared key cache, CORE577 D21: the connect callback fetched it earlier, the push reuses it), sync_requested_at advanced, one GMAIL_SYNC instance created',
     res.status === 204 &&
       jwksFetches === 1 &&
       jwksFetches === jwks0 &&

@@ -6,7 +6,7 @@ import { parseBuiltInAuthConfig } from '../auth-config.js'
 import worker from '../worker.js'
 import type { D1WorkerEnv } from '../compose.js'
 
-export { MailSyncWorkflow } from '../worker.js'
+export { GmailSyncWorkflow } from '../worker.js'
 
 type Env = D1WorkerEnv & { OPEN_ADMISSION?: string }
 /** A request with this header goes to the REAL composition's `/auth` branch even under `OPEN_ADMISSION` ([[UI255]]: the CORS tests need compose.ts's own `/auth`, the sign-up needs the test one). */

@@ -15,7 +15,7 @@ export interface InstanceSettings {
   /** The control-plane database ([[OPS275]] P1): recorded by name and id, never derived from the env (D16). Required by every command but `setup` (which records it, [[CORE326]] P5); the type stays optional for that one. */
   control_d1?: { name: string; id: string }
   r2_bucket: string
-  /** The Gmail sync Workflow's instance name; binding `MAIL_SYNC` and class `MailSyncWorkflow` come from the release's base config. */
+  /** The Gmail sync Workflow's instance name; binding `GMAIL_SYNC` and class `GmailSyncWorkflow` come from the release's base config. */
   workflow: { name: string }
   vars: Record<string, string>
   crons?: string[]

@@ -21,13 +21,13 @@ const withOther = applyEdits(
   fixture0,
   modify(fixture0, ['env', 'other'], { name: 'vault-other', vars: { AUTH_PROVIDER: '' } }, fmt),
 )
-/** The real smoked1 block carries a hand-added MAIL_SYNC workflow; the shared fixture does not, so it is added here (OPS250 review, 250.19). */
+/** The real smoked1 block carries a hand-added GMAIL_SYNC workflow; the shared fixture does not, so it is added here (OPS250 review, 250.19). */
 const fixture = applyEdits(
   withOther,
   modify(
     withOther,
     ['env', 'smoked1', 'workflows'],
-    [{ binding: 'MAIL_SYNC', name: 'vault-smoked1-mail-sync', class_name: 'MailSyncWorkflow' }],
+    [{ binding: 'GMAIL_SYNC', name: 'vault-smoked1-mail-sync', class_name: 'GmailSyncWorkflow' }],
     fmt,
   ),
 )
@@ -42,7 +42,7 @@ const withControl = applyEdits(
 )
 const sameWorkflow = applyEdits(
   fixture,
-  modify(fixture, ['env', 'smoked1', 'workflows', 0, 'name'], 'vb-mail-sync-smoked1', fmt),
+  modify(fixture, ['env', 'smoked1', 'workflows', 0, 'name'], 'vb-gmail-sync-smoked1', fmt),
 )
 const OLD = {
   worker: 'vault-smoked1',
@@ -115,7 +115,7 @@ describe('1. refusals before any call (matrix)', () => {
       'Workflow name equals the record',
       REPLACE,
       { configText: sameWorkflow },
-      /derived Workflow name vb-mail-sync-smoked1 equals the Workflow/,
+      /derived Workflow name vb-gmail-sync-smoked1 equals the Workflow/,
     ],
     [
       'AUTH_SECRET already assigned in the instance file',
@@ -181,7 +181,7 @@ describe('2. the plan and the run on the smoked1 shape', () => {
     expect(b.name).toBe('vb-smoked1')
     expect(b.vars.AUTH_PROVIDER).toBe('better-auth')
     expect(b.workflows).toEqual([
-      { binding: 'MAIL_SYNC', name: 'vb-mail-sync-smoked1', class_name: 'MailSyncWorkflow' },
+      { binding: 'GMAIL_SYNC', name: 'vb-gmail-sync-smoked1', class_name: 'GmailSyncWorkflow' },
     ])
     expect(b.vars.PUBLIC_BASE_URL).toBe(`https://${HOST}`)
     w.logs.length = 0
@@ -235,7 +235,9 @@ describe('4. the record', () => {
     await run(w, REPLACE)
     // the reference is a plain new-instance block, which has no workflows this cycle (250.20): the replaced block differs by that entry alone
     const { workflows, ...rest } = block(w.state.configText)
-    expect(workflows).toEqual([{ binding: 'MAIL_SYNC', name: 'vb-mail-sync-smoked1', class_name: 'MailSyncWorkflow' }])
+    expect(workflows).toEqual([
+      { binding: 'GMAIL_SYNC', name: 'vb-gmail-sync-smoked1', class_name: 'GmailSyncWorkflow' },
+    ])
     expect(rest).toEqual(block(reference.state.configText))
     // outside env.smoked1's value, the text is the fixture's
     const tree = parseTree(fixture)!
