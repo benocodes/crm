@@ -36,7 +36,7 @@ function assertChain(events: RawRow[], stored: RawRow | undefined, id: string): 
   for (let i = 1; i < own.length; i++) expect(own[i]!.before).toEqual(own[i - 1]!.after)
   const last = own.at(-1)!.after
   if (last !== null)
-    expect(last).toMatchObject({ id, title: stored!.title, status: stored!.status, notes: stored!.notes })
+    expect(last).toMatchObject({ id, title: stored!.title, status: stored!.status, description: stored!.description })
   else expect(stored!.deleted_at).not.toBeNull()
 }
 
@@ -72,7 +72,8 @@ export function engineSuite(engineName: EngineName): void {
         const id = await fresh()
         const settled = await together([
           () => mapped(e.run(updateOperation(tasks, e.env({ now: T(1) }), id, { title: 'T' }))),
-          () => mapped(e.run(updateOperation(tasks, e.env({ now: T(2), as: 'agent' }), id, { notes: 'N' }), 'agent')),
+          () =>
+            mapped(e.run(updateOperation(tasks, e.env({ now: T(2), as: 'agent' }), id, { description: 'N' }), 'agent')),
         ])
         const ok = settled.filter((r) => r.status === 'fulfilled').length
         const [stored] = await e.tasks()
@@ -82,14 +83,14 @@ export function engineSuite(engineName: EngineName): void {
         if (name === 'postgres') {
           // The organisation writer lock serialises the units: both land, and neither overwrote the other.
           expect(ok).toBe(2)
-          expect(stored).toMatchObject({ title: 'T', notes: 'N' })
+          expect(stored).toMatchObject({ title: 'T', description: 'N' })
           tally.both++
         } else {
           // A double submit on D1: the loser's drift guard makes its unit a no-op (a retryable 409); never a lost update.
           for (const r of settled)
             if (r.status === 'rejected') expect(r.reason).toMatchObject({ status: 409, code: 'conflict' })
           expect(ok).toBeGreaterThanOrEqual(1)
-          if (ok === 2) expect(stored).toMatchObject({ title: 'T', notes: 'N' })
+          if (ok === 2) expect(stored).toMatchObject({ title: 'T', description: 'N' })
           ok === 2 ? tally.both++ : tally.one++
         }
       }

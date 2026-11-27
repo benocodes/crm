@@ -17,7 +17,7 @@ const record = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   title: z.string(),
-  notes: z.string().nullable(),
+  description: z.string().nullable(),
   due_at: z.string().nullable(),
   assignee_id: z.uuid().nullable(),
   moment: z.string().nullable().optional(),
@@ -64,7 +64,7 @@ async function seedTasks() {
     await e.insert('tasks', {
       id: id(n),
       title: String(n),
-      notes: level === null ? null : level === 0 ? 'Z' : 'a',
+      description: level === null ? null : level === 0 ? 'Z' : 'a',
       due_at: level === null ? null : level === 0 ? T1 : T2,
       assignee_id: level === null ? null : level === 0 ? lo : hi,
     })
@@ -111,7 +111,7 @@ async function walk(def: PreparedResource, sort: string, order: 'asc' | 'desc', 
 describe('generic column walks on D1 (CORE170 D4)', () => {
   for (const [kind, field] of [
     ['timestamp', 'due_at'],
-    ['text', 'notes'],
+    ['text', 'description'],
     ['uuid', 'assignee_id'],
     ['integer', 'size_bytes'],
     ['uuid primary key', 'id'],

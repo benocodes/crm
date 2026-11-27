@@ -70,7 +70,7 @@ describe('what a declaration derives', () => {
     expect(keys(createSchema(companiesDeclaration))).toEqual(['name', 'domain', 'additional_props'])
     expect(keys(createSchema(tasksDeclaration))).toEqual([
       'title',
-      'notes',
+      'description',
       'status',
       'due_at',
       'assignee_id',
@@ -144,7 +144,7 @@ describe('P4 (row 554.5): the catalog text comes from the declaration', () => {
     })
     expect(Object.keys(catalogText(tasksDeclaration).columns)).toEqual([
       'title',
-      'notes',
+      'description',
       'status',
       'due_at',
       'completed_at',

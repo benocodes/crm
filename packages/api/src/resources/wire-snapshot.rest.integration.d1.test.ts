@@ -169,7 +169,7 @@ describe('schema.get and the refused inputs', () => {
         list.push(
           ['status out of enum', { status: 'wip' }],
           ['status won', { status: 'won' }],
-          ['notes long', { notes: 'n'.repeat(10_001) }],
+          ['description long', { description: 'n'.repeat(10_001) }],
           ['due_at bad', { due_at: 'tomorrow' }],
           ['due_at no offset', { due_at: '2026-01-01T00:00:00' }],
           ['assignee not uuid', { assignee_id: 'x' }],

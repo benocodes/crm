@@ -116,12 +116,12 @@ describe('filters agree with the list, for every resource (CORE201 D11)', () => 
     expect(tasksFilters.slice(0, 3).map((f: any) => [f.name, f.kind, [...f.operators].sort(), f.custom])).toEqual([
       ['id', 'uuid', ['eq', 'in', 'neq'], false],
       ['title', 'text', ['eq', 'gt', 'gte', 'ilike', 'in', 'like', 'lt', 'lte', 'neq'], false],
-      ['notes', 'text', ['eq', 'gt', 'gte', 'ilike', 'in', 'is', 'like', 'lt', 'lte', 'neq'], false],
+      ['description', 'text', ['eq', 'gt', 'gte', 'ilike', 'in', 'is', 'like', 'lt', 'lte', 'neq'], false],
     ])
     expect(tasksFilters.map((f: any) => f.name)).toEqual([
       'id',
       'title',
-      'notes',
+      'description',
       'status',
       'due_at',
       'completed_at',

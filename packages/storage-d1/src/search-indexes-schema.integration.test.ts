@@ -80,11 +80,11 @@ const SPECS: Spec[] = [
   },
   {
     table: 'tasks',
-    cols: ['title', 'notes'],
+    cols: ['title', 'description'],
     insert: (db, n, a, b, deleted = null) =>
       run(
         db,
-        'INSERT INTO tasks (id, organization_id, created_by, created_at, updated_at, title, notes, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO tasks (id, organization_id, created_by, created_at, updated_at, title, description, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         id(n),
         ORG,
         USER,

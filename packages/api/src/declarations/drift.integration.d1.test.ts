@@ -81,7 +81,7 @@ describe('each kind of drift is named (a mutated declaration against the real ta
     ])
   })
   it('a column with no declaration', () => {
-    expect(rules(clone(tasksDeclaration, (f) => delete f.notes))).toEqual(['column_undeclared:notes'])
+    expect(rules(clone(tasksDeclaration, (f) => delete f.description))).toEqual(['column_undeclared:description'])
   })
   it('a storage type mismatch', () => {
     expect(rules(clone(dealsDeclaration, (f) => (f.amount_minor = { ...f.amount_minor!, kind: 'text' })))).toEqual([

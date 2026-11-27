@@ -77,7 +77,10 @@ describe('the agent-field rule of the prepared write', () => {
     expect(() => prepareUpdate(readOnly, user, { title: 'x' })).toThrow('ro has no update schema')
   })
   it('without agentWritable an agent may write every field of the schemas', () => {
-    expect(prepareCreate(tasks, agent, { title: 'a', notes: 'n' })).toMatchObject({ title: 'a', notes: 'n' })
+    expect(prepareCreate(tasks, agent, { title: 'a', description: 'n' })).toMatchObject({
+      title: 'a',
+      description: 'n',
+    })
   })
 })
 
@@ -86,9 +89,9 @@ describe('the column projection: only the record columns are selected, so a narr
     name: 'narrow_tasks',
     eventName: 'task',
     table: 'tasks',
-    record: (tasks.record as unknown as z.ZodObject).omit({ notes: true }),
-    create: tasks.create!.omit({ notes: true }),
-    update: tasks.update!.omit({ notes: true }),
+    record: (tasks.record as unknown as z.ZodObject).omit({ description: true }),
+    create: tasks.create!.omit({ description: true }),
+    update: tasks.update!.omit({ description: true }),
   } as never)
   const env = {
     actor: { id: 'u', kind: 'user' as const },
@@ -111,7 +114,7 @@ describe('the column projection: only the record columns are selected, so a narr
         expect(text).toContain('title')
       }
       // the unrestricted definition does select it
-      expect(JSON.stringify(compileOperation(getOperation(tasks, env, id), dialect).reads)).toContain('notes')
+      expect(JSON.stringify(compileOperation(getOperation(tasks, env, id), dialect).reads)).toContain('description')
     },
   )
 })

@@ -76,7 +76,7 @@ describe('schema audit normalisers', () => {
     // CORE679 D8 named the enum CHECK (`tasks_status`); the canonical `_uuid` and `_timestamp` ones are left out
     expect(d1CheckNames(createTable('0001_genesis.sql', 'tasks'))).toEqual([
       'tasks_title_length',
-      'tasks_notes_length',
+      'tasks_description_length',
       'tasks_status',
       'tasks_additional_props',
     ])

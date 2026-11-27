@@ -16,7 +16,7 @@ export type TaskRecord = {
   id: string
   organization_id: string
   title: string
-  notes: string | null
+  description: string | null
   status: 'open' | 'done'
   due_at: string | null
   completed_at: string | null

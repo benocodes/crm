@@ -138,7 +138,7 @@ describe.each(['postgres', 'd1'] as const)(
             id: uuid(i + 500),
             organization_id: ORG,
             title: `t${i}`,
-            notes: null,
+            description: null,
             status: 'open',
             due_at: null,
             completed_at: null,

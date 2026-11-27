@@ -209,7 +209,7 @@ describe('catalog completeness (D16)', () => {
   it('the fixed CORE62 texts are literal', async () => {
     const doc = await getDoc()
     expect(column(doc, 'contacts', 'company_id').label).toBe('Primary company')
-    expect(column(doc, 'tasks', 'notes').description).toBe(
+    expect(column(doc, 'tasks', 'description').description).toBe(
       "The task's own description. Research and context belong in associated notes.",
     )
     expect(table(doc, 'notes').description).toBeTruthy()

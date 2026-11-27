@@ -480,7 +480,7 @@ describe('search index cost (CORE194 D14)', () => {
             st.push(
               d
                 .prepare(
-                  'INSERT INTO tasks (id, organization_id, created_by, created_at, updated_at, title, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                  'INSERT INTO tasks (id, organization_id, created_by, created_at, updated_at, title, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
                 )
                 .bind(sid(j + 1), ORG, USER, AT, AT, text(4), text(20)),
             )
@@ -545,7 +545,7 @@ describe('search index cost (CORE194 D14)', () => {
       // trigram posting blocks, `_content` the stored copy of the indexed text (a standalone table), `_docsize` the per-row sizes.
       const num = async (sql: string) => ((await d.prepare(sql).all()).results as { v: number }[])[0]!.v
       const baseText = await num(
-        'SELECT (SELECT sum(length(title) + length(content)) FROM notes) + (SELECT sum(length(name) + length(domain)) FROM companies) + (SELECT sum(length(title) + coalesce(length(notes), 0)) FROM tasks) AS v',
+        'SELECT (SELECT sum(length(title) + length(content)) FROM notes) + (SELECT sum(length(name) + length(domain)) FROM companies) + (SELECT sum(length(title) + coalesce(length(description), 0)) FROM tasks) AS v',
       )
       let data = 0
       let content = 0

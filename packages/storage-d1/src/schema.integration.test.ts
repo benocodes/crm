@@ -83,7 +83,7 @@ describe('the D1 schema slice of CORE35 (C6)', () => {
       id: true,
       organization_id: true,
       title: true,
-      notes: false,
+      description: false,
       status: true,
       due_at: false,
       completed_at: false,
@@ -187,14 +187,14 @@ describe('the D1 schema slice of CORE35 (C6)', () => {
     })
 
     it('accepts a valid task and reads it back as stored text', async () => {
-      await insertTaskOk(task({ due_at: AT, notes: 'n' }))
+      await insertTaskOk(task({ due_at: AT, description: 'n' }))
       const rows = await all<Record<string, unknown>>('SELECT * FROM tasks')
       expect(rows).toHaveLength(1)
       expect(rows[0]).toMatchObject({
         title: 't',
         status: 'open',
         due_at: AT,
-        notes: 'n',
+        description: 'n',
         completed_at: null,
         deleted_at: null,
       })

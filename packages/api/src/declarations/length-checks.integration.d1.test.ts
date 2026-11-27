@@ -67,7 +67,7 @@ describe('declared limits are database limits (C4)', () => {
         .map(([c]) => `${d.table}.${c}`),
     )
     expect(all.sort()).toEqual(
-      ['companies.domain', 'companies.name', 'contacts.name', 'deals.name', 'tasks.notes', 'tasks.title'].sort(),
+      ['companies.domain', 'companies.name', 'contacts.name', 'deals.name', 'tasks.description', 'tasks.title'].sort(),
     )
   })
 })

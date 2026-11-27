@@ -42,14 +42,14 @@ describe('task preparation is pure and keeps the old validation', () => {
   })
 
   it('create keeps explicit nulls and omits what was not sent', () => {
-    expect(prepareCreate(tasks, agent, { title: 'x', notes: null })).toEqual({ title: 'x', notes: null })
+    expect(prepareCreate(tasks, agent, { title: 'x', description: null })).toEqual({ title: 'x', description: null })
   })
 
   it('update: an empty patch stays empty, a same-value patch stays a patch, null clears', () => {
     expect(prepareUpdate(tasks, user, {})).toEqual({})
     expect(prepareUpdate(tasks, user, { title: 'same' })).toEqual({ title: 'same' })
-    expect(prepareUpdate(tasks, user, { notes: null, due_at: null, assignee_id: null })).toEqual({
-      notes: null,
+    expect(prepareUpdate(tasks, user, { description: null, due_at: null, assignee_id: null })).toEqual({
+      description: null,
       due_at: null,
       assignee_id: null,
     })
