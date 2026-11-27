@@ -111,7 +111,9 @@ describe('the other three built-ins carry the same guards (one DDL function writ
       expect(await defs(r)).toEqual(await defs('contacts'))
       const mine = await sqlOf(r)
       const base = await sqlOf('contacts')
-      for (const c of ['flag__c', 'lvl__c', 'code__c']) expect(colSql(mine, c), c).toBe(colSql(base, c))
+      // CORE683 D10: a CHECK's name starts with its table (`<table>_<column>...`), the one difference between the four.
+      for (const c of ['flag__c', 'lvl__c', 'code__c'])
+        expect(colSql(mine, c).replaceAll(`"${r}_`, '"contacts_'), c).toBe(colSql(base, c))
       // The reference column differs by target only (contacts -> companies; the others -> contacts).
       expect(colSql(mine, REF[r].column)).toContain(`REFERENCES "${REF[r].target}" ("id")`)
       expect([...(await indexes(r))].sort()).toEqual([...(await indexes('contacts'))].sort())

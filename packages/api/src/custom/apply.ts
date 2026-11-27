@@ -268,7 +268,7 @@ export function planApply(
           )
           continue
         }
-        adds.push(`ALTER TABLE ${ident(key)} ADD COLUMN ${columnDefinition(name, f)}`)
+        adds.push(`ALTER TABLE ${ident(key)} ADD COLUMN ${columnDefinition(key, name, f)}`)
         plan.added.push({ object: key, field: name })
         added++
         if (f.unique === true && f.default !== undefined) plan.reads.push(violationRead(key, name, f, true))
@@ -368,7 +368,7 @@ function planBuiltins(
       const lf = fields.get(name)
       const at = `${key}.${name}`
       if (lf === undefined) {
-        adds.push(`ALTER TABLE ${ident(key)} ADD COLUMN ${extensionColumnDefinition(name, f)}`)
+        adds.push(`ALTER TABLE ${ident(key)} ADD COLUMN ${extensionColumnDefinition(key, name, f)}`)
         plan.added.push({ object: key, field: name })
         added++
         if (f.unique === true && f.default !== undefined) plan.reads.push(violationRead(key, name, f, true))

@@ -96,8 +96,12 @@ const EXPECTED: Record<
       { name: 'status', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
       { name: 'deleted_at', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
     ],
-    idx: [{ name: 'idx_webhook_subscriptions_agent', unique: 0, partial: 1 }],
-    uniq: ['organization_id,id'],
+    // CORE683 D9, D5: the (organization_id, id) pair is a named unique index, not a table constraint.
+    idx: [
+      { name: 'idx_webhook_subscriptions_agent', unique: 0, partial: 1 },
+      { name: 'idx_webhook_subscriptions_organization_id_id', unique: 1, partial: 0 },
+    ],
+    uniq: [],
   },
   webhook_secrets: {
     cols: [

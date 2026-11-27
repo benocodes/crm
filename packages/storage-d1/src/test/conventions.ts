@@ -1,8 +1,9 @@
 // The schema conventions checker ([[CORE679]] D1): a pure function from catalogue rows (`sqlite_master`, `pragma table_xinfo`,
 // `foreign_key_list`, `index_list`, `index_xinfo`) and an exemption list to the problems it finds, each named by the rule it breaks
 // (C1 `id_check`, C2 `timestamp_check`, C3 `check_named`, C5 `org_id_unique`, C6 `index_named`, C7 `strict`, C8 `keyword_case`).
-// C4 (a declared limit is a database limit) needs the declarations in `@vibase/api` and is [[CORE683]]'s; here C3 holds a
-// `_length` CHECK to the canonical shape whatever its bounds ([[CORE679]] plan, row 679.20).
+// C4 (a declared limit is a database limit) needs the declarations in `@vibase/api`: it is a test there ([[CORE683]] D6,
+// `declarations/length-checks.integration.d1.test.ts`); here C3 holds a `_length` CHECK to the canonical shape whatever its bounds
+// ([[CORE679]] plan, row 679.20).
 import type { D1Like } from '../binding.js'
 
 export type ConventionRule =
@@ -551,7 +552,8 @@ export async function readCatalogue(d1: D1Like): Promise<Catalogue> {
 
 /**
  * Columns whose names say id (or a timestamp) but whose values are not minted by Vibase. Each is confirmed against the code
- * that writes it; a column always written as a UUID is checked, not exempted. The control entries come with [[CORE683]].
+ * that writes it; a column always written as a UUID is checked, not exempted. The control entry is [[CORE683]] D9/D11: `control_audit.actor_id` is
+ * always a Vibase principal id (a UUID, and the old short CHECK already refused anything else), so it carries the canonical CHECK, not an exemption.
  */
 export const CONVENTION_EXEMPTIONS: readonly ConventionExemption[] = [
   {
@@ -601,5 +603,12 @@ export const CONVENTION_EXEMPTIONS: readonly ConventionExemption[] = [
     table: 'forms',
     column: 'public_id',
     reason: 'the public form id `frm_...`, a different shape with its own CHECK',
+  },
+  {
+    database: 'control',
+    table: 'control_audit',
+    column: 'target_id',
+    reason:
+      'the audited target: a Vibase id, or a Better Auth user id (user.sessions_revoked, user.reset_link_issued), which is not a UUID',
   },
 ]

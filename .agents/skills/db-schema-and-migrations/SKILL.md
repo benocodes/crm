@@ -339,13 +339,14 @@ The D1 schema follows eight rules, each named in the test that reports it. `pack
 applies the migrations to an empty local D1 and runs the checker (`@vibase/storage-d1/test`: `checkConventions`,
 `readCatalogue`) over the live catalogue, so a new migration, a rename or a custom table is held the moment it exists. The
 checker is proven rule by rule on one violating table each in `src/test/conventions.test.ts`.
+The same test runs over the control database (`control-migrations/0001_genesis.sql`, below its `auth_*` block), and `packages/api/src/custom/ddl-conventions.integration.d1.test.ts` runs it over a D1 with a custom object and an `extend` on each built-in, so `ddl.ts` (named CHECKs, the parenthesised nullable forms, the unique pair index) is held by the same rules; `ddl.ts` keeps its own copy of the canonical expressions and that test proves the copy matches. A custom field named `x_id`, `x_at` that is not a reference or a timestamp is not refused (the checker never runs on an instance).
 
 | Rule | Name | Says |
 |---|---|---|
 | C1 | `id_check` | A column named `id`, `*_id` or `*_by` is a foreign key onto a checked id column (and has no id CHECK), or carries the canonical `<table>_<column>_uuid` CHECK (full UUID shape, `c IS NULL OR (...)` when nullable). Composite keys cover their non-`organization_id` column. |
 | C2 | `timestamp_check` | A `*_at` / `*_until` column is `TEXT` with the canonical `<table>_<column>_timestamp` CHECK (the `strftime` form). |
 | C3 | `check_named` | Every CHECK is `CONSTRAINT <table>_<what>`, unique in the database; `_uuid`, `_timestamp`, `_length` are reserved for the canonical expression; a CHECK over several columns is a table constraint. |
-| C4 | (CORE683) | A declared `maxLength` is a `<table>_<column>_length` CHECK. |
+| C4 | (a test in `@vibase/api`) | A built-in declaration's `maxLength` is a `<table>_<column>_length` CHECK (`length(c) BETWEEN min AND max`, or `<= max`; `c IS NULL OR (...)` when nullable), and a `_length` CHECK on a built-in column with no declared `maxLength` fails: `packages/api/src/declarations/length-checks.integration.d1.test.ts` compares both ways on a database built from genesis. Extension (`__c`) columns are outside it; their `_length` CHECK takes `TEXT_MAX` and is held by C3. A system writer of a limited column (capture, the form mapper, merge) must cap or refuse as the API would ([[CORE683]] D12). |
 | C5 | `org_id_unique` | "Unique per organisation and id" is only `CREATE UNIQUE INDEX idx_<table>_organization_id_id ON <table> (organization_id, id)`, never a table constraint; a composite key onto it needs that index. |
 | C6 | `index_named` | Indexes are `idx_<table>_<what>`. |
 | C7 | `strict` | Every table is `STRICT`. |
@@ -358,7 +359,10 @@ Layout (identifiers unquoted unless SQL requires, one column per line, a table's
 against the code that writes it that it is never a UUID Vibase mints. The checker reports an entry whose table or column no
 longer exists as `exemption_stale`, so a rename must edit the list in the same change. **Changing or adding a rule**:
 grep `.agents/skills/` for DDL advice in the old form and fix it in the same change (the parent-rebuild recipe above
-still said "keep `UNIQUE (organization_id, id)`" after C5, caught only at [[CORE679]]'s review).
+still said "keep `UNIQUE (organization_id, id)`" after C5, caught only at [[CORE679]]'s review). **Adding, naming or
+renaming a CHECK on `contacts`, `tasks` or another audited CRM table**: `packages/storage-postgres/src/schema-audit.test.ts`
+pins the D1 CHECK names (`d1CheckNames`) and, having no `.postgres.` infix, runs in the default gate; update its
+expectations in the same change (it turned the gate red at both [[CORE679]] and [[CORE683]]).
 
 ## D1 migrations ([[CORE35]])
 

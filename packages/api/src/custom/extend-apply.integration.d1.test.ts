@@ -102,9 +102,16 @@ describe("D8's shapes on the live table (P3)", () => {
       expect(cols.status__c, t).toMatchObject({ notnull: 1, dflt_value: "'new'" })
       expect(cols.score__c, t).toMatchObject({ type: 'INTEGER', notnull: 0, dflt_value: '5' })
       expect(cols.vip__c.type).toBe('INTEGER')
-      expect(sql).toMatch(/"vip__c" INTEGER CHECK \("vip__c" IS NULL OR "vip__c" IN \(0, 1\)\)/)
-      expect(sql).toMatch(/"note__c" TEXT CHECK \("note__c" IS NULL OR length\("note__c"\) <= 10000\)/)
-      expect(sql).toMatch(/"since__c" TEXT CHECK \("since__c" IS NULL OR coalesce\(strftime/)
+      // CORE683 D10: each CHECK is named `<table>_<column>_<kind>` and the nullable form is parenthesised.
+      expect(sql).toContain(
+        `"vip__c" INTEGER CONSTRAINT "${t}_vip__c" CHECK ("vip__c" IS NULL OR ("vip__c" IN (0, 1)))`,
+      )
+      expect(sql).toContain(
+        `"note__c" TEXT CONSTRAINT "${t}_note__c_length" CHECK ("note__c" IS NULL OR (length("note__c") <= 10000))`,
+      )
+      expect(sql).toContain(
+        `"since__c" TEXT CONSTRAINT "${t}_since__c_timestamp" CHECK ("since__c" IS NULL OR (coalesce(strftime(`,
+      )
       expect(sql).not.toMatch(/"tier__c" TEXT[^,]*CHECK/)
       const fks = await all(`select "from", "table", "to" from pragma_foreign_key_list(?)`, t)
       expect(fks).toEqual(
