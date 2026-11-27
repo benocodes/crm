@@ -373,7 +373,12 @@ and the control chain starts the same way at `control-migrations/0001_genesis.sq
 writes the lasting one): milestone AA's specs ([[CORE679]], [[CORE680]]) edit genesis in place (user ruling, decision
 678.2) and update its hash in the manifest; every other change appends a new numbered file.** Each cycle that
 migrates a resource appends a file, outside that milestone. Local tests apply the files to disposable Miniflare bindings
-(`@vibase/storage-d1/test`); never point tooling at a remote database id.
+(`@vibase/storage-d1/test`); never point tooling at a remote database id. **An in-place genesis rename is proven by one
+diff:** apply the rename map (old to new for every table, column, constraint and index) to `main`'s genesis and compare
+it with the branch genesis byte for byte; an empty diff shows nothing else moved. Plain substring replacement is enough
+only when each old name occurs nowhere else in the file (check first). The conventions test's `check_named` rule ties a
+CHECK's name to its table's prefix, so a constraint left on the old prefix turns it red. [[CORE686]] kept the map and
+script in its cycle folder (`genesis-rename-map.pl`, `check-genesis.sh`).
 
 - **Tenancy is the database** (spec D18). A singleton `deployment` row fixes the organisation id,
   `organizations.id` references it, and every tenant table's `organization_id` references
