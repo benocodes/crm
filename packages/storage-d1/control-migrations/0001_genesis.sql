@@ -1,6 +1,7 @@
 -- Genesis schema for the control-plane D1 database ([[CORE678]]).
 -- Generated from the catalogue (sqlite_master, creation order) of the 36-file chain this replaces, with no row data.
--- Not tidied: object order, quoting and CHECK text are what the chain left.
+-- Below the Better Auth block this file is written by hand to the schema conventions of [[CORE679]] (the CRM database's style, [[CORE683]] D9),
+-- and the Better Auth block stays exactly as its generator emits it ([[CORE678]] D6).
 
 CREATE TABLE "auth_users" ("id" text not null primary key, "name" text not null, "email" text not null unique, "email_verified" integer not null, "image" text, "created_at" date not null, "updated_at" date not null);
 
@@ -71,56 +72,45 @@ CREATE UNIQUE INDEX "auth_device_codes_device_code_uidx" on "auth_device_codes" 
 CREATE UNIQUE INDEX "auth_device_codes_user_code_uidx" on "auth_device_codes" ("user_code");
 
 CREATE TABLE control_deployment (
-  singleton integer primary key not null check (singleton = 1),
-  organization_id text not null
-    check (length(organization_id) = 36 and organization_id not glob '*[^0-9a-f-]*' and substr(organization_id, 9, 1) = '-' and substr(organization_id, 14, 1) = '-' and substr(organization_id, 19, 1) = '-' and substr(organization_id, 24, 1) = '-')
-) strict;
+  singleton INTEGER PRIMARY KEY NOT NULL CONSTRAINT control_deployment_singleton CHECK (singleton = 1),
+  organization_id TEXT NOT NULL
+    CONSTRAINT control_deployment_organization_id_uuid CHECK (length(organization_id) = 36 AND organization_id NOT GLOB '*[^0-9a-f-]*' AND substr(organization_id, 9, 1) = '-' AND substr(organization_id, 14, 1) = '-' AND substr(organization_id, 19, 1) = '-' AND substr(organization_id, 24, 1) = '-')
+) STRICT;
 
 CREATE TABLE invitations (
-  id text primary key not null
-    check (length(id) = 36 and id not glob '*[^0-9a-f-]*'),
-  organization_id text not null
-    check (length(organization_id) = 36 and organization_id not glob '*[^0-9a-f-]*'),
-  email text not null
-    check (length(email) > 0 and email = lower(trim(email))),
-  role text not null
-    check (role in ('owner', 'member', 'agent')),
-  token_hash text not null unique
-    check (length(token_hash) = 64),
-  expires_at text not null
-    check (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', expires_at) = expires_at, 0)),
-  created_by text not null
-    check (length(created_by) = 36 and created_by not glob '*[^0-9a-f-]*'),
-  created_at text not null
-    check (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
-  accepted_at text
-    check (accepted_at is null or coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', accepted_at) = accepted_at, 0)),
-  revoked_at text
-    check (revoked_at is null or coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', revoked_at) = revoked_at, 0))
-, delivery text not null default 'link' check (delivery in ('link', 'email'))) strict;
+  id TEXT PRIMARY KEY NOT NULL
+    CONSTRAINT invitations_id_uuid CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
+  organization_id TEXT NOT NULL
+    CONSTRAINT invitations_organization_id_uuid CHECK (length(organization_id) = 36 AND organization_id NOT GLOB '*[^0-9a-f-]*' AND substr(organization_id, 9, 1) = '-' AND substr(organization_id, 14, 1) = '-' AND substr(organization_id, 19, 1) = '-' AND substr(organization_id, 24, 1) = '-'),
+  email TEXT NOT NULL CONSTRAINT invitations_email CHECK (length(email) > 0 AND email = lower(trim(email))),
+  role TEXT NOT NULL CONSTRAINT invitations_role CHECK (role IN ('owner', 'member', 'agent')),
+  token_hash TEXT NOT NULL UNIQUE CONSTRAINT invitations_token_hash CHECK (length(token_hash) = 64),
+  expires_at TEXT NOT NULL CONSTRAINT invitations_expires_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', expires_at) = expires_at, 0)),
+  created_by TEXT NOT NULL
+    CONSTRAINT invitations_created_by_uuid CHECK (length(created_by) = 36 AND created_by NOT GLOB '*[^0-9a-f-]*' AND substr(created_by, 9, 1) = '-' AND substr(created_by, 14, 1) = '-' AND substr(created_by, 19, 1) = '-' AND substr(created_by, 24, 1) = '-'),
+  created_at TEXT NOT NULL CONSTRAINT invitations_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
+  accepted_at TEXT CONSTRAINT invitations_accepted_at_timestamp CHECK (accepted_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', accepted_at) = accepted_at, 0))),
+  revoked_at TEXT CONSTRAINT invitations_revoked_at_timestamp CHECK (revoked_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', revoked_at) = revoked_at, 0))),
+  delivery TEXT NOT NULL DEFAULT 'link' CONSTRAINT invitations_delivery CHECK (delivery IN ('link', 'email'))
+) STRICT;
 
-CREATE INDEX invitations_email_idx on invitations (email);
+CREATE INDEX idx_invitations_email ON invitations (email);
 
 CREATE TABLE control_audit (
-  id text primary key not null
-    check (length(id) = 36 and id not glob '*[^0-9a-f-]*'),
-  at text not null
-    check (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', at) = at, 0)),
-  actor_id text not null
-    check (length(actor_id) = 36 and actor_id not glob '*[^0-9a-f-]*'),
-  action text not null
-    check (length(action) > 0),
-  target_type text not null
-    check (length(target_type) > 0),
-  target_id text not null
-    check (length(target_id) > 0),
-  detail text not null
-    check (json_valid(detail))
-) strict;
+  id TEXT PRIMARY KEY NOT NULL
+    CONSTRAINT control_audit_id_uuid CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
+  at TEXT NOT NULL CONSTRAINT control_audit_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', at) = at, 0)),
+  actor_id TEXT NOT NULL
+    CONSTRAINT control_audit_actor_id_uuid CHECK (length(actor_id) = 36 AND actor_id NOT GLOB '*[^0-9a-f-]*' AND substr(actor_id, 9, 1) = '-' AND substr(actor_id, 14, 1) = '-' AND substr(actor_id, 19, 1) = '-' AND substr(actor_id, 24, 1) = '-'),
+  action TEXT NOT NULL CONSTRAINT control_audit_action CHECK (length(action) > 0),
+  target_type TEXT NOT NULL CONSTRAINT control_audit_target_type CHECK (length(target_type) > 0),
+  target_id TEXT NOT NULL CONSTRAINT control_audit_target_id CHECK (length(target_id) > 0),
+  detail TEXT NOT NULL CONSTRAINT control_audit_detail CHECK (json_valid(detail))
+) STRICT;
 
-CREATE INDEX control_audit_target_idx on control_audit (target_type, target_id);
+CREATE INDEX idx_control_audit_target ON control_audit (target_type, target_id);
 
-CREATE INDEX control_audit_at_idx on control_audit (at);
+CREATE INDEX idx_control_audit_at ON control_audit (at);
 
 CREATE TRIGGER control_audit_no_update BEFORE UPDATE ON control_audit
 BEGIN
@@ -134,30 +124,36 @@ END;
 
 CREATE TABLE webhook_subscriptions (
   id TEXT PRIMARY KEY NOT NULL
-    CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
-  created_at TEXT NOT NULL CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
-  updated_at TEXT NOT NULL CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', updated_at) = updated_at, 0)),
-  organization_id TEXT NOT NULL CHECK (length(organization_id) = 36 AND organization_id NOT GLOB '*[^0-9a-f-]*'),
-  created_by TEXT NOT NULL CHECK (length(created_by) = 36 AND created_by NOT GLOB '*[^0-9a-f-]*'),
-  agent_id TEXT NOT NULL CHECK (length(agent_id) = 36 AND agent_id NOT GLOB '*[^0-9a-f-]*'),
+    CONSTRAINT webhook_subscriptions_id_uuid CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
+  created_at TEXT NOT NULL CONSTRAINT webhook_subscriptions_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
+  updated_at TEXT NOT NULL CONSTRAINT webhook_subscriptions_updated_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', updated_at) = updated_at, 0)),
+  organization_id TEXT NOT NULL
+    CONSTRAINT webhook_subscriptions_organization_id_uuid CHECK (length(organization_id) = 36 AND organization_id NOT GLOB '*[^0-9a-f-]*' AND substr(organization_id, 9, 1) = '-' AND substr(organization_id, 14, 1) = '-' AND substr(organization_id, 19, 1) = '-' AND substr(organization_id, 24, 1) = '-'),
+  created_by TEXT NOT NULL
+    CONSTRAINT webhook_subscriptions_created_by_uuid CHECK (length(created_by) = 36 AND created_by NOT GLOB '*[^0-9a-f-]*' AND substr(created_by, 9, 1) = '-' AND substr(created_by, 14, 1) = '-' AND substr(created_by, 19, 1) = '-' AND substr(created_by, 24, 1) = '-'),
+  agent_id TEXT NOT NULL
+    CONSTRAINT webhook_subscriptions_agent_id_uuid CHECK (length(agent_id) = 36 AND agent_id NOT GLOB '*[^0-9a-f-]*' AND substr(agent_id, 9, 1) = '-' AND substr(agent_id, 14, 1) = '-' AND substr(agent_id, 19, 1) = '-' AND substr(agent_id, 24, 1) = '-'),
   url TEXT NOT NULL CONSTRAINT webhook_subscriptions_url CHECK (length(url) BETWEEN 1 AND 2048),
   event_types TEXT NOT NULL CONSTRAINT webhook_subscriptions_event_types CHECK (json_valid(event_types) AND json_type(event_types) = 'array' AND json_array_length(event_types) BETWEEN 1 AND 20),
   status TEXT NOT NULL CONSTRAINT webhook_subscriptions_status CHECK (status IN ('active', 'paused', 'disabled')),
-  deleted_at TEXT CHECK (deleted_at IS NULL OR coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', deleted_at) = deleted_at, 0)),
-  UNIQUE (organization_id, id)
+  deleted_at TEXT CONSTRAINT webhook_subscriptions_deleted_at_timestamp CHECK (deleted_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', deleted_at) = deleted_at, 0)))
 ) STRICT;
+
+CREATE UNIQUE INDEX idx_webhook_subscriptions_organization_id_id ON webhook_subscriptions (organization_id, id);
 
 CREATE INDEX idx_webhook_subscriptions_agent ON webhook_subscriptions (organization_id, agent_id) WHERE deleted_at IS NULL;
 
 CREATE TABLE webhook_secrets (
   id TEXT PRIMARY KEY NOT NULL
-    CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
-  created_at TEXT NOT NULL CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
-  organization_id TEXT NOT NULL CHECK (length(organization_id) = 36 AND organization_id NOT GLOB '*[^0-9a-f-]*'),
-  created_by TEXT NOT NULL CHECK (length(created_by) = 36 AND created_by NOT GLOB '*[^0-9a-f-]*'),
+    CONSTRAINT webhook_secrets_id_uuid CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
+  created_at TEXT NOT NULL CONSTRAINT webhook_secrets_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
+  organization_id TEXT NOT NULL
+    CONSTRAINT webhook_secrets_organization_id_uuid CHECK (length(organization_id) = 36 AND organization_id NOT GLOB '*[^0-9a-f-]*' AND substr(organization_id, 9, 1) = '-' AND substr(organization_id, 14, 1) = '-' AND substr(organization_id, 19, 1) = '-' AND substr(organization_id, 24, 1) = '-'),
+  created_by TEXT NOT NULL
+    CONSTRAINT webhook_secrets_created_by_uuid CHECK (length(created_by) = 36 AND created_by NOT GLOB '*[^0-9a-f-]*' AND substr(created_by, 9, 1) = '-' AND substr(created_by, 14, 1) = '-' AND substr(created_by, 19, 1) = '-' AND substr(created_by, 24, 1) = '-'),
   subscription_id TEXT NOT NULL,
-  sealed TEXT NOT NULL CHECK (length(sealed) > 0),
-  key_version INTEGER NOT NULL CHECK (key_version >= 1),
+  sealed TEXT NOT NULL CONSTRAINT webhook_secrets_sealed CHECK (length(sealed) > 0),
+  key_version INTEGER NOT NULL CONSTRAINT webhook_secrets_key_version CHECK (key_version >= 1),
   CONSTRAINT webhook_secrets_subscription_fk FOREIGN KEY (organization_id, subscription_id) REFERENCES webhook_subscriptions (organization_id, id)
 ) STRICT;
 
@@ -169,37 +165,40 @@ BEGIN
 END;
 
 CREATE TABLE webhook_dispatch_state (
-  subscription_id TEXT PRIMARY KEY NOT NULL
-    CHECK (length(subscription_id) = 36 AND subscription_id NOT GLOB '*[^0-9a-f-]*' AND substr(subscription_id, 9, 1) = '-' AND substr(subscription_id, 14, 1) = '-' AND substr(subscription_id, 19, 1) = '-' AND substr(subscription_id, 24, 1) = '-'),
-  created_at TEXT NOT NULL CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
-  organization_id TEXT NOT NULL CHECK (length(organization_id) = 36 AND organization_id NOT GLOB '*[^0-9a-f-]*'),
-  created_by TEXT NOT NULL CHECK (length(created_by) = 36 AND created_by NOT GLOB '*[^0-9a-f-]*'),
+  subscription_id TEXT PRIMARY KEY NOT NULL,
+  created_at TEXT NOT NULL CONSTRAINT webhook_dispatch_state_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
+  organization_id TEXT NOT NULL
+    CONSTRAINT webhook_dispatch_state_organization_id_uuid CHECK (length(organization_id) = 36 AND organization_id NOT GLOB '*[^0-9a-f-]*' AND substr(organization_id, 9, 1) = '-' AND substr(organization_id, 14, 1) = '-' AND substr(organization_id, 19, 1) = '-' AND substr(organization_id, 24, 1) = '-'),
+  created_by TEXT NOT NULL
+    CONSTRAINT webhook_dispatch_state_created_by_uuid CHECK (length(created_by) = 36 AND created_by NOT GLOB '*[^0-9a-f-]*' AND substr(created_by, 9, 1) = '-' AND substr(created_by, 14, 1) = '-' AND substr(created_by, 19, 1) = '-' AND substr(created_by, 24, 1) = '-'),
   cursor_event_id TEXT NOT NULL
-    CHECK (length(cursor_event_id) = 36 AND cursor_event_id NOT GLOB '*[^0-9a-f-]*' AND substr(cursor_event_id, 9, 1) = '-' AND substr(cursor_event_id, 14, 1) = '-' AND substr(cursor_event_id, 19, 1) = '-' AND substr(cursor_event_id, 24, 1) = '-'),
-  last_dispatched_at TEXT CHECK (last_dispatched_at IS NULL OR coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', last_dispatched_at) = last_dispatched_at, 0)),
-  last_success_at TEXT CHECK (last_success_at IS NULL OR coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', last_success_at) = last_success_at, 0)),
+    CONSTRAINT webhook_dispatch_state_cursor_event_id_uuid CHECK (length(cursor_event_id) = 36 AND cursor_event_id NOT GLOB '*[^0-9a-f-]*' AND substr(cursor_event_id, 9, 1) = '-' AND substr(cursor_event_id, 14, 1) = '-' AND substr(cursor_event_id, 19, 1) = '-' AND substr(cursor_event_id, 24, 1) = '-'),
+  last_dispatched_at TEXT CONSTRAINT webhook_dispatch_state_last_dispatched_at_timestamp CHECK (last_dispatched_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', last_dispatched_at) = last_dispatched_at, 0))),
+  last_success_at TEXT CONSTRAINT webhook_dispatch_state_last_success_at_timestamp CHECK (last_success_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', last_success_at) = last_success_at, 0))),
   CONSTRAINT webhook_dispatch_state_subscription_fk FOREIGN KEY (organization_id, subscription_id) REFERENCES webhook_subscriptions (organization_id, id)
 ) STRICT;
 
 CREATE TABLE webhook_deliveries (
   id TEXT PRIMARY KEY NOT NULL
-    CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
-  created_at TEXT NOT NULL CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
-  organization_id TEXT NOT NULL CHECK (length(organization_id) = 36 AND organization_id NOT GLOB '*[^0-9a-f-]*'),
-  created_by TEXT NOT NULL CHECK (length(created_by) = 36 AND created_by NOT GLOB '*[^0-9a-f-]*'),
+    CONSTRAINT webhook_deliveries_id_uuid CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
+  created_at TEXT NOT NULL CONSTRAINT webhook_deliveries_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
+  organization_id TEXT NOT NULL
+    CONSTRAINT webhook_deliveries_organization_id_uuid CHECK (length(organization_id) = 36 AND organization_id NOT GLOB '*[^0-9a-f-]*' AND substr(organization_id, 9, 1) = '-' AND substr(organization_id, 14, 1) = '-' AND substr(organization_id, 19, 1) = '-' AND substr(organization_id, 24, 1) = '-'),
+  created_by TEXT NOT NULL
+    CONSTRAINT webhook_deliveries_created_by_uuid CHECK (length(created_by) = 36 AND created_by NOT GLOB '*[^0-9a-f-]*' AND substr(created_by, 9, 1) = '-' AND substr(created_by, 14, 1) = '-' AND substr(created_by, 19, 1) = '-' AND substr(created_by, 24, 1) = '-'),
   subscription_id TEXT NOT NULL,
   event_id TEXT NOT NULL
-    CHECK (length(event_id) = 36 AND event_id NOT GLOB '*[^0-9a-f-]*' AND substr(event_id, 9, 1) = '-' AND substr(event_id, 14, 1) = '-' AND substr(event_id, 19, 1) = '-' AND substr(event_id, 24, 1) = '-'),
+    CONSTRAINT webhook_deliveries_event_id_uuid CHECK (length(event_id) = 36 AND event_id NOT GLOB '*[^0-9a-f-]*' AND substr(event_id, 9, 1) = '-' AND substr(event_id, 14, 1) = '-' AND substr(event_id, 19, 1) = '-' AND substr(event_id, 24, 1) = '-'),
   event_type TEXT NOT NULL,
   status TEXT NOT NULL CONSTRAINT webhook_deliveries_status CHECK (status IN ('pending', 'delivered', 'dead', 'cancelled')),
-  attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
-  next_attempt_at TEXT NOT NULL CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', next_attempt_at) = next_attempt_at, 0)),
-  lease_until TEXT CHECK (lease_until IS NULL OR coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', lease_until) = lease_until, 0)),
+  attempts INTEGER NOT NULL DEFAULT 0 CONSTRAINT webhook_deliveries_attempts CHECK (attempts >= 0),
+  next_attempt_at TEXT NOT NULL CONSTRAINT webhook_deliveries_next_attempt_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', next_attempt_at) = next_attempt_at, 0)),
+  lease_until TEXT CONSTRAINT webhook_deliveries_lease_until_timestamp CHECK (lease_until IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', lease_until) = lease_until, 0))),
   lease_token TEXT,
-  last_attempt_at TEXT CHECK (last_attempt_at IS NULL OR coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', last_attempt_at) = last_attempt_at, 0)),
+  last_attempt_at TEXT CONSTRAINT webhook_deliveries_last_attempt_at_timestamp CHECK (last_attempt_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', last_attempt_at) = last_attempt_at, 0))),
   last_status_code INTEGER,
   last_error TEXT,
-  delivered_at TEXT CHECK (delivered_at IS NULL OR coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', delivered_at) = delivered_at, 0)),
+  delivered_at TEXT CONSTRAINT webhook_deliveries_delivered_at_timestamp CHECK (delivered_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', delivered_at) = delivered_at, 0))),
   CONSTRAINT webhook_deliveries_lease CHECK ((lease_until IS NULL) = (lease_token IS NULL) AND (lease_token IS NULL OR status = 'pending')),
   UNIQUE (subscription_id, event_id),
   CONSTRAINT webhook_deliveries_subscription_fk FOREIGN KEY (organization_id, subscription_id) REFERENCES webhook_subscriptions (organization_id, id)
@@ -211,15 +210,18 @@ CREATE INDEX idx_webhook_deliveries_list ON webhook_deliveries (organization_id,
 
 CREATE TABLE api_keys (
   id TEXT PRIMARY KEY NOT NULL
-    CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
-  created_at TEXT NOT NULL CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
-  updated_at TEXT NOT NULL CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', updated_at) = updated_at, 0)),
-  organization_id TEXT NOT NULL CHECK (length(organization_id) = 36 AND organization_id NOT GLOB '*[^0-9a-f-]*'),
-  agent_id TEXT NOT NULL CHECK (length(agent_id) = 36 AND agent_id NOT GLOB '*[^0-9a-f-]*'),
+    CONSTRAINT api_keys_id_uuid CHECK (length(id) = 36 AND id NOT GLOB '*[^0-9a-f-]*' AND substr(id, 9, 1) = '-' AND substr(id, 14, 1) = '-' AND substr(id, 19, 1) = '-' AND substr(id, 24, 1) = '-'),
+  created_at TEXT NOT NULL CONSTRAINT api_keys_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
+  updated_at TEXT NOT NULL CONSTRAINT api_keys_updated_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', updated_at) = updated_at, 0)),
+  organization_id TEXT NOT NULL
+    CONSTRAINT api_keys_organization_id_uuid CHECK (length(organization_id) = 36 AND organization_id NOT GLOB '*[^0-9a-f-]*' AND substr(organization_id, 9, 1) = '-' AND substr(organization_id, 14, 1) = '-' AND substr(organization_id, 19, 1) = '-' AND substr(organization_id, 24, 1) = '-'),
+  agent_id TEXT NOT NULL
+    CONSTRAINT api_keys_agent_id_uuid CHECK (length(agent_id) = 36 AND agent_id NOT GLOB '*[^0-9a-f-]*' AND substr(agent_id, 9, 1) = '-' AND substr(agent_id, 14, 1) = '-' AND substr(agent_id, 19, 1) = '-' AND substr(agent_id, 24, 1) = '-'),
   key_hash TEXT NOT NULL UNIQUE,
   prefix TEXT NOT NULL,
-  last_used_at TEXT CHECK (last_used_at IS NULL OR coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', last_used_at) = last_used_at, 0)),
-  revoked_at TEXT CHECK (revoked_at IS NULL OR coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', revoked_at) = revoked_at, 0)),
-  expires_at TEXT CHECK (expires_at IS NULL OR coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', expires_at) = expires_at, 0)),
-  created_by TEXT NOT NULL CHECK (length(created_by) = 36 AND created_by NOT GLOB '*[^0-9a-f-]*')
+  last_used_at TEXT CONSTRAINT api_keys_last_used_at_timestamp CHECK (last_used_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', last_used_at) = last_used_at, 0))),
+  revoked_at TEXT CONSTRAINT api_keys_revoked_at_timestamp CHECK (revoked_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', revoked_at) = revoked_at, 0))),
+  expires_at TEXT CONSTRAINT api_keys_expires_at_timestamp CHECK (expires_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', expires_at) = expires_at, 0))),
+  created_by TEXT NOT NULL
+    CONSTRAINT api_keys_created_by_uuid CHECK (length(created_by) = 36 AND created_by NOT GLOB '*[^0-9a-f-]*' AND substr(created_by, 9, 1) = '-' AND substr(created_by, 14, 1) = '-' AND substr(created_by, 19, 1) = '-' AND substr(created_by, 24, 1) = '-')
 ) STRICT;

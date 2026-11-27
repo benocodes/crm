@@ -51,8 +51,8 @@ CREATE TABLE tasks (
   created_at TEXT NOT NULL CONSTRAINT tasks_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
   updated_at TEXT NOT NULL CONSTRAINT tasks_updated_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', updated_at) = updated_at, 0)),
   organization_id TEXT NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  notes TEXT,
+  title TEXT NOT NULL CONSTRAINT tasks_title_length CHECK (length(title) BETWEEN 1 AND 500),
+  notes TEXT CONSTRAINT tasks_notes_length CHECK (notes IS NULL OR (length(notes) <= 10000)),
   status TEXT NOT NULL DEFAULT 'open' CONSTRAINT tasks_status CHECK (status IN ('open', 'done')),
   due_at TEXT CONSTRAINT tasks_due_at_timestamp CHECK (due_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', due_at) = due_at, 0))),
   completed_at TEXT CONSTRAINT tasks_completed_at_timestamp CHECK (completed_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', completed_at) = completed_at, 0))),
@@ -72,8 +72,9 @@ CREATE TABLE companies (
   organization_id TEXT NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
   created_by TEXT NOT NULL REFERENCES principals (id),
   deleted_at TEXT CONSTRAINT companies_deleted_at_timestamp CHECK (deleted_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', deleted_at) = deleted_at, 0))),
-  name TEXT NOT NULL,
-  domain TEXT CONSTRAINT companies_domain CHECK (domain IS NULL OR (domain = lower(domain) AND domain NOT GLOB '*[^ -~]*')),
+  name TEXT NOT NULL CONSTRAINT companies_name_length CHECK (length(name) BETWEEN 1 AND 500),
+  domain TEXT CONSTRAINT companies_domain CHECK (domain IS NULL OR (domain = lower(domain) AND domain NOT GLOB '*[^ -~]*'))
+    CONSTRAINT companies_domain_length CHECK (domain IS NULL OR (length(domain) <= 253)),
   additional_props TEXT NOT NULL DEFAULT '{}' CONSTRAINT companies_additional_props CHECK (json_valid(additional_props) AND json_type(additional_props) = 'object')
 ) STRICT;
 
@@ -90,7 +91,7 @@ CREATE TABLE contacts (
   organization_id TEXT NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
   created_by TEXT NOT NULL REFERENCES principals (id),
   deleted_at TEXT CONSTRAINT contacts_deleted_at_timestamp CHECK (deleted_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', deleted_at) = deleted_at, 0))),
-  name TEXT,
+  name TEXT CONSTRAINT contacts_name_length CHECK (name IS NULL OR (length(name) BETWEEN 1 AND 500)),
   company_id TEXT,
   merged_into_id TEXT,
   additional_props TEXT NOT NULL DEFAULT '{}' CONSTRAINT contacts_additional_props CHECK (json_valid(additional_props) AND json_type(additional_props) = 'object'),

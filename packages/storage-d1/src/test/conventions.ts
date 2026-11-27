@@ -551,7 +551,8 @@ export async function readCatalogue(d1: D1Like): Promise<Catalogue> {
 
 /**
  * Columns whose names say id (or a timestamp) but whose values are not minted by Vibase. Each is confirmed against the code
- * that writes it; a column always written as a UUID is checked, not exempted. The control entries come with [[CORE683]].
+ * that writes it; a column always written as a UUID is checked, not exempted. The control entry is [[CORE683]] D9/D11: `control_audit.actor_id` is
+ * always a Vibase principal id (a UUID, and the old short CHECK already refused anything else), so it carries the canonical CHECK, not an exemption.
  */
 export const CONVENTION_EXEMPTIONS: readonly ConventionExemption[] = [
   {
@@ -601,5 +602,11 @@ export const CONVENTION_EXEMPTIONS: readonly ConventionExemption[] = [
     table: 'forms',
     column: 'public_id',
     reason: 'the public form id `frm_...`, a different shape with its own CHECK',
+  },
+  {
+    database: 'control',
+    table: 'control_audit',
+    column: 'target_id',
+    reason: 'the audited target: a Vibase id, or a Better Auth user id (user.sessions_revoked, user.reset_link_issued), which is not a UUID',
   },
 ]
