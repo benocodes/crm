@@ -333,8 +333,8 @@ describe('3. a raised role reaches the record through a new consent (666.26, D1,
         ).scopes,
       ) as string[]
     expect(await record()).toEqual(['contacts:read'])
-    // Unchanged role: the stored consent covers the same request, so no page and no change.
-    expect((await authorize(wk, m.cookie, client, ask)).page).toBe(false)
+    // The stored consent is the narrowed list, so it does not cover this request: the page is shown (666.24's revisit: a member is shown it again on each reconnect that asks out-of-role scopes).
+    expect((await authorize(wk, m.cookie, client, ask)).page).toBe(true)
     await w.d1.prepare("update memberships set role = 'owner' where user_id = ?").bind(m.id).run()
     const second = await connect(wk, m.cookie, client, ask)
     expect(second.scopes).toEqual(['contacts:read', 'webhooks:read'])

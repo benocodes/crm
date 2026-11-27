@@ -197,6 +197,16 @@ export async function getClientName(clientId: string): Promise<ApiResult<{ name?
   return { ok: true, data: name ? { name } : {} }
 }
 
+/** [[CORE673]] D11, P3: `GET /auth/consent-bound`: what the signed-in account may approve for a connector (session cookie; `401` without one). The one list the server's consent hook narrows to. */
+export async function getConsentBound(): Promise<ApiResult<{ kind: 'person' | 'agent'; scopes: string[] }>> {
+  const r = await call('GET', '/auth/consent-bound')
+  if (!r.ok) return r
+  const d = r.data as { kind?: unknown; scopes?: unknown } | null | undefined
+  if ((d?.kind !== 'person' && d?.kind !== 'agent') || !Array.isArray(d.scopes))
+    return { ok: false, status: 200, code: 'invalid_bound' }
+  return { ok: true, data: { kind: d.kind, scopes: d.scopes.filter((s): s is string => typeof s === 'string') } }
+}
+
 /** `POST /auth/oauth2/consent`: the signed query verbatim ([[UI247]] D4), and on Allow the `scope` the person switched on ([[UI449]] D6; Deny sends none). A success without a followable redirect is a failure. */
 export async function submitConsent(
   accept: boolean,

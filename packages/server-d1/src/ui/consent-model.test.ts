@@ -230,7 +230,7 @@ describe('buildConsentModel with the approving account bound (CORE673)', () => {
       kind: 'person',
       scopes: ['webhooks:request_approval'],
     })
-    const state = { ...defaultState(m), 'integrations:write': true }
+    const state: Record<string, boolean> = { ...defaultState(m), 'integrations:write': true }
     expect(find(m, 'integrations:write').disabled).toBe(true)
     expect(find(m, 'integrations:request_approval').disabled).toBe(false)
     state['integrations:request_approval'] = false

@@ -28,13 +28,14 @@ const run = async (
   return (out?.context.body.scope as string | undefined)?.split(' ').sort().join(' ')
 }
 
-const OWNER = { kind: 'person' as const, scopes: ['contacts:read', 'contacts:write', 'webhooks:read', 'audit:read'] }
-const MEMBER = { kind: 'person' as const, scopes: ['contacts:read', 'contacts:write'] }
-const NONE = { kind: 'person' as const, scopes: [] }
-const AGENT = { kind: 'agent' as const, scopes: ['contacts:read'] }
+type Bound = { kind: 'person' | 'agent'; scopes: string[] }
+const OWNER: Bound = { kind: 'person', scopes: ['contacts:read', 'contacts:write', 'webhooks:read', 'audit:read'] }
+const MEMBER: Bound = { kind: 'person' as const, scopes: ['contacts:read', 'contacts:write'] }
+const NONE: Bound = { kind: 'person' as const, scopes: [] }
+const AGENT: Bound = { kind: 'agent' as const, scopes: ['contacts:read'] }
 
 describe('the consent hook narrows to the approving account (matrix: account x accept body)', () => {
-  const cases: Array<[string, string, typeof OWNER, string]> = [
+  const cases: Array<[string, string, Bound, string]> = [
     // [body name, body scope, bound, expected]
     ['only in-bound scopes', 'contacts:read', OWNER, 'contacts:read'],
     ['only in-bound scopes', 'contacts:read', MEMBER, 'contacts:read'],

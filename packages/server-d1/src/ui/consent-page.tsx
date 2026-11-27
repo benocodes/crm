@@ -1,12 +1,22 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Alert, Button, Card, ScopeList, ui } from '@vibase/ui/components'
-import { getClientName, getSession, signOut, submitConsent, type ApiFailure, type SessionUser } from './auth-api.js'
+import {
+  getClientName,
+  getConsentBound,
+  getSession,
+  signOut,
+  submitConsent,
+  type ApiFailure,
+  type SessionUser,
+} from './auth-api.js'
 import {
   buildConsentModel,
   defaultState,
   effectiveOn,
   grantedScopes,
+  nothingHeld,
   type AreaModel,
+  type ConsentBound,
   type SwitchState,
 } from './consent-model.js'
 import { MESSAGES, consentReturnsTo, genericFailure, permissionsOf, showPermissions } from './messages.js'
@@ -39,12 +49,22 @@ function Disclosure({ scopes, label }: { scopes: readonly string[]; label: strin
   )
 }
 
-function Area({ area, state, setState }: { area: AreaModel; state: SwitchState; setState: (s: SwitchState) => void }) {
+function Area({
+  area,
+  state,
+  setState,
+  kind,
+}: {
+  area: AreaModel
+  state: SwitchState
+  setState: (s: SwitchState) => void
+  kind: ConsentBound['kind'] | undefined
+}) {
   const uid = useId()
   const model = { requested: [], signIn: [], areas: [area] }
   const legendId = `${uid}-legend`
   const write = area.switches.find((w) => w.kind === 'write')
-  const forced = !!write && !!state[write.id]
+  const forced = !!write && !write.disabled && !!state[write.id]
   return (
     <fieldset className="flex flex-col gap-2 rounded-md border p-3">
       <legend id={legendId} className="px-1 font-medium">
@@ -55,17 +75,24 @@ function Area({ area, state, setState }: { area: AreaModel; state: SwitchState; 
         const labelId = `${uid}-${w.id}`
         const lock = w.kind === 'request_approval' && forced
         return (
-          <div key={w.id} className="flex items-center gap-2">
-            <ui.Switch
-              id={`${labelId}-switch`}
-              aria-labelledby={`${legendId} ${labelId}`}
-              checked={effectiveOn(model, state, w)}
-              disabled={lock}
-              onCheckedChange={(on) => setState({ ...state, [w.id]: on })}
-            />
-            <ui.Label id={labelId} htmlFor={`${labelId}-switch`}>
-              {w.label}
-            </ui.Label>
+          <div key={w.id} className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <ui.Switch
+                id={`${labelId}-switch`}
+                aria-labelledby={`${legendId} ${labelId}`}
+                checked={effectiveOn(model, state, w)}
+                disabled={lock || w.disabled}
+                onCheckedChange={(on) => setState({ ...state, [w.id]: on })}
+              />
+              <ui.Label id={labelId} htmlFor={`${labelId}-switch`}>
+                {w.label}
+              </ui.Label>
+            </div>
+            {w.disabled ? (
+              <p className="text-sm text-muted-foreground">
+                {kind === 'agent' ? MESSAGES.switchNotHeldAgent : MESSAGES.switchNotHeldPerson}
+              </p>
+            ) : null}
           </div>
         )
       })}
@@ -89,7 +116,9 @@ export function ConsentPage({ navigate = goTo }: PageProps) {
   const [session, setSession] = useState<SessionUser | null | undefined>(undefined)
   const [clientName, setClientName] = useState<string | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
-  const model = buildConsentModel((params.get('scope') ?? '').split(/\s+/))
+  // [[CORE673]] D11: what the signed-in account may approve, read once with the session; `'failed'` offers no Allow.
+  const [bound, setBound] = useState<ConsentBound | 'failed' | undefined>(undefined)
+  const model = buildConsentModel((params.get('scope') ?? '').split(/\s+/), bound === 'failed' ? undefined : bound)
   const [state, setState] = useState<SwitchState>(() => defaultState(model))
   const [busy, setBusy] = useState<'allow' | 'deny' | 'out' | undefined>(undefined)
   const alertRef = useRef<HTMLDivElement>(null)
@@ -105,6 +134,10 @@ export function ConsentPage({ navigate = goTo }: PageProps) {
       if (!user) return toSignIn()
       const client = await getClientName(clientId!)
       if (!live) return
+      const held = await getConsentBound()
+      if (!live) return
+      if (!held.ok && held.status === 401) return toSignIn()
+      setBound(held.ok ? held.data : 'failed')
       setClientName(client.ok && client.data.name ? client.data.name : clientId!)
       setSession(user)
     })
@@ -137,22 +170,27 @@ export function ConsentPage({ navigate = goTo }: PageProps) {
     else fail(genericFailure(r.status))
   }
   const host = hostOf(params.get('redirect_uri'))
-  const nothingOn = grantedScopes(model, state) === ''
+  const failedBound = bound === 'failed'
+  const noneHeld = !failedBound && nothingHeld(model)
+  const nothingOn = !failedBound && !noneHeld && grantedScopes(model, state) === ''
 
   return (
     <Card
       title="Allow access?"
       actions={
         <>
-          <Button busy={busy === 'allow'} disabled={nothingOn} onClick={() => void decide(true)}>
-            Allow
-          </Button>
+          {failedBound ? null : (
+            <Button busy={busy === 'allow'} disabled={nothingOn || noneHeld} onClick={() => void decide(true)}>
+              Allow
+            </Button>
+          )}
           <Button variant="secondary" busy={busy === 'deny'} onClick={() => void decide(false)}>
             Deny
           </Button>
         </>
       }
     >
+      {failedBound ? <Alert variant="error">{MESSAGES.consentBoundFailed}</Alert> : null}
       {error ? (
         <Alert variant="error" ref={alertRef}>
           {error}
@@ -184,11 +222,18 @@ export function ConsentPage({ navigate = goTo }: PageProps) {
           tabIndex={0}
         >
           {model.areas.map((area) => (
-            <Area key={area.key} area={area} state={state} setState={setState} />
+            <Area
+              key={area.key}
+              area={area}
+              state={state}
+              setState={setState}
+              kind={bound === 'failed' ? undefined : bound?.kind}
+            />
           ))}
         </section>
       ) : null}
       {nothingOn ? <p className="text-sm">{MESSAGES.consentNothingOn}</p> : null}
+      {noneHeld ? <p className="text-sm">{MESSAGES.consentNothingHeld}</p> : null}
     </Card>
   )
 }

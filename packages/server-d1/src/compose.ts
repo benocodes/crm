@@ -296,6 +296,8 @@ function withAuthCors(res: Response, origin: string): Response {
 
 const OAUTH_REGISTER_PATH = '/auth/oauth2/register'
 const OAUTH_TOKEN_PATH = '/auth/oauth2/token'
+/** [[CORE673]] P3: the consent page's same-origin read of what the signed-in account may approve; served beside the library's routes, behind the same gates, authenticated by its session cookie. Not a registry operation. */
+const CONSENT_BOUND_PATH = '/auth/consent-bound'
 
 /** [[API622]] D6, D9: a copy of `res` with the credential-free CORS answer for a bearer app origin. `set` replaces any `Access-Control-Allow-Origin` (never two); the plugin's other headers (Expose-Headers) are kept. */
 function withBearerCors(res: Response, origin: string): Response {
@@ -555,6 +557,19 @@ export function composeD1Worker(
       dcrScopeInputs.grantableScopes,
       discovery.declaredScopes,
     )
+  }
+  /** [[CORE673]] P3: `{ kind, scopes }` of the session's account, the one function the consent hook calls (`approvalBoundOf`). `401` with no session (nothing is read); a failing read is `500`, never a partial list. */
+  async function consentBound(req: Request): Promise<Response> {
+    try {
+      const subject = await builtInAuth().sessionSubject(req.headers)
+      if (subject === null) return json({ error: { code: 'unauthorized', message: 'sign in first' } }, 401)
+      const res = json(await approvalBoundOf(subject), 200)
+      res.headers.set('cache-control', 'no-store')
+      return res
+    } catch (err) {
+      console.error('[consent-bound]', err instanceof Error ? err.name : 'error')
+      return json(INTERNAL, 500)
+    }
   }
   function builtInAuth(): AuthService {
     builtInService ??= createAuth(
@@ -1127,6 +1142,7 @@ export function composeD1Worker(
             const refused = await controlGate()
             if (refused) return refused
             // [[CORE259]] D3: Better Auth is composed on the control-plane database, never on `DB`.
+            if (req.method === 'GET' && url.pathname === CONSENT_BOUND_PATH) return await consentBound(req)
             return await builtInAuth().handler(req)
           }
           const res = await answer()

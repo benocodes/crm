@@ -21,7 +21,7 @@ import { agents } from '../resources/agents.js'
 import { afterOf, columnsOf, receipt, selectRecord, toRecord } from '../storage/crud.js'
 import type { PreparedEnv } from '../storage/definition.js'
 import { admittedRole, membershipRoleRead } from './membership-role.js'
-import type { Role } from './roles.js'
+import { scopesForRole, type Role } from './roles.js'
 import type { InternalEnv } from '../storage/internal.js'
 
 /**
@@ -152,7 +152,18 @@ export async function approvalBound(
   declared: readonly string[],
 ): Promise<ApprovalBound> {
   const found = await lookupPrincipal(storage, { ...a, clientId: null })
-  if (found.account === null || found.userId !== null) return { kind: 'person', scopes: [] }
+  if (found.account === null || found.userId !== null) {
+    const role = found.membershipRole ?? null
+    return {
+      kind: 'person',
+      scopes:
+        role === null
+          ? []
+          : scopesForRole(role, declared)
+              .toStrings()
+              .filter((s) => grantable.includes(s)),
+    }
+  }
   if (found.account.disabled) return { kind: 'agent', scopes: [] }
   // Closed like the authenticator closes every list (write implies request_approval, read_metadata under read) before it meets them: a record holding contacts:write holds contacts:request_approval too.
   return {

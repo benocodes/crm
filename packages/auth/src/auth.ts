@@ -390,9 +390,17 @@ async function presentedToken(ctx: { headers?: Headers } | null | undefined): Pr
  * declared scope before that intersection, so it becomes the agent's whole grant, and it never survives: an agent account never holds `all_permissions`.
  */
 function narrowToGrant(requested: string, granted: readonly string[]): string {
+  return narrowToBound(requested, granted, false)
+}
+
+/**
+ * [[CORE673]] D11: the same cut for an accepting consent of either kind of account. A person's `all_permissions` passes untouched (it already means the role, live, [[CORE660]]); an agent account's is expanded to its record as above.
+ */
+function narrowToBound(requested: string, granted: readonly string[], person: boolean): string {
   const names = requested.split(/\s+/).filter((s) => s !== '')
-  const expanded = names.flatMap((s) => (s === FULL_ACCESS_SCOPE ? granted : [s]))
-  const keep = (s: string) => (AUTH_SCOPES as readonly string[]).includes(s) || granted.includes(s)
+  const expanded = names.flatMap((s) => (s === FULL_ACCESS_SCOPE && !person ? granted : [s]))
+  const keep = (s: string) =>
+    (AUTH_SCOPES as readonly string[]).includes(s) || granted.includes(s) || (person && s === FULL_ACCESS_SCOPE)
   return [...new Set(expanded.filter(keep))].join(' ')
 }
 
@@ -461,13 +469,16 @@ export async function narrowApproval(
   } catch {
     throw refuseApproval()
   }
-  if (bound.kind === 'person') return undefined
+  // [[CORE673]] P2: a person's device approval is never narrowed (their token is met with the role live); only an accepting consent is.
+  if (bound.kind === 'person' && !consent) return undefined
   const granted = bound.scopes
   if (consent) {
     const query = typeof ctx.body?.oauth_query === 'string' ? new URLSearchParams(ctx.body.oauth_query) : null
     const requested = typeof ctx.body?.scope === 'string' ? ctx.body.scope : (query?.get('scope') ?? undefined)
     if (requested === undefined) return undefined
-    return { context: { body: { ...ctx.body, scope: narrowToGrant(requested, granted) } } }
+    return {
+      context: { body: { ...ctx.body, scope: narrowToBound(requested, granted, bound.kind === 'person') } },
+    }
   }
   const code = String((path === DEVICE_CLAIM_ENDPOINT ? ctx.query?.user_code : ctx.body?.userCode) ?? '')
   const find = (value: string) =>
