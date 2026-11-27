@@ -476,7 +476,7 @@ tracker inside its own database. No foreign key or trigger crosses them; they li
   `openLocalD1(..., { control })` (`@vibase/storage-d1/test`); locally, `wrangler d1 migrations apply CONTROL_DB --local`.
 - **Control genesis begins with Better Auth's DDL** (`pnpm -C packages/auth schema:generate` prints it and writes nothing) and
   `packages/auth/src/schema.test.ts` compares the head of the file with it, then `CONTROL_DEPLOYMENT_DDL`; that test splits on
-  `;`, so a header comment must contain none. A Better Auth upgrade that changes the schema is written into genesis by hand.
+  `;`, so a header comment must contain none. Genesis is frozen ([[OPS681]]): a Better Auth DDL change goes into a new control migration, and `schema.test.ts` is then reworked to compare against the migrated schema, not the genesis head.
 - **Tooling maps each database by its `binding`, never by position** ([[OPS260]]): `DB` → `migrations/`,
   `CONTROL_DB` → `control-migrations/`, each with its own `database_id` and `migrations_dir`
   (`packages/release/src/check-config.ts`). `db:migrate:remote` applies control first and stops on its failure;
