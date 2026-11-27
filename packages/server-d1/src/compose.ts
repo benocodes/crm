@@ -25,7 +25,7 @@ import {
   openApiPath,
   createBetterAuthAdapter,
   createWorkspaceAuthAdapter,
-  agentAccountGrant,
+  approvalBound,
   defaultGrantScopes,
   grantableScopes,
   logEmailFailure,
@@ -42,6 +42,7 @@ import {
   workerdStreams,
   workspaceRole,
   type ApiKeyControlRuntime,
+  type ApprovalBound,
   type AuditRuntime,
   type AuthAdapter,
   type InvitationsRuntime,
@@ -545,6 +546,16 @@ export function composeD1Worker(
    * The built-in provider ([[CORE259]] D3: composed on the control-plane database, never on `DB`), built once per isolate: the `/auth` handler and the in-process reset-link issue share one instance.
    * [[CORE287]]: the gate and acceptance. The port is the only way the auth package reaches the vault; the CRM binding is resolved per call from the deployment row. Only called once `builtInConfig` and `control` exist.
    */
+  async function approvalBoundOf(subject: string): Promise<ApprovalBound> {
+    const link = await readDeployment(env.DB)
+    if (!link) throw new Error('the deployment is not initialised')
+    return approvalBound(
+      d1Binding(env.DB, link),
+      { provider: 'better-auth', subject, organizationId: link.organizationId },
+      dcrScopeInputs.grantableScopes,
+      discovery.declaredScopes,
+    )
+  }
   function builtInAuth(): AuthService {
     builtInService ??= createAuth(
       controlAuthDatabase(control!),
@@ -597,17 +608,8 @@ export function composeD1Worker(
           if (!link) return false
           return (await membershipRoleReader(d1Binding(env.DB, link), 'better-auth')(subject)) === 'owner'
         },
-        // [[CORE662]] ([[CORE630]] D11): an agent account's approval is narrowed to its record, read live from the CRM database (closed on a failing read: the auth package refuses the approval).
-        agentGrant: async (subject) => {
-          const link = await readDeployment(env.DB)
-          if (!link) throw new Error('the deployment is not initialised')
-          return agentAccountGrant(
-            d1Binding(env.DB, link),
-            { provider: 'better-auth', subject },
-            dcrScopeInputs.grantableScopes,
-            discovery.declaredScopes,
-          )
-        },
+        // [[CORE673]] ([[CORE666]] D11, generalising [[CORE662]]): what the signed-in account may approve, the one read the consent hook and `GET /auth/consent-bound` share (closed on a failing read: the auth package refuses the approval).
+        approvalBound: approvalBoundOf,
       },
     )
     return builtInService

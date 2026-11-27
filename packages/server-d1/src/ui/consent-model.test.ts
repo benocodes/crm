@@ -193,3 +193,58 @@ describe('read_metadata rides on the Read switch', () => {
     expect(crm.switches.find((w) => w.kind === 'read')!.scopes).toEqual(['contacts:read'])
   })
 })
+
+// [[CORE673]] D11 (the page's model): the switches the approving account cannot approve are disabled, a partly-held switch grants only its held scopes.
+describe('buildConsentModel with the approving account bound (CORE673)', () => {
+  const MEMBER = { kind: 'person' as const, scopes: ['contacts:read', 'contacts:write', 'contacts:request_approval'] }
+  const REQUEST = ['openid', 'contacts:read', 'contacts:write', 'webhooks:read']
+  const find = (m: ReturnType<typeof buildConsentModel>, id: string) =>
+    m.areas.flatMap((a) => a.switches).find((w) => w.id === id)!
+
+  it('a switch none of whose scopes is held is disabled, and a held one is not', () => {
+    const m = buildConsentModel(REQUEST, MEMBER)
+    expect(find(m, 'integrations:read').disabled).toBe(true)
+    expect(find(m, 'crm:read').disabled).toBe(false)
+    expect(find(m, 'crm:write').disabled).toBe(false)
+  })
+
+  it('a disabled switch is never on, even when its state says on, and never reaches the granted scope', () => {
+    const m = buildConsentModel(REQUEST, MEMBER)
+    const on = Object.fromEntries(Object.keys(defaultState(m)).map((k) => [k, true]))
+    expect(effectiveOn(m, on, find(m, 'integrations:read'))).toBe(false)
+    expect(grantedScopes(m, on)).toBe('openid contacts:read contacts:write')
+  })
+
+  it('a partly-held switch is enabled and grants only its held scopes (read_metadata rides on Read, API518 D2)', () => {
+    const m = buildConsentModel(['messages:read', 'messages:read_metadata'], {
+      kind: 'agent',
+      scopes: ['messages:read_metadata'],
+    })
+    const read = find(m, 'messages:read')
+    expect(read.disabled).toBe(false)
+    expect(grantedScopes(m, defaultState(m))).toBe('messages:read_metadata')
+  })
+
+  it('a disabled Write never forces Propose on', () => {
+    const m = buildConsentModel(['webhooks:read', 'webhooks:request_approval', 'webhooks:write'], {
+      kind: 'person',
+      scopes: ['webhooks:request_approval'],
+    })
+    const state = { ...defaultState(m), 'integrations:write': true }
+    expect(find(m, 'integrations:write').disabled).toBe(true)
+    expect(find(m, 'integrations:request_approval').disabled).toBe(false)
+    state['integrations:request_approval'] = false
+    expect(effectiveOn(m, state, find(m, 'integrations:request_approval'))).toBe(false)
+    expect(grantedScopes(m, state)).toBe('')
+  })
+
+  it('no bound means every switch is held (the model for a page that has not asked)', () => {
+    const m = buildConsentModel(REQUEST)
+    expect(m.areas.flatMap((a) => a.switches).some((w) => w.disabled)).toBe(false)
+  })
+
+  it('all_permissions is held by a person: it passes the hook untouched', () => {
+    const m = buildConsentModel(['all_permissions'], { kind: 'person', scopes: [] })
+    expect(m.areas.flatMap((a) => a.switches).every((w) => !w.disabled)).toBe(true)
+  })
+})

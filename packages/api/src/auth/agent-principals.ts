@@ -137,23 +137,30 @@ export async function lookupPrincipal(
   }
 }
 
+/** [[CORE673]] D11: what a signed-in account may approve for a connector, and whether it is a person or an agent account. */
+export type ApprovalBound = { kind: 'person' | 'agent'; scopes: string[] }
+
 /**
- * [[CORE662]] ([[CORE630]] D11): what the vault's record grants the agent account behind a Better Auth subject, for the approval of a sign-in: its stored scopes met with `grantable` (never a human-only scope). `null` when the subject is
- * not an agent account (no agent linked to it, or it is also a person: the authenticator refuses that mix, and a person's approval is never narrowed); `[]` for a disabled account. Read-only, live, no cache; a failing read throws.
+ * [[CORE673]] ([[CORE666]] D11), generalising [[CORE662]]'s `agentAccountGrant`: the ONE read of what the account behind a Better Auth subject may approve, live, no cache, used by the consent hook and the consent page's read alike (P4).
+ * An agent account ([[CORE630]] D11, as before): its stored scopes closed and met with `grantable` (`[]` when disabled). A person: their live membership's role scopes (`scopesForRole`, closed) met with `grantable`; no live membership is a
+ * person with nothing (P1). A subject that is also a person is a person (the authenticator refuses that mix). A failing read throws.
  */
-export async function agentAccountGrant(
+export async function approvalBound(
   storage: StorageBinding,
-  a: { provider: string; subject: string },
+  a: { provider: string; subject: string; organizationId: string },
   grantable: readonly string[],
   declared: readonly string[],
-): Promise<string[] | null> {
-  const found = await lookupPrincipal(storage, { provider: a.provider, subject: a.subject, clientId: null })
-  if (found.account === null || found.userId !== null) return null
-  if (found.account.disabled) return []
+): Promise<ApprovalBound> {
+  const found = await lookupPrincipal(storage, { ...a, clientId: null })
+  if (found.account === null || found.userId !== null) return { kind: 'person', scopes: [] }
+  if (found.account.disabled) return { kind: 'agent', scopes: [] }
   // Closed like the authenticator closes every list (write implies request_approval, read_metadata under read) before it meets them: a record holding contacts:write holds contacts:request_approval too.
-  return closeScopes(found.account.scopes, declared)
-    .filter((s) => grantable.includes(s))
-    .sort()
+  return {
+    kind: 'agent',
+    scopes: closeScopes(found.account.scopes, declared)
+      .filter((s) => grantable.includes(s))
+      .sort(),
+  }
 }
 
 type NewAgent = {
