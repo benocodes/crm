@@ -2,7 +2,7 @@
 //   pnpm test-scan scan [path-prefix ...] [--dry-run] [--limit n] [--concurrency n] [--max-input-tokens n] [--max-state-chars n] [--out dir]
 //   pnpm test-scan extract [--removal-threshold p] [--keep-threshold p] [--out dir]
 // Credentials: CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in the environment (scan only, never --dry-run). Exit codes: 0 ok, 1 some cases failed, 2 refused, 3 input-token ceiling hit.
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { extract } from './extract.ts'
 import { EXIT, scan } from './scan.ts'
@@ -49,7 +49,7 @@ async function main(argv: string[]): Promise<number> {
     console.log(HELP)
     return command || values.help ? EXIT.ok : EXIT.refused
   }
-  const outDir = join(root, values.out ?? '.test-scan')
+  const outDir = resolve(root, values.out ?? '.test-scan')
   if (command === 'scan') {
     const { exitCode } = await scan({
       root,

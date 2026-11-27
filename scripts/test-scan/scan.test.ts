@@ -168,9 +168,9 @@ describe('store and resume (D5)', () => {
     fake = await startFakeClef()
     writeFileSync(join(root, 'pkg/bad.test.ts'), "it('x', () => {")
     writeFileSync(join(root, 'pkg/none.test.ts'), 'export const x = 1')
-    const r = await run({ files: [...FILES, 'pkg/bad.test.ts', 'pkg/none.test.ts'], maxStateChars: 150 })
+    const r = await run({ files: [...FILES, 'pkg/bad.test.ts', 'pkg/none.test.ts'], maxStateChars: 80 })
     expect(r.summary).toMatchObject({ files: 4, cases: 5, unparsed: 1, empty: 1 })
-    expect(r.summary.truncated).toBeGreaterThanOrEqual(0)
+    expect(r.summary.truncated).toBe(5)
   })
 })
 
