@@ -808,7 +808,8 @@ A test that fails once and then passes is a bug until its cause is found. Do not
   the gate **hangs instead of failing**: [[CORE350]]'s first two gates, at load 40–65 from macOS system processes
   (StorageManagement, contactsd, fseventsd; no agent sessions), churned in the `packages` step (server-d1) for 80+
   minutes; the same sha was green in about 5 minutes at load about 18. Don't start a gate above load ~30; a gate past
-  20 minutes is a hang to kill and rerun once the load drops, never evidence about the code.
+  20 minutes is a hang to kill and rerun once the load drops, never evidence about the code. [[OPS670]]'s first gate
+  went red on timeouts under load and the same sha was green on the rerun: a free gate round, not a coder round.
 - **Event order.** See "Assert emit order" in section 6; never order by `id` in a test.
 - **Known flake: `packages/server-d1/src/measured-limits.test.ts`** is intermittently off by one on pinned query counts,
   on clean `main` too ([[CORE62]], [[API32]], [[API63]], [[CORE69]] on `merge-100-links`; issue #79). Until #79 lands, when it fails, record the scenario
