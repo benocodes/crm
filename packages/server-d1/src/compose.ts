@@ -25,7 +25,7 @@ import {
   openApiPath,
   createBetterAuthAdapter,
   createWorkspaceAuthAdapter,
-  agentAccountGrant,
+  approvalBound,
   defaultGrantScopes,
   grantableScopes,
   logEmailFailure,
@@ -42,6 +42,7 @@ import {
   workerdStreams,
   workspaceRole,
   type ApiKeyControlRuntime,
+  type ApprovalBound,
   type AuditRuntime,
   type AuthAdapter,
   type InvitationsRuntime,
@@ -295,6 +296,8 @@ function withAuthCors(res: Response, origin: string): Response {
 
 const OAUTH_REGISTER_PATH = '/auth/oauth2/register'
 const OAUTH_TOKEN_PATH = '/auth/oauth2/token'
+/** [[CORE673]] P3: the consent page's same-origin read of what the signed-in account may approve; served beside the library's routes, behind the same gates, authenticated by its session cookie. Not a registry operation. */
+const CONSENT_BOUND_PATH = '/auth/consent-bound'
 
 /** [[API622]] D6, D9: a copy of `res` with the credential-free CORS answer for a bearer app origin. `set` replaces any `Access-Control-Allow-Origin` (never two); the plugin's other headers (Expose-Headers) are kept. */
 function withBearerCors(res: Response, origin: string): Response {
@@ -540,6 +543,29 @@ export function composeD1Worker(
     return undefined
   }
 
+  async function approvalBoundOf(subject: string): Promise<ApprovalBound> {
+    const link = await readDeployment(env.DB)
+    if (!link) throw new Error('the deployment is not initialised')
+    return approvalBound(
+      d1Binding(env.DB, link),
+      { provider: 'better-auth', subject, organizationId: link.organizationId },
+      dcrScopeInputs.grantableScopes,
+      discovery.declaredScopes,
+    )
+  }
+  /** [[CORE673]] P3: `{ kind, scopes }` of the session's account, the one function the consent hook calls (`approvalBoundOf`). `401` with no session (nothing is read); a failing read is `500`, never a partial list. */
+  async function consentBound(req: Request): Promise<Response> {
+    try {
+      const subject = await builtInAuth().sessionSubject(req.headers)
+      if (subject === null) return json({ error: { code: 'unauthorized', message: 'sign in first' } }, 401)
+      const res = json(await approvalBoundOf(subject), 200)
+      res.headers.set('cache-control', 'no-store')
+      return res
+    } catch (err) {
+      console.error('[consent-bound]', err instanceof Error ? err.name : 'error')
+      return json(INTERNAL, 500)
+    }
+  }
   /** The app bound to the marker, once the marker exists. Only success is cached. A missing marker table is an absent marker. */
   /**
    * The built-in provider ([[CORE259]] D3: composed on the control-plane database, never on `DB`), built once per isolate: the `/auth` handler and the in-process reset-link issue share one instance.
@@ -597,17 +623,8 @@ export function composeD1Worker(
           if (!link) return false
           return (await membershipRoleReader(d1Binding(env.DB, link), 'better-auth')(subject)) === 'owner'
         },
-        // [[CORE662]] ([[CORE630]] D11): an agent account's approval is narrowed to its record, read live from the CRM database (closed on a failing read: the auth package refuses the approval).
-        agentGrant: async (subject) => {
-          const link = await readDeployment(env.DB)
-          if (!link) throw new Error('the deployment is not initialised')
-          return agentAccountGrant(
-            d1Binding(env.DB, link),
-            { provider: 'better-auth', subject },
-            dcrScopeInputs.grantableScopes,
-            discovery.declaredScopes,
-          )
-        },
+        // [[CORE673]] ([[CORE666]] D11, generalising [[CORE662]]): what the signed-in account may approve, the one read the consent hook and `GET /auth/consent-bound` share (closed on a failing read: the auth package refuses the approval).
+        approvalBound: approvalBoundOf,
       },
     )
     return builtInService
@@ -1125,6 +1142,7 @@ export function composeD1Worker(
             const refused = await controlGate()
             if (refused) return refused
             // [[CORE259]] D3: Better Auth is composed on the control-plane database, never on `DB`.
+            if (req.method === 'GET' && url.pathname === CONSENT_BOUND_PATH) return await consentBound(req)
             return await builtInAuth().handler(req)
           }
           const res = await answer()

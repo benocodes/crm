@@ -59,6 +59,11 @@ export const MESSAGES = {
   areaOtherSentence: 'Permissions this app asked for that Vibase has no group for.',
   consentNothingOn: 'Switch something on to allow access, or choose Deny.',
   areasLabel: 'Permissions by area',
+  // [[CORE673]] D11: what the signed-in account cannot approve.
+  switchNotHeldPerson: "Your role in this workspace doesn't include this",
+  switchNotHeldAgent: "This agent account hasn't been granted this",
+  consentNothingHeld: 'Nothing this app asks for can be allowed from this account. Choose Deny.',
+  consentBoundFailed: 'Could not load what this account may allow. Try again later, or choose Deny.',
   // Shared by both.
   useAnotherAccount: 'Use another account',
   noDescription: 'No description',

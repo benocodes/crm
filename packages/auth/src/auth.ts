@@ -145,12 +145,15 @@ export interface CreateAuthOptions {
    */
   clientOwner?: (subject: string) => Promise<boolean>
   /**
-   * [[CORE662]] ([[CORE630]] D11): what an agent account holds, from the vault's live record. `null` when the Better Auth subject is not an agent account (a person, or unknown: their approval is never narrowed); otherwise
-   * the account's scopes met with what an agent may be granted (empty for a disabled one). Called where an agent account approves a sign-in (the device page's claim read and approval, the consent page's accept). It may
-   * throw: the approval is then refused, so nothing unnarrowed is ever issued to an agent account. Absent, nothing is narrowed (the other compositions).
+   * [[CORE673]] ([[CORE666]] D11, generalising [[CORE662]]'s `agentGrant`): the vault scopes the signed-in account may approve, read live from the CRM at each use, and which kind of account it is. An agent account: its record met with what
+   * an agent may be granted (empty for a disabled one). A person: their live role's scopes met with the same (empty with no live membership). Called where an approval is attributed: the consent page's accept narrows to it for both kinds, the
+   * device page's claim read and approval only for an agent account ([[CORE673]] P2). It may throw: the approval is then refused, so nothing unnarrowed is ever issued. Absent, nothing is narrowed (the other compositions).
    */
-  agentGrant?: (subject: string) => Promise<readonly string[] | null>
+  approvalBound?: (subject: string) => Promise<ApprovalBound>
 }
+
+/** [[CORE673]] D11: the scopes an account may approve for a connector, and whether it is a person or an agent account (they are treated differently, P1). */
+export type ApprovalBound = { kind: 'person' | 'agent'; scopes: readonly string[] }
 
 /** The tokens `sendResetPassword` hands over, by lowercased address: a waiter is registered only around an in-process call, so nothing else can ever receive or see a token. */
 export type ResetCaptures = Map<string, (token: string) => void>
@@ -387,9 +390,17 @@ async function presentedToken(ctx: { headers?: Headers } | null | undefined): Pr
  * declared scope before that intersection, so it becomes the agent's whole grant, and it never survives: an agent account never holds `all_permissions`.
  */
 function narrowToGrant(requested: string, granted: readonly string[]): string {
+  return narrowToBound(requested, granted, false)
+}
+
+/**
+ * [[CORE673]] D11: the same cut for an accepting consent of either kind of account. A person's `all_permissions` passes untouched (it already means the role, live, [[CORE660]]); an agent account's is expanded to its record as above.
+ */
+function narrowToBound(requested: string, granted: readonly string[], person: boolean): string {
   const names = requested.split(/\s+/).filter((s) => s !== '')
-  const expanded = names.flatMap((s) => (s === FULL_ACCESS_SCOPE ? granted : [s]))
-  const keep = (s: string) => (AUTH_SCOPES as readonly string[]).includes(s) || granted.includes(s)
+  const expanded = names.flatMap((s) => (s === FULL_ACCESS_SCOPE && !person ? granted : [s]))
+  const keep = (s: string) =>
+    (AUTH_SCOPES as readonly string[]).includes(s) || granted.includes(s) || (person && s === FULL_ACCESS_SCOPE)
   return [...new Set(expanded.filter(keep))].join(' ')
 }
 
@@ -424,13 +435,13 @@ type NarrowCtx = {
 }
 
 /**
- * [[CORE662]] ([[CORE630]] D11): where an agent account approves a sign-in, its requested vault scopes become requested ∩ its grant, read live through `agentGrant`. The device flow narrows the device code's `scope` (the
+ * [[CORE662]] ([[CORE630]] D11): where an account approves a sign-in, its requested vault scopes become requested ∩ its bound, read live through `approvalBound` ([[CORE673]]: an accepting consent narrows both kinds of account, a person to their role; the device flow narrows agent accounts only). The device flow narrows the device code's `scope` (the
  * pending request) when the page claims it and again at approval, before the library reads it: the claim binds the code to the first session that reads it, so narrowing earlier would be too late. The consent page's accept
- * narrows the `scope` of its body (the library only ever accepts a subset of what was requested). A person's approval, or anything unclaimed by this session, is untouched. A lookup that throws refuses the request.
+ * narrows the `scope` of its body (the library only ever accepts a subset of what was requested). A person's device approval, or anything unclaimed by this session, is untouched. A lookup that throws refuses the request.
  */
-export async function narrowAgentApproval(
+export async function narrowApproval(
   ctx: NarrowCtx,
-  agentGrant: (subject: string) => Promise<readonly string[] | null>,
+  approvalBound: (subject: string) => Promise<ApprovalBound>,
 ): Promise<{ context: { body: Record<string, unknown> } } | undefined> {
   const path = ctx.path
   const device = (path === DEVICE_CLAIM_ENDPOINT && ctx.method === 'GET') || path === DEVICE_APPROVE_ENDPOINT
@@ -452,18 +463,22 @@ export async function narrowAgentApproval(
       error_description: 'the sign-in could not be attributed to a signed-in account',
     })
   }
-  let granted: readonly string[] | null
+  let bound: ApprovalBound
   try {
-    granted = await agentGrant(subject)
+    bound = await approvalBound(subject)
   } catch {
     throw refuseApproval()
   }
-  if (granted === null) return undefined
+  // [[CORE673]] P2: a person's device approval is never narrowed (their token is met with the role live); only an accepting consent is.
+  if (bound.kind === 'person' && !consent) return undefined
+  const granted = bound.scopes
   if (consent) {
     const query = typeof ctx.body?.oauth_query === 'string' ? new URLSearchParams(ctx.body.oauth_query) : null
     const requested = typeof ctx.body?.scope === 'string' ? ctx.body.scope : (query?.get('scope') ?? undefined)
     if (requested === undefined) return undefined
-    return { context: { body: { ...ctx.body, scope: narrowToGrant(requested, granted) } } }
+    return {
+      context: { body: { ...ctx.body, scope: narrowToBound(requested, granted, bound.kind === 'person') } },
+    }
   }
   const code = String((path === DEVICE_CLAIM_ENDPOINT ? ctx.query?.user_code : ctx.body?.userCode) ?? '')
   const find = (value: string) =>
@@ -526,12 +541,12 @@ const endpointGate = (
   selfService: boolean,
   defaultScopes: readonly string[],
   registrable: readonly string[],
-  agentGrant: CreateAuthOptions['agentGrant'],
+  approvalBound: CreateAuthOptions['approvalBound'],
 ) =>
   createAuthMiddleware(async (ctx) => {
     // [[CORE662]] D11: an agent account's approval holds its grant ([[CORE630]]).
-    if (agentGrant) {
-      const narrowed = await narrowAgentApproval(ctx as unknown as NarrowCtx, agentGrant)
+    if (approvalBound) {
+      const narrowed = await narrowApproval(ctx as unknown as NarrowCtx, approvalBound)
       if (narrowed) return narrowed
     }
     // [[CORE661]] D9 runs on every authorize, named scope or filled, before the library reads the client. [[CORE330]]: an authorize request that names no scope (absent, empty or blank) asks for the registration default list, never the client's stored ceiling (the library's own fallback is `client.scopes`, the
@@ -682,7 +697,7 @@ export function authOptions(
         opts.deliverResetToken !== undefined,
         registrationScopes(config.vaultScopes ?? [], config.grantableScopes ?? [], config.defaultScopes).defaults,
         registrationScopes(config.vaultScopes ?? [], config.grantableScopes ?? [], config.defaultScopes).allowed,
-        opts.agentGrant,
+        opts.approvalBound,
       ),
     },
     databaseHooks: {

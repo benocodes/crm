@@ -21,8 +21,11 @@ beforeEach(() => at(QUERY))
 const NO_SESSION = { status: 200, json: null }
 const SESSION = { status: 200, json: { user: { id: 'u1', email: 'ann@x.test' }, session: { id: 's1' } } }
 const CLIENT = { status: 200, json: { client_id: 'app-1', client_name: 'Claude Desktop' } }
+// [[CORE673]]: the page reads what the account may approve; the suites' default is an owner, who holds everything the fixtures ask for.
+const OWNER_BOUND = { status: 200, json: { kind: 'person', scopes: Object.keys(SCOPE_DESCRIPTIONS) } }
 const routes = (over: Record<string, { status: number; json?: unknown; text?: string }> = {}) => ({
   'GET /auth/get-session': SESSION,
+  'GET /auth/consent-bound': OWNER_BOUND,
   'GET /auth/oauth2/public-client': CLIENT,
   'POST /auth/oauth2/consent': {
     status: 200,
@@ -434,5 +437,84 @@ describe('rendered as text and accessible (group 4)', () => {
     const axe = (await import('axe-core')).default
     const r = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } })
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(' | ')}`)).toEqual([])
+  })
+})
+
+// [[CORE673]] D11 (the page): what the approving account cannot approve is off and disabled, with one line by account kind.
+describe('the page holds the approving account (CORE673)', () => {
+  const QUERY_BOUND =
+    'client_id=app-1&sig=s&scope=openid+contacts%3Aread+webhooks%3Aread+messages%3Aread+messages%3Aread_metadata'
+  const MEMBER = { status: 200, json: { kind: 'person', scopes: ['contacts:read', 'contacts:write'] } }
+  const AGENT = { status: 200, json: { kind: 'agent', scopes: ['contacts:read', 'messages:read_metadata'] } }
+  const isDisabled = (el: HTMLElement) =>
+    (el as HTMLInputElement).disabled || el.getAttribute('aria-disabled') === 'true' || el.hasAttribute('data-disabled')
+  beforeEach(() => at(QUERY_BOUND))
+
+  it.each([
+    ['a person', MEMBER, "Your role in this workspace doesn't include this"],
+    ['an agent account', AGENT, "This agent account hasn't been granted this"],
+  ])(
+    '%s: a switch outside the bound is off and disabled with its line; a held one is enabled',
+    async (_n, bound, line) => {
+      fakeFetch(routes({ 'GET /auth/consent-bound': bound }))
+      render(<ConsentPage navigate={vi.fn()} />)
+      const integrations = await sw('Integrations', 'Read')
+      expect(isDisabled(integrations)).toBe(true)
+      expect(integrations.getAttribute('aria-checked')).toBe('false')
+      expect(screen.getAllByText(line).length).toBeGreaterThan(0)
+      expect(isDisabled(await sw('CRM records', 'Read'))).toBe(false)
+    },
+  )
+
+  it('a partly-held switch is enabled and Allow sends only its held scopes', async () => {
+    const f = fakeFetch(routes({ 'GET /auth/consent-bound': AGENT }))
+    render(<ConsentPage navigate={vi.fn()} />)
+    expect(isDisabled(await sw('Messages', 'Read'))).toBe(false)
+    await allow()
+    await waitFor(() => expect(consentBody(f)).toBeTruthy())
+    expect(consentBody(f).scope).toBe('openid contacts:read messages:read_metadata')
+  })
+
+  it('every switch disabled: Allow is disabled and Deny still answers the client', async () => {
+    at('client_id=app-1&sig=s&scope=openid+webhooks%3Aread')
+    const f = fakeFetch(routes({ 'GET /auth/consent-bound': MEMBER }))
+    render(<ConsentPage navigate={vi.fn()} />)
+    await sw('Integrations', 'Read')
+    const button = screen.getByRole('button', { name: /allow/i }) as HTMLButtonElement
+    expect(button.disabled).toBe(true)
+    await userEvent.setup().click(button)
+    expect(f.calls.some((c) => c.path === '/auth/oauth2/consent')).toBe(false)
+    await deny()
+    await waitFor(() => expect(consentBody(f)).toEqual({ accept: false, oauth_query: location.search.slice(1) }))
+  })
+
+  it('a failing read: the page says it could not load, offers no Allow, and Deny stays', async () => {
+    const f = fakeFetch(routes({ 'GET /auth/consent-bound': { status: 500, json: {} } }))
+    render(<ConsentPage navigate={vi.fn()} />)
+    expect(await screen.findByText(MESSAGES.consentBoundFailed)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /allow/i })).toBeNull()
+    await deny()
+    await waitFor(() => expect(consentBody(f)).toEqual({ accept: false, oauth_query: location.search.slice(1) }))
+  })
+
+  it('a disabled Write never forces Propose on the page', async () => {
+    at('client_id=app-1&sig=s&scope=contacts%3Aread+contacts%3Arequest_approval+contacts%3Awrite')
+    fakeFetch(
+      routes({ 'GET /auth/consent-bound': { status: 200, json: { kind: 'person', scopes: ['contacts:read'] } } }),
+    )
+    render(<ConsentPage navigate={vi.fn()} />)
+    const write = await sw('CRM records', 'Write')
+    expect(isDisabled(write)).toBe(true)
+    expect((await sw('CRM records', /Propose/)).getAttribute('aria-checked')).toBe('false')
+    expect(document.body.textContent).not.toContain(MESSAGES.writeIncludesPropose)
+  })
+
+  it('axe is clean with disabled switches', async () => {
+    fakeFetch(routes({ 'GET /auth/consent-bound': MEMBER }))
+    const { container } = render(<ConsentPage navigate={vi.fn()} />)
+    await sw('Integrations', 'Read')
+    const axe = (await import('axe-core')).default
+    const r = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } })
+    expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html.slice(0, 80)).join(' | ')}`)).toEqual([])
   })
 })

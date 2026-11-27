@@ -10,10 +10,16 @@ export type SwitchDef = {
   areaKey: string
   kind: SwitchKind
   label: string
-  /** The requested scopes this switch grants. */
+  /** The requested scopes this switch covers. */
   scopes: string[]
+  /** [[CORE673]]: the ones of them the approving account may approve (all of them when the page has no bound); Allow sends only these. */
+  held: string[]
+  /** [[CORE673]]: none of `scopes` is held: the switch is off and cannot be turned on. */
+  disabled: boolean
   defaultOn: boolean
 }
+/** [[CORE673]] D11: what the signed-in account may approve for a connector, and whether it is a person or an agent account. */
+export type ConsentBound = { kind: 'person' | 'agent'; scopes: readonly string[] }
 export type AreaModel = { key: string; name: string; sentence: string; requested: string[]; switches: SwitchDef[] }
 export type ConsentModel = { requested: string[]; signIn: string[]; areas: AreaModel[] }
 /** The owner's own position of each switch. A Propose switch's value is kept while Write forces it on, so Write off restores it. */
@@ -31,7 +37,13 @@ const LABELS = {
   write: MESSAGES.switchWrite,
 } as const
 
-export function buildConsentModel(names: readonly string[]): ConsentModel {
+export function buildConsentModel(names: readonly string[], bound?: ConsentBound): ConsentModel {
+  // The wildcard passes the consent hook for both kinds ([[CORE673]] D11: a person's untouched, an agent account's expanded to its record), so it is never a switch the bound can disable.
+  const holds = (s: string) => bound === undefined || bound.scopes.includes(s) || s === 'all_permissions'
+  const make = (w: Omit<SwitchDef, 'held' | 'disabled'>): SwitchDef => {
+    const held = w.scopes.filter(holds)
+    return { ...w, held, disabled: held.length === 0 }
+  }
   const requested = [...new Set(names.filter((n) => n !== ''))]
   const signIn = requested.filter((n) => SIGN_IN_SCOPES.includes(n))
   const groups = new Map<string, string[]>()
@@ -61,53 +73,63 @@ export function buildConsentModel(names: readonly string[]): ConsentModel {
         const sensitive = ofAction.filter((s) => NOT_DEFAULT_GRANT.includes(s))
         const plain = ofAction.filter((s) => !NOT_DEFAULT_GRANT.includes(s))
         if (plain.length > 0)
-          switches.push({
-            id: `${key}:read`,
-            areaKey: key,
-            kind: 'read',
-            label: LABELS.read,
-            scopes: plain,
-            defaultOn: true,
-          })
+          switches.push(
+            make({
+              id: `${key}:read`,
+              areaKey: key,
+              kind: 'read',
+              label: LABELS.read,
+              scopes: plain,
+              defaultOn: true,
+            }),
+          )
         if (sensitive.length > 0) {
           const alone = plain.length === 0
-          switches.push({
-            id: alone ? `${key}:read` : `${key}:read_sensitive`,
-            areaKey: key,
-            kind: alone ? 'read' : 'read_sensitive',
-            label: alone ? LABELS.read : LABELS.read_sensitive,
-            scopes: sensitive,
-            defaultOn: false,
-          })
+          switches.push(
+            make({
+              id: alone ? `${key}:read` : `${key}:read_sensitive`,
+              areaKey: key,
+              kind: alone ? 'read' : 'read_sensitive',
+              label: alone ? LABELS.read : LABELS.read_sensitive,
+              scopes: sensitive,
+              defaultOn: false,
+            }),
+          )
         }
         continue
       }
-      switches.push({
-        id: `${key}:${action}`,
-        areaKey: key,
-        kind: action,
-        label: LABELS[action],
-        scopes: ofAction,
-        defaultOn: action === 'request_approval',
-      })
+      switches.push(
+        make({
+          id: `${key}:${action}`,
+          areaKey: key,
+          kind: action,
+          label: LABELS[action],
+          scopes: ofAction,
+          defaultOn: action === 'request_approval',
+        }),
+      )
     }
     for (const s of scopes)
       if (!PARSEABLE.test(s))
-        switches.push({ id: `${key}:name:${s}`, areaKey: key, kind: 'name', label: s, scopes: [s], defaultOn: false })
+        switches.push(
+          make({ id: `${key}:name:${s}`, areaKey: key, kind: 'name', label: s, scopes: [s], defaultOn: false }),
+        )
     areas.push({ key, name, sentence, requested: scopes, switches })
   }
   return { requested, signIn, areas }
 }
 
 export function defaultState(m: ConsentModel): SwitchState {
-  return Object.fromEntries(m.areas.flatMap((a) => a.switches.map((w) => [w.id, w.defaultOn])))
+  return Object.fromEntries(m.areas.flatMap((a) => a.switches.map((w) => [w.id, w.defaultOn && !w.disabled])))
 }
 
 /** What the switch grants now: Propose is on while its area's Write is on (D3), whatever its own position. */
 export function effectiveOn(m: ConsentModel, state: SwitchState, sw: SwitchDef): boolean {
+  // [[CORE673]]: a disabled switch is never on, and a disabled Write forces nothing ([[UI455]] D3).
+  if (sw.disabled) return false
   if (sw.kind === 'request_approval') {
     const write = m.areas.find((a) => a.key === sw.areaKey)?.switches.find((w) => w.kind === 'write')
-    if (write && state[write.id]) return true
+    if (write && !write.disabled && state[write.id]) return true
   }
   return !!state[sw.id]
 }
@@ -116,6 +138,12 @@ export function effectiveOn(m: ConsentModel, state: SwitchState, sw: SwitchDef):
 export function grantedScopes(m: ConsentModel, state: SwitchState): string {
   const granted = new Set(m.signIn)
   for (const a of m.areas)
-    for (const w of a.switches) if (effectiveOn(m, state, w)) for (const s of w.scopes) granted.add(s)
+    for (const w of a.switches) if (effectiveOn(m, state, w)) for (const s of w.held) granted.add(s)
   return m.requested.filter((s) => granted.has(s)).join(' ')
+}
+
+/** [[CORE673]]: the account can approve nothing the app asks for besides signing in: every switch is disabled (and there is at least one). */
+export function nothingHeld(m: ConsentModel): boolean {
+  const all = m.areas.flatMap((a) => a.switches)
+  return all.length > 0 && all.every((w) => w.disabled)
 }
