@@ -54,7 +54,7 @@ async function seedConnection(over: Record<string, unknown> = {}) {
     contact_id: null,
     own: true,
   })
-  return e.insert('channel_connections', {
+  return e.insert('connections', {
     provider: 'google',
     account_id: `sub-${n}`,
     identity_id: identity.id,
@@ -66,23 +66,23 @@ async function seedConnection(over: Record<string, unknown> = {}) {
   })
 }
 async function seedMachinery(connectionId: string, opts: { synced?: string; errorCode?: string } = {}) {
-  await e.insert('channel_credentials', {
+  await e.insert('connection_credentials', {
     connection_id: connectionId,
     refresh_token_ciphertext: 'c2VhbGVk-SENTINEL-CIPHERTEXT',
     key_version: 1,
   })
-  await e.insert('gmail_watches', {
+  await e.insert('connection_watches', {
     connection_id: connectionId,
-    mailbox: `m-${connectionId.slice(-6)}@vibase.test`,
+    address: `m-${connectionId.slice(-6)}@vibase.test`,
     expires_at: '2026-11-12T00:00:00.000Z',
   })
-  await e.insert('mail_sync_state', {
+  await e.insert('connection_sync_state', {
     connection_id: connectionId,
     ...(opts.errorCode ? { last_error_code: opts.errorCode, last_error_at: SEED_AT } : {}),
   })
-  await e.insert('mail_sync_cursors', {
+  await e.insert('connection_sync_cursors', {
     connection_id: connectionId,
-    history_id: '123',
+    cursor: '123',
     ...(opts.synced ? { last_synced_at: opts.synced } : {}),
   })
 }
@@ -90,8 +90,8 @@ async function seedMachinery(connectionId: string, opts: { synced?: string; erro
 describe('connections.list and connections.get (D42)', () => {
   it('a connection that has never synced has last_synced_at and last_error_code null (empty state), and no credential field', async () => {
     const c = await seedConnection()
-    await e.insert('mail_sync_state', { connection_id: c.id })
-    await e.insert('mail_sync_cursors', { connection_id: c.id, history_id: '1' })
+    await e.insert('connection_sync_state', { connection_id: c.id })
+    await e.insert('connection_sync_cursors', { connection_id: c.id, cursor: '1' })
     const got = await call('GET', `/meta/v1/connections/${c.id}`, ['connections:read'])
     expect(got.status).toBe(200)
     expect(got.body).toMatchObject({
@@ -150,7 +150,7 @@ describe('connections.list and connections.get (D42)', () => {
       (await call('GET', '/meta/v1/connections/0190b2c4-0000-7000-8000-00000000dead', ['connections:read'])).status,
     ).toBe(404)
     expect((await call('GET', '/api/v1/connections', ['connections:read'])).status).toBe(404)
-    await e.update('channel_connections', c.id as string, { deleted_at: SEED_AT })
+    await e.update('connections', c.id as string, { deleted_at: SEED_AT })
     expect((await call('GET', '/meta/v1/connections', ['connections:read'])).body.data).toEqual([])
   })
 
@@ -177,9 +177,9 @@ describe('connections.delete (D26, D56)', () => {
     expect(await e.rows('message_sources')).toHaveLength(1)
     const res = await call('DELETE', `/meta/v1/connections/${c.id}`, ['connections:write'])
     expect(res.status).toBe(204)
-    for (const t of ['channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors'])
+    for (const t of ['connection_credentials', 'connection_watches', 'connection_sync_state', 'connection_sync_cursors'])
       expect(await e.rows(t), t).toEqual([])
-    expect((await e.rows('channel_connections'))[0]).toMatchObject({ id: c.id, deleted_at: expect.any(String) })
+    expect((await e.rows('connections'))[0]).toMatchObject({ id: c.id, deleted_at: expect.any(String) })
     expect(await e.rows('message_sources')).toHaveLength(1)
     expect(await e.rows('thread_sources')).toHaveLength(1)
     expect((await e.rows('messages')).map((m) => m.id)).toEqual([captured.value.captured[0]!.message_id])
@@ -194,7 +194,7 @@ describe('connections.delete (D26, D56)', () => {
     await seedMachinery(a.id as string)
     await seedMachinery(b.id as string)
     expect((await call('DELETE', `/meta/v1/connections/${a.id}`, ['connections:write'])).status).toBe(204)
-    for (const t of ['channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors'])
+    for (const t of ['connection_credentials', 'connection_watches', 'connection_sync_state', 'connection_sync_cursors'])
       expect(
         (await e.rows(t)).map((r) => r.connection_id),
         t,
@@ -300,22 +300,22 @@ describe('secrecy (D41)', () => {
     }
   })
 
-  it('the four machinery tables are hidden from schema discovery; channel_connections is listed with described columns', async () => {
+  it('the four machinery tables are hidden from schema discovery; connections is listed with described columns', async () => {
     const schema = (await call('GET', '/meta/v1/schema', ['schema:read'])).body
     const names = (schema.tables as Array<{ name: string }>).map((t) => t.name)
-    for (const hidden of ['channel_credentials', 'gmail_watches', 'mail_sync_state', 'mail_sync_cursors'])
+    for (const hidden of ['connection_credentials', 'connection_watches', 'connection_sync_state', 'connection_sync_cursors'])
       expect(names, hidden).not.toContain(hidden)
-    expect(names).toContain('channel_connections')
+    expect(names).toContain('connections')
     const table = (
       schema.tables as Array<{ name: string; columns: Array<{ name: string; description?: string }> }>
-    ).find((t) => t.name === 'channel_connections')!
+    ).find((t) => t.name === 'connections')!
     for (const col of table.columns) expect(col.description, col.name).toBeTruthy()
   })
 })
 
 describe('merge guard (D27)', () => {
-  it('channel_connections.identity_id is in IDENTITY_REFERENCES', () => {
-    expect(IDENTITY_REFERENCES).toContainEqual({ table: 'channel_connections', column: 'identity_id' })
+  it('connections.identity_id is in IDENTITY_REFERENCES', () => {
+    expect(IDENTITY_REFERENCES).toContainEqual({ table: 'connections', column: 'identity_id' })
   })
 })
 

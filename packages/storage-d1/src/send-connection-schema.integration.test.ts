@@ -19,6 +19,6 @@ it('executions have a nullable composite organisation/connection FK', async () =
     to: string
   }>
   const fk = fks.find((f) => f.from === 'connection_id')
-  expect(fk).toMatchObject({ table: 'channel_connections', to: 'id' })
+  expect(fk).toMatchObject({ table: 'connections', to: 'id' })
   expect(fks.find((f) => f.id === fk!.id && f.from === 'organization_id')).toMatchObject({ to: 'organization_id' })
 })

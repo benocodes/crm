@@ -91,7 +91,7 @@ beforeEach(async () => {
       granted_scopes: ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
       ciphertext: 'fake-encrypted-token',
       key_version: 1,
-      history_id: '1000',
+      cursor: '1000',
     }),
   )
   connection = out.value.connection_id
@@ -119,7 +119,7 @@ it('direct send writes an immutable descriptor and connection FK, no synthetic r
 it('direct replay precedes object I/O and authorisation; changed bytes conflict and callers do not collide', async () => {
   const first = await direct()
   expect(first.status).toBe(202)
-  await k.d1.prepare("update channel_connections set status='suspended' where id=?").bind(connection).run()
+  await k.d1.prepare("update connections set status='suspended' where id=?").bind(connection).run()
   const io = [puts, gets]
   const again = await direct()
   expect([again.status, again.body.id]).toEqual([202, first.body.id])
@@ -290,7 +290,7 @@ it('no anchor, inactive connection and missing send/read grant refuse without de
   expect((await direct(writer, { mode: 'reply', thread_id: uuidv7(), subject: undefined })).body.error.code).toBe(
     'no_sendable_connection',
   )
-  await k.d1.prepare('update channel_connections set granted_scopes=? where id=?').bind('[]', connection).run()
+  await k.d1.prepare('update connections set granted_scopes=? where id=?').bind('[]', connection).run()
   expect((await k.call(writer, 'POST', `${AR}/${p.body.id}/approve`, {})).body.error.code).toBe(
     'connection_cannot_send',
   )
@@ -324,7 +324,7 @@ const afterAuthorise = (effect: () => Promise<void>) =>
   })
 it('commit guards refuse an independently drifted connection without resource writes', async () => {
   afterAuthorise(async () => {
-    await k.d1.prepare("update channel_connections set status='suspended' where id=?").bind(connection).run()
+    await k.d1.prepare("update connections set status='suspended' where id=?").bind(connection).run()
   })
   const before = await k.events()
   const out = await direct()
@@ -402,7 +402,7 @@ it('retracted and foreign-connection messages cannot replace the authorised anch
         ],
         ciphertext: 'fake',
         key_version: 1,
-        history_id: '1000',
+        cursor: '1000',
       }),
     )
   ).value.connection_id

@@ -134,10 +134,10 @@ const run = (s: Setup, shim = makeWorkerdStepShim()) =>
   runMailSync({ payload: { connection_id: s.id } }, shim.step, () => s.rt)
 const addHistory = (g: FakeGmail, id: string, added: string[]) =>
   g.history.push({ id, added: added.map((a) => ({ id: a, labels: ['INBOX'] })) })
-const stateRow = async () => (await e.rows('mail_sync_state'))[0]!
-const cursor = async () => (await e.rows('mail_sync_cursors'))[0]!
+const stateRow = async () => (await e.rows('connection_sync_state'))[0]!
+const cursor = async () => (await e.rows('connection_sync_cursors'))[0]!
 const eventsOf = async (type: string) => (await e.rows('events')).filter((r) => r.type === type)
-const connection = async () => (await e.rows('channel_connections'))[0]!
+const connection = async () => (await e.rows('connections'))[0]!
 const raw = (sqlText: string, ...binds: unknown[]) =>
   e
     .d1!.prepare(sqlText)
@@ -145,11 +145,11 @@ const raw = (sqlText: string, ...binds: unknown[]) =>
     .run()
 const calls = (g: FakeGmail, op: string) => g.calls.filter((c) => c.op === op)
 const snapshot = async () => ({
-  state: await e.rows('mail_sync_state'),
-  cursor: await e.rows('mail_sync_cursors'),
+  state: await e.rows('connection_sync_state'),
+  cursor: await e.rows('connection_sync_cursors'),
   events: (await e.rows('events')).length,
   messages: (await e.rows('messages')).length,
-  conn: await e.rows('channel_connections'),
+  conn: await e.rows('connections'),
 })
 
 describe('step returns (invariant 7)', () => {
@@ -283,7 +283,7 @@ describe('lease (D11)', () => {
       beforeStep: async (name) => {
         if (name === 'p1-history-1')
           await raw(
-            "update mail_sync_state set run_id = 'thief', lease_until = ?",
+            "update connection_sync_state set run_id = 'thief', lease_until = ?",
             new Date(now.getTime() + LEASE_MS).toISOString(),
           )
       },
@@ -317,7 +317,7 @@ describe('resume', () => {
     expect(fetched).toHaveLength(60)
     expect((await e.rows('messages')).length).toBe(60)
     expect((await eventsOf('message.created')).length).toBe(60)
-    expect(await cursor()).toMatchObject({ history_id: '1100', page_token: null })
+    expect(await cursor()).toMatchObject({ cursor: '1100', page_token: null })
   })
   it('a run killed mid-backfill rescans: nothing already sourced is fetched twice, and every message ends captured', async () => {
     const s = await setup({ messages: many(60, 'b'), synced: null })
@@ -345,7 +345,7 @@ describe('again (D11)', () => {
     makeWorkerdStepShim({
       beforeStep: async (name) => {
         for (const pass of [1, 2, 3])
-          if (name === stepName(pass)) await raw('update mail_sync_state set sync_requested_at = ?', at(pass))
+          if (name === stepName(pass)) await raw('update connection_sync_state set sync_requested_at = ?', at(pass))
       },
     })
   it('a request later than the pass start gives one more pass; at most 3, then a new instance is created for what is still requested', async () => {
@@ -366,7 +366,7 @@ describe('again (D11)', () => {
     const shim = makeWorkerdStepShim({
       beforeStep: async (name) => {
         if (name === 'p1-finish') {
-          await raw('update mail_sync_state set sync_requested_at = ?', new Date(now.getTime() + 1000).toISOString())
+          await raw('update connection_sync_state set sync_requested_at = ?', new Date(now.getTime() + 1000).toISOString())
           now = new Date(now.getTime() + 2000) // the pass ends after the request, so the next pass starts later than it
         }
       },
@@ -377,7 +377,7 @@ describe('again (D11)', () => {
   })
   it('a request earlier than the run start, or none at all, ends after one pass', async () => {
     const s = await setup()
-    await raw('update mail_sync_state set sync_requested_at = ?', new Date(now.getTime() - 60_000).toISOString())
+    await raw('update connection_sync_state set sync_requested_at = ?', new Date(now.getTime() - 60_000).toISOString())
     expect(await run(s)).toEqual({ end: 'complete', passes: 1 })
   })
   it('empty state: no sync_requested_at ends after one pass', async () => {
@@ -533,7 +533,7 @@ describe('expired history (D13)', () => {
       'p1-history-2',
       'p1-finish',
     ])
-    expect((await cursor()).history_id).toBe('2500')
+    expect((await cursor()).cursor).toBe('2500')
     expect((await e.rows('messages')).length).toBe(2)
   })
 })
@@ -590,7 +590,7 @@ describe('reauth and suspended (D16, D33, D69)', () => {
   })
   it('a connection that is not active ends the run at claim, writing nothing', async () => {
     const s = await setup()
-    await raw("update channel_connections set status = 'reauth_required'")
+    await raw("update connections set status = 'reauth_required'")
     const before = await snapshot()
     expect(await run(s)).toEqual({ end: 'inactive', passes: 0 })
     expect(await snapshot()).toEqual(before)
@@ -629,7 +629,7 @@ describe('gate (D37)', () => {
     })
     await expect(run(s, shim)).rejects.toThrow(/behind/)
     expect((await e.rows('messages')).length).toBe(0)
-    expect((await cursor()).history_id).toBe('1000')
+    expect((await cursor()).cursor).toBe('1000')
     expect(s.gmail.calls).toEqual([])
   })
 })
@@ -679,10 +679,10 @@ describe('secrecy', () => {
       JSON.stringify(shim.returns),
       lines.join('\n'),
       String(failed),
-      JSON.stringify(await e.rows('mail_sync_state')),
-      JSON.stringify(await e.rows('mail_sync_cursors')),
+      JSON.stringify(await e.rows('connection_sync_state')),
+      JSON.stringify(await e.rows('connection_sync_cursors')),
       JSON.stringify(await e.rows('events')),
-      JSON.stringify(await e.rows('channel_credentials')),
+      JSON.stringify(await e.rows('connection_credentials')),
     ].join('\n')
     for (const secret of secrets) expect(haystack).not.toContain(secret)
     expect(secrets.length).toBeGreaterThan(3)

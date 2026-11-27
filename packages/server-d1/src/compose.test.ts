@@ -314,7 +314,7 @@ describe('message content through BODIES (CORE58 P12)', () => {
         organization_id: orgId,
         created_by: creator,
         created_at: NOW.toISOString(),
-        ...(['identities', 'channel_connections'].includes(table) ? { updated_at: NOW.toISOString() } : {}),
+        ...(['identities', 'connections'].includes(table) ? { updated_at: NOW.toISOString() } : {}),
         ...row,
       }
       const cols = Object.keys(full)

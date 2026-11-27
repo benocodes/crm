@@ -32,7 +32,7 @@ beforeAll(async () => {
     await insert('identities', ident(13, { value: 'gone@example.test', contact_id: CONTACT, own: 0, deleted_at: AT })),
   ).toBeNull()
   expect(
-    await insert('channel_connections', {
+    await insert('connections', {
       id: CONN,
       ...base,
       updated_at: AT,

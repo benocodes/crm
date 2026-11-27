@@ -92,7 +92,7 @@ export function captureMessage(organizationId: string, over: CaptureOverrides = 
 }
 
 /**
- * CHN140 D27: a source row's `connection_id` is a foreign key to `channel_connections` on D1, so a capture needs its connection to exist. This is
+ * CHN140 D27: a source row's `connection_id` is a foreign key to `connections` on D1, so a capture needs its connection to exist. This is
  * the test device that makes one (a connection owned by `ownerId` and the own identity it must name, both with the connection's id; the identity is deleted, so no
  * live read, list or participant sees it; nothing is written when the connection exists):
  * not an operation, and the connect flow's own writes are proven by the CHN140 suites. Postgres has no such table (D1 only): a no-op there.
@@ -113,12 +113,12 @@ export function ensureConnectionOperation(
           step(
             sql`insert into "identities" ("id", "created_at", "updated_at", "organization_id", "created_by", "kind", "value", "contact_id", "own", "deleted_at")
               select ${connectionId}, ${at}, ${at}, ${organizationId}, ${ownerId}, 'email', ${`conn-${connectionId}@seed.test`}, null, 1, ${at}
-              where not exists (select 1 from "channel_connections" where "id" = ${connectionId}) on conflict do nothing`.compile(
+              where not exists (select 1 from "connections" where "id" = ${connectionId}) on conflict do nothing`.compile(
               qc.db,
             ),
           ),
           step(
-            sql`insert into "channel_connections" ("id", "created_at", "updated_at", "organization_id", "created_by", "provider", "account_id", "identity_id", "owner_id", "status", "granted_scopes", "connected_at")
+            sql`insert into "connections" ("id", "created_at", "updated_at", "organization_id", "created_by", "provider", "account_id", "identity_id", "owner_id", "status", "granted_scopes", "connected_at")
               values (${connectionId}, ${at}, ${at}, ${organizationId}, ${ownerId}, 'google', ${`seed-${connectionId}`}, ${connectionId}, ${ownerId}, 'active', '[]', ${at}) on conflict do nothing`.compile(
               qc.db,
             ),

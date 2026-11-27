@@ -44,7 +44,7 @@ async function seedConnection(over: Record<string, unknown> = {}) {
     contact_id: null,
     own: true,
   })
-  return e.insert('channel_connections', {
+  return e.insert('connections', {
     provider: 'google',
     account_id: `sub-${n}`,
     identity_id: identity.id,
@@ -181,7 +181,7 @@ describe('captureSettingsRead (D11, D12)', () => {
     const c = await seedConnection()
     const gone = await seedConnection()
     await label(gone.id, 'INBOX')
-    await e.update('channel_connections', gone.id, { deleted_at: SEED_AT })
+    await e.update('connections', gone.id, { deleted_at: SEED_AT })
     expect(await run('0190b2c4-0000-7000-8000-0000000000ff')).toBeNull()
     expect(await run(gone.id)).toBeNull()
     expect(await run(c.id, '0190b2c4-0000-7000-8000-0000000000fe')).toBeNull()
@@ -227,11 +227,11 @@ describe('the catalog describes the new tables and columns (D14)', () => {
       for (const c of t(name).columns) expect(c.description.length, `${name}.${c.name}`).toBeGreaterThan(5)
     }
     for (const col of ['exclude_group_addresses', 'exclude_personal_domains', 'contact_creation']) {
-      const c = t('channel_connections').columns.find((x: any) => x.name === col)
+      const c = t('connections').columns.find((x: any) => x.name === col)
       expect(c, col).toBeDefined()
       expect(c.description.length, col).toBeGreaterThan(20)
     }
-    expect(t('channel_connections').columns.find((x: any) => x.name === 'contact_creation').values).toEqual([
+    expect(t('connections').columns.find((x: any) => x.name === 'contact_creation').values).toEqual([
       'sent_and_received',
       'sent',
       'none',

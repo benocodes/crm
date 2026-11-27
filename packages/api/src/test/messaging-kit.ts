@@ -64,7 +64,7 @@ async function seedConnection(insert: Insert): Promise<string> {
       contact_id: null,
       own: true,
     })
-    await insert('channel_connections', {
+    await insert('connections', {
       id,
       provider: 'google',
       account_id: `seed-${id}`,

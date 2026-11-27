@@ -134,9 +134,9 @@ describe('catalog (CORE408 group 6, CORE417 group 6)', () => {
     const r = await call('GET', '/meta/v1/schema')
     expect(r.status).toBe(200)
     const table =
-      r.body.tables?.find?.((t: any) => t.name === 'channel_connections') ??
-      r.body.data?.tables?.find?.((t: any) => t.name === 'channel_connections')
-    expect(table, 'channel_connections in schema.get').toBeDefined()
+      r.body.tables?.find?.((t: any) => t.name === 'connections') ??
+      r.body.data?.tables?.find?.((t: any) => t.name === 'connections')
+    expect(table, 'connections in schema.get').toBeDefined()
     const col = table.columns.find((c: any) => c.name === 'contact_creation')
     expect(col.description).toBe(
       'Which captured mail gives an address a contact: sent (the default for a new connection) gives one only to the to, cc and bcc recipients of mail this mailbox sent, never to an address that is also the sender of that message; sent_and_received gives every counterparty one; none gives nobody one. An address that gets no contact is still recorded, as an unattached identity, and is promoted when a later capture qualifies it. It applies to mail captured from now on; changing it never removes or detaches a contact.',

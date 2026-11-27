@@ -38,7 +38,7 @@ try {
         granted_scopes: ['openid', 'email', 'https://www.googleapis.com/auth/gmail.readonly'],
         ciphertext: await sealToken(new Uint8Array(32).fill(5), 'refresh', crypto.getRandomValues(new Uint8Array(12))),
         key_version: 1,
-        history_id: '1',
+        cursor: '1',
       },
     ),
   )

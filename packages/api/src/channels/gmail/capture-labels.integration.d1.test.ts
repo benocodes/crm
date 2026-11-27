@@ -220,9 +220,9 @@ describe('one settings read per page, and a null read (D1, P3)', () => {
   it('a connection deleted since: history, scan page and scan start are inactive with no Gmail call and no cursor change', async () => {
     const s = await setup({ messages: [mk('n1')] })
     addHistory(s.gmail, '1001', [{ id: 'n1' }])
-    const before = JSON.stringify(await e.rows('mail_sync_cursors'))
+    const before = JSON.stringify(await e.rows('connection_sync_cursors'))
     await e
-      .d1!.prepare('update channel_connections set deleted_at = ? where id = ?')
+      .d1!.prepare('update connections set deleted_at = ? where id = ?')
       .bind(NOW.toISOString(), s.id)
       .run()
     const scan: Scan = { kind: 'backfill', after: AFTER, history_id: null }
@@ -230,7 +230,7 @@ describe('one settings read per page, and a null read (D1, P3)', () => {
     expect(await captureScanPage(s.deps, s.id, scan, null)).toEqual({ outcome: 'inactive' })
     expect(await beginScan(s.deps, s.id, 'backfill')).toEqual({ outcome: 'inactive' })
     expect(s.gmail.calls).toEqual([])
-    expect(JSON.stringify(await e.rows('mail_sync_cursors'))).toBe(before)
+    expect(JSON.stringify(await e.rows('connection_sync_cursors'))).toBe(before)
     expect(await captured()).toEqual([])
   })
 })

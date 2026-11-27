@@ -39,12 +39,12 @@ export async function seedGmailConnection(e: SeedTarget, p: SeedGmailConnection)
     granted_scopes: ['openid', 'email', 'https://www.googleapis.com/auth/gmail.readonly'],
     ciphertext: await sealToken(p.key, p.refreshToken, crypto.getRandomValues(new Uint8Array(12))),
     key_version: p.keyVersion ?? 1,
-    history_id: p.historyId ?? '1000',
+    cursor: p.historyId ?? '1000',
   })
   const id = (await e.run(op)).value.connection_id
   if (p.lastSyncedAt)
     await e
-      .d1!.prepare('update mail_sync_cursors set last_synced_at = ? where connection_id = ?')
+      .d1!.prepare('update connection_sync_cursors set last_synced_at = ? where connection_id = ?')
       .bind(p.lastSyncedAt, id)
       .run()
   return id

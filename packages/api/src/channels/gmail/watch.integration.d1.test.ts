@@ -98,18 +98,18 @@ describe('the watch at connect (D89)', () => {
       labelFilterBehavior: 'include',
     })
     expect(google.isAccessToken(google.watchRequests[0]!.token)).toBe(true)
-    const conn = (await e.rows('channel_connections'))[0]!
-    expect(await e.rows('gmail_watches')).toEqual([
+    const conn = (await e.rows('connections'))[0]!
+    expect(await e.rows('connection_watches')).toEqual([
       expect.objectContaining({
         connection_id: conn.id,
-        mailbox: 'ann@example.test',
+        address: 'ann@example.test',
         expires_at: new Date(now.getTime() + 7 * DAY).toISOString(),
         created_by: e.userId,
       }),
     ])
     expect(await eventTypes()).toEqual(['connection.created', 'identity.created'])
     // The cursor still comes from the profile's history id, not the watch's.
-    expect((await e.rows('mail_sync_cursors'))[0]).toMatchObject({ history_id: '555' })
+    expect((await e.rows('connection_sync_cursors'))[0]).toMatchObject({ cursor: '555' })
   })
   it('a watch failure never refuses the connect: the connection commits with no row, and says so in the log by class, not by value', async () => {
     const warn: string[] = []
@@ -117,8 +117,8 @@ describe('the watch at connect (D89)', () => {
     google.failWatch({ status: 403, reason: 'forbidden' })
     const res = await connect(buildApp())
     expect(res.status).toBe(200)
-    expect(await e.rows('channel_connections')).toHaveLength(1)
-    expect(await e.rows('gmail_watches')).toEqual([])
+    expect(await e.rows('connections')).toHaveLength(1)
+    expect(await e.rows('connection_watches')).toEqual([])
     expect(await eventTypes()).toEqual(['connection.created', 'identity.created'])
     const line = warn.find((l) => l.includes('watch'))!
     expect(line).toContain('misconfigured')
@@ -130,7 +130,7 @@ describe('the watch at connect (D89)', () => {
     await connect(app)
     now = new Date(now.getTime() + 3 * DAY)
     await connect(app)
-    const watches = await e.rows('gmail_watches')
+    const watches = await e.rows('connection_watches')
     expect(watches).toHaveLength(1)
     expect(watches[0]!.expires_at).toBe(new Date(now.getTime() + 7 * DAY).toISOString())
     expect(google.watchRequests).toHaveLength(2)
@@ -138,16 +138,16 @@ describe('the watch at connect (D89)', () => {
   it('a reconnect whose watch fails keeps the connection and the row it had', async () => {
     const app = buildApp()
     await connect(app)
-    const first = (await e.rows('gmail_watches'))[0]!.expires_at
+    const first = (await e.rows('connection_watches'))[0]!.expires_at
     now = new Date(now.getTime() + 3 * DAY)
     google.failWatch({ status: 500 })
     expect((await connect(app)).status).toBe(200)
-    expect((await e.rows('gmail_watches'))[0]!.expires_at).toBe(first)
+    expect((await e.rows('connection_watches'))[0]!.expires_at).toBe(first)
   })
   it('with push off no watch is requested and no row is written', async () => {
     expect((await connect(buildApp({ ...ENV }))).status).toBe(200)
     expect(google.watchRequests).toEqual([])
-    expect(await e.rows('gmail_watches')).toEqual([])
+    expect(await e.rows('connection_watches')).toEqual([])
   })
 })
 
@@ -164,13 +164,13 @@ describe('renewal (D89, D90)', () => {
       lastSyncedAt: null,
     })
     if (opts.expiresIn !== null)
-      await e.insert('gmail_watches', {
+      await e.insert('connection_watches', {
         connection_id: id,
-        mailbox: `box${n}@vibase.test`,
+        address: `box${n}@vibase.test`,
         expires_at: new Date(now.getTime() + (opts.expiresIn ?? 7 * DAY)).toISOString(),
       })
     if (opts.status)
-      await e.d1!.prepare('update channel_connections set status = ? where id = ?').bind(opts.status, id).run()
+      await e.d1!.prepare('update connections set status = ? where id = ?').bind(opts.status, id).run()
     return { id, rt }
   }
   const deps = (over: Partial<WatchDeps> = {}): WatchDeps => ({
@@ -191,7 +191,7 @@ describe('renewal (D89, D90)', () => {
     gmailBaseUrl: FAKE_GMAIL_BASE,
     ...over,
   })
-  const watchRow = async (id: string) => (await e.rows('gmail_watches')).find((r) => r.connection_id === id)
+  const watchRow = async (id: string) => (await e.rows('connection_watches')).find((r) => r.connection_id === id)
   beforeEach(() => google.signedInAs({ sub: 'x', email: 'x@vibase.test', historyId: '900' }))
 
   it('a connection with no row gets a watch, with the mailbox from its own identity, lowercase', async () => {
@@ -199,7 +199,7 @@ describe('renewal (D89, D90)', () => {
     const out = await renewWatches(deps())
     expect(out).toMatchObject({ attempted: 1, registered: 1 })
     expect(await watchRow(a.id)).toMatchObject({
-      mailbox: 'box1@vibase.test',
+      address: 'box1@vibase.test',
       expires_at: new Date(now.getTime() + 7 * DAY).toISOString(),
       created_by: e.userId,
     })
@@ -228,12 +228,12 @@ describe('renewal (D89, D90)', () => {
     await seed({ expiresIn: null, status: 'suspended' })
     const gone = await seed({ expiresIn: null })
     await e
-      .d1!.prepare('update channel_connections set deleted_at = ? where id = ?')
+      .d1!.prepare('update connections set deleted_at = ? where id = ?')
       .bind(now.toISOString(), gone.id)
       .run()
     expect(await renewWatches(deps())).toMatchObject({ attempted: 0, registered: 0 })
     expect(google.watchRequests).toEqual([])
-    expect(await e.rows('gmail_watches')).toEqual([])
+    expect(await e.rows('connection_watches')).toEqual([])
   })
   it.each([
     [{ status: 429 }, 'throttled'],
@@ -282,7 +282,7 @@ describe('renewal (D89, D90)', () => {
     const eventsBefore = (await e.rows('events')).length
     const out = await renewWatches(deps())
     expect(out).toMatchObject({ attempted: 2, registered: 1, failed: { reauth_required: 1 } })
-    expect((await e.rows('channel_connections')).find((r) => r.id === revoked.id)).toMatchObject({
+    expect((await e.rows('connections')).find((r) => r.id === revoked.id)).toMatchObject({
       status: 'reauth_required',
     })
     expect(await watchRow(revoked.id)).toBeUndefined()
@@ -301,9 +301,9 @@ describe('renewal (D89, D90)', () => {
     const racing = {
       ...fake,
       watch: async (p: { topicName: string }) => {
-        await e.insert('gmail_watches', {
+        await e.insert('connection_watches', {
           connection_id: a.id,
-          mailbox: 'box1@vibase.test',
+          address: 'box1@vibase.test',
           expires_at: '2026-11-06T00:00:00.000Z',
         })
         return fake.watch(p)
@@ -311,7 +311,7 @@ describe('renewal (D89, D90)', () => {
     }
     const out = await renewWatches(deps({ clientFor: () => racing as never }))
     expect(out).toMatchObject({ attempted: 1, registered: 1 })
-    expect((await e.rows('gmail_watches')).filter((r) => r.connection_id === a.id)).toHaveLength(1)
+    expect((await e.rows('connection_watches')).filter((r) => r.connection_id === a.id)).toHaveLength(1)
     expect((await watchRow(a.id))!.expires_at).toBe(new Date(now.getTime() + 7 * DAY).toISOString())
   })
   it('a GmailApiError thrown by a client is classified the same way (clientFor seam)', async () => {
@@ -320,13 +320,13 @@ describe('renewal (D89, D90)', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(await renewWatches(deps({ clientFor: () => fake }))).toMatchObject({ failed: { throttled: 1 } })
   })
-  it('emits no event when it renews, and writes only gmail_watches', async () => {
+  it('emits no event when it renews, and writes only connection_watches', async () => {
     await seed({ expiresIn: null })
     const eventsBefore = (await e.rows('events')).length
-    const stateBefore = JSON.stringify(await e.rows('mail_sync_state'))
+    const stateBefore = JSON.stringify(await e.rows('connection_sync_state'))
     await renewWatches(deps())
     expect((await e.rows('events')).length).toBe(eventsBefore)
-    expect(JSON.stringify(await e.rows('mail_sync_state'))).toBe(stateBefore)
+    expect(JSON.stringify(await e.rows('connection_sync_state'))).toBe(stateBefore)
   })
 })
 
@@ -338,7 +338,7 @@ describe('stop on delete (D91)', () => {
     })
   const connectedId = async (app: ReturnType<typeof buildApp>) => {
     expect((await connect(app)).status).toBe(200)
-    return String((await e.rows('channel_connections'))[0]!.id)
+    return String((await e.rows('connections'))[0]!.id)
   }
   it('calls users.stop once after the unit commits, with an access token refreshed from the deleted credential', async () => {
     const app = buildApp()
@@ -348,8 +348,8 @@ describe('stop on delete (D91)', () => {
     expect(google.stopRequests).toHaveLength(1)
     expect(google.isAccessToken(google.stopRequests[0]!.token)).toBe(true)
     expect(google.refreshRequests.at(-1)!.refresh_token).toBe(refresh)
-    expect(await e.rows('gmail_watches')).toEqual([])
-    expect(await e.rows('channel_credentials')).toEqual([])
+    expect(await e.rows('connection_watches')).toEqual([])
+    expect(await e.rows('connection_credentials')).toEqual([])
     expect(await eventTypes()).toContain('connection.deleted')
   })
   it('a failing stop leaves the delete response and its rows unchanged', async () => {
@@ -359,10 +359,10 @@ describe('stop on delete (D91)', () => {
     google.failStop(500)
     expect((await del(app, id)).status).toBe(204)
     expect(google.stopRequests).toHaveLength(1)
-    expect((await e.rows('channel_connections'))[0]).toMatchObject({ id })
-    expect((await e.rows('channel_connections'))[0]!.deleted_at).not.toBeNull()
-    expect(await e.rows('gmail_watches')).toEqual([])
-    expect(await e.rows('channel_credentials')).toEqual([])
+    expect((await e.rows('connections'))[0]).toMatchObject({ id })
+    expect((await e.rows('connections'))[0]!.deleted_at).not.toBeNull()
+    expect(await e.rows('connection_watches')).toEqual([])
+    expect(await e.rows('connection_credentials')).toEqual([])
   })
   it('a refresh that fails (the grant was revoked) is logged and the delete still answers 204', async () => {
     const app = buildApp()
@@ -375,7 +375,7 @@ describe('stop on delete (D91)', () => {
   it('a connection with no watch row makes no call', async () => {
     const app = buildApp()
     const id = await connectedId(app)
-    await e.d1!.prepare('delete from gmail_watches').run()
+    await e.d1!.prepare('delete from connection_watches').run()
     expect((await del(app, id)).status).toBe(204)
     expect(google.stopRequests).toEqual([])
   })
@@ -390,13 +390,13 @@ describe('stop on delete (D91)', () => {
     const id = await connectedId(app)
     e.betweenPlanAndCommit(async () => {
       await e
-        .d1!.prepare("update channel_connections set updated_at = '2026-11-05T10:00:01.000Z' where id = ?")
+        .d1!.prepare("update connections set updated_at = '2026-11-05T10:00:01.000Z' where id = ?")
         .bind(id)
         .run()
     })
     expect((await del(app, id)).status).toBe(409)
     expect(google.stopRequests).toEqual([])
-    expect((await e.rows('channel_connections'))[0]!.deleted_at).toBeNull()
+    expect((await e.rows('connections'))[0]!.deleted_at).toBeNull()
     // Not asserted: the machinery rows. The generated delete's `after` statements are not guarded by the delete's own success, so a drifted delete (409) still removes them
     // (found by this test; pre-existing and reported in RESULT.md, not changed here).
   })

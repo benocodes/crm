@@ -3,7 +3,7 @@ import type { D1Like } from './binding.js'
 import { openLocalD1, type LocalD1 } from './test/index.js'
 import { seedDeployment, seedPrincipal } from './test/seed.js'
 
-// #451 (user ruling 451.1): `channel_connections` defaults in genesis (exclusions on, contact_creation 'sent'), with an explicit row kept as written and its children and
+// #451 (user ruling 451.1): `connections` defaults in genesis (exclusions on, contact_creation 'sent'), with an explicit row kept as written and its children and
 // foreign keys intact. Raw inserts are the permitted exception (the test proves what the database does, which no operation reaches).
 const ORG = '0190b2c4-0000-7000-8000-00000000a001'
 const USER = '0190b2c4-0000-7000-8000-00000000b001'
@@ -36,7 +36,7 @@ const all = async <T = Record<string, unknown>>(sqlText: string, ...binds: unkno
 
 const connection = (cid: string, account: string, extra = '') =>
   run(
-    `INSERT INTO channel_connections (id, created_at, updated_at, organization_id, created_by, provider, account_id, identity_id, owner_id, status, granted_scopes, connected_at${extra ? ', exclude_group_addresses, exclude_personal_domains, contact_creation' : ''})
+    `INSERT INTO connections (id, created_at, updated_at, organization_id, created_by, provider, account_id, identity_id, owner_id, status, granted_scopes, connected_at${extra ? ', exclude_group_addresses, exclude_personal_domains, contact_creation' : ''})
      VALUES (?, ?, ?, ?, ?, 'google', ?, ?, ?, 'active', '["openid"]', ?${extra ? ", 0, 0, 'sent_and_received'" : ''})`,
     cid,
     AT,
@@ -49,7 +49,7 @@ const connection = (cid: string, account: string, extra = '') =>
     AT,
   )
 
-describe('capture defaults on channel_connections', () => {
+describe('capture defaults on connections', () => {
   it('keeps an explicit connection as written, and gives a new one the defaults (exclusions on, contact_creation sent)', async () => {
     await run(
       `INSERT INTO identities (id, organization_id, created_by, created_at, updated_at, kind, value, contact_id, own) VALUES (?, ?, ?, ?, ?, 'email', 'ann@example.test', NULL, 1)`,
@@ -70,7 +70,7 @@ describe('capture defaults on channel_connections', () => {
 
     expect(
       await all(
-        'select id, exclude_group_addresses, exclude_personal_domains, contact_creation from channel_connections',
+        'select id, exclude_group_addresses, exclude_personal_domains, contact_creation from connections',
       ),
     ).toEqual([
       { id: OLD, exclude_group_addresses: 0, exclude_personal_domains: 0, contact_creation: 'sent_and_received' },
@@ -80,19 +80,19 @@ describe('capture defaults on channel_connections', () => {
     ])
     expect(
       await all(
-        "select name from sqlite_master where tbl_name = 'channel_connections' and name not like 'sqlite_autoindex%' order by name",
+        "select name from sqlite_master where tbl_name = 'connections' and name not like 'sqlite_autoindex%' order by name",
       ),
     ).toEqual([
-      { name: 'channel_connections' },
-      { name: 'idx_channel_connections_live_account' },
-      { name: 'idx_channel_connections_organization_id_id' },
-      { name: 'idx_channel_connections_owner' },
+      { name: 'connections' },
+      { name: 'idx_connections_live_account' },
+      { name: 'idx_connections_organization_id_id' },
+      { name: 'idx_connections_owner' },
     ])
 
     await connection(NEW, 'sub-new')
     expect(
       await all(
-        'select exclude_group_addresses, exclude_personal_domains, contact_creation from channel_connections where id = ?',
+        'select exclude_group_addresses, exclude_personal_domains, contact_creation from connections where id = ?',
         NEW,
       ),
     ).toEqual([{ exclude_group_addresses: 1, exclude_personal_domains: 1, contact_creation: 'sent' }])

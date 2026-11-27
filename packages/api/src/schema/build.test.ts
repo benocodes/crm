@@ -62,9 +62,9 @@ const COLUMNS: ColumnRow[] = [
   col('tasks', 1, 'organization_id', 'TEXT', { notnull: true }),
   col('tasks', 2, 'status', 'TEXT', { notnull: true, dflt: "'open'" }),
   col('tasks', 3, 'due_at', 'TEXT'),
-  col('channel_credentials', 0, 'id', 'TEXT', { notnull: true, pk: true }),
-  col('channel_credentials', 1, 'refresh_token_ciphertext', 'TEXT', { notnull: true }),
-  col('channel_credentials', 2, 'key_version', 'INTEGER', { notnull: true }),
+  col('connection_credentials', 0, 'id', 'TEXT', { notnull: true, pk: true }),
+  col('connection_credentials', 1, 'refresh_token_ciphertext', 'TEXT', { notnull: true }),
+  col('connection_credentials', 2, 'key_version', 'INTEGER', { notnull: true }),
   col('events', 0, 'id', 'TEXT', { notnull: true, pk: true }),
   col('action_executions', 0, 'id', 'TEXT', { notnull: true, pk: true }),
   col('mystery', 0, 'id', 'TEXT', { notnull: true, pk: true }),
@@ -100,7 +100,7 @@ const CATALOG: Catalog = {
 const KINDS = {
   contacts: { id: 'uuid', company_id: 'uuid', organization_id: 'uuid' },
   tasks: { id: 'uuid', status: 'text', due_at: 'timestamp' },
-  channel_credentials: { id: 'uuid', refresh_token_ciphertext: 'text', key_version: 'integer' },
+  connection_credentials: { id: 'uuid', refresh_token_ciphertext: 'text', key_version: 'integer' },
 }
 const build = (over: Record<string, unknown> = {}) =>
   buildSchemaDocument({
@@ -218,8 +218,8 @@ describe('document shape (D10, D11)', () => {
     const doc = build({ columns: [...COLUMNS].reverse() })
     expect(doc.tables.map((t: any) => t.name)).toEqual([
       'action_executions',
-      'channel_credentials',
       'companies',
+      'connection_credentials',
       'contacts',
       'events',
       'interactions',
@@ -363,8 +363,8 @@ describe('resource bridge (D14)', () => {
       ],
     })
   })
-  it('channel_credentials is machinery served by no definition, so its table has resource null (CORE329: the control-plane api_keys is no CRM table)', () => {
-    expect(table(doc, 'channel_credentials').resource).toBeNull()
+  it('connection_credentials is machinery served by no definition, so its table has resource null (CORE329: the control-plane api_keys is no CRM table)', () => {
+    expect(table(doc, 'connection_credentials').resource).toBeNull()
   })
   it('tables served by no definition (events, principals) have resource null', () => {
     expect(table(doc, 'events').resource).toBeNull()
@@ -441,7 +441,7 @@ describe('values and exposed (D11)', () => {
   it('exposed is true only for record fields; secret columns are listed with exposed false', () => {
     expect(column(doc, 'tasks', 'status').exposed).toBe(true)
     expect(column(doc, 'companies', 'name').exposed).toBe(true)
-    expect(column(doc, 'channel_credentials', 'refresh_token_ciphertext')).toMatchObject({
+    expect(column(doc, 'connection_credentials', 'refresh_token_ciphertext')).toMatchObject({
       exposed: false,
       kind: 'text',
     })

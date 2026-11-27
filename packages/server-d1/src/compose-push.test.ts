@@ -121,7 +121,7 @@ const fake = (gmail: FakeGmail, jwksCalls: string[] = []) =>
     throw new Error(`no network: ${url.origin}`)
   }) as typeof fetch
 const watches = async () =>
-  (await w.d1.prepare('select * from gmail_watches').all()).results as Array<Record<string, unknown>>
+  (await w.d1.prepare('select * from connection_watches').all()).results as Array<Record<string, unknown>>
 const tick = (extra: Partial<D1WorkerEnv>, gmail: FakeGmail, time = NOW.getTime()) =>
   composeD1Worker(env(extra), { fetch: fake(gmail), clock: () => new Date(time) }).scheduled({
     cron: CRON,

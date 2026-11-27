@@ -454,7 +454,7 @@ describe('the workspace blocklist (D17, P2)', () => {
       own: true,
       deleted_at: SEED_AT,
     })
-    await e.insert('channel_connections', {
+    await e.insert('connections', {
       id: connectionId,
       provider: 'google',
       account_id: 'acct',

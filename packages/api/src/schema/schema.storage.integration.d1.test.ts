@@ -37,10 +37,10 @@ const HIDDEN = [
   'unit_assertion',
   'message_sources',
   'thread_sources',
-  'channel_credentials',
-  'gmail_watches',
-  'mail_sync_state',
-  'mail_sync_cursors',
+  'connection_credentials',
+  'connection_watches',
+  'connection_sync_state',
+  'connection_sync_cursors',
 ]
 const PRESENT = [
   'events',
@@ -239,7 +239,7 @@ describe('derived fields ([[CORE131]] D11)', () => {
     const doc = await getDoc()
     for (const t of doc.tables) expect(Array.isArray(t.derived), `${t.name}.derived`).toBe(true)
     for (const t of doc.tables)
-      if (!['contacts', 'deals', 'channel_connections', 'action_requests'].includes(t.name))
+      if (!['contacts', 'deals', 'connections', 'action_requests'].includes(t.name))
         expect(t.derived, t.name).toEqual([])
   })
   it('contacts lists the two fields in the spec shape, apart from the columns, with sortable true ([[CORE133]] D11)', async () => {

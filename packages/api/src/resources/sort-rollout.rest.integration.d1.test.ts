@@ -213,12 +213,12 @@ const specs: ListSpec[] = [
     seed: async () => {
       for (const i of ROWS) {
         await ensureConnection(e.binding, e, id(100 + i))
-        await e.update('channel_connections', id(100 + i), { created_at: CT[i], updated_at: UT[i] })
+        await e.update('connections', id(100 + i), { created_at: CT[i], updated_at: UT[i] })
         // `last_synced_at` is derived: the mailbox's cursor row, absent until a sync has run (null).
         if (D[i] !== null)
-          await e.insert('mail_sync_cursors', {
+          await e.insert('connection_sync_cursors', {
             connection_id: id(100 + i),
-            history_id: String(i + 1),
+            cursor: String(i + 1),
             last_synced_at: D[i],
           })
       }

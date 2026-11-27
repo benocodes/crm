@@ -80,7 +80,7 @@ beforeAll(async () => {
     version: 1,
   })
   await must('identities', { id: IDENTITY, ...base, updated_at: AT, kind: 'email', value: 'a@b.test' })
-  await must('channel_connections', {
+  await must('connections', {
     id: CONNECTION,
     ...base,
     updated_at: AT,
@@ -148,17 +148,17 @@ const keyed: KeyedCase[] = [
     row: (v) => ({ id: fresh(), ...base, updated_at: AT, company_id: COMPANY2, file_id: v }),
   },
   {
-    table: 'gmail_watches',
+    table: 'connection_watches',
     column: 'connection_id',
     valid: CONNECTION,
-    row: (v) => ({ connection_id: v, ...base, mailbox: 'a@b.test', expires_at: AT }),
+    row: (v) => ({ connection_id: v, ...base, address: 'a@b.test', expires_at: AT }),
   },
-  { table: 'mail_sync_state', column: 'connection_id', valid: CONNECTION, row: (v) => ({ connection_id: v, ...base }) },
+  { table: 'connection_sync_state', column: 'connection_id', valid: CONNECTION, row: (v) => ({ connection_id: v, ...base }) },
   {
-    table: 'mail_sync_cursors',
+    table: 'connection_sync_cursors',
     column: 'connection_id',
     valid: CONNECTION,
-    row: (v) => ({ connection_id: v, ...base, history_id: '1' }),
+    row: (v) => ({ connection_id: v, ...base, cursor: '1' }),
   },
   {
     table: 'messages',

@@ -52,9 +52,9 @@ beforeEach(async () => {
     mailbox: 'owner@vibase.test',
     lastSyncedAt: '2026-11-05T09:59:00.000Z',
   })
-  await e.insert('gmail_watches', {
+  await e.insert('connection_watches', {
     connection_id: connId,
-    mailbox: 'owner@vibase.test',
+    address: 'owner@vibase.test',
     expires_at: '2026-11-12T10:00:00.000Z',
   })
 })
@@ -96,12 +96,12 @@ const post = async (a: ReturnType<typeof app>, o: { token?: string | null; heade
   const text = await res.text()
   return { status: res.status, body: text ? (JSON.parse(text) as any) : null }
 }
-const state = async () => (await e.rows('mail_sync_state')).find((r) => r.connection_id === connId)!
+const state = async () => (await e.rows('connection_sync_state')).find((r) => r.connection_id === connId)!
 const snapshot = async () =>
   JSON.stringify({
-    state: await e.rows('mail_sync_state'),
-    cursors: await e.rows('mail_sync_cursors'),
-    watches: await e.rows('gmail_watches'),
+    state: await e.rows('connection_sync_state'),
+    cursors: await e.rows('connection_sync_cursors'),
+    watches: await e.rows('connection_watches'),
     events: (await e.rows('events')).length,
   })
 const raw = (sql: string, ...binds: unknown[]) =>
@@ -321,22 +321,22 @@ describe('push to sync (D88)', () => {
       'a soft-deleted connection',
       async () =>
         void (await raw(
-          'update channel_connections set deleted_at = ? where id = ?',
+          'update connections set deleted_at = ? where id = ?',
           '2026-11-05T09:00:00.000Z',
           connId,
         )),
     ],
     [
       'a reauth_required connection',
-      async () => void (await raw("update channel_connections set status = 'reauth_required' where id = ?", connId)),
+      async () => void (await raw("update connections set status = 'reauth_required' where id = ?", connId)),
     ],
     [
       'a suspended connection',
-      async () => void (await raw("update channel_connections set status = 'suspended' where id = ?", connId)),
+      async () => void (await raw("update connections set status = 'suspended' where id = ?", connId)),
     ],
     [
       'a connection with no watch row (the empty state)',
-      async () => void (await raw('delete from gmail_watches where connection_id = ?', connId)),
+      async () => void (await raw('delete from connection_watches where connection_id = ?', connId)),
     ],
   ]
   it.each(cases)('%s: 204, no instance, no write', async (_n, arrange, mailbox) => {
@@ -377,15 +377,15 @@ describe('push to sync (D88)', () => {
     expect(await snapshot()).toBe(before)
     expect(created).toEqual([])
   })
-  it('historyId is never used: a push below or above the cursor leaves mail_sync_cursors unchanged and still requests', async () => {
-    const cursorBefore = JSON.stringify(await e.rows('mail_sync_cursors'))
+  it('historyId is never used: a push below or above the cursor leaves connection_sync_cursors unchanged and still requests', async () => {
+    const cursorBefore = JSON.stringify(await e.rows('connection_sync_cursors'))
     for (const historyId of ['1', '99999999']) {
       now = new Date(now.getTime() + 120 * SEC)
       const res = await post(app(), { body: pushBody({ historyId }) })
       expect(res.status).toBe(204)
       expect((await state()).sync_requested_at).toBe(now.toISOString())
     }
-    expect(JSON.stringify(await e.rows('mail_sync_cursors'))).toBe(cursorBefore)
+    expect(JSON.stringify(await e.rows('connection_sync_cursors'))).toBe(cursorBefore)
     expect(created).toHaveLength(2)
   })
 })
@@ -411,7 +411,7 @@ describe('no amplification (D88)', () => {
     const a = app()
     await post(a)
     now = new Date(now.getTime() + 5 * SEC)
-    await raw('update mail_sync_state set last_success_at = ? where connection_id = ?', now.toISOString(), connId)
+    await raw('update connection_sync_state set last_success_at = ? where connection_id = ?', now.toISOString(), connId)
     now = new Date(now.getTime() + 5 * SEC)
     await post(a)
     expect(created).toHaveLength(2)
@@ -419,7 +419,7 @@ describe('no amplification (D88)', () => {
   it('with a lease held no instance is created, but sync_requested_at is advanced past the run start so its finish re-passes', async () => {
     const passStart = new Date(now.getTime() - 5 * SEC).toISOString()
     await raw(
-      'update mail_sync_state set lease_until = ?, run_id = ? where connection_id = ?',
+      'update connection_sync_state set lease_until = ?, run_id = ? where connection_id = ?',
       new Date(now.getTime() + 60 * SEC).toISOString(),
       'run-1',
       connId,
@@ -440,20 +440,20 @@ describe('no amplification (D88)', () => {
   it('a suppressed request whose instance never came is selected by the cron (dueConnections) once the lease is gone, from this exact row', async () => {
     // Synced a minute ago and not stale: only the recorded request can make it due.
     await raw(
-      'update mail_sync_state set last_success_at = ?, sync_requested_at = null where connection_id = ?',
+      'update connection_sync_state set last_success_at = ?, sync_requested_at = null where connection_id = ?',
       new Date(now.getTime() - 60 * SEC).toISOString(),
       connId,
     )
     expect(await dueConnections({ binding: e.binding, organizationId: e.organizationId }, now)).toEqual([])
     await raw(
-      'update mail_sync_state set lease_until = ?, run_id = ? where connection_id = ?',
+      'update connection_sync_state set lease_until = ?, run_id = ? where connection_id = ?',
       new Date(now.getTime() + 30 * SEC).toISOString(),
       'run-1',
       connId,
     )
     await post(app())
     expect(created).toEqual([])
-    await raw('update mail_sync_state set lease_until = null, run_id = null where connection_id = ?', connId)
+    await raw('update connection_sync_state set lease_until = null, run_id = null where connection_id = ?', connId)
     expect(await dueConnections({ binding: e.binding, organizationId: e.organizationId }, now)).toEqual([connId])
   })
 })
@@ -461,7 +461,7 @@ describe('no amplification (D88)', () => {
 describe('failures after the mark (D88)', () => {
   it('an instance that cannot be created is 204 with the request kept, and the cron selects it', async () => {
     await raw(
-      'update mail_sync_state set last_success_at = ? where connection_id = ?',
+      'update connection_sync_state set last_success_at = ? where connection_id = ?',
       new Date(now.getTime() - 60 * SEC).toISOString(),
       connId,
     )

@@ -121,7 +121,7 @@ async function setup(
 }
 const addHistory = (g: FakeGmail, id: string, added: Array<string | { id: string; labels?: string[] | null }>) =>
   g.history.push({ id, added: added.map((a) => (typeof a === 'string' ? { id: a, labels: ['INBOX'] } : a)) })
-const cursor = async () => (await e.rows('mail_sync_cursors'))[0]!
+const cursor = async () => (await e.rows('connection_sync_cursors'))[0]!
 const count = async (t: string) => (await e.rows(t)).length
 const eventsOf = async (type: string) => (await e.rows('events')).filter((r) => r.type === type)
 const calls = (g: FakeGmail, op: string) => g.calls.filter((c) => c.op === op)
@@ -223,13 +223,13 @@ describe('history page', () => {
     s.gmail.profile.historyId = '1031'
     const first = page(await captureHistoryPage(s.deps, s.id))
     expect(first).toMatchObject({ next_page_token: 'h25', history_id: '1000', captured: 25 })
-    expect(await cursor()).toMatchObject({ history_id: '1000', page_token: 'h25', last_synced_at: SYNCED })
+    expect(await cursor()).toMatchObject({ cursor: '1000', page_token: 'h25', last_synced_at: SYNCED })
     now = new Date(NOW.getTime() + 1000)
     // The second call resumes from the stored page token.
     const second = page(await captureHistoryPage(s.deps, s.id))
     expect(second).toMatchObject({ next_page_token: null, history_id: '1031', captured: 5 })
     expect(calls(s.gmail, 'history').map((c) => c.pageToken)).toEqual([null, 'h25'])
-    expect(await cursor()).toMatchObject({ history_id: '1031', page_token: null, last_synced_at: now.toISOString() })
+    expect(await cursor()).toMatchObject({ cursor: '1031', page_token: null, last_synced_at: now.toISOString() })
     expect(await count('messages')).toBe(30)
   })
 })
@@ -241,7 +241,7 @@ describe('cursor atomicity', () => {
     s.gmail.profile.historyId = '1005'
     await e
       .d1!.prepare(
-        "create trigger fail_cursor before update on mail_sync_cursors begin select raise(abort, 'cursor refused'); end",
+        "create trigger fail_cursor before update on connection_sync_cursors begin select raise(abort, 'cursor refused'); end",
       )
       .run()
     try {
@@ -249,7 +249,7 @@ describe('cursor atomicity', () => {
     } finally {
       await e.d1!.prepare('drop trigger fail_cursor').run()
     }
-    expect(await cursor()).toMatchObject({ history_id: '1000', page_token: null, last_synced_at: SYNCED })
+    expect(await cursor()).toMatchObject({ cursor: '1000', page_token: null, last_synced_at: SYNCED })
     expect(await count('messages')).toBe(0)
     expect(await count('message_sources')).toBe(0)
     // The same page retried commits both together.
@@ -268,7 +268,7 @@ describe('cursor atomicity', () => {
       existing: 0,
       skipped: 0,
     })
-    expect(await cursor()).toMatchObject({ history_id: '1005', page_token: null, last_synced_at: now.toISOString() })
+    expect(await cursor()).toMatchObject({ cursor: '1005', page_token: null, last_synced_at: now.toISOString() })
     expect(await count('events')).toBe(before)
   })
 
@@ -277,9 +277,9 @@ describe('cursor atomicity', () => {
     addHistory(s.gmail, '1001', ['k1'])
     s.gmail.profile.historyId = '1002'
     await captureHistoryPage(s.deps, s.id)
-    await e.d1!.prepare("update mail_sync_cursors set history_id = '1000'").run()
+    await e.d1!.prepare("update connection_sync_cursors set cursor = '1000'").run()
     expect(page(await captureHistoryPage(s.deps, s.id))).toMatchObject({ captured: 0, existing: 1, history_id: '1002' })
-    expect(await cursor()).toMatchObject({ history_id: '1002' })
+    expect(await cursor()).toMatchObject({ cursor: '1002' })
   })
 })
 
@@ -291,7 +291,7 @@ describe('source check', () => {
     await captureHistoryPage(s.deps, s.id)
     const events = await count('events')
     const fetched = s.gmail.calls.length
-    await e.d1!.prepare("update mail_sync_cursors set history_id = '1000'").run()
+    await e.d1!.prepare("update connection_sync_cursors set cursor = '1000'").run()
     const again = page(await captureHistoryPage(s.deps, s.id))
     expect(again).toMatchObject({ captured: 0, existing: 2 })
     expect(s.gmail.calls.slice(fetched).filter((c) => c.op !== 'history')).toEqual([])
@@ -333,7 +333,7 @@ describe('backfill', () => {
     })
     const first = page(await captureScanPage(s.deps, s.id, scanOf(start), null))
     expect(first).toMatchObject({ next_page_token: 'm25', captured: 25 })
-    expect(await cursor()).toMatchObject({ history_id: '1000', page_token: null, last_synced_at: null })
+    expect(await cursor()).toMatchObject({ cursor: '1000', page_token: null, last_synced_at: null })
     now = new Date(NOW.getTime() + 5000)
     const last = page(await captureScanPage(s.deps, s.id, scanOf(start), 'm25'))
     expect(last).toMatchObject({ next_page_token: null, history_id: '1000', captured: 5, skipped: 1 })
@@ -341,7 +341,7 @@ describe('backfill', () => {
       `after:${after} {in:inbox in:sent}`,
       `after:${after} {in:inbox in:sent}`,
     ])
-    expect(await cursor()).toMatchObject({ history_id: '1000', page_token: null, last_synced_at: now.toISOString() })
+    expect(await cursor()).toMatchObject({ cursor: '1000', page_token: null, last_synced_at: now.toISOString() })
     expect(await count('messages')).toBe(30)
     expect(calls(s.gmail, 'full').map((c) => c.messageId)).not.toContain('old')
 
@@ -358,7 +358,7 @@ describe('backfill', () => {
     s.gmail.profile.historyId = '1000'
     const run = await runGmailSync(s.deps, s.id)
     expect(run).toMatchObject({ outcome: 'complete', captured: 0, scans: ['backfill'] })
-    expect(await cursor()).toMatchObject({ history_id: '1000', page_token: null, last_synced_at: now.toISOString() })
+    expect(await cursor()).toMatchObject({ cursor: '1000', page_token: null, last_synced_at: now.toISOString() })
   })
 
   it('uses GMAIL_BACKFILL_DAYS from the config', async () => {
@@ -418,19 +418,19 @@ describe('recovery', () => {
     const scan = scanOf(start)
     const first = page(await captureScanPage(s.deps, s.id, scan, null))
     expect(first).toMatchObject({ next_page_token: 'm25', history_id: '1000' })
-    expect(await cursor()).toMatchObject({ history_id: '1000', last_synced_at: OLD_SYNC })
+    expect(await cursor()).toMatchObject({ cursor: '1000', last_synced_at: OLD_SYNC })
     now = new Date(NOW.getTime() + 9000)
     const last = page(await captureScanPage(s.deps, s.id, scan, 'm25'))
     expect(last).toMatchObject({ next_page_token: null, history_id: '2000' })
     expect(calls(s.gmail, 'list').every((c) => c.q === `after:${after} {in:inbox in:sent}`)).toBe(true)
-    expect(await cursor()).toMatchObject({ history_id: '2000', page_token: null, last_synced_at: now.toISOString() })
+    expect(await cursor()).toMatchObject({ cursor: '2000', page_token: null, last_synced_at: now.toISOString() })
   })
 
   it('a run stopped after the first scan page leaves the old cursor: the next run gets 404 again and finishes with no duplicate', async () => {
     const { s } = await expiredSetup()
     const start = await beginScan(s.deps, s.id, 'recovery')
     await captureScanPage(s.deps, s.id, scanOf(start), null)
-    expect(await cursor()).toMatchObject({ history_id: '1000', last_synced_at: OLD_SYNC })
+    expect(await cursor()).toMatchObject({ cursor: '1000', last_synced_at: OLD_SYNC })
     expect(await count('messages')).toBe(25)
     // The next run: history says 404 again.
     expect(await captureHistoryPage(s.deps, s.id)).toEqual({ outcome: 'expired' })
@@ -438,7 +438,7 @@ describe('recovery', () => {
     expect(run).toMatchObject({ outcome: 'complete', scans: ['recovery'], captured: 5 })
     expect(await count('messages')).toBe(30)
     expect(await eventsOf('message.created')).toHaveLength(30)
-    expect(await cursor()).toMatchObject({ history_id: '2000', page_token: null })
+    expect(await cursor()).toMatchObject({ cursor: '2000', page_token: null })
   })
 
   it('without a last_synced_at the recovery scan falls back to the backfill window', async () => {
@@ -466,17 +466,17 @@ describe('token resolver and refresh', () => {
     ])
     expect(calls(s.gmail, 'full')).toHaveLength(3)
     // A second page refreshes again: the access token lives for one page only.
-    await e.d1!.prepare("update mail_sync_cursors set history_id = '1000'").run()
+    await e.d1!.prepare("update connection_sync_cursors set cursor = '1000'").run()
     await captureHistoryPage(s.deps, s.id)
     expect(google.refreshRequests.filter((r) => r.refresh_token === s.refreshToken)).toHaveLength(2)
   })
 
   it('a refresh response with a new refresh token inserts a row sealed under the configured key and version and deletes the older rows', async () => {
     const s = await setup({ keyVersion: 7 })
-    const [old] = await e.rows('channel_credentials')
+    const [old] = await e.rows('connection_credentials')
     google.rotateRefreshTokens(true)
     await captureHistoryPage(s.deps, s.id)
-    const rows = await e.rows('channel_credentials')
+    const rows = await e.rows('connection_credentials')
     expect(rows).toHaveLength(1)
     expect(rows[0]!.id).not.toBe(old!.id)
     expect(rows[0]).toMatchObject({ connection_id: s.id, key_version: 7, created_by: e.userId })
@@ -491,16 +491,16 @@ describe('token resolver and refresh', () => {
 
   it('a response without a refresh token changes nothing', async () => {
     const s = await setup()
-    const before = await e.rows('channel_credentials')
+    const before = await e.rows('connection_credentials')
     await captureHistoryPage(s.deps, s.id)
-    expect(await e.rows('channel_credentials')).toEqual(before)
+    expect(await e.rows('connection_credentials')).toEqual(before)
   })
 
   it('a credential under another key version throws credential_key_mismatch: not reauth, no Google call', async () => {
     const s = await setup({ config: { keyVersion: 2 } })
     const requests = google.refreshRequests.length
     await expect(captureHistoryPage(s.deps, s.id)).rejects.toThrow(/credential_key_mismatch/)
-    expect((await e.rows('channel_connections'))[0]!.status).toBe('active')
+    expect((await e.rows('connections'))[0]!.status).toBe('active')
     expect(google.refreshRequests.length).toBe(requests)
   })
 })
@@ -512,9 +512,9 @@ describe('invalid_grant and other refresh failures', () => {
     google.revoke(s.refreshToken)
     const requests = google.refreshRequests.length
     expect(await captureHistoryPage(s.deps, s.id)).toEqual({ outcome: 'reauth' })
-    const conn = (await e.rows('channel_connections'))[0]!
+    const conn = (await e.rows('connections'))[0]!
     expect(conn.status).toBe('reauth_required')
-    expect(await e.rows('mail_sync_state')).toEqual([
+    expect(await e.rows('connection_sync_state')).toEqual([
       expect.objectContaining({
         connection_id: s.id,
         last_error_code: 'invalid_grant',
@@ -539,7 +539,7 @@ describe('invalid_grant and other refresh failures', () => {
     // beginScan(backfill) makes no Google call; the first page meets the revoked grant.
     const scan = { kind: 'backfill' as const, after: 1, history_id: null }
     expect(await captureScanPage(s.deps, s.id, scan, null)).toEqual({ outcome: 'reauth' })
-    expect((await e.rows('channel_connections'))[0]!.status).toBe('reauth_required')
+    expect((await e.rows('connections'))[0]!.status).toBe('reauth_required')
   })
 
   it.each([
@@ -550,15 +550,15 @@ describe('invalid_grant and other refresh failures', () => {
     const s = await setup()
     google.failRefresh(mode)
     const before = {
-      conn: await e.rows('channel_connections'),
+      conn: await e.rows('connections'),
       events: await count('events'),
-      state: await e.rows('mail_sync_state'),
+      state: await e.rows('connection_sync_state'),
     }
     const requests = google.refreshRequests.length
     await expect(captureHistoryPage(s.deps, s.id)).rejects.toMatchObject({ name: 'GoogleRefreshError', code })
     expect(google.refreshRequests.length).toBe(requests + 1)
-    expect(await e.rows('channel_connections')).toEqual(before.conn)
-    expect(await e.rows('mail_sync_state')).toEqual(before.state)
+    expect(await e.rows('connections')).toEqual(before.conn)
+    expect(await e.rows('connection_sync_state')).toEqual(before.state)
     expect(await count('events')).toBe(before.events)
     expect(s.gmail.calls).toEqual([])
   })
@@ -572,13 +572,13 @@ describe('inactive connections', () => {
   ])('%s: inactive with no Google call and no write', async (_name, patch) => {
     const s = await setup({ messages: [mk('i1')], synced: null })
     addHistory(s.gmail, '1001', ['i1'])
-    await e.update('channel_connections', s.id, patch)
+    await e.update('connections', s.id, patch)
     const snapshot = async () => ({
       events: await count('events'),
       cursor: await cursor(),
-      conn: await e.rows('channel_connections'),
-      state: await e.rows('mail_sync_state'),
-      creds: await e.rows('channel_credentials'),
+      conn: await e.rows('connections'),
+      state: await e.rows('connection_sync_state'),
+      creds: await e.rows('connection_credentials'),
       messages: await count('messages'),
     })
     const before = await snapshot()
@@ -614,7 +614,7 @@ describe('throttle', () => {
     const s = await setup()
     s.gmail.failWhen((c) => c.op === 'history', error)
     expect(await captureHistoryPage(s.deps, s.id)).toEqual({ outcome: 'throttled', retry_after_seconds: seconds })
-    expect(await cursor()).toMatchObject({ history_id: '1000', last_synced_at: SYNCED })
+    expect(await cursor()).toMatchObject({ cursor: '1000', last_synced_at: SYNCED })
   })
 
   it('throttles on a scan list and on a message get', async () => {
@@ -656,7 +656,7 @@ describe('throttle', () => {
       const held = (await small.rows('messages')).length
       expect(held).toBeGreaterThan(0)
       expect(held).toBeLessThan(6)
-      expect((await small.rows('mail_sync_cursors'))[0]).toMatchObject({ history_id: '1000' })
+      expect((await small.rows('connection_sync_cursors'))[0]).toMatchObject({ cursor: '1000' })
       s.gmail.clearFailures()
       const again = page(await captureHistoryPage(s.deps, s.id))
       expect(again).toMatchObject({ captured: 6 - held, existing: held, history_id: '1010' })
@@ -734,15 +734,15 @@ describe('secrecy and step returns', () => {
       'interactions',
       'message_sources',
       'events',
-      'channel_connections',
-      'mail_sync_state',
-      'mail_sync_cursors',
+      'connections',
+      'connection_sync_state',
+      'connection_sync_cursors',
       'identities',
       'files',
       'attachments',
     ]
     const rows = JSON.stringify(await Promise.all(tables.map((t) => e.rows(t).catch(() => []))))
-    const creds = JSON.stringify(await e.rows('channel_credentials'))
+    const creds = JSON.stringify(await e.rows('connection_credentials'))
     for (const secret of secrets) {
       for (const [where, text] of Object.entries({
         rows,
@@ -922,7 +922,7 @@ describe('a poison message does not stop the page (CORE571)', () => {
       existing: 0,
       skipped: 1,
     })
-    expect((await cursor()).history_id).toBe('1002')
+    expect((await cursor()).cursor).toBe('1002')
     expect((await e.rows('messages')).map((m) => m.external_id).sort()).toEqual(['deep@acme.test', 'fine@acme.test'])
     expect((await e.rows('message_sources')).map((m) => m.provider_message_id).sort()).toEqual(['deep', 'fine'])
     expect(await eventsOf('message.created')).toHaveLength(2)

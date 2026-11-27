@@ -67,7 +67,7 @@ const seed = (over: { lastSyncedAt?: string | null } = {}) => {
     lastSyncedAt: over.lastSyncedAt ?? null,
   })
 }
-const stateOf = async (id: string) => (await e.rows('mail_sync_state')).find((r) => r.connection_id === id)!
+const stateOf = async (id: string) => (await e.rows('connection_sync_state')).find((r) => r.connection_id === id)!
 
 describe('requestSync (D11)', () => {
   it('writes sync_requested_at in its own unit, then creates one instance named for the connection', async () => {
@@ -191,7 +191,7 @@ describe('connections.sync (D43, D75)', () => {
   it('409 connection_inactive for reauth_required and suspended, writing nothing', async () => {
     const id = await seed()
     for (const status of ['reauth_required', 'suspended']) {
-      await raw('update channel_connections set status = ?', status)
+      await raw('update connections set status = ?', status)
       const res = await post(app(), id)
       expect([res.status, res.body.error.code]).toEqual([409, 'connection_inactive'])
     }
@@ -254,12 +254,12 @@ describe('the connect flow requests a sync after its unit commits (D9, D55)', ()
     let existed: number | null = null
     const inst: MailSyncInstances = {
       create: async (o) => {
-        existed = (await e.rows('channel_connections')).length
+        existed = (await e.rows('connections')).length
         created.push(o)
       },
     }
     expect((await connect(build(inst))).status).toBe(200)
-    const [conn] = await e.rows('channel_connections')
+    const [conn] = await e.rows('connections')
     expect(created).toHaveLength(1)
     expect(created[0]!.params).toEqual({ connection_id: conn!.id })
     expect(existed).toBe(1)
@@ -267,7 +267,7 @@ describe('the connect flow requests a sync after its unit commits (D9, D55)', ()
   })
   it('a failed unit requests none and writes no request', async () => {
     await raw(
-      "create trigger boom_credentials before insert on channel_credentials begin select raise(abort, 'boom'); end",
+      "create trigger boom_credentials before insert on connection_credentials begin select raise(abort, 'boom'); end",
     )
     try {
       const res = await connect(build(instances))
@@ -276,15 +276,15 @@ describe('the connect flow requests a sync after its unit commits (D9, D55)', ()
       await raw('drop trigger boom_credentials')
     }
     expect(created).toEqual([])
-    expect(await e.rows('channel_connections')).toEqual([])
-    expect(await e.rows('mail_sync_state')).toEqual([])
+    expect(await e.rows('connections')).toEqual([])
+    expect(await e.rows('connection_sync_state')).toEqual([])
   })
   it('without a MAIL_SYNC binding the connection is still committed, and a line says no sync was requested', async () => {
     const lines: string[] = []
     vi.spyOn(console, 'warn').mockImplementation((...a: unknown[]) => void lines.push(a.map(String).join(' ')))
     const res = await connect(build(undefined))
     expect(res.status).toBe(200)
-    expect((await e.rows('channel_connections')).length).toBe(1)
+    expect((await e.rows('connections')).length).toBe(1)
     expect(lines.some((l) => /no sync was requested/.test(l))).toBe(true)
   })
   it('an instance that cannot be created does not undo the connect: 200, connection kept, the failure logged without detail', async () => {
@@ -292,7 +292,7 @@ describe('the connect flow requests a sync after its unit commits (D9, D55)', ()
     vi.spyOn(console, 'error').mockImplementation((...a: unknown[]) => void lines.push(a.map(String).join(' ')))
     const res = await connect(build({ create: async () => Promise.reject(new Error('workflows down: secret detail')) }))
     expect(res.status).toBe(200)
-    expect((await e.rows('channel_connections')).length).toBe(1)
+    expect((await e.rows('connections')).length).toBe(1)
     expect(lines.join('\n')).not.toContain('secret detail')
     expect(lines.some((l) => /sync request failed/.test(l))).toBe(true)
   })
@@ -302,7 +302,7 @@ describe('the cron: which connections get a request (D14, D75)', () => {
   const iso = (offsetMin: number) => new Date(now.getTime() + offsetMin * MIN).toISOString()
   const setState = (id: string, p: { success?: number | null; lease?: number | null; requested?: number | null }) =>
     raw(
-      'update mail_sync_state set last_success_at = ?, lease_until = ?, run_id = ?, sync_requested_at = ? where connection_id = ?',
+      'update connection_sync_state set last_success_at = ?, lease_until = ?, run_id = ?, sync_requested_at = ? where connection_id = ?',
       p.success == null ? null : iso(p.success),
       p.lease == null ? null : iso(p.lease),
       p.lease == null ? null : 'some-run',
@@ -328,8 +328,8 @@ describe('the cron: which connections get a request (D14, D75)', () => {
     await setState(expired, { success: -5, lease: -1 })
     await setState(reauth, { success: -60 })
     await setState(gone, { success: -60 })
-    await raw("update channel_connections set status = 'reauth_required' where id = ?", reauth)
-    await raw('update channel_connections set deleted_at = ? where id = ?', iso(-1), gone)
+    await raw("update connections set status = 'reauth_required' where id = ?", reauth)
+    await raw('update connections set deleted_at = ? where id = ?', iso(-1), gone)
     const out = await requestDueSyncs(deps())
     expect([...out.requested].sort()).toEqual([never, stale, expired, pending].sort())
     expect(out.failed).toBe(0)

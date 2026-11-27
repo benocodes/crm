@@ -32,8 +32,8 @@ beforeAll(async () => {
       own: 1,
     }),
   ).toBeNull()
-  expect(await insert('channel_connections', conn({ id: LIVE, account_id: 'sub-live' }))).toBeNull()
-  expect(await insert('channel_connections', conn({ id: DELETED, account_id: 'sub-gone', deleted_at: AT }))).toBeNull()
+  expect(await insert('connections', conn({ id: LIVE, account_id: 'sub-live' }))).toBeNull()
+  expect(await insert('connections', conn({ id: DELETED, account_id: 'sub-gone', deleted_at: AT }))).toBeNull()
 })
 afterAll(async () => {
   await local.dispose()
@@ -93,15 +93,15 @@ const workspace = (over: Record<string, unknown> = {}) => ({
 })
 
 describe('the capture-settings constraints hold whatever writes (one drift case per constraint)', () => {
-  it('channel_connections refuses a third contact_creation value and a non-0/1 flag; updates are held too', async () => {
+  it('connections refuses a third contact_creation value and a non-0/1 flag; updates are held too', async () => {
     const mk = (over: Record<string, unknown>) => conn({ id: id(20), account_id: 'sub-x', ...over })
-    expect(await insert('channel_connections', mk({ contact_creation: 'everyone' }))).toMatch(/CHECK/)
-    expect(await insert('channel_connections', mk({ exclude_group_addresses: 2 }))).toMatch(/CHECK/)
-    expect(await insert('channel_connections', mk({ exclude_personal_domains: -1 }))).toMatch(/CHECK/)
-    expect(await insert('channel_connections', mk({ contact_creation: 'none', exclude_group_addresses: 1 }))).toBeNull()
+    expect(await insert('connections', mk({ contact_creation: 'everyone' }))).toMatch(/CHECK/)
+    expect(await insert('connections', mk({ exclude_group_addresses: 2 }))).toMatch(/CHECK/)
+    expect(await insert('connections', mk({ exclude_personal_domains: -1 }))).toMatch(/CHECK/)
+    expect(await insert('connections', mk({ contact_creation: 'none', exclude_group_addresses: 1 }))).toBeNull()
     const upd = (s: string) =>
       d1
-        .prepare(`update channel_connections set ${s} where id = ?`)
+        .prepare(`update connections set ${s} where id = ?`)
         .bind(LIVE)
         .run()
         .then(

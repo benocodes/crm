@@ -53,7 +53,7 @@ async function seedConnection(over: Record<string, unknown> = {}) {
     contact_id: null,
     own: true,
   })
-  const c = await e.insert('channel_connections', {
+  const c = await e.insert('connections', {
     provider: 'google',
     account_id: `sub-${n}`,
     identity_id: identity.id,
@@ -214,7 +214,7 @@ describe('authority (D6, P3)', () => {
     // another member's connection
     expect(refusal(await patch(theirs.id as string, body))).toEqual([403, 'not_connection_owner'])
     for (const c of [mine, theirs, gone, theirsGone])
-      expect((await e.rows('channel_connections')).find((r) => r.id === c.id)?.contact_creation).toBe('sent')
+      expect((await e.rows('connections')).find((r) => r.id === c.id)?.contact_creation).toBe('sent')
     expect(await updatedEvents()).toEqual([])
   })
 
@@ -252,11 +252,11 @@ describe('authority (D6, P3)', () => {
   it('drift: a disconnect between plan and write writes nothing, emits no event and answers 404', async () => {
     const c = await seedConnection()
     e.betweenPlanAndCommit(async () => {
-      await e.update('channel_connections', c.id as string, { deleted_at: SEED_AT })
+      await e.update('connections', c.id as string, { deleted_at: SEED_AT })
     })
     const res = await patch(c.id as string, { contact_creation: 'none', capture_labels: ['INBOX'] })
     expect(refusal(res)).toEqual([404, 'not_found'])
-    const row = (await e.rows('channel_connections')).find((r) => r.id === c.id)
+    const row = (await e.rows('connections')).find((r) => r.id === c.id)
     expect(row?.contact_creation).toBe('sent')
     expect(await e.rows('connection_capture_labels')).toHaveLength(2)
     expect(await updatedEvents()).toEqual([])
@@ -265,11 +265,11 @@ describe('authority (D6, P3)', () => {
   it('drift: an owner change between plan and write writes nothing, emits no event and answers 403 not_connection_owner', async () => {
     const c = await seedConnection()
     e.betweenPlanAndCommit(async () => {
-      await e.update('channel_connections', c.id as string, { owner_id: e.user2Id })
+      await e.update('connections', c.id as string, { owner_id: e.user2Id })
     })
     const res = await patch(c.id as string, { contact_creation: 'none', capture_labels: ['INBOX'] })
     expect(refusal(res)).toEqual([403, 'not_connection_owner'])
-    const row = (await e.rows('channel_connections')).find((r) => r.id === c.id)
+    const row = (await e.rows('connections')).find((r) => r.id === c.id)
     expect(row?.contact_creation).toBe('sent')
     expect(await e.rows('connection_capture_labels')).toHaveLength(2)
     expect(await updatedEvents()).toEqual([])
