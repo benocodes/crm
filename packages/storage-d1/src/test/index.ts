@@ -221,3 +221,5 @@ export async function recordMigrations(d1: D1Like, names: readonly string[]): Pr
 export async function forgetMigrations(d1: D1Like, names: readonly string[]): Promise<void> {
   if (names.length > 0) await d1.batch(names.map((n) => d1.prepare('DELETE FROM d1_migrations WHERE name = ?').bind(n)))
 }
+
+export * from './conventions.js'

@@ -70,10 +70,11 @@ describe('schema audit normalisers', () => {
       'contacts_not_merged_into_self',
     ])
   })
-  it('D1 check names: one, from an added column', () => {
-    expect(d1CheckNames(createTable('0001_genesis.sql', 'tasks'))).toEqual(['tasks_additional_props'])
+  it('D1 check names: from the column constraints and an added column', () => {
+    // CORE679 D8 named the enum CHECK (`tasks_status`); the canonical `_uuid` and `_timestamp` ones are left out
+    expect(d1CheckNames(createTable('0001_genesis.sql', 'tasks'))).toEqual(['tasks_status', 'tasks_additional_props'])
   })
-  it('D1 check names: none, when every CHECK is unnamed', () => {
+  it('D1 check names: none, when every named CHECK is a canonical _uuid or _timestamp one', () => {
     expect(d1CheckNames(createTable('0001_genesis.sql', 'contact_files'))).toEqual([])
   })
 })

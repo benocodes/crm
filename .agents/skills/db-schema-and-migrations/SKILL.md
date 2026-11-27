@@ -204,8 +204,9 @@ status-like columns, JSONB shapes) goes in `src/types.ts`, which re-exports the 
   children holding rows, `DROP TABLE <t>` under `defer_foreign_keys` raises the deferred FK counter and the rename does
   not clear it, so the migration fails at commit. Instead: `CREATE TABLE <t>_backup AS SELECT * FROM <t>`, `DROP <t>`,
   `CREATE TABLE <t>` with the new definition, `INSERT … SELECT` the explicit column list from the backup (these inserts
-  clear the counter), `DROP <t>_backup`, then re-create every index and trigger. Keep `UNIQUE (organization_id, id)`
-  verbatim: the children's composite FKs depend on it. Test it over data with child rows present and
+  clear the counter), `DROP <t>_backup`, then re-create every index and trigger. Re-create the pair's unique index
+  `idx_<t>_organization_id_id` (C5, never a table-level `UNIQUE (organization_id, id)`) before the children are
+  written: their composite FKs depend on it. Test it over data with child rows present and
   `PRAGMA foreign_key_check` empty after (the `identities` rebuild, `identities-unattached-schema.integration.test.ts`,
   [[CORE408]]).
 - **A rebuild's test compares each re-created index and trigger by its `sqlite_master.sql`, not by its name.** If the test
@@ -331,6 +332,33 @@ tests.
 - Constraint checks (`23514`, `23505`) run inside a transaction on the owner pool that the test rolls back,
   and assert the SQLSTATE.
 - Kysely 0.29 exports `Migrator` and `FileMigrationProvider` from `kysely/migration`, not the root.
+
+## D1 schema conventions ([[CORE679]])
+
+The D1 schema follows eight rules, each named in the test that reports it. `packages/storage-d1/src/conventions.integration.test.ts`
+applies the migrations to an empty local D1 and runs the checker (`@vibase/storage-d1/test`: `checkConventions`,
+`readCatalogue`) over the live catalogue, so a new migration, a rename or a custom table is held the moment it exists. The
+checker is proven rule by rule on one violating table each in `src/test/conventions.test.ts`.
+
+| Rule | Name | Says |
+|---|---|---|
+| C1 | `id_check` | A column named `id`, `*_id` or `*_by` is a foreign key onto a checked id column (and has no id CHECK), or carries the canonical `<table>_<column>_uuid` CHECK (full UUID shape, `c IS NULL OR (...)` when nullable). Composite keys cover their non-`organization_id` column. |
+| C2 | `timestamp_check` | A `*_at` / `*_until` column is `TEXT` with the canonical `<table>_<column>_timestamp` CHECK (the `strftime` form). |
+| C3 | `check_named` | Every CHECK is `CONSTRAINT <table>_<what>`, unique in the database; `_uuid`, `_timestamp`, `_length` are reserved for the canonical expression; a CHECK over several columns is a table constraint. |
+| C4 | (CORE683) | A declared `maxLength` is a `<table>_<column>_length` CHECK. |
+| C5 | `org_id_unique` | "Unique per organisation and id" is only `CREATE UNIQUE INDEX idx_<table>_organization_id_id ON <table> (organization_id, id)`, never a table constraint; a composite key onto it needs that index. |
+| C6 | `index_named` | Indexes are `idx_<table>_<what>`. |
+| C7 | `strict` | Every table is `STRICT`. |
+| C8 | `keyword_case` | SQL keywords upper case outside string literals and quoted identifiers (functions stay lower case). |
+
+Outside the rules: `auth_*` (Better Auth's), FTS5 tables and their shadow tables, `d1_migrations`, `_cf_*`, `sqlite_*`.
+Layout (identifiers unquoted unless SQL requires, one column per line, a table's indexes after it) is held by review.
+**Adding an exemption** (a column named like an id or a timestamp whose values are not): add an entry to
+`CONVENTION_EXEMPTIONS` in `src/test/conventions.ts` with its database (`crm` or `control`), table, column and the reason; confirm
+against the code that writes it that it is never a UUID Vibase mints. The checker reports an entry whose table or column no
+longer exists as `exemption_stale`, so a rename must edit the list in the same change. **Changing or adding a rule**:
+grep `.agents/skills/` for DDL advice in the old form and fix it in the same change (the parent-rebuild recipe above
+still said "keep `UNIQUE (organization_id, id)`" after C5, caught only at [[CORE679]]'s review).
 
 ## D1 migrations ([[CORE35]])
 

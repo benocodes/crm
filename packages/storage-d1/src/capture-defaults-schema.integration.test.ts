@@ -85,6 +85,7 @@ describe('capture defaults on channel_connections', () => {
     ).toEqual([
       { name: 'channel_connections' },
       { name: 'idx_channel_connections_live_account' },
+      { name: 'idx_channel_connections_organization_id_id' },
       { name: 'idx_channel_connections_owner' },
     ])
 

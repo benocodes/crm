@@ -158,7 +158,7 @@ describe('forms', () => {
     expect(await t({ name: 'x'.repeat(201) })).toMatch(/CHECK/)
   })
 
-  it('a live name is unique per organisation ignoring ASCII case; a deleted twin does not count; the id check holds', async () => {
+  it('a live name is unique per organisation ignoring ASCII case; a deleted twin does not count; the id must be an agent', async () => {
     const a = await fresh({ name: 'Unique Name' })
     expect(await insert('forms', a)).toBeNull()
     expect(await insert('forms', await fresh({ name: 'unique NAME' }))).toMatch(/UNIQUE/)
@@ -167,7 +167,8 @@ describe('forms', () => {
     expect(await insert('forms', await fresh({ name: 'éxample' }))).toBeNull()
     expect(await run('UPDATE forms SET deleted_at = ? WHERE id = ?', AT, a.id)).toBeNull()
     expect(await insert('forms', await fresh({ name: 'unique name' }))).toBeNull()
-    expect(await insert('forms', form({ id: 'not-a-uuid', name: 'z', public_id: PID('g') }))).toMatch(/CHECK/)
+    // forms.id is a key onto agents (CORE679 D4): a value that is not an agent is refused by the key, not by a CHECK
+    expect(await insert('forms', form({ id: 'not-a-uuid', name: 'z', public_id: PID('g') }))).toMatch(/FOREIGN KEY/)
   })
 })
 

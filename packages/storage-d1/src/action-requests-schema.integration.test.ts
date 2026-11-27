@@ -170,6 +170,7 @@ describe('action_requests', () => {
       'idx_action_requests_contact:0:1',
       'idx_action_requests_interaction:0:1',
       'idx_action_requests_organization_created_by:0:0',
+      'idx_action_requests_organization_id_id:1:0', // CORE679 D5: the one unique (organization_id, id) index
       'idx_action_requests_organization_operation:0:0',
       'idx_action_requests_organization_status:0:0',
       'idx_action_requests_pending_dedup:1:1',
