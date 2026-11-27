@@ -123,7 +123,10 @@ replace (lowercase sentence starts survive into the CHANGELOG) ([[CORE569]] revi
 pending `.changeset/*.md` of earlier unreleased cycles too: they ship in the same CHANGELOG entry, so a hit there is
 fixed, not classed as history ([[CORE680]] review). When the new name contains the old one (`GMAIL_SYNC` ⊃ `MAIL_SYNC`,
 `gmail-sync` ⊃ `mail-sync`), a plain grep hits every renamed site and proves nothing: the charter writes the residue grep
-with a lookbehind, `git grep -nP '(?<![Gg])(mail-sync|MAIL_SYNC)'` ([[CORE688]]). Its surface matrix lists only the paths the old name already had
+with a lookbehind, `git grep -nP '(?<![Gg])(mail-sync|MAIL_SYNC)'` ([[CORE688]]). A charter that retires a *rule*
+(not a name) greps for every way the old rule told agents to act, not for the spec ID and the charter's own words:
+[[OPS681]]'s grep (`OPS681`, `interim`, `in place` near genesis) missed "written into genesis by hand", which review
+caught (681.16). List the old rule's verbs on its subject (edit, write, regenerate, by hand) in the grep. Its surface matrix lists only the paths the old name already had
 (read the declaration's filters, sorts and `group_by` at plan time): a rename adds no capability, and CORE680's
 "sort on `description` works" named a sort tasks never had.
 
