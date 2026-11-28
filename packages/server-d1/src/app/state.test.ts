@@ -129,6 +129,15 @@ describe('the states by input (D4)', () => {
     expect((c.state() as { who?: string }).who).toBe(who)
   })
 
+  it('an agent principal is marked agent on the no-access state, a person with no role is not (CORE697)', async () => {
+    const a = make(seam(), api(ok(ME({ user: null, principal: { id: 'a1', kind: 'agent' } }))))
+    await a.start()
+    expect(a.state()).toMatchObject({ kind: 'no-access', agent: true })
+    const p = make(seam(), api(ok(ME({ active_organization: null }))))
+    await p.start()
+    expect((p.state() as { agent?: boolean }).agent).toBeUndefined()
+  })
+
   it('no-access for a person with no name shows their email as who', async () => {
     const c = make(
       seam(),

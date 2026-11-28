@@ -123,14 +123,14 @@ test('B. owner on /app/agents: e2e-key is an Enabled API-key agent; Disable (con
   await expect(page.getByText(`${baseURL}/mcp`).first()).toBeVisible()
 })
 
-test('C. agent role: the app admits no agent principal (No access to this workspace, no Agents row); the owner then sees the agent account with the grant command', async ({
+test('C. agent role: the app admits no agent principal (the agent-ready card, no Agents row); the owner then sees the agent account with the grant command', async ({
   page,
   browser,
 }) => {
-  // UI479 479.10/479.12: `state.ts` ([[UI443]]) refuses a principal that is not a person ("The app is for people"), so the agent-role person gets the no-access card.
+  // UI479 479.10/479.12: `state.ts` ([[UI443]]) refuses a principal that is not a person ("The app is for people"), so the agent-role person gets the agent-ready card (CORE697).
   await open(page, 'agent', '/app/agents')
-  await expect(page.getByRole('heading', { name: 'No access to this workspace' })).toBeVisible()
-  await expect(page.getByText('An agent should use the MCP, the CLI or the SDK instead.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your agent account is ready' })).toBeVisible()
+  await expect(page.getByText(/sign in as the agent with/)).toBeVisible()
   await expect(page.getByRole('link', { name: 'Agents' })).toHaveCount(0)
   const ctx = await browser.newContext()
   const owner = await ctx.newPage()

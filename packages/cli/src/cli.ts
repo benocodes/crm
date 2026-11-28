@@ -375,7 +375,13 @@ async function deviceLogin(server: string, name: string, scopeFlag: string | und
     org.scopes.some((s: unknown) => typeof s === 'string' && s.endsWith(':write'))
   )
     await deps.stderr.write(
-      `Warning: this login holds the owner's permissions on ${server}, so anything that uses this CLI profile acts as the owner. Give an agent its own identity instead: invite it with the agent role (vibase invitations create --email <agent-email> --role agent), then grant it scopes with vibase agents update <agent-id>.\n`,
+      [
+        `Warning: this login holds the owner's permissions on ${server}, so anything that uses this CLI profile acts as the owner. Give an agent its own identity instead:`,
+        '  An agent that can use a browser: vibase invitations create --email <agent-email> --role agent. The agent opens the link in a browser, then runs `vibase login` as itself.',
+        `  A headless agent: vibase agents create, vibase api-keys create --agent-id <id>, then vibase login --api-key --server ${server}.`,
+        'Keep the agent in its own profile (--profile <name>), and grant its scopes with vibase agents update <agent-id>.',
+        '',
+      ].join('\n'),
     )
   return 0
 }

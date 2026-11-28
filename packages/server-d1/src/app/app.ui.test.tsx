@@ -186,6 +186,18 @@ describe('the states without a shell (D4)', () => {
     expect(screen.getByText(/agents?.*MCP.*CLI.*SDK/i)).toBeTruthy()
   })
 
+  it('no-access for an agent says the account is ready and to sign in with vibase login, not "ask an owner" (CORE697)', async () => {
+    const h = show({ kind: 'no-access', agent: true })
+    noShell()
+    expect(screen.getByRole('heading', { name: 'Your agent account is ready' })).toBeTruthy()
+    expect(screen.getByText(/vibase login/)).toBeTruthy()
+    expect(screen.getByText(/MCP.*SDK/)).toBeTruthy()
+    expect(screen.queryByText(/ask an owner/i)).toBeNull()
+    expect(screen.queryByText(/no access/i)).toBeNull()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Sign out' }))
+    expect(h.onSignOut).toHaveBeenCalledTimes(1)
+  })
+
   it('no-access with who: the card shows the signed-in person, and a refused sign-out error', async () => {
     show({
       kind: 'no-access',
