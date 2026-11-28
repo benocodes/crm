@@ -35,7 +35,7 @@ Output is JSON, or one record per line for lists. Errors go to stderr. Exit code
 
 ## Give an agent its own identity
 
-A device login by an owner holds the owner's permissions, and the CLI says so on stderr after login. Anything that uses that profile acts as the owner, so an agent should not share it. Give each agent its own account, or its own API key, and grant it only the scopes it needs: see [invite agents and manage permissions](/guides/agents/).
+A device login by an owner holds the owner's permissions, and the CLI says so on stderr after login. Anything that uses that profile acts as the owner, so an agent should not share it. Give each agent its own identity and grant it only the scopes it needs. An agent that can use a browser takes an invitation (`vibase invitations create --email <agent-email> --role agent`): it claims the link in a browser, then runs `vibase login` as itself. A headless agent takes an API key (`vibase agents create`, `vibase api-keys create --agent-id <id>`, then `vibase login --api-key --server <url>`). Keep each in its own `--profile`, and grant scopes with `vibase agents update <agent-id>`. See [invite agents and manage permissions](/guides/agents/).
 
 ## Use profiles and sign out
 

@@ -155,11 +155,18 @@ describe('device login: the owner-login warning', () => {
     expect(JSON.parse(res.stdout)).toEqual(me)
     return res.stderr
   }
-  it('an owner holding a write scope: stderr names the server, the owner, and the agent identity alternative', async () => {
+  it('an owner holding a write scope: stderr names the server, the owner, and both agent routes (CORE697)', async () => {
     const err = await run(meOf('user', 'owner', ['contacts:read', 'tasks:write']))
     expect(err).toContain(SERVER)
     expect(err).toContain("owner's permissions")
-    expect(err).toContain('vibase invitations create')
+    expect(err).toContain('vibase invitations create --email <agent-email> --role agent')
+    expect(err).toContain('then runs `vibase login` as itself')
+    expect(err).toContain('vibase agents create')
+    expect(err).toContain('vibase api-keys create --agent-id <id>')
+    expect(err).toContain(`vibase login --api-key --server ${SERVER}`)
+    expect(err).toContain('--profile <name>')
+    expect(err).toContain('vibase agents update <agent-id>')
+    expect(err.slice(err.indexOf('Warning:')).trimEnd().split('\n').length).toBeLessThanOrEqual(5)
   })
   it.each([
     ['a member with write scopes', meOf('user', 'member', ['contacts:write'])],

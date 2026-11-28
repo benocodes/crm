@@ -25,6 +25,8 @@ export type AppState =
   | {
       kind: 'no-access' /** Who is signed in (name, else email): known only when `me.get` answered a person with no active organisation. */
       who?: string
+      /** The session is an agent principal: the account works, the app is just not for it (CORE697). */
+      agent?: true
       signOutError?: string
     }
   /** A read that failed (5xx, `503 migrations_pending`, a network failure, a session that cannot load, a 401 that survived its one re-check). Retry re-reads. */
@@ -117,7 +119,7 @@ export function createAppController(deps: {
     const me = r.body!
     const active = me.active_organization
     // The app is for people: an agent principal has no profile to show, and a person with no active organisation has no workspace.
-    if (!me.user) return set({ kind: 'no-access' })
+    if (!me.user) return set(me.principal.kind === 'agent' ? { kind: 'no-access', agent: true } : { kind: 'no-access' })
     const display = me.user.name?.trim() ? me.user.name : me.user.email
     if (!active) return set({ kind: 'no-access', who: display })
     const membership = me.memberships.find((m) => m.organization_id === active.id)

@@ -11,8 +11,8 @@ Only an owner can invite agents, create them or change their scopes.
 
 | The agent | Identity | You create |
 | --- | --- | --- |
-| An automation or assistant with a shell | An **agent account**: it claims an invitation and signs in with the CLI's device login | An agent invitation |
-| A script or service that cannot open a browser | An **API-key agent** | The agent and a key |
+| An agent that can use a browser | An **agent account**: it claims an invitation in a browser, then signs in as itself with the CLI's device login (`vibase login`), MCP or the SDK | An agent invitation |
+| A headless agent, script or service that cannot open a browser | An **API-key agent**: `vibase login --api-key` | The agent and a key |
 | A client such as Claude or Cursor connected over MCP | A **delegated agent**, created when someone consents | What the person approves when consenting, and only what their own role holds; an owner can narrow it, never widen it |
 
 Do not hand an agent your own login. A device login by an owner holds the owner's full authority, and the CLI says so after login.
@@ -27,7 +27,7 @@ Do not hand an agent your own login. A device login by an owner holds the owner'
 
    `delivery` is `link` (the link comes back once and nothing is sent) or `email` (Vibase emails it, when the instance has email configured). The invitation expires after 7 days, and an address can have one live invitation at a time. `vibase invitations list` shows each as pending, accepted, revoked or expired, and `vibase invitations revoke <id>` withdraws a pending one.
 
-2. Hand the link to the agent over any channel. The agent opens it in a browser and signs up with that email address to claim it.
+2. Hand the link to the agent over any channel. The agent opens it in a browser and signs up with that email address to claim it. The browser then shows "Your agent account is ready": the workspace app is for people and admits no agent, so the agent signs in with `vibase login` (or connects over MCP or the SDK) instead.
 
 3. The agent signs in as itself. Device login needs no human approval:
 
@@ -38,6 +38,8 @@ Do not hand an agent your own login. A device login by an owner holds the owner'
    It prints the agent's ID. Use it in the next step.
 
 ## Create an API-key agent
+
+For a headless agent that cannot use a browser, so it never claims an invitation.
 
 ```bash
 vibase agents create --data '{"name":"nightly-sync","scopes":["contacts:read"]}'

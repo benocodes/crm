@@ -99,6 +99,25 @@ export function App({ state, provider, origin, mcpUrl, api, onCheckAgain, onSign
         </Centered>
       )
     case 'no-access':
+      if (state.agent)
+        return (
+          <Centered>
+            <Card
+              title="Your agent account is ready"
+              actions={
+                <Button type="button" variant="secondary" onClick={onSignOut}>
+                  Sign out
+                </Button>
+              }
+            >
+              {state.signOutError ? <Alert variant="error">{state.signOutError}</Alert> : null}
+              <p className="text-sm">
+                This invitation is claimed and the account can sign in. This app is for people, so close this page and
+                sign in as the agent with <code>vibase login</code> in the CLI, or connect through the MCP or the SDK.
+              </p>
+            </Card>
+          </Centered>
+        )
       return (
         <Centered>
           <Card
