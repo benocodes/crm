@@ -11,7 +11,8 @@ import { CONTROL_MIGRATIONS_DIR, MIGRATIONS_DIR } from './test/index.js'
 // manifest test, but not this one. Never edit a hash here to follow a change to a genesis file. A schema change
 // appends a numbered migration (`0002_<name>.sql`) and its manifest entry.
 const FROZEN_CRM_GENESIS_SHA256 = '90d886dba20ac1e817dd9756fd859aa71f5fde0d2cfddf41b5c067d033aff73b'
-const FROZEN_CONTROL_GENESIS_SHA256 = 'fc56fdafd144094543c28ffe6038ab2a930c608d12235bf12d860ea859b366b6'
+// AGT701 D14, ruling 701.27: the control genesis was reopened before v0.3.0 for `invitations.agent_id` (old pin fc56fdaf...); the freeze resumes at the tag.
+const FROZEN_CONTROL_GENESIS_SHA256 = '874abb896b0ab1a2ec4534debff8e1183baf3bff4ff6237f06be4adc5eccba9a'
 
 const NAME = '0001_genesis.sql'
 

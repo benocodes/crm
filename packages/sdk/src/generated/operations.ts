@@ -3586,6 +3586,7 @@ export const builtInOperations: OperationTable<BuiltInOperations> = {
     "fields": {
       "email": "body",
       "role": "body",
+      "agent_id": "body",
       "delivery": "body"
     },
     "body": true,

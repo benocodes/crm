@@ -208,6 +208,11 @@ Use these headings in order. Skip ones that don't apply — an empty section is 
    When a decision applies to a class of things ("binary operations are not tools"), state the rule by the
    declaration that defines the class (`output: 'binary'`) and name members only as "today: X", checked
    against the code; an enumerated list drifts ([[API106]] D11 named a JSON operation as binary).
+   **Before designing a new mechanism (a token, a link, a page, an operation), name the existing one that does the
+   same job for another subject and say why it cannot be extended.** "Easier to reverse" does not justify a parallel
+   mechanism. [[AGT701]]'s first approved design invented a stateless signed claim token, its own operation, page and
+   audit action beside the owner's invitation link; the user overturned it ("no new link mechanism", ruling 701.13)
+   and the spec took four passes (~600k tokens). The kept design is one nullable column on the invitation.
    **Before pinning a library that Worker code will import, bundle it the way `smoke:worker` does:** a one-line
    entry importing what the spec uses, through `esbuild --bundle --platform=browser
    --conditions=workerd,worker,browser --format=esm`. Types and docs don't show a top-level Node import; the

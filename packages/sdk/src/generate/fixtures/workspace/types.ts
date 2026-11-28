@@ -6735,7 +6735,7 @@ export interface paths {
         put?: never;
         /**
          * Invite someone to the workspace; the link is emailed or shown once
-         * @description Human only (owners). Creates an invitation for an email address with a role (owner, member or agent) that expires in 7 days, and either emails the link (delivery email, the default when the deployment has email configured; the answer has no url) or returns it once (delivery link, the default otherwise): the token in the link is never stored or shown again. Delivery email while email is not configured answers 501 email_not_configured; when the message cannot be sent the invitation is revoked and the answer is 502 email_send_failed (retry, or use delivery link); if that revoke also fails the invitation stays pending, inert, until it expires or an owner revokes it, and a retry answers 409 invitation_exists. One live invitation per address: a second answers 409 invitation_exists (revoke the first). The link is inert until sign-up accepts invitations. Answers 501 provider_not_configured when the deployment has no built-in auth provider.
+         * @description Human only (owners). Creates an invitation for an email address with a role (owner, member or agent) that expires in 7 days, and either emails the link (delivery email, the default when the deployment has email configured; the answer has no url) or returns it once (delivery link, the default otherwise): the token in the link is never stored or shown again. Delivery email while email is not configured answers 501 email_not_configured; when the message cannot be sent the invitation is revoked and the answer is 502 email_send_failed (retry, or use delivery link); if that revoke also fails the invitation stays pending, inert, until it expires or an owner revokes it, and a retry answers 409 invitation_exists. One live invitation per address: a second answers 409 invitation_exists (revoke the first). An agent invitation names an existing agent with agent_id (which implies role agent; another role beside it answers 400 validation_error, and role agent without it answers 400 agent_id_required): the agent must exist (404 not_found) and may not be a form agent (409 form_principal), a delegated agent (409 delegated_agent), a disabled agent (409 agent_disabled) or one that already has a sign-in account (409 agent_has_account). Creating one revokes the other live invitations of that agent; a live invitation for the same address that is not for this agent answers 409 invitation_exists. The link is inert until sign-up accepts invitations. Answers 501 provider_not_configured when the deployment has no built-in auth provider.
          */
         post: operations["invitations.create"];
         delete?: never;
@@ -8947,6 +8947,8 @@ export interface operations {
                             revoked_at: string | null;
                             /** @enum {string} */
                             delivery: "email" | "link";
+                            /** Format: uuid */
+                            agent_id: string | null;
                         }[];
                         /** Format: uuid */
                         next_cursor: string | null;
@@ -8967,8 +8969,16 @@ export interface operations {
                 "application/json": {
                     /** @description The address the invitation is for; trimmed and lowercased */
                     email: string;
-                    /** @enum {string} */
-                    role: "owner" | "member" | "agent";
+                    /**
+                     * @description owner or member; agent only beside agent_id. Optional with agent_id (it implies agent), required without it.
+                     * @enum {string}
+                     */
+                    role?: "owner" | "member" | "agent";
+                    /**
+                     * Format: uuid
+                     * @description The existing agent this invitation is for (create it first with agents.create). Implies role agent; the agent then signs up with the invitation and its account is linked to this agent.
+                     */
+                    agent_id?: string;
                     /**
                      * @description email: the vault emails the link and does not return it (default when email is configured). link: the link is returned once, nothing is sent (default otherwise).
                      * @enum {string}
@@ -8994,6 +9004,8 @@ export interface operations {
                         expires_at: string;
                         /** @enum {string} */
                         delivery: "email" | "link";
+                        /** Format: uuid */
+                        agent_id: string | null;
                         url?: string;
                     };
                 };
@@ -9037,6 +9049,8 @@ export interface operations {
                         revoked_at: string | null;
                         /** @enum {string} */
                         delivery: "email" | "link";
+                        /** Format: uuid */
+                        agent_id: string | null;
                     };
                 };
             };

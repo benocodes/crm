@@ -91,10 +91,14 @@ CREATE TABLE invitations (
   created_at TEXT NOT NULL CONSTRAINT invitations_created_at_timestamp CHECK (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', created_at) = created_at, 0)),
   accepted_at TEXT CONSTRAINT invitations_accepted_at_timestamp CHECK (accepted_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', accepted_at) = accepted_at, 0))),
   revoked_at TEXT CONSTRAINT invitations_revoked_at_timestamp CHECK (revoked_at IS NULL OR (coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', revoked_at) = revoked_at, 0))),
-  delivery TEXT NOT NULL DEFAULT 'link' CONSTRAINT invitations_delivery CHECK (delivery IN ('link', 'email'))
+  delivery TEXT NOT NULL DEFAULT 'link' CONSTRAINT invitations_delivery CHECK (delivery IN ('link', 'email')),
+  agent_id TEXT CONSTRAINT invitations_agent_id_uuid CHECK (agent_id IS NULL OR (length(agent_id) = 36 AND agent_id NOT GLOB '*[^0-9a-f-]*' AND substr(agent_id, 9, 1) = '-' AND substr(agent_id, 14, 1) = '-' AND substr(agent_id, 19, 1) = '-' AND substr(agent_id, 24, 1) = '-')),
+  CONSTRAINT invitations_agent_id_iff_agent CHECK ((agent_id IS NOT NULL) = (role = 'agent'))
 ) STRICT;
 
 CREATE INDEX idx_invitations_email ON invitations (email);
+
+CREATE INDEX idx_invitations_agent_id ON invitations (agent_id) WHERE agent_id IS NOT NULL;
 
 CREATE TABLE control_audit (
   id TEXT PRIMARY KEY NOT NULL

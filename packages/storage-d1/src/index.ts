@@ -180,6 +180,7 @@ export {
   listControlAudit,
   listInvitations,
   openControlDb,
+  reissueAgentInvitation,
   reissueOwnerInvitation,
   revokeInvitation,
   readAuthJwks,

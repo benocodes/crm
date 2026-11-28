@@ -39,7 +39,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   restore with an empty `git diff` ([[CORE679]]: 8 runs over `packages/storage-d1/src/test/conventions.ts`, accepted in
   place of a red import, 679.30). **On D1 a foreign-key absence mutation edits the schema** (drop the `CONSTRAINT …
   FOREIGN KEY` from genesis, then restore it byte for byte): `PRAGMA foreign_keys = OFF` is ignored, so a charter that
-  asks for it cannot be met ([[CORE679]] 679.28).
+  asks for it cannot be met ([[CORE679]] 679.28). **A shape CHECK's drift cases include near misses**, values that
+  pass a weaker check: for a UUID shape, a wrong length and a dash out of place, not only `'not-a-uuid'` or `''`.
+  [[AGT701]]'s M12 weakened `invitations_agent_id_uuid` to `length(agent_id) > 0` and the suite stayed green until
+  those two ids were added.
 - **A constant that both the code and the test derive from gives a vacuous mutation.** Mutating it moves both sides together
   and stays green ([[CORE549]] M6). Mutate the function that uses the constant (drop one mention), or assert against a
   literal in one place, so only one side moves.
