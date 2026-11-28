@@ -32,7 +32,7 @@ importers:
     dependencies:
       '@hono/zod-openapi':
         specifier: 1.6.3
-        version: 1.6.3(hono@4.13.12)(zod@4.6.5)
+        version: 1.6.3(hono@4.13.20)(zod@4.6.5)
       '@vibase/storage':
         specifier: workspace:*
         version: link:../storage
@@ -43,8 +43,8 @@ importers:
         specifier: 10.1.2
         version: 10.1.2
       hono:
-        specifier: 4.13.12
-        version: 4.13.12
+        specifier: 4.13.20
+        version: 4.13.20
       jose:
         specifier: 6.2.12
         version: 6.2.12
@@ -454,7 +454,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: 2.1.3
-        version: 2.1.3(hono@4.13.12)
+        version: 2.1.3(hono@4.13.22)
       '@vibase/api':
         specifier: workspace:*
         version: link:../api
@@ -4416,8 +4416,12 @@ packages:
   hastscript@9.0.3:
     resolution: {integrity: sha512-1ALZXSmCGmW3h8AMz4R4+QKSKFi7sNgXLVwmwB8FYVtl1CwQ3WDkSAEY/d5tp1g/vbQgq2s1WlHgfO3jbw1TsA==}
 
-  hono@4.13.12:
-    resolution: {integrity: sha512-6E2QDAc9Ick9Sq77ZrGS/dk2WUYni91aufTw6LJKpV7w8kW5/GxVUc650FOADOmlwg3K+f7Pun6XlV+pYmW6gw==}
+  hono@4.13.20:
+    resolution: {integrity: sha512-xo6gecEJQ+CjTtOUUbcLHE8CdRKMeF4qITe+DT+OhFnSUmZR/ZBa9XavAfiGh4HlukmlaHFdaK4dz5tkTYFNmA==}
+    engines: {node: '>=16.9.0'}
+
+  hono@4.13.22:
+    resolution: {integrity: sha512-wncKd5/40Pj8grx0RZ2fgNIicFEmVFwIHT5UFLTnphR8I6AQWFf9c2JoM6ZJ9g8y4pMzg3sNlCVNe0m2Yclg0Q==}
     engines: {node: '>=16.9.0'}
 
   html-escaper@3.0.3:
@@ -7111,21 +7115,25 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@hono/node-server@2.1.3(hono@4.13.12)':
+  '@hono/node-server@2.1.3(hono@4.13.20)':
     dependencies:
-      hono: 4.13.12
+      hono: 4.13.20
 
-  '@hono/zod-openapi@1.6.3(hono@4.13.12)(zod@4.6.5)':
+  '@hono/node-server@2.1.3(hono@4.13.22)':
+    dependencies:
+      hono: 4.13.22
+
+  '@hono/zod-openapi@1.6.3(hono@4.13.20)(zod@4.6.5)':
     dependencies:
       '@asteasolutions/zod-to-openapi': 9.1.0(zod@4.6.5)
-      '@hono/zod-validator': 0.9.1(hono@4.13.12)(zod@4.6.5)
-      hono: 4.13.12
+      '@hono/zod-validator': 0.9.1(hono@4.13.20)(zod@4.6.5)
+      hono: 4.13.20
       openapi3-ts: 4.6.2
       zod: 4.6.5
 
-  '@hono/zod-validator@0.9.1(hono@4.13.12)(zod@4.6.5)':
+  '@hono/zod-validator@0.9.1(hono@4.13.20)(zod@4.6.5)':
     dependencies:
-      hono: 4.13.12
+      hono: 4.13.20
       zod: 4.6.5
 
   '@humanwhocodes/momoa@2.0.4': {}
@@ -7412,7 +7420,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.32.2(zod@4.6.7)':
     dependencies:
-      '@hono/node-server': 2.1.3(hono@4.13.12)
+      '@hono/node-server': 2.1.3(hono@4.13.20)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -7422,7 +7430,7 @@ snapshots:
       eventsource-parser: 3.1.1
       express: 5.3.0
       express-rate-limit: 8.7.3(express@5.3.0)
-      hono: 4.13.12
+      hono: 4.13.20
       jose: 6.2.12
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -10076,7 +10084,9 @@ snapshots:
       property-information: 7.2.0
       space-separated-tokens: 2.0.2
 
-  hono@4.13.12: {}
+  hono@4.13.20: {}
+
+  hono@4.13.22: {}
 
   html-escaper@3.0.3: {}
 

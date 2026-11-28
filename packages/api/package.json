@@ -42,7 +42,7 @@
     "@vibase/storage": "workspace:*",
     "hast-util-from-parse5": "8.0.4",
     "hast-util-to-mdast": "10.1.2",
-    "hono": "4.13.12",
+    "hono": "4.13.20",
     "jose": "6.2.12",
     "kysely": "0.29.6",
     "parse5": "7.3.0",
