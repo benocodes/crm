@@ -1,6 +1,6 @@
 // The acceptance program ([[CORE287]] P3, [[CORE259]] D9 (a)): the CRM half of accepting an invitation. ONE internal unit per role, attributed to the system principal, that writes the vault's rows for a
-// Better Auth account: `owner`/`member` get a principal, a `users` row and a membership with `membership.created`; `agent` gets an agent principal and a linked `agents` row with scopes `[]` and
-// `agent.created`. It is the commit point of acceptance: the invitation is marked accepted only after it (the composition's job, `@vibase/storage-d1`'s `acceptInvitation`). Idempotent on the
+// Better Auth account: `owner`/`member` get a principal, a `users` row and a membership with `membership.created`; an `agent` invitation creates nothing: its account is linked to the agent the invitation names
+// (`linkAgentAccount`, [[AGT702]]). It is the commit point of acceptance: the invitation is marked accepted only after it (the composition's job, `@vibase/storage-d1`'s `acceptInvitation`). Idempotent on the
 // subject. `principals` and `users` stay the identity-bookkeeping exception of AGENTS.md invariant 5; the membership and agent rows emit their events in the same unit.
 import { sql, type SqlBool } from 'kysely'
 import {
@@ -20,12 +20,13 @@ import {
   type StorageBinding,
 } from '@vibase/storage'
 import { membershipRecord } from '../account/organizations.js'
-import { provisionAgent } from '../auth/agent-principals.js'
 import { SYSTEM_PRINCIPAL_READ, systemPrincipalRead, systemPrincipalSteps } from '../directory/system-principal.js'
 import { ApiError, mapStorageError } from '../errors.js'
 import { eventStatement } from '../outbox.js'
+import { agents } from '../resources/agents.js'
+import { afterOf, receipt, selectRecord, toRecord } from '../storage/crud.js'
+import type { PreparedEnv } from '../storage/definition.js'
 import type { InternalEnv } from '../storage/internal.js'
-import type { InvitationRole } from './port.js'
 
 /** The provider every invited account belongs to: the built-in one ([[CORE243]] D9). */
 export const BUILT_IN_PROVIDER = 'better-auth'
@@ -151,23 +152,9 @@ export function acceptHumanOperation(
 export async function acceptInvitedAccount(
   storage: StorageBinding,
   env: InternalEnv,
-  a: Account & { role: InvitationRole },
+  a: Account & { role: 'owner' | 'member' },
 ): Promise<AcceptedAccount> {
   if (storage.kind !== 'd1') throw new Error('invitation acceptance serves a D1 deployment only')
-  if (a.role === 'agent') {
-    // Scopes `[]`: an invitation carries none; the owner grants them with `agents.update` ([[CORE287]] P3).
-    const agent = await provisionAgent(storage, env, {
-      provider: BUILT_IN_PROVIDER,
-      subject: a.subject,
-      clientId: null,
-      kind: 'account',
-      name: a.name,
-      scopes: [],
-      humanId: null,
-      organizationId: storage.organizationId,
-    })
-    return { principalId: agent.agentId }
-  }
   const op = acceptHumanOperation({
     ...a,
     role: a.role,
@@ -187,6 +174,128 @@ export async function acceptInvitedAccount(
   const again = (await execute(storage, INTERNAL, lookupSubjectOperation(a.subject))).value
   if (!again) throw new ApiError(409, 'conflict', 'the record changed while the operation was running; retry')
   return again
+}
+
+const LINK_AGENT = 'link:agent'
+
+/**
+ * The link program ([[AGT702]] D16, [[AGT701]] D16): accepting an agent invitation links the new sign-in account to the agent the invitation names; it never creates an agent. ONE internal unit: a guarded `UPDATE agents`
+ * setting `auth_provider` and `auth_subject` (and `updated_at`), matched on the id, the organisation and the agent being unlinked, not delegated and enabled, then one `agent.updated` by the system principal, gated on the
+ * update having applied. Nothing else on the record changes (P2): the name and scopes are the owner's. A guard that matches nothing makes the unit drift (nothing written, no event). Internal to settling (P1): not an operation.
+ */
+export function linkAgentAccountOperation(a: {
+  agentId: string
+  subject: string
+  organizationId: string
+  eventId: string
+  systemId: string
+  now: Date
+}): PreparedOperation<AcceptedAccount> {
+  const at = codecs.timestamp.write(a.now)
+  return defineOperation<AcceptedAccount>({
+    name: 'agents.link_account',
+    mutates: true,
+    reads: (qc: QueryContext) =>
+      ({
+        // The record as the event's `before`, read without derived fields (as `updateOperation` does); an absent row has none.
+        [LINK_AGENT]: readMaybe(
+          selectRecord(agents, qc, { organizationId: a.organizationId } as PreparedEnv, a.agentId, { derived: false }),
+        ),
+        [SYSTEM_PRINCIPAL_READ]: systemPrincipalRead(qc),
+      }) satisfies Record<string, Read>,
+    build: (found, qc) => {
+      const row = found.maybe(LINK_AGENT)
+      if (!row)
+        return unit({
+          steps: [],
+          events: [],
+          decode: () => {
+            throw new UnitDriftError('agents.link_account')
+          },
+        })
+      const before = toRecord(agents, row as Record<string, unknown>)
+      const sys = systemPrincipalSteps(qc, found.maybe(SYSTEM_PRINCIPAL_READ), a.systemId, at)
+      const update = qc.db
+        .updateTable('agents')
+        .set({ auth_provider: BUILT_IN_PROVIDER, auth_subject: a.subject, updated_at: at })
+        .where('agents.id', '=', a.agentId)
+        .where('agents.organization_id', '=', a.organizationId)
+        .where('agents.auth_provider', 'is', null)
+        .where('agents.auth_client_id', 'is', null)
+        .where('agents.disabled_at', 'is', null)
+      const steps: Step[] = [
+        ...sys.steps,
+        step(update, undefined, { expect: 'affected' }),
+        {
+          ...step(
+            eventStatement(qc, {
+              id: a.eventId,
+              at,
+              organizationId: a.organizationId,
+              actorId: sys.id,
+              type: 'agent.updated',
+              resourceType: 'agent',
+              resourceId: a.agentId,
+              before,
+              after: afterOf(agents),
+            }),
+          ),
+          label: 'first-event',
+        },
+        {
+          ...step(
+            qc.db
+              .selectFrom('agents')
+              .select('agents.id')
+              .where('agents.id', '=', a.agentId)
+              .where(sql<SqlBool>`exists (select 1 from "events" where "events"."id" = ${a.eventId})`),
+          ),
+          label: 'result',
+        },
+      ]
+      steps[0] = { ...steps[0]!, label: 'first-mutation' }
+      return unit({
+        steps,
+        events: [receipt(agents, a.eventId, 'updated', a.agentId)],
+        decode: (rows) => {
+          if (rows.length === 0) throw new UnitDriftError('agents.link_account')
+          return { principalId: rows[0]!.id as string }
+        },
+      })
+    },
+  })
+}
+
+/**
+ * Links the account to the agent ([[AGT702]] P3): on drift ONE read-only recheck; if the agent is now linked to THIS subject (a racing settle of the same sign-up won) its id is the answer, otherwise
+ * `409 conflict` (the agent is unknown, disabled, delegated or linked to another subject), which settling lets through so no session is created and the invitation stays pending.
+ */
+export async function linkAgentAccount(
+  storage: StorageBinding,
+  env: InternalEnv,
+  a: { agentId: string; subject: string },
+): Promise<AcceptedAccount> {
+  if (storage.kind !== 'd1') throw new Error('invitation acceptance serves a D1 deployment only')
+  const op = linkAgentAccountOperation({
+    ...a,
+    organizationId: storage.organizationId,
+    eventId: env.newId(),
+    systemId: env.newId(),
+    now: env.now,
+  })
+  try {
+    return (await execute(storage, INTERNAL, op)).value
+  } catch (err) {
+    if (!(err instanceof UnitDriftError)) throw mapStorageError(err)
+  }
+  const again = await subjectStanding(storage, a.subject)
+  if (again?.kind !== 'agent' || again.id !== a.agentId)
+    throw new ApiError(
+      409,
+      'conflict',
+      'the agent cannot be linked: it is unknown, disabled, delegated or already linked',
+    )
+  return { principalId: again.id }
 }
 
 function lookupSubjectOperation(subject: string): PreparedOperation<AcceptedAccount | null> {

@@ -139,7 +139,7 @@ async function invite(
   const t = o.createdAt ?? Date.now()
   const id = uuidv7()
   const token = `token-${id}`
-  // [[AGT701]] D14: an agent invitation names an existing agent (the genesis CHECK); settling still provisions its own until AGT702.
+  // [[AGT701]] D14: an agent invitation names an existing agent (the genesis CHECK); settling links it ([[AGT702]]).
   const agentId = role === 'agent' ? uuidv7() : undefined
   if (agentId) await seedAgent(w.d1, { id: agentId, organizationId: orgId, createdBy: systemId })
   expect(

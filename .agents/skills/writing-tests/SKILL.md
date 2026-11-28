@@ -42,7 +42,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   asks for it cannot be met ([[CORE679]] 679.28). **A shape CHECK's drift cases include near misses**, values that
   pass a weaker check: for a UUID shape, a wrong length and a dash out of place, not only `'not-a-uuid'` or `''`.
   [[AGT701]]'s M12 weakened `invitations_agent_id_uuid` to `length(agent_id) > 0` and the suite stayed green until
-  those two ids were added.
+  those two ids were added. **A guard clause the table's CHECKs already imply has no drift case of its own**: no
+  storable row fails it alone, and its absence mutation stays green. Read the CHECKs before asking for "each clause
+  alone"; prove such a clause through the clause that implies it and record its green mutation ([[AGT702]]:
+  `auth_client_id IS NULL` is implied by `auth_provider IS NULL` through `agents_auth_client_rules`, M2b green, 702.10).
 - **A constant that both the code and the test derive from gives a vacuous mutation.** Mutating it moves both sides together
   and stays green ([[CORE549]] M6). Mutate the function that uses the constant (drop one mention), or assert against a
   literal in one place, so only one side moves.
@@ -1093,8 +1096,10 @@ write them against these mechanisms ([[API115]], `packages/server-d1/e2e/mcp-oau
   - Give server-side `request` calls to `/auth/oauth2/register` and `/auth/oauth2/token` an `Origin` header.
   - A live session makes `/auth/oauth2/authorize` skip `/sign-in`, so a signed-out leg signs out same-origin
     first, never from the client's callback page.
-  - Mind its per-IP limits: 5 `GET /auth/device` per 30 minutes, and a short sign-in window. Count calls or use
-    a fresh Worker.
+  - Mind its per-IP limits: 5 `GET /auth/device` per 30 minutes, and a 10 s sign-in window. Count calls or use
+    a fresh Worker. In `e2e:oauth-pages`, legs 1–2c already spend the device budget: a later leg that approves a
+    device code sends its page requests with its own `cf-connecting-ip`, and waits out the sign-in window after a
+    sign-up before the next sign-in (leg 3f, [[AGT702]] 702.8).
 - **Set the config's `timeout`.** Playwright's default is 30 s per test; a step that waits out a rate limit or
   starts Chrome dies mid-run with a misleading failure (`playwright.auth-pages.config.ts`, [[CORE294]] review).
 - **A third-party sign-in leg stops at the provider's door.** Shipped configuration has no switch to point Google
