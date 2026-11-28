@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axe from 'axe-core'
 import { readFileSync } from 'node:fs'
@@ -23,14 +23,14 @@ const READY: AppState = {
 const SHOW: AppState = { ...READY, connectAgent: { status: 'show' } } as AppState
 const NO_API = { connections: vi.fn(), identityAddress: vi.fn(), authorizeGmail: vi.fn() } as never
 const handlers = () => ({ onSignIn: vi.fn(), onSignOut: vi.fn(), onRetry: vi.fn(), onCheckAgain: vi.fn() })
-const show = (state: AppState, over: { provider?: string | null; path?: string; mcpUrl?: string | null } = {}) => {
+const show = (state: AppState, over: { provider?: string | null; path?: string; mcpUrl?: string | null; origin?: string } = {}) => {
   const h = handlers()
   render(
     <MemoryRouter initialEntries={[over.path ?? '/app/home']}>
       <App
         state={state}
         provider={over.provider === undefined ? 'better-auth' : over.provider}
-        origin="https://w.test"
+        origin={over.origin ?? 'https://w.test'}
         mcpUrl={over.mcpUrl === undefined ? null : over.mcpUrl}
         api={NO_API}
         {...h}
@@ -186,7 +186,7 @@ describe('the states without a shell (D4)', () => {
     expect(screen.getByText(/agents?.*MCP.*CLI.*SDK/i)).toBeTruthy()
   })
 
-  it('no-access for an agent says the account is ready and to sign in with vibase login, not "ask an owner" (CORE697)', async () => {
+  it('no-access for an agent says the account is ready, keeps the MCP/SDK pointer, and never "ask an owner" (CORE697, AGT707)', async () => {
     const h = show({ kind: 'no-access', agent: true })
     noShell()
     expect(screen.getByRole('heading', { name: 'Your agent account is ready' })).toBeTruthy()
@@ -196,6 +196,40 @@ describe('the states without a shell (D4)', () => {
     expect(screen.queryByText(/no access/i)).toBeNull()
     await userEvent.setup().click(screen.getByRole('button', { name: 'Sign out' }))
     expect(h.onSignOut).toHaveBeenCalledTimes(1)
+  })
+
+  it('the agent card shows the login command for this instance and Copy writes exactly it (AGT707 D1, D2)', async () => {
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    show({ kind: 'no-access', agent: true }, { origin: 'https://agents.example.test' })
+    expect(screen.getByText('vibase login --server https://agents.example.test')).toBeTruthy()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Copy login command' }))
+    expect(writeText).toHaveBeenCalledWith('vibase login --server https://agents.example.test')
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Copied'))
+  })
+
+  it('the agent card speaks to both readers, in order, and is accessible (AGT707 D1)', async () => {
+    show({ kind: 'no-access', agent: true })
+    const text = document.body.textContent ?? ''
+    const at = [/New here\?/, /vibase login --server https:\/\/w\.test/, /--profile/, /Already signed in through the CLI/, /MCP or the SDK/].map(
+      (re) => text.search(re),
+    )
+    expect(at.every((i) => i >= 0)).toBe(true)
+    expect([...at].sort((a, b) => a - b)).toEqual(at)
+    expect(screen.getByText(/approve the sign-in/i)).toBeTruthy()
+    expect(screen.getByText(/nothing to do here/i)).toBeTruthy()
+    const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } })
+    expect(r.violations.map((v) => v.id)).toEqual([])
+  })
+
+  it("the person's no-access card has no command block and no Copy button (AGT707)", () => {
+    for (const state of [{ kind: 'no-access' }, { kind: 'no-access', who: 'ann@x.test' }] as AppState[]) {
+      show(state)
+      expect(screen.queryByRole('button', { name: /copy/i })).toBeNull()
+      expect(screen.queryByText(/vibase login/)).toBeNull()
+      expect(screen.getByText(/has not given your account a role/)).toBeTruthy()
+      cleanup()
+    }
   })
 
   it('no-access with who: the card shows the signed-in person, and a refused sign-out error', async () => {
