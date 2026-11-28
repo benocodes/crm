@@ -4,12 +4,14 @@ export const MESSAGES = {
   // The invite page.
   invitationRefused:
     'This invitation cannot be used. The email address may not be the one that was invited, or the link may have expired, been revoked or already been used. Ask the person who invited you for a new link.',
-  inviteAccountExists: 'Your account already exists, but its setup did not finish. Sign in to finish it.',
+  inviteAccountExists:
+    'Your account already exists, but it could not be added to the workspace. Try signing in again. If that still fails, ask the person who invited you to check the invitation.',
   inviteNoToken:
     'This page needs the invitation link you were sent. Open that link again, or ask the person who invited you for a new one.',
   // The sign-in page.
   wrongCredentials: 'The email or password is wrong.',
-  signInAcceptanceFailed: 'Your account is almost ready, but setup did not finish. Sign in again to retry.',
+  signInAcceptanceFailed:
+    'Your account exists, but it could not be added to the workspace. Try signing in again. If that still fails, ask the person who invited you to check the invitation.',
   signInHelp: 'Forgot your password? Ask an owner for a reset link.',
   // [[CORE304]] D7: the self-service reset request on /app/sign-in (only when discovery says `self_service_reset`).
   forgotPassword: 'Forgot password?',

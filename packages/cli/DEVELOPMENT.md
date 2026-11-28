@@ -59,10 +59,10 @@ its endpoints must be `https`, and a redirect from any of them is an error.
 An agent that is not a person (a sales agent, an automation) signs in as its own user, so it has its own audit identity and its
 scopes are set by an owner:
 
-1. As an owner, create an invitation with the agent role (Better Auth, the default); the link is shown once. The agent opens it in a browser and signs up with its email to claim it. (On a Clerk instance, invite the agent's email in Clerk with the public metadata `{ "vibase_role": "agent" }` instead.)
+1. As an owner, create the agent with its scopes: `vibase agents create --data '{"name":"sales-agent","scopes":["contacts:read"]}'`, then an invitation for it (Better Auth, the default): `vibase invitations create --agent-id <agent-id> --email <agent-email>`; the link is shown once. The agent opens it in a browser and signs up with that email to claim it. (On a Clerk instance, invite the agent's email in Clerk with the public metadata `{ "vibase_role": "agent" }` instead; the agent is created at its first sign-in with no scopes.)
 2. As the agent (its own browser session, or yours with the agent's account): `vibase --profile agent login --server <url>`.
-   It prints `me` with `kind: agent` and no scopes, and says on stderr that an owner must grant them.
-3. An owner grants scopes with the id that login printed: `vibase agents update <agent-id> --data '{"scopes":["contacts:read","contacts:write"]}'`.
+   It prints `me` with `kind: agent` and the scopes granted so far (none on Clerk, or if the agent was created with none; it then says on stderr that an owner must grant them).
+3. An owner grants or changes scopes with the agent's id: `vibase agents update <agent-id> --data '{"scopes":["contacts:read","contacts:write"]}'`.
 4. The agent's next request carries the grant (the token's scopes intersect with it). Disabling the agent (`agents update --data '{"disabled":true}'`)
    is the switch that stops it at once; its access tokens otherwise live until they expire.
 5. To change one grant later, send the change, not the whole list:

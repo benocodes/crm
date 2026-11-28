@@ -760,7 +760,8 @@ export function authOptions(
               )
               throw new APIError('INTERNAL_SERVER_ERROR', {
                 code: 'invitation_acceptance_failed',
-                message: 'the account could not be settled; sign in again to retry',
+                message:
+                  'the account could not be added to the workspace; try signing in again, and if it still fails, ask the person who invited you to check the invitation',
               })
             }
           },

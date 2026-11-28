@@ -62,10 +62,10 @@ Better Auth is designed for the Cloudflare Workers Paid plan. Password hashing m
 An agent is its own account with its own audit trail. There are three ways to connect one:
 
 1. **MCP.** Agents and clients that speak the Model Context Protocol connect to the instance's remote MCP server.
-2. **The CLI with device login.** Works with any agent that has a browser and a CLI, and needs no human to approve the login. An owner creates an invitation with the agent role; the link is shown once, and the owner hands it to the agent over any channel (WhatsApp or Telegram, for example). The agent opens it in a browser, signs up with an email address to claim the invitation, then runs `vibase login --server <url>`. Device login works the same way on a Clerk instance.
+2. **The CLI with device login.** Works with any agent that has a browser and a CLI, and needs no human to approve the login. An owner creates the agent, then an invitation for it (`vibase invitations create --agent-id <id> --email <agent-email>`); the link is shown once, and the owner hands it to the agent over any channel (WhatsApp or Telegram, for example). The agent opens it in a browser, signs up with that email address to claim the invitation, then runs `vibase login --server <url>`. Device login works the same way on a Clerk instance.
 3. **The CLI with an API key.** Works with any agent that has a CLI: `printf '%s' "$KEY" | vibase login --api-key --server <url>`.
 
-A new agent account starts with no permissions. The owner then grants it per-resource `read`, `request_approval` or `write`.
+An agent starts with the permissions the owner gave it at creation (none if no scopes were given). The owner grants or changes them per-resource `read`, `request_approval` or `write`.
 
 ## Status
 

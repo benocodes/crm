@@ -19,10 +19,10 @@ An agent is software with its own identity and permissions. Each agent's stored 
 
 | Agent type | How it authenticates | Who authorizes access |
 | --- | --- | --- |
-| Agent account | Its own account, claimed from an owner's agent invitation, including CLI device login | An owner grants its scopes. |
+| Agent account | Its own account, claimed from an invitation an owner creates for an existing agent, including CLI device login | An owner grants its scopes, at create or later. |
 | Delegated agent | An OAuth client authorized by a person, such as an MCP client | Consent and stored grants are bounded by the delegating user's authority. |
 
-A new agent account has no permissions until an owner grants them. Agents may also authenticate with their own Vibase API keys. The key identifies an agent; it does not turn the caller into a human owner.
+An agent created without scopes has no permissions until an owner grants them. Agents may also authenticate with their own Vibase API keys. The key identifies an agent; it does not turn the caller into a human owner.
 
 The CLI's first-party device login lets a person perform administration as themselves. So does a first-party app an owner registers (`oauth_clients.create`): the person who signs in through it acts as themselves, within their own role and the app's scopes, never as a separate agent. A remote MCP client acts as a delegated agent with its own grants.
 
@@ -36,4 +36,4 @@ Use a separate identity for each automation you want to grant, audit, or disable
 
 An owner can update an agent's scopes or disable it. OAuth authentication establishes identity; Vibase still checks its stored grants when each operation runs.
 
-See [permissions and approvals](/concepts/permissions/) for the authority model and [invite agents and manage permissions](/guides/agents/) for the commands.
+See [permissions and approvals](/concepts/permissions/) for the authority model and [create agents and manage permissions](/guides/agents/) for the commands.

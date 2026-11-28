@@ -42,4 +42,4 @@ Access administration and credential management remain human-only. Generic appro
 
 ## Limit and revoke access
 
-Give each agent its own identity and the scopes required for its work. Owners can change scopes or disable an agent through the CLI: see [invite agents and manage permissions](/guides/agents/). Authorization checks use the stored grants, so changes take effect without waiting for the agent to log in again.
+Give each agent its own identity and the scopes required for its work. Owners can change scopes or disable an agent through the CLI: see [create agents and manage permissions](/guides/agents/). Authorization checks use the stored grants, so changes take effect without waiting for the agent to log in again.

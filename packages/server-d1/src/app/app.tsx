@@ -112,8 +112,9 @@ export function App({ state, provider, origin, mcpUrl, api, onCheckAgain, onSign
             >
               {state.signOutError ? <Alert variant="error">{state.signOutError}</Alert> : null}
               <p className="text-sm">
-                This invitation is claimed and the account can sign in. This app is for people, so close this page and
-                sign in as the agent with <code>vibase login</code> in the CLI, or connect through the MCP or the SDK.
+                This invitation is claimed, and this account is the agent itself: it acts with whatever permissions an
+                owner has granted that agent. This app is for people, so close this page and sign in as the agent with{' '}
+                <code>vibase login</code> in the CLI, or connect through the MCP or the SDK.
               </p>
             </Card>
           </Centered>
