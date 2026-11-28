@@ -1,5 +1,5 @@
-// `pnpm release:check [<cli tarball> <server tarball>]` ([[OPS210]] D8, [[OPS240]]): proves the two built packages, not the source. The tarballs default to
-// `packages/release/dist/vibase-cli-<v>.tgz` and `vibase-server-d1-<v>.tgz`. It extracts, scans, lays out and verifies each tarball, installs each into its OWN empty temp directory
+// `pnpm release:check [<cli tarball> <server tarball> <sdk tarball>]` ([[OPS210]] D8, [[OPS240]], [[OPS693]], [[OPS709]]): proves the three built packages, not the source. The tarballs default to
+// `packages/release/dist/vibase-cli-<v>.tgz`, `vibase-server-d1-<v>.tgz` and `vibase-sdk-<v>.tgz`; zero or three arguments, never another count. It extracts, scans, lays out and verifies each tarball, installs each into its OWN empty temp directory
 // outside the repo with `npm install` (the only network read: the public npm registry, for the server's wrangler; `--prefer-offline`, never the repo's node_modules), runs the
 // installed `vibase` and `vibase-server`, runs `npm exec --package <server tarball>`, resolves every `exports` entry, applies the installed migrations (CRM and control plane, each to its own local D1) with the installed
 // wrangler, and runs the installed Worker and assets in workerd (Miniflare 4, the repo's test harness). Nothing is published; no Cloudflare call or credential is involved.
@@ -33,7 +33,8 @@ import { checkConfig } from '../src/check-config.js'
 import { serverHelpProblems } from '../src/help-assertions.js'
 import { assertRelease, type ReleaseManifest } from '../src/manifest.js'
 import { readMigrationState, type D1Like } from '@vibase/storage-d1'
-import { verifySums } from '../src/pack.js'
+import { CHECK_USAGE, CheckUsageError, resolveCheckArgs, verifyBesideSums } from '../src/check-lib.js'
+import { checkSdkTarball } from '../src/sdk-check.js'
 import { readReleaseVersion } from '../src/version.js'
 import { APP_RUN_WORKER_FIRST } from '../../server-d1/src/app/paths.js'
 import { withGeneratedConfig } from '../../server-d1/scripts/instance/config.js'
@@ -73,12 +74,14 @@ const npmInstall = (dir: string, tarball: string) => {
 }
 
 export async function checkRelease(
-  tarballs: { client: string; server: string },
+  tarballs: { client: string; server: string; sdk: string },
   log: (line: string) => void = console.log,
 ): Promise<CheckResult> {
   const clientTarball = resolve(tarballs.client)
   const serverTarball = resolve(tarballs.server)
-  for (const t of [clientTarball, serverTarball]) if (!existsSync(t)) throw new ReleaseRefusal(`no such tarball: ${t}`)
+  const sdkTarball = resolve(tarballs.sdk)
+  for (const t of [clientTarball, serverTarball, sdkTarball])
+    if (!existsSync(t)) throw new ReleaseRefusal(`no such tarball: ${t}`)
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'vibase-check-')))
   const inRepo = relative(REPO, root)
   if (!inRepo.startsWith('..') && !isAbsolute(inRepo))
@@ -87,12 +90,9 @@ export async function checkRelease(
     const databaseIds = envDatabaseIds(readFileSync(join(REPO, 'packages', 'server-d1', 'wrangler.jsonc'), 'utf8'))
     const version = readReleaseVersion(REPO)
 
-    // 0. SHA256SUMS, when the tarballs sit beside it (a hand-repacked copy does not).
-    if (dirname(clientTarball) === dirname(serverTarball) && existsSync(join(dirname(clientTarball), 'SHA256SUMS'))) {
-      const bad = verifySums(dirname(clientTarball))
-      if (bad.length > 0) throw new ReleaseRefusal(`SHA256SUMS does not match the tarballs: ${bad.join(', ')}`)
-      log('SHA256SUMS ok: both tarballs')
-    }
+    // 0. SHA256SUMS, when the three tarballs sit beside it (a hand-repacked copy does not).
+    const sumsLine = verifyBesideSums({ client: clientTarball, server: serverTarball, sdk: sdkTarball })
+    if (sumsLine) log(sumsLine)
 
     // 1. the client tarball: extract, refuse forbidden content (first: it names a planted file by kind), the exact file list and fields, no dependencies, no instance code.
     const clientExtract = empty(root, 'extract-cli')
@@ -114,8 +114,11 @@ export async function checkRelease(
     const manifest = JSON.parse(readFileSync(join(serverPkg, 'release.json'), 'utf8')) as ReleaseManifest
     assertCommit(manifest.commit)
     log(
-      `server tarball ok: ${manifest.name} ${manifest.version} @ ${manifest.commit}, ${Object.keys(manifest.files).length} files verified; both packages at ${version}`,
+      `server tarball ok: ${manifest.name} ${manifest.version} @ ${manifest.commit}, ${Object.keys(manifest.files).length} files verified; all three packages at ${version}`,
     )
+
+    // 2b. the SDK tarball and its install, runtime and types ([[OPS709]] D7).
+    checkSdkTarball({ tarball: sdkTarball, root, version, databaseIds, log })
 
     // 3. the client, installed alone: nothing but @vibase/cli lands, and `vibase instance` only points at the server package.
     const clientInstall = empty(root, 'install-cli')
@@ -528,16 +531,16 @@ export async function checkRelease(
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const version = readReleaseVersion(REPO)
   const args = process.argv.slice(2).filter((a) => !a.startsWith('--'))
-  if (args.length !== 0 && args.length !== 2) {
-    console.error('usage: release:check [<cli tarball> <server tarball>]')
+  let tarballs
+  try {
+    tarballs = resolveCheckArgs(args, join(PKG, 'dist'), version)
+  } catch (e) {
+    if (!(e instanceof CheckUsageError)) throw e
+    console.error(CHECK_USAGE)
     process.exit(2)
   }
-  const [client, server] =
-    args.length === 2
-      ? args
-      : [join(PKG, 'dist', `vibase-cli-${version}.tgz`), join(PKG, 'dist', `vibase-server-d1-${version}.tgz`)]
   try {
-    await checkRelease({ client: client!, server: server! })
+    await checkRelease(tarballs)
     console.log('release check passed')
   } catch (e) {
     console.error(`release check FAILED: ${e instanceof Error ? e.message : String(e)}`)

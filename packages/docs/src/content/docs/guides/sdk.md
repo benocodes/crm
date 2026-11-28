@@ -9,6 +9,8 @@ description: Call your instance from TypeScript with typed methods, typed filter
 npm install @vibase/sdk
 ```
 
+The package is on npm and is released with the CLI and the server at the same version.
+
 ```ts
 import { createClient, isVibaseError } from '@vibase/sdk'
 

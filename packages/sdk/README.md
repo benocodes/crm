@@ -86,8 +86,8 @@ duplicates: the server's own 400 comes back.
 
 The answer is typed by what was asked: ungrouped it is `{ count }` plus the functions given and `currency` for a money field;
 grouped it is `{ count, groups }` with `groups[].key` by field kind (always `| null`, the null group) and the same function keys
-in each group. An optional `group_by` gives the union of both. A workspace's generated types (`generate --schema`) carry the
-same typing for its custom objects and `__c` fields.
+in each group. An optional `group_by` gives the union of both. Typing for a workspace's custom objects and `__c` fields needs
+generated workspace types, which need the Vibase repository's generator until a published one exists.
 
 ```ts
 const total = await vibase.deals.aggregate({ status: 'open', sum: 'amount_minor' })

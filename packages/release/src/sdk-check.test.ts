@@ -51,7 +51,7 @@ function doctor(name: string, edit: (pkgDir: string) => void): string {
 const replaceIn = (file: string, from: string, to: string) => {
   const text = readFileSync(file, 'utf8')
   if (!text.includes(from)) throw new Error(`fixture: ${from} not in ${file}`)
-  writeFileSync(file, text.replace(from, to))
+  writeFileSync(file, text.split(from).join(to))
 }
 const run = (tarball: string) => {
   const lines: string[] = []
@@ -91,7 +91,14 @@ describe('3. installed alone and resolved', () => {
     return d
   }
   it('an installed manifest with both exports entries has no problem', () => {
-    expect(sdkExportsProblems(manifest({ '.': { types: './dist/index.d.ts', default: './dist/index.js' }, './package.json': './package.json' }))).toEqual([])
+    expect(
+      sdkExportsProblems(
+        manifest({
+          '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+          './package.json': './package.json',
+        }),
+      ),
+    ).toEqual([])
   })
   it.each(['.', './package.json'])('an installed manifest missing the %s entry is a problem', (entry) => {
     const all: Record<string, unknown> = { '.': { default: './dist/index.js' }, './package.json': './package.json' }
@@ -108,13 +115,13 @@ describe('a real SDK tarball', () => {
     expect(text).toMatch(/sdk installed alone \(node_modules: @vibase\/sdk only\)/)
     expect(text).toMatch(/sdk exports resolve: \., \.\/package\.json/)
     expect(text).toMatch(/sdk runtime: .*authorization/)
-    expect(text).toMatch(/sdk types: TypeScript 5\.9\.3, NodeNext\/NodeNext ok, ESNext\/Bundler ok/)
+    expect(text).toMatch(/sdk types: TypeScript 5\.9\.3, NodeNext\/NodeNext ok .*ESNext\/Bundler ok/)
   })
   it('5c. the declarations TypeScript read are the installed ones, and the compiler is 5.9.3', () => {
     const typesLine = run(real).find((l) => l.startsWith('sdk types:'))!
     expect(typesLine).toContain('TypeScript 5.9.3')
-    expect(typesLine).toMatch(/NodeNext\/NodeNext read .*node_modules\/@vibase\/sdk\/dist\/index\.d\.ts/)
-    expect(typesLine).toMatch(/ESNext\/Bundler read .*node_modules\/@vibase\/sdk\/dist\/index\.d\.ts/)
+    expect(typesLine).toMatch(/NodeNext\/NodeNext ok \(read .*node_modules\/@vibase\/sdk\/dist\/index\.d\.ts/)
+    expect(typesLine).toMatch(/ESNext\/Bundler ok \(read .*node_modules\/@vibase\/sdk\/dist\/index\.d\.ts/)
     expect(typesLine).not.toContain('packages/sdk')
   })
 })
@@ -125,16 +132,22 @@ describe('4. runtime call', () => {
     expect(refusal(t)).toMatch(/isVibaseError/)
   })
   it('refuses a package that does not export VibaseError', () => {
-    const t = doctor('noclass', (p) => replaceIn(join(p, 'dist', 'index.js'), 'isVibaseError, VibaseError', 'isVibaseError'))
+    const t = doctor('noclass', (p) =>
+      replaceIn(join(p, 'dist', 'index.js'), 'isVibaseError, VibaseError', 'isVibaseError'),
+    )
     expect(refusal(t)).toMatch(/VibaseError/)
   })
   it('refuses a client that sends no authorization header', () => {
-    const t = doctor('noauth', (p) => replaceIn(join(p, 'dist', 'client.js'), 'authorization:', 'x-not-authorization:'))
-    expect(refusal(t)).toMatch(/authorization/)
+    const t = doctor('noauth', (p) =>
+      replaceIn(join(p, 'dist', 'client.js'), 'authorization: `Bearer', "'x-not-authorization': `Bearer"),
+    )
+    expect(refusal(t)).toMatch(/authorization header was null/)
   })
   it('refuses a client that calls the wrong URL', () => {
-    const t = doctor('wrongurl', (p) => replaceIn(join(p, 'dist', 'client.js'), '/api/v1', '/api/v2'))
-    expect(refusal(t)).toMatch(/url|URL/)
+    const t = doctor('wrongurl', (p) =>
+      replaceIn(join(p, 'dist', 'generated', 'operations.js'), '/api/v1/contacts/{id}', '/api/v2/contacts/{id}'),
+    )
+    expect(refusal(t)).toMatch(/URL or method/)
   })
 })
 

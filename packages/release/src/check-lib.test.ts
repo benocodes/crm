@@ -51,7 +51,11 @@ describe('D7 sums: SHA256SUMS beside the tarballs is verified over all three', (
   function dist(sdkLineHash?: string) {
     const d = mkdtempSync(join(tmpdir(), 'ops709-sums-'))
     dirs.push(d)
-    const files = { 'vibase-cli-1.0.0.tgz': 'cli', 'vibase-server-d1-1.0.0.tgz': 'server', 'vibase-sdk-1.0.0.tgz': 'sdk' }
+    const files = {
+      'vibase-cli-1.0.0.tgz': 'cli',
+      'vibase-server-d1-1.0.0.tgz': 'server',
+      'vibase-sdk-1.0.0.tgz': 'sdk',
+    }
     for (const [f, text] of Object.entries(files)) writeFileSync(join(d, f), text)
     writeFileSync(
       join(d, 'SHA256SUMS'),
