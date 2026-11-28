@@ -769,7 +769,9 @@ test('3f. [[AGT702]] an agent invitation links its sign-in account to the agent 
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Create account' }).click()
   await page.waitForTimeout(2000)
-  console.log(`3f refused sign-up shows: ${JSON.stringify(((await page.locator('body').textContent()) ?? '').slice(0, 300))}`)
+  console.log(
+    `3f refused sign-up shows: ${JSON.stringify(((await page.locator('body').textContent()) ?? '').slice(0, 300))}`,
+  )
   expect(new URL(page.url()).pathname).not.toBe('/app/home')
   expect(await sessionEmail(page)).toBeUndefined()
   await page.waitForTimeout(11_000) // the sign-in window (10 s per IP) the refused sign-up just spent
