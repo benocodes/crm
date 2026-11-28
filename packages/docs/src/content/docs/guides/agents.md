@@ -32,10 +32,10 @@ You create the agent first, with the scopes it needs, then give it a credential.
 2. Create an invitation for that agent. The role is implied:
 
    ```bash
-   vibase invitations create --agent-id <agent-id> --email sales-agent@example.com
+   vibase invitations create --agent-id <agent-id> --email sales-agent@example.com --delivery link
    ```
 
-   The link comes back once and nothing is sent. The invitation expires after 7 days, and an address can have one live invitation at a time. Creating another invitation for the same agent revokes its live one, so that is how you reissue a lost link. `vibase invitations list` shows each as pending, accepted, revoked or expired, and `vibase invitations revoke <id>` withdraws a pending one. The agent must exist, and may not be a form agent, a delegated agent, a disabled agent or one that already has an account.
+   With `--delivery link` the link comes back once and nothing is sent; with `--delivery email` Vibase emails it, when the instance has email configured (and then no link is returned). The invitation expires after 7 days, and an address can have one live invitation at a time. Creating another invitation for the same agent revokes its live one, so that is how you reissue a lost link. `vibase invitations list` shows each as pending, accepted, revoked or expired, and `vibase invitations revoke <id>` withdraws a pending one. The agent must exist, and may not be a form agent, a delegated agent, a disabled agent or one that already has an account.
 
 3. Hand the link to the agent over any channel. The agent opens it in a browser and signs up with that email address to claim it: the new account becomes that agent, with the same ID, name and scopes. The browser then shows "Your agent account is ready": the workspace app is for people and admits no agent, so the agent signs in with `vibase login` (or connects over MCP or the SDK) instead.
 

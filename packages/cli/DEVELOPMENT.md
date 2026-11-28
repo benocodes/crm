@@ -59,7 +59,7 @@ its endpoints must be `https`, and a redirect from any of them is an error.
 An agent that is not a person (a sales agent, an automation) signs in as its own user, so it has its own audit identity and its
 scopes are set by an owner:
 
-1. As an owner, create the agent with its scopes: `vibase agents create --data '{"name":"sales-agent","scopes":["contacts:read"]}'`, then an invitation for it (Better Auth, the default): `vibase invitations create --agent-id <agent-id> --email <agent-email>`; the link is shown once. The agent opens it in a browser and signs up with that email to claim it. (On a Clerk instance, invite the agent's email in Clerk with the public metadata `{ "vibase_role": "agent" }` instead; the agent is created at its first sign-in with no scopes.)
+1. As an owner, create the agent with its scopes: `vibase agents create --data '{"name":"sales-agent","scopes":["contacts:read"]}'`, then an invitation for it (Better Auth, the default): `vibase invitations create --agent-id <agent-id> --email <agent-email> --delivery link`; the link is shown once. The agent opens it in a browser and signs up with that email to claim it. (On a Clerk instance, invite the agent's email in Clerk with the public metadata `{ "vibase_role": "agent" }` instead; the agent is created at its first sign-in with no scopes.)
 2. As the agent (its own browser session, or yours with the agent's account): `vibase --profile agent login --server <url>`.
    It prints `me` with `kind: agent` and the scopes granted so far (none on Clerk, or if the agent was created with none; it then says on stderr that an owner must grant them).
 3. An owner grants or changes scopes with the agent's id: `vibase agents update <agent-id> --data '{"scopes":["contacts:read","contacts:write"]}'`.
