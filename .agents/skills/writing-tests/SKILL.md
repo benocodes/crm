@@ -528,6 +528,10 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   accepted `https` and `http` loopback redirects, but only the `https` class went through Better Auth's authorize in
   workerd. The library refuses `http` loopback for a `web` client, and only the E2E found it (623.40). When a charter's
   rule admits several classes (schemes, hosts, encodings), the obligation names one library round trip for each class.
+- **A "left intact" test seeds prior state the code would never write.** If the files (or rows) a failed run must
+  preserve equal what a successful run writes, a partial write leaves them unchanged and the test passes anyway:
+  [[DX712]]'s write-order mutation went undetected until the test seeded the previous files from another release
+  (`info.version 0.0.0-old`, `packages/cli/src/gen-types.test.ts`).
 
 ## 2. Type-level tests
 
@@ -787,7 +791,10 @@ One program, two engines: the same assertions run on Postgres and D1.
   "wrangler cannot be resolved" test did that and spawned a real `wrangler d1 execute --remote` with the kit's fake
   token. It failed auth and wrote nothing, but it reached Cloudflare. To make resolution fail, plant a nearer
   `node_modules/<tool>/package.json` with no `bin` (`packages/server-d1/scripts/instance/main.test.ts`), and check
-  the red run's output for a real child's stderr before you trust it.
+  the red run's output for a real child's stderr before you trust it. When the case is "not installed" for a tool
+  resolved from a working directory, the in-process test can instead clear `NODE_PATH` and re-run
+  `Module._initPaths()`, and the real proof is a child process started with a clean env ([[DX712]],
+  `packages/cli/src/gen-types.test.ts`, `gen-types.bundle.test.ts`).
 - **A refusal test that aims a write at the checkout removes that path in `afterEach`**, even though the code under
   test should refuse it. Its own absence mutation (or a regression) does write the file, and the stray file then fails
   every later run for an unrelated reason: [[OPS365]]'s M2 (drop the "inside the repo and not git-ignored" check) left
@@ -853,6 +860,9 @@ A test that fails once and then passes is a bug until its cause is found. Do not
   minutes; the same sha was green in about 5 minutes at load about 18. Don't start a gate above load ~30; a gate past
   20 minutes is a hang to kill and rerun once the load drops, never evidence about the code. [[OPS670]]'s first gate
   went red on timeouts under load and the same sha was green on the rerun: a free gate round, not a coder round.
+  [[DX712]] repeated it twice at load 20+ (`beforeEach` 10000 ms timeouts in `server-d1`'s `oauth-clients.test.ts` and
+  `readmit-removed-member.test.ts`, files the diff never touched), green on the same sha at load ~11: those files'
+  hooks are the first to time out under load, so a red naming only them is load until a quiet run says otherwise.
 - **Event order.** See "Assert emit order" in section 6; never order by `id` in a test.
 - **Known flake: `packages/server-d1/src/measured-limits.test.ts`** is intermittently off by one on pinned query counts,
   on clean `main` too ([[CORE62]], [[API32]], [[API63]], [[CORE69]] on `merge-100-links`; issue #79). Until #79 lands, when it fails, record the scenario
