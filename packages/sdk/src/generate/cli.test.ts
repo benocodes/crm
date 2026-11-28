@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileS
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { run } from './cli.js'
 
 // DX604 D2, D7: the command's entry, driven in-process.
@@ -23,11 +23,24 @@ describe('DX604 D2 command', () => {
       expect(readFileSync(join(dir, f), 'utf8') === readFileSync(join(GENERATED, f), 'utf8')).toBe(true)
   }, 120_000)
 
-  it('with two sources is refused and writes nothing', async () => {
+  it('DX694 D7, P2: --url is an unknown flag, refused with the usage error and exit 2, before any fetch, writing nothing', async () => {
     const out = scratch()
-    const r = await run(['--url', 'https://a.example', '--schema', SCHEMA, '--out', out])
-    expect(r.code).not.toBe(0)
-    expect(r.stderr).toMatch(/exactly one/)
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('fetch must not be called'))
+    try {
+      for (const argv of [
+        ['--url', 'https://a.example', '--out', out],
+        ['--url', 'https://a.example', '--schema', SCHEMA, '--out', out],
+      ]) {
+        const r = await run(argv)
+        expect(r.code).toBe(2)
+        expect(r.stderr).toMatch(/url/)
+        expect(r.stderr).toMatch(/usage:/)
+        expect(r.stderr).not.toMatch(/fetch must not be called/)
+      }
+      expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+      fetchSpy.mockRestore()
+    }
     expect(files(out)).toEqual([])
   })
 
