@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, realpathSync } from 'node:fs'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -54,7 +54,8 @@ describe('the built bundle, as a child process', () => {
     )
     const out = JSON.parse(stdout)
     expect(out.server).toBe(origin)
-    expect(out.files).toEqual([join(project, 'src/vibase/operations.ts'), join(project, 'src/vibase/types.ts')])
+    const cwd = realpathSync(project) // the process reports its working directory with symlinks resolved
+    expect(out.files).toEqual([join(cwd, 'src/vibase/operations.ts'), join(cwd, 'src/vibase/types.ts')])
     const types = readFileSync(out.files[1], 'utf8')
     expect(types.split('\n')[2]).toContain(`openapi-typescript ${TOOL_VERSION}`)
     expect(types).toContain('export type WorkspaceOperations = {')

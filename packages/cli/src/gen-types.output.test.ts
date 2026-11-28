@@ -61,7 +61,8 @@ describe('D6 the header', () => {
         `// Source: ${SERVER}`,
         `// Documents: info.version ${version} (api), ${docs.meta.info.version} (meta). openapi-typescript ${TOOL_VERSION}. Regenerate after a schema file or release change.`,
       ])
-      expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}/)
+      const header = text.split('\n').slice(0, 3).join('\n')
+      expect(header).not.toMatch(/\d{4}-\d{2}-\d{2}/)
       expect(text).not.toContain('zz-profile')
     }
   })

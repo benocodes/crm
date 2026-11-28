@@ -12,6 +12,7 @@ import {
 } from './config.js'
 import { deriveCommands, kebab } from './derive.js'
 import { discover } from './discovery.js'
+import { genTypes } from './gen-types.js'
 import { CliError, usage } from './errors.js'
 import { commandHelp, resourceHelp, topHelp } from './help.js'
 import { apiError, execute, json } from './http.js'
@@ -114,6 +115,8 @@ async function main(argv: string[], deps: Deps): Promise<number> {
       return login(others, deps)
     case 'logout':
       return logout(others, deps)
+    case 'gen':
+      return genTypes(words, rest, g.help, deps)
     case 'config':
       return configCommand(words[1], rest, deps)
     case 'instance':

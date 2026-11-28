@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 import { mkdirSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { join, isAbsolute } from 'node:path'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { Module } from 'node:module'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { topHelp } from './help.js'
 import {
   type Docs,
@@ -18,9 +19,17 @@ import { json, KEY, rig, SERVER } from './test/harness.js'
 
 // DX712: `vibase gen types` (DX694 D1 to D3, D5).
 let docs: Docs
+// pnpm puts its hoisted store on NODE_PATH, where Node's resolution finds openapi-typescript from anywhere; a developer's shell has no such path.
+const nodePath = process.env.NODE_PATH
 beforeAll(async () => {
+  delete process.env.NODE_PATH
+  ;(Module as unknown as { _initPaths(): void })._initPaths()
   docs = await workspaceDocuments()
 }, 60_000)
+afterAll(() => {
+  if (nodePath !== undefined) process.env.NODE_PATH = nodePath
+  ;(Module as unknown as { _initPaths(): void })._initPaths()
+})
 
 const err = (stderr: string) => JSON.parse(stderr).error as { code: string; message: string }
 const setup = (over: Parameters<typeof instanceOf>[1] = {}, document?: Docs) => {
@@ -152,7 +161,7 @@ describe('D2 the documents', () => {
 
   it.each([
     ['an array', []],
-    ['null', null],
+    ['a string', 'not a document'],
     ['an object without paths', { openapi: '3.1.0' }],
     ['paths that are not an object', { paths: 'x' }],
   ])('refuses a document that is %s as discovery_failed', async (_name, body) => {
