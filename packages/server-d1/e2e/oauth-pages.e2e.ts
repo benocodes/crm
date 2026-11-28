@@ -659,6 +659,129 @@ test('3e. [[CORE673]] a member approves only what their role holds: the page dis
   expect(record).toEqual([['contacts:read'], ['contacts:read']])
 })
 
+/** The signed-in page's own session token, then one `/meta/v1` call with it. */
+const metaCall = (method: string, path: string, body?: unknown) =>
+  page.evaluate(
+    async ({ method, path, body }) => {
+      const { token } = (await (await fetch('/auth/token')).json()) as { token: string }
+      const res = await fetch(`/meta/v1${path}`, {
+        method,
+        headers: {
+          authorization: `Bearer ${token}`,
+          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      })
+      return { status: res.status, body: (await res.json().catch(() => null)) as any }
+    },
+    { method, path, body },
+  )
+
+test('3f. [[AGT702]] an agent invitation links its sign-in account to the agent the owner created: same id and scopes, a real `vibase login` holds them, and a disabled agent is refused', async () => {
+  // Leg 3e left the owner signed in.
+  await visit(`${BASE}/app/home`)
+  const agentsBefore = await metaCall('GET', '/agents?limit=200')
+  expect(agentsBefore.status).toBe(200)
+  const created = await metaCall('POST', '/agents', { name: 'e2e-claimed', scopes: ['contacts:read', 'notes:read'] })
+  expect(created.status, JSON.stringify(created.body)).toBe(201)
+  const A = created.body.id as string
+  const invited = await metaCall('POST', '/invitations', { email: 'agent@e2e.test', agent_id: A, delivery: 'link' })
+  expect(invited.status, JSON.stringify(invited.body)).toBe(201)
+  expect(invited.body.agent_id).toBe(A)
+  await signOutHere()
+
+  // The agent signs up through the link: the ready card, no scopes notice needed.
+  await visit(invited.body.url)
+  await page.getByLabel('Name').fill('Claimed Agent')
+  await page.getByLabel('Email').fill('agent@e2e.test')
+  await page.getByLabel('Password').fill(PASSWORD)
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.waitForURL((u) => u.pathname === '/app/home')
+  await expect(page.getByRole('heading', { name: 'Your agent account is ready' })).toBeVisible()
+
+  // The real `vibase login`, approved in the agent's session on the device page, then `vibase me get` with that profile. The device endpoint allows 5 `GET /auth/device` per 30 minutes per IP and the legs above spend
+  // them all, so this page's requests carry their own client address (`cf-connecting-ip`, the header Better Auth reads), and only for this step.
+  await page.setExtraHTTPHeaders({ 'cf-connecting-ip': '203.0.113.77' })
+  const login = await startLogin()
+  await visit(login.url)
+  await page.getByRole('button', { name: 'Approve' }).click()
+  await expect(page.getByText('You can return to your terminal')).toBeVisible()
+  await page.setExtraHTTPHeaders({})
+  const result = await login.done
+  expect(result.code, result.stderr).toBe(0)
+  expect(result.stderr).not.toContain('has no scopes yet')
+  const me = await new Promise<{ code: number; out: string }>((resolve) => {
+    const c = spawn('pnpm', ['exec', 'tsx', CLI, 'me', 'get', '--server', BASE], {
+      cwd: PKG,
+      env: {
+        ...process.env,
+        NODE_TLS_REJECT_UNAUTHORIZED: '0',
+        XDG_CONFIG_HOME: login.home,
+        XDG_CACHE_HOME: login.home,
+        HOME: login.home,
+      },
+    })
+    let out = ''
+    c.stdout.on('data', (b: Buffer) => (out += b.toString()))
+    c.stderr.on('data', (b: Buffer) => (out += b.toString()))
+    c.on('close', (code) => resolve({ code: code ?? -1, out }))
+  })
+  expect(me.code, me.out).toBe(0)
+  expect(me.out).toContain(A)
+  expect(me.out).toContain('agent')
+  expect(me.out).toContain('contacts:read')
+  expect(me.out).toContain('notes:read')
+  expect(me.out).not.toContain('has no scopes yet')
+  console.log(`3f vibase me get:\n${me.out}`)
+
+  // The owner reads the record and the list: one more agent than before (A), linked, same name and scopes; the invitation is accepted.
+  await signOutHere()
+  await visit('/app/sign-in')
+  await signInHere()
+  await page.waitForURL((u) => u.pathname === '/app/home')
+  const record = await metaCall('GET', `/agents/${A}`)
+  expect(record.body).toMatchObject({
+    id: A,
+    name: 'e2e-claimed',
+    auth_provider: 'better-auth',
+    scopes: ['contacts:read', 'notes:read'],
+  })
+  expect(typeof record.body.auth_subject).toBe('string')
+  const agentsAfter = await metaCall('GET', '/agents?limit=200')
+  expect(agentsAfter.body.data.length).toBe(agentsBefore.body.data.length + 1)
+  const listed = await metaCall('GET', '/invitations')
+  expect(listed.body.data.find((i: any) => i.email === 'agent@e2e.test')).toMatchObject({
+    status: 'accepted',
+    agent_id: A,
+  })
+
+  // The refusal: agent B is created, invited, disabled; its sign-up settles to a refusal with no session.
+  const createdB = await metaCall('POST', '/agents', { name: 'e2e-disabled', scopes: ['contacts:read'] })
+  const B = createdB.body.id as string
+  const invitedB = await metaCall('POST', '/invitations', { email: 'agent2@e2e.test', agent_id: B, delivery: 'link' })
+  expect(invitedB.status).toBe(201)
+  const disabled = await metaCall('PATCH', `/agents/${B}`, { disabled: true })
+  expect(disabled.status, JSON.stringify(disabled.body)).toBe(200)
+  await signOutHere()
+  await visit(invitedB.body.url)
+  await page.getByLabel('Name').fill('Disabled Agent')
+  await page.getByLabel('Email').fill('agent2@e2e.test')
+  await page.getByLabel('Password').fill(PASSWORD)
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.waitForTimeout(2000)
+  console.log(`3f refused sign-up shows: ${JSON.stringify((await page.locator('body').innerText()).slice(0, 300))}`)
+  expect(new URL(page.url()).pathname).not.toBe('/app/home')
+  expect(await sessionEmail(page)).toBeUndefined()
+  await page.waitForTimeout(11_000) // the sign-in window (10 s per IP) the refused sign-up just spent
+  await visit('/app/sign-in')
+  await signInHere()
+  await page.waitForURL((u) => u.pathname === '/app/home')
+  const recordB = await metaCall('GET', `/agents/${B}`)
+  expect(recordB.body.auth_subject).toBeNull()
+  const listedB = await metaCall('GET', '/invitations')
+  expect(listedB.body.data.find((i: any) => i.email === 'agent2@e2e.test').status).toBe('pending')
+})
+
 test('4. MCP-style client: Deny reaches the callback with error=access_denied', async () => {
   const id = await register('E2E MCP Client 2')
   const { challenge } = pkce()
