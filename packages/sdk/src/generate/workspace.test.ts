@@ -122,6 +122,14 @@ describe('DX604 the schema-file source', () => {
   })
 })
 
+describe('DX694 D7 the url source is gone', () => {
+  it('has a source type with no url member (a type-level negative; the arrow is never called)', () => {
+    // @ts-expect-error `url` is not a WorkspaceSource member any more
+    const _never = () => generateWorkspace({ source: { url: 'https://acme.example' } })
+    expect(typeof _never).toBe('function')
+  })
+})
+
 describe('DX604 the --url source', () => {
   it('yields the same two files as the schema source, but for the source line, with no credential and redirect: error', async () => {
     const fetch = servingFetch()
