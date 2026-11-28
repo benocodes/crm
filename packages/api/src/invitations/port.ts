@@ -17,6 +17,8 @@ export interface InvitationRow {
   revokedAt: string | null
   /** [[CORE248]] D3: how it reached its address. */
   delivery: InvitationDelivery
+  /** [[AGT701]] D14: the existing agent an agent invitation names; `null` for owner and member invitations. */
+  agentId: string | null
 }
 export type InvitationDelivery = 'link' | 'email'
 export interface InvitationInsert {
@@ -29,11 +31,17 @@ export interface InvitationInsert {
   expiresAt: string
   createdBy: string
   delivery: InvitationDelivery
+  /** [[AGT701]] D13: set exactly when `role` is `agent`. */
+  agentId?: string
   now: string
 }
 export interface InvitationsPort {
   /** `live_exists`: another live invitation holds the address; nothing was written. */
   create(a: InvitationInsert): Promise<'created' | 'live_exists'>
+  /** [[AGT701]] D15: revokes the agent's live invitations and inserts the new one in one batch; `live_exists`: a live invitation for the address is not this agent's, nothing written. */
+  reissueAgent(
+    a: InvitationInsert & { agentId: string; newAuditId: () => string },
+  ): Promise<{ result: 'created'; revoked: number } | { result: 'live_exists' }>
   list(a: { after?: string; limit: number }): Promise<InvitationRow[]>
   revoke(a: {
     id: string

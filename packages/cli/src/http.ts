@@ -143,5 +143,11 @@ export async function execute(
   // [[CORE662]] D10: `agents update` says when the added scopes need the agent to sign in (or reconnect); printed after the record, on stderr like the other notices, and only when the server gave one.
   const notice = (parsed as { sign_in_notice?: unknown } | null)?.sign_in_notice
   if (typeof notice === 'string' && notice !== '') await deps.stderr.write(`${notice}\n`)
+  // [[AGT701]] D13 (planner 701.35): a created agent has no credential yet; say how to give it one, with its real id, on stderr (printed only after the response was checked and the record written, like the notices above).
+  const created = (parsed as { id?: unknown } | null)?.id
+  if (cmd.operationId === 'agents.create' && typeof created === 'string' && created !== '')
+    await deps.stderr.write(
+      `Next, give the agent a credential:\n  A headless agent: vibase api-keys create --agent-id ${created}\n  An agent that can use a browser: vibase invitations create --agent-id ${created} --email <agent-email>\n`,
+    )
   return 0
 }

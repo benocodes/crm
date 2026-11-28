@@ -49,7 +49,7 @@ const inv = (over: Partial<NewInvitation> = {}): NewInvitation => ({
   ...over,
 })
 const agentInv = (agentId: string, over: Partial<NewInvitation> = {}) =>
-  inv({ role: 'agent', agentId, ...over }) as NewInvitation
+  inv({ role: 'agent', agentId, ...over }) as NewInvitation & { agentId: string }
 const c = () => openControlDb(ctl)
 const rows = async (text: string, ...binds: unknown[]) =>
   ((
@@ -83,7 +83,14 @@ describe('control genesis holds the binding (AGT701 D14, ruling 701.27)', () => 
   })
 
   it('invitations_agent_id_uuid refuses a malformed agent id', async () => {
-    expect(await insertRaw('agent', 'not-a-uuid')).toMatch(/invitations_agent_id_uuid/)
+    for (const bad of [
+      'not-a-uuid',
+      'abcdef',
+      '0190b2c4000070008000000000000c001abc',
+      '0190b2c4-0000-7000-8000-00000000c00',
+      'ABCDEFAB-0000-7000-8000-00000000c001',
+    ])
+      expect(await insertRaw('agent', bad), bad).toMatch(/invitations_agent_id_uuid/)
     expect(await insertRaw('agent', AGENT)).toBeNull()
   })
 

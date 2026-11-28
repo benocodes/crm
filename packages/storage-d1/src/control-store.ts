@@ -118,6 +118,8 @@ export interface InvitationRecord {
   revokedAt: string | null
   /** How it reached its address ([[CORE248]] D3): `email` when the vault sent it and never returned the token, else `link`. */
   delivery: InvitationDelivery
+  /** [[AGT701]] D14: the existing agent an agent invitation names; `null` for an owner or member invitation (the genesis CHECK ties it to `role = 'agent'`). */
+  agentId: string | null
 }
 export type InvitationDelivery = 'link' | 'email'
 export interface NewInvitation {
@@ -132,12 +134,14 @@ export interface NewInvitation {
   createdBy: string
   /** [[CORE248]] D3; absent is `link`. */
   delivery?: InvitationDelivery
+  /** [[AGT701]] D14: required for `role: 'agent'`, absent otherwise (the genesis CHECK `invitations_agent_id_iff_agent`). */
+  agentId?: string | null
   /** The unit's clock: `created_at`, the audit `at`, and what "live" is judged against. */
   now: string
 }
 
 const COLUMNS =
-  'id, organization_id, email, role, expires_at, created_by, created_at, accepted_at, revoked_at, delivery'
+  'id, organization_id, email, role, expires_at, created_by, created_at, accepted_at, revoked_at, delivery, agent_id'
 const recordOf = (r: Record<string, unknown>): InvitationRecord => ({
   id: r.id as string,
   organizationId: r.organization_id as string,
@@ -149,6 +153,7 @@ const recordOf = (r: Record<string, unknown>): InvitationRecord => ({
   acceptedAt: (r.accepted_at as string | null) ?? null,
   revokedAt: (r.revoked_at as string | null) ?? null,
   delivery: r.delivery === 'email' ? 'email' : 'link',
+  agentId: (r.agent_id as string | null) ?? null,
 })
 /** An invitation is live while it is not accepted, not revoked and `expires_at` is after `now` (ISO text compares as time). */
 const LIVE = 'accepted_at is null and revoked_at is null and expires_at > ?'
@@ -164,14 +169,15 @@ const auditStatement = (
     invitationId: string
     guard: string
     guardBinds: unknown[] /** Created rows carry the delivery ([[CORE248]] D3). */
-    withDelivery?: boolean /** A revoke's reason (`email_failed`). */
+    withDelivery?: boolean /** [[AGT701]] D17: an agent invitation's created row carries its agent. */
+    withAgent?: boolean /** A revoke's reason (`email_failed`). */
     reason?: string
   },
 ) =>
   d1
     .prepare(
       `insert into control_audit (id, at, actor_id, action, target_type, target_id, detail)
-       select ?, ?, ?, ?, 'invitation', id, json_object('email', email, 'role', role, 'expires_at', expires_at${a.withDelivery ? ", 'delivery', delivery" : ''}${a.reason === undefined ? '' : ", 'reason', ?"})
+       select ?, ?, ?, ?, 'invitation', id, json_object('email', email, 'role', role, 'expires_at', expires_at${a.withDelivery ? ", 'delivery', delivery" : ''}${a.withAgent ? ", 'agent_id', agent_id" : ''}${a.reason === undefined ? '' : ", 'reason', ?"})
        from invitations where id = ? and ${a.guard}`,
     )
     .bind(
@@ -188,8 +194,8 @@ const insertStatements = (d1: D1Like, a: NewInvitation): D1PreparedLike[] => [
   // Guarded insert: nothing is written when another live invitation holds the address (the one-live-per-email rule, judged in the same statement that writes).
   d1
     .prepare(
-      `insert into invitations (id, organization_id, email, role, expires_at, created_by, created_at, accepted_at, revoked_at, token_hash, delivery)
-       select ?, ?, ?, ?, ?, ?, ?, null, null, ?, ?
+      `insert into invitations (id, organization_id, email, role, expires_at, created_by, created_at, accepted_at, revoked_at, token_hash, delivery, agent_id)
+       select ?, ?, ?, ?, ?, ?, ?, null, null, ?, ?, ?
        where not exists (select 1 from invitations where email = ? and ${LIVE})`,
     )
     .bind(
@@ -202,6 +208,7 @@ const insertStatements = (d1: D1Like, a: NewInvitation): D1PreparedLike[] => [
       a.now,
       a.tokenHash,
       a.delivery ?? 'link',
+      a.agentId ?? null,
       a.email,
       a.now,
     ),
@@ -214,6 +221,7 @@ const insertStatements = (d1: D1Like, a: NewInvitation): D1PreparedLike[] => [
     guard: '1 = 1',
     guardBinds: [],
     withDelivery: true,
+    withAgent: (a.agentId ?? null) !== null,
   }),
 ]
 
@@ -340,6 +348,34 @@ export async function reissueOwnerInvitation(
     d1
       .prepare(`update invitations set revoked_at = ? where role = 'owner' and ${LIVE} and ${noBlocker}`)
       .bind(a.now, a.now, a.email, a.now),
+    ...insertStatements(d1, a),
+  ])
+  if ((results[2]?.meta?.changes ?? 0) !== 1) return { result: 'live_exists' }
+  return { result: 'created', revoked: results[1]?.meta?.changes ?? 0 }
+}
+
+/**
+ * [[AGT701]] D15: an agent invitation for an existing agent, the shape of `reissueOwnerInvitation`: the agent's live invitations are revoked (each with its `invitation.revoked` row) and the new one is created in ONE
+ * control batch, NOTHING read first, so one created at any moment before the batch runs is revoked with the rest. Every statement carries the same guard, "no live invitation for this email that is not this agent's":
+ * when one exists the insert is refused (`live_exists`) and the revokes and their audit rows write nothing either. The revoke audit rows are one `insert … select`, each id built as in the owner reissue.
+ */
+export async function reissueAgentInvitation(
+  c: ControlDb,
+  a: NewInvitation & { agentId: string; newAuditId: () => string },
+): Promise<{ result: 'created'; revoked: number } | { result: 'live_exists' }> {
+  const d1 = raw(c)
+  const noBlocker = `not exists (select 1 from invitations where email = ? and (agent_id is null or agent_id <> ?) and ${LIVE})`
+  const results = await d1.batch([
+    d1
+      .prepare(
+        `insert into control_audit (id, at, actor_id, action, target_type, target_id, detail)
+         select substr(?, 1, 24) || substr(id, 25, 12), ?, ?, 'invitation.revoked', 'invitation', id, json_object('email', email, 'role', role, 'expires_at', expires_at)
+         from invitations where agent_id = ? and ${LIVE} and ${noBlocker}`,
+      )
+      .bind(a.newAuditId(), a.now, a.createdBy, a.agentId, a.now, a.email, a.agentId, a.now),
+    d1
+      .prepare(`update invitations set revoked_at = ? where agent_id = ? and ${LIVE} and ${noBlocker}`)
+      .bind(a.now, a.agentId, a.now, a.email, a.agentId, a.now),
     ...insertStatements(d1, a),
   ])
   if ((results[2]?.meta?.changes ?? 0) !== 1) return { result: 'live_exists' }

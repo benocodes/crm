@@ -77,6 +77,7 @@ import {
   readOAuthClientBound,
   acceptInvitation,
   findAdoptableInvitation,
+  reissueAgentInvitation,
   findLiveInvitationByToken,
   recordResetLinkIssued,
   revokeSubjectCredentials,
@@ -667,6 +668,7 @@ export function composeD1Worker(
       ? {
           port: {
             create: (a) => createInvitation(control, a),
+            reissueAgent: (a) => reissueAgentInvitation(control, a),
             list: (a) => listInvitations(control, a),
             revoke: (a) => revokeInvitation(control, a),
           },

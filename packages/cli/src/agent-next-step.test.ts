@@ -104,7 +104,7 @@ describe('invitations create --agent-id (the generated flag, no --role)', () => 
           sent = await req.json()
           return json({ id: 'i1' }, 201)
         }
-        return undefined
+        return json({ error: { code: 'not_found', message: 'no such route' } }, 404)
       },
     })
     const r2 = rig({ fetch: inst.fetch })

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { uuidv7 } from '@vibase/storage'
 import { createMigrationTracker, recordMigrations } from '@vibase/storage-d1/test'
+import { seedAgent } from '@vibase/storage-d1/test/seed'
 import {
   MIGRATIONS,
   createInvitation,
@@ -165,6 +166,9 @@ async function invite(
   const t = o.createdAt ?? Date.now()
   const id = uuidv7()
   const token = `token-${id}`
+  // [[AGT701]] D14: an agent invitation names an existing agent (the genesis CHECK); settling still provisions its own until AGT702.
+  const agentId = role === 'agent' ? uuidv7() : undefined
+  if (agentId) await seedAgent(w.d1, { id: agentId, organizationId: orgId, createdBy: systemId })
   expect(
     await createInvitation(openControlDb(w.control), {
       id,
@@ -172,6 +176,7 @@ async function invite(
       organizationId: orgId,
       email,
       role,
+      ...(agentId ? { agentId } : {}),
       tokenHash: sha256(token),
       expiresAt: iso(o.expiresAt ?? t + 7 * DAY),
       createdBy: systemId,

@@ -96,6 +96,7 @@ describe('invitations and control_audit exist only in the control plane', () => 
       'accepted_at',
       'revoked_at',
       'delivery',
+      'agent_id',
     ])
     expect(await cols('control_audit')).toEqual([
       'id',
@@ -143,6 +144,7 @@ describe('create (P3, P4, P5)', () => {
         accepted_at: null,
         revoked_at: null,
         delivery: 'link',
+        agent_id: null,
       },
     ])
     const [row, ...rest] = await audit(a.id)
@@ -236,6 +238,7 @@ describe('revoke (P6) and list', () => {
     for (const r of page) {
       expect(Object.keys(r).sort()).toEqual([
         'acceptedAt',
+        'agentId',
         'createdAt',
         'createdBy',
         'delivery',

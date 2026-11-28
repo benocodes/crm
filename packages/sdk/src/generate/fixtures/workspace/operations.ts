@@ -3659,6 +3659,7 @@ export const workspaceOperations: OperationTable<WorkspaceOperations> = {
     "fields": {
       "email": "body",
       "role": "body",
+      "agent_id": "body",
       "delivery": "body"
     },
     "body": true,
