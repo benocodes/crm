@@ -1,5 +1,7 @@
-import openapiTS, { astToString } from 'openapi-typescript'
 import type { Analysed, AnalysedAggregate } from './analyse.js'
+
+/** Turns one OpenAPI document into TypeScript declarations: the text `astToString(await openapiTS(document))` gives (DX694 D4). The core takes it from its caller, so it imports no translator. */
+export type Translator = (document: unknown) => Promise<string>
 
 export const GENERATE_COMMAND = 'pnpm -C packages/sdk generate'
 
@@ -68,18 +70,15 @@ const aggregateShape = (a: AnalysedAggregate): string =>
     .map(([f, c]) => `${q(f)}: ${q(c)}`)
     .join('; ')} } }`
 
-async function documentTypes(document: unknown): Promise<string> {
-  return astToString(await openapiTS(document as never)).trimEnd()
-}
-
-/** The map: openapi-typescript's translation of each document, and `BuiltInOperations` over it (D3, D12). */
+/** The map: the translator's text for each document, and `BuiltInOperations` over it (D3, D12). */
 export async function emitTypes(
   documents: { api: unknown; meta: unknown },
   ops: Analysed[],
-  profile: EmitProfile = BUILT_IN_PROFILE,
+  profile: EmitProfile,
+  translate: Translator,
 ): Promise<string> {
-  const api = await documentTypes(documents.api)
-  const meta = await documentTypes(documents.meta)
+  const api = (await translate(documents.api)).trimEnd()
+  const meta = (await translate(documents.meta)).trimEnd()
   const entries = ops.map((o) => {
     const ns = o.document === 'api' ? 'ApiDocument' : 'MetaDocument'
     const op = `${ns}.operations[${q(o.id)}]`

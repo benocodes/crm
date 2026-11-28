@@ -120,11 +120,9 @@ An aborted request rethrows the `AbortError`.
 
 ## Types for custom objects and fields
 
-The default client types the built-in resources. To type your own [custom objects and `__c` fields](/guides/schema/), run the SDK's generator against your instance or your schema file. It writes two files, a full operation table and its types:
+The default client types the built-in resources. To type your own [custom objects and `__c` fields](/guides/schema/), run the SDK's generator against your schema file. It writes two files, a full operation table and its types:
 
 ```bash
-# from the running instance's public OpenAPI documents
-pnpm -C packages/sdk generate --url https://crm.mycompany.com --out src/vibase
 # from the schema file, offline, before a redeploy
 pnpm -C packages/sdk generate --schema ./vibase.schema.json --out src/vibase
 ```

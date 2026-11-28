@@ -1,53 +1,13 @@
 import { createHash } from 'node:crypto'
-import { DeclarationError, defineCustomObject, openApiPath, parseSchemaFile, SURFACES } from '@vibase/api'
-import { analyseDocuments } from './analyse.js'
+import { DeclarationError, defineCustomObject, parseSchemaFile } from '@vibase/api'
+import { type EmitProfile, GENERATE_COMMAND, generateFiles } from './core.js'
 import { loadDocuments } from './documents.js'
-import { type EmitProfile, emitOperations, emitTypes, GENERATE_COMMAND } from './emit.js'
+import { openapiTranslator } from './translate.js'
 
-/** Where a workspace's two OpenAPI documents come from (DX604 D1): a deployment's URL, or its schema file's text with the name the header shows. */
-export type WorkspaceSource = { url: string; fetch?: typeof fetch } | { schema: string; name: string }
+/** Where a workspace's two OpenAPI documents come from (DX604 D1, DX694 D7): its schema file's text with the name the header shows. A deployed instance is `vibase gen types`'s source. */
+export type WorkspaceSource = { schema: string; name: string }
 
 type Documents = { api: unknown; meta: unknown }
-const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]']
-
-/** D1: `--url` is an origin: https (http only for a local instance), no credential, no path, query or fragment. Returns the origin. */
-function checkOrigin(input: string): string {
-  let url: URL
-  try {
-    url = new URL(input)
-  } catch {
-    throw new Error(
-      `--url "${input}" is not a URL: give the origin of the deployment, such as https://api.acme.example`,
-    )
-  }
-  if (url.username || url.password)
-    throw new Error(`--url "${url.origin}" carries a credential: the documents are public, and no credential is sent`)
-  if (url.search || url.hash || (url.pathname !== '/' && url.pathname !== ''))
-    throw new Error(`--url must be the origin only (${url.origin}), with no path, query or fragment`)
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && LOCAL_HOSTS.includes(url.hostname)))
-    throw new Error(`--url must be https (http is only for localhost, 127.0.0.1 and [::1]), not ${url.origin}`)
-  return url.origin
-}
-
-async function fetchDocuments(origin: string, doFetch: typeof fetch): Promise<Documents> {
-  const out: Record<string, unknown> = {}
-  for (const surface of SURFACES) {
-    const url = `${origin}${openApiPath(surface)}`
-    const response = await doFetch(url, { redirect: 'error', headers: { accept: 'application/json' } })
-    if (!response.ok) throw new Error(`cannot read ${url}: HTTP ${response.status}`)
-    let body: unknown
-    try {
-      body = await response.json()
-    } catch {
-      throw new Error(`${url} did not return JSON (HTTP ${response.status})`)
-    }
-    if (typeof body !== 'object' || body === null || Array.isArray(body) || !('paths' in body))
-      throw new Error(`${url} is not an OpenAPI document: a JSON object with paths was expected`)
-    out[surface] = body
-  }
-  return out as Documents
-}
-
 /** D1: the file's text validated by `parseSchemaFile`, then the documents built in-process with its objects and `extend`. A refusal names the file, its rule and its path. */
 async function schemaDocuments(text: string, name: string): Promise<Documents> {
   let file: ReturnType<typeof parseSchemaFile>
@@ -82,16 +42,8 @@ export async function generateWorkspace(options: {
   source: WorkspaceSource
 }): Promise<{ operations: string; types: string }> {
   const { source } = options
-  let documents: Documents
-  let label: string
-  if ('url' in source) {
-    const origin = checkOrigin(source.url)
-    documents = await fetchDocuments(origin, source.fetch ?? fetch)
-    label = `--url ${origin}`
-  } else {
-    documents = await schemaDocuments(source.schema, source.name)
-    label = `--schema ${source.name} (sha256 ${createHash('sha256').update(source.schema).digest('hex')})`
-  }
+  const documents = await schemaDocuments(source.schema, source.name)
+  const label = `--schema ${source.name} (sha256 ${createHash('sha256').update(source.schema).digest('hex')})`
   const profile: EmitProfile = {
     header: header(label, documents),
     operationsName: 'workspaceOperations',
@@ -99,6 +51,5 @@ export async function generateWorkspace(options: {
     tableFrom: '@vibase/sdk',
     helpersFrom: '@vibase/sdk',
   }
-  const ops = analyseDocuments(documents)
-  return { operations: emitOperations(ops, profile), types: await emitTypes(documents, ops, profile) }
+  return generateFiles(documents, profile, openapiTranslator)
 }

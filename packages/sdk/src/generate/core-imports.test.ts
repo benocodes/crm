@@ -9,7 +9,9 @@ const manifest = JSON.parse(readFileSync(resolve(SDK, 'package.json'), 'utf8')) 
 
 type Import = { specifier: string; typeOnly: boolean }
 /** Every static or dynamic import and re-export of a source text, with whether the statement is `import type` / `export type`. */
-function importsOf(source: string): Import[] {
+function importsOf(text: string): Import[] {
+  // Template literals hold the emitted files' own import lines: they are text, not imports of this file.
+  const source = text.replace(/`(?:\\[\s\S]|[^`\\])*`/g, '``')
   const out: Import[] = []
   for (const m of source.matchAll(/(?:^|\n)\s*(import|export)\s+(type\s+)?([^'";]*?)\s*from\s*['"]([^'"]+)['"]/g))
     out.push({ specifier: m[4], typeOnly: Boolean(m[2]) })
@@ -38,7 +40,7 @@ function graph(entry: string): string[] {
 
 describe('DX694 D4 the core imports nothing heavy', () => {
   it('detects a planted heavy import and ignores relative and type-only ones', () => {
-    const planted = `import x from 'openapi-typescript'\nimport type { A } from '@vibase/api'\nexport type { B } from './b.js'\nimport { c } from './c.js'\nimport { f } from 'node:fs'\nconst z = await import('typescript')\nimport 'side-effect'`
+    const planted = `import x from 'openapi-typescript'\nimport type { A } from '@vibase/api'\nexport type { B } from './b.js'\nimport { c } from './c.js'\nimport { f } from 'node:fs'\nconst z = await import('typescript')\nimport 'side-effect'\nconst t = \`\nimport q from 'in-a-template'\n\`\n`
     expect(heavy(importsOf(planted)).map((i) => i.specifier)).toEqual([
       'openapi-typescript',
       'node:fs',

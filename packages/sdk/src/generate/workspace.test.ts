@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { defineCustomObject, parseSchemaFile } from '@vibase/api'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { documentsApp, loadDocuments } from './documents.js'
+import { loadDocuments } from './documents.js'
 import { generateWorkspace } from './workspace.js'
 
-// DX604 D1, D3, D7: the workspace map from a schema file and from a deployment's documents.
+// DX604 D1, D3, D7: the workspace map from a schema file (DX694 D7: a deployed instance is `vibase gen types`'s source).
 const SCHEMA_NAME = 'workspace.schema.json'
 const schemaText = readFileSync(new URL(`./fixtures/${SCHEMA_NAME}`, import.meta.url), 'utf8')
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/workspace/${name}`, import.meta.url), 'utf8')
@@ -18,18 +18,12 @@ function firstDifference(committed: string, generated: string): string {
   }
   return 'no difference'
 }
-const withoutSourceLine = (text: string) =>
-  text
-    .split('\n')
-    .filter((line) => !line.startsWith('// Source: '))
-    .join('\n')
 const headerOf = (text: string) =>
   text
     .split('\n')
     .filter((l) => l.startsWith('//'))
     .join('\n')
 
-const origin = 'https://acme.example'
 const workspace = () => {
   const file = parseSchemaFile(schemaText)
   return {
@@ -37,17 +31,6 @@ const workspace = () => {
     ...(file.extend ? { extend: file.extend } : {}),
   }
 }
-/** A fetch that serves the in-process app; records every call. */
-const servingFetch = () => {
-  const app = documentsApp(workspace())
-  const calls: { url: string; init: RequestInit | undefined }[] = []
-  const fn = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    calls.push({ url: String(input), init })
-    return app.request(String(input), init)
-  }) as typeof fetch
-  return Object.assign(fn, { calls })
-}
-
 let fromSchema: { operations: string; types: string }
 let digest: string
 beforeAll(async () => {
@@ -127,62 +110,5 @@ describe('DX694 D7 the url source is gone', () => {
     // @ts-expect-error `url` is not a WorkspaceSource member any more
     const _never = () => generateWorkspace({ source: { url: 'https://acme.example' } })
     expect(typeof _never).toBe('function')
-  })
-})
-
-describe('DX604 the --url source', () => {
-  it('yields the same two files as the schema source, but for the source line, with no credential and redirect: error', async () => {
-    const fetch = servingFetch()
-    const fromUrl = await generateWorkspace({ source: { url: origin, fetch } })
-    expect(withoutSourceLine(fromUrl.operations)).toBe(withoutSourceLine(fromSchema.operations))
-    expect(withoutSourceLine(fromUrl.types)).toBe(withoutSourceLine(fromSchema.types))
-    expect(headerOf(fromUrl.operations)).toContain(`// Source: --url ${origin}`)
-    expect(fetch.calls.map((c) => c.url).sort()).toEqual([
-      `${origin}/api/v1/openapi.json`,
-      `${origin}/meta/v1/openapi.json`,
-    ])
-    for (const call of fetch.calls) {
-      expect(call.init?.redirect).toBe('error')
-      const headers = new Headers(call.init?.headers)
-      expect(headers.has('authorization')).toBe(false)
-    }
-  }, 120_000)
-
-  it('accepts a local http origin and a bare trailing slash', async () => {
-    for (const local of ['http://localhost:8787', 'http://127.0.0.1:8787', 'http://[::1]:8787', `${origin}/`]) {
-      const fetch = servingFetch()
-      await generateWorkspace({ source: { url: local, fetch } })
-      expect(fetch.calls.length).toBe(2)
-    }
-  }, 240_000)
-
-  const never = (async () => {
-    throw new Error('fetch must not be called')
-  }) as typeof fetch
-  it.each([
-    ['an http non-local origin', 'http://acme.example', /https/],
-    ['an origin with a path', 'https://acme.example/v1', /origin/],
-    ['an origin with a query', 'https://acme.example?x=1', /origin/],
-    ['an origin with a fragment', 'https://acme.example#x', /origin/],
-    ['an origin with credentials', 'https://user:pw@acme.example', /credential/],
-    ['not a URL', 'acme', /URL/],
-  ])('refuses %s before any request', async (_label, url, pattern) => {
-    const error = await generateWorkspace({ source: { url, fetch: never } }).catch((e) => e)
-    expect(error).toBeInstanceOf(Error)
-    expect(String(error.message)).toMatch(pattern)
-    expect(String(error.message)).not.toContain('fetch must not be called')
-  })
-
-  it.each([
-    ['a non-2xx document', () => new Response('nope', { status: 503 }), /503/],
-    ['a JSON body without paths', () => Response.json({ openapi: '3.1.0' }), /paths/],
-    ['a JSON array', () => Response.json([]), /paths/],
-    ['a non-JSON body', () => new Response('<html>', { status: 200 }), /JSON/],
-  ])('refuses %s, naming the URL', async (_label, respond, pattern) => {
-    const failing = (async () => respond()) as typeof fetch
-    const error = await generateWorkspace({ source: { url: origin, fetch: failing } }).catch((e) => e)
-    expect(error).toBeInstanceOf(Error)
-    expect(String(error.message)).toContain(`${origin}/api/v1/openapi.json`)
-    expect(String(error.message)).toMatch(pattern)
   })
 })

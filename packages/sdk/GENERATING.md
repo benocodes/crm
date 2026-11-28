@@ -26,12 +26,11 @@ this package pins `typescript` 5.9.3 beside the workspace's 7.x.
 
 The built-in client types the built-ins only. A workspace's custom objects (`projects__c`) and `__c` fields on contacts,
 companies, deals and tasks are declared in its schema file; the generator turns that workspace into a **full map**
-(every operation, built-ins included) that `createClient` takes through `operations`. Two sources, one output directory:
+(every operation, built-ins included) that `createClient` takes through `operations`. For a deployed instance use
+`vibase gen types` (the CLI reads the instance's documents; this script no longer fetches them). The repo script builds the
+map from the schema file, in-process: it works offline, before a redeploy:
 
 ```bash
-# from the deployment: its two public OpenAPI documents (https; http only for localhost, 127.0.0.1, [::1]); no credential is sent
-pnpm -C packages/sdk generate --url https://crm.acme.example --out apps/pipeline/src/vibase
-# from the schema file, built in-process: works offline, before a redeploy
 pnpm -C packages/sdk generate --schema ./vibase.schema.json --out apps/pipeline/src/vibase
 ```
 

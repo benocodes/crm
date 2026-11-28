@@ -7,7 +7,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./generate": "./src/generate/index.ts"
+    "./generate": "./src/generate/index.ts",
+    "./emit": "./src/generate/core.ts"
   },
   "scripts": {
     "generate": "tsx src/generate/main.ts",
