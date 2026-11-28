@@ -15,7 +15,7 @@ export const GEN_TYPES_HELP = `vibase gen types --out <dir> [--server <url>] [--
 
 Writes <dir>/operations.ts and <dir>/types.ts: the typed map of this instance's operations, custom objects and __c fields, for createClient({ operations }) from @vibase/sdk.
 Needs openapi-typescript 7 (with typescript 5) in the project it runs in: npm i -D @vibase/sdk openapi-typescript@7. Reads the public documents, with no login needed; replaces both files.
-Exit 2: usage or missing dependency (nothing fetched or written); exit 1: the instance, the network or the generation failed (files left as they were).
+Exit 2: usage, configuration or a missing dependency (nothing fetched or written), or an instance that fails discovery; exit 1: the network, the generation or the write failed. On any failure the files are left as they were.
 `
 
 const TOOL = 'openapi-typescript'
@@ -190,7 +190,11 @@ export async function genTypes(words: string[], args: string[], help: boolean, d
   try {
     mkdirSync(out, { recursive: true })
   } catch (e) {
-    throw usage(`cannot create --out ${values.out}: ${e instanceof Error ? e.message : 'failed'}`)
+    throw new CliError(
+      1,
+      'write_failed',
+      `cannot create --out ${values.out}: ${e instanceof Error ? e.message : 'failed'}`,
+    )
   }
   writeBoth(out, [
     ['operations.ts', generated.operations],

@@ -67,6 +67,7 @@ describe('D1 the command surface', () => {
     const res = await r.run(['gen', 'types', '--help', '--server', SERVER])
     expect(res.code).toBe(0)
     expect(res.stdout).toContain('vibase gen types --out <dir>')
+    expect(res.stdout).toMatch(/Exit 2:.*discovery.*exit 1:.*write/s)
     expect(r.seen).toEqual([])
     r.dispose()
   })
@@ -276,6 +277,18 @@ describe('D5 write safety', () => {
     expect(err(res.stderr).message).toContain('out.txt')
     expect(readFileSync(join(project, 'out.txt'), 'utf8')).toBe('file')
     expect(r.seen).toEqual([])
+    r.dispose()
+  })
+
+  it('an --out that cannot be created (a parent is a file) is write_failed, exit 1, after the fetch', async () => {
+    const { r, project } = setup()
+    writeFileSync(join(project, 'blocker'), 'file')
+    const res = await r.run(['gen', 'types', '--out', 'blocker/sub', '--server', SERVER], { cwd: project })
+    expect(res.code).toBe(1)
+    expect(err(res.stderr).code).toBe('write_failed')
+    expect(err(res.stderr).message).toContain('blocker/sub')
+    expect(r.seen).toHaveLength(3)
+    expect(readFileSync(join(project, 'blocker'), 'utf8')).toBe('file')
     r.dispose()
   })
 

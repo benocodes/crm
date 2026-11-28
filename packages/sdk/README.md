@@ -261,7 +261,7 @@ Generate the map with the Vibase CLI, which reads your instance's own documents 
 
 ```bash
 npm i -D @vibase/sdk openapi-typescript@7
-npx vibase gen types --out src/vibase --server https://crm.acme.example
+npx @vibase/cli gen types --out src/vibase --server https://crm.acme.example
 ```
 
 It writes `src/vibase/operations.ts` and `src/vibase/types.ts`. `openapi-typescript` 7 is the project's own dependency and needs
