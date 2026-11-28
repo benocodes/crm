@@ -78,4 +78,27 @@ export function sources(): Omit<StageInput, 'outDir'> & { root: string } {
     controlMigrations: ctl.map(([name, t]) => ({ name, sha256: sha256(t) })),
   }
 }
+/** [[OPS693]] D2: a small valid built SDK (`dist/` with an `index` and a `client` module, each with its declaration file) plus the README and licence text `stageSdk` takes. */
+export function sdkSources(): {
+  root: string
+  version: string
+  license: string
+  sdkReadme: string
+  sdkDistDir: string
+} {
+  const root = mkdtempSync(join(tmpdir(), 'ops693-src-'))
+  const dist = join(root, 'dist')
+  mkdirSync(dist, { recursive: true })
+  writeFileSync(join(dist, 'index.js'), "export { createClient } from './client.js'\n")
+  writeFileSync(join(dist, 'index.d.ts'), "export { createClient } from './client.js'\n")
+  writeFileSync(join(dist, 'client.js'), 'export const createClient = () => ({})\n')
+  writeFileSync(join(dist, 'client.d.ts'), 'export declare const createClient: () => object\n')
+  return {
+    root,
+    version: '0.1.0',
+    license: 'LICENSE text\n',
+    sdkReadme: '# @vibase/sdk\n\nnpm install @vibase/sdk\n',
+    sdkDistDir: dist,
+  }
+}
 export type { ManifestInput }

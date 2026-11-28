@@ -72,7 +72,9 @@ nothing calls", "a table nothing writes". Nor is "the last cycle was larger and 
 review rounds were never the problem with big cycles. Their cost was coder tokens (AGT8 cycle 1 about 550k,
 [[CHN155]] about 390k, [[AGT165]] over 480k before E2E), context pressure, and expensive resumes. A good cut
 gives each piece obligations it can prove on its own (often the mechanism first, proven through a test kit,
-then its entry points, then its riders) and names every deferred item.
+then its entry points, then its riders) and names every deferred item. "Leaves `main` working" includes the
+checks downstream of the new code: if this cycle's output would be refused by an existing allow-list (a CI asset
+list, a pinned file manifest), the update to that list rides in this cycle ([[OPS693]] 693.14).
 
 A dormant cycle usually proves "nothing calls this yet" with a test (a grep for callers, [[CORE327]] group 6 in
 `packages/storage-d1/src/control-webhooks.integration.test.ts`). That test is meant to break: the wiring cycle's
@@ -582,6 +584,10 @@ one review-fix round (+88 code / +677 test lines, 27 files). The budget holds at
 real device-flow tokens and eleven mutations, not the code. A charter that adds a field to an answer a kit fakes
 (`/.well-known/vibase`, the auth metadata) names the fake's builders as a rider (`writing-tests`, the fake bullet); and a
 charter that asks for mutations says "raw output" in the obligation, not only "name each in RESULT.md".
+**OPS693 cycle 1** (`knowledge/specs/055-OPS693-publish-sdk/RETRO.md`, split at plan time from 9 decisions): release
+tooling only, 6 groups (1 matrix), 7 decisions, no migration or E2E, riders the release package's pinned lists. 175k / 34
+calls in one run (+358 code / +425 test lines, 25 files), gate green first run, approved round 0. The budget holds. The
+split moved the CI asset list forward from cycle 2, per the downstream-checks rule above.
 
 ### Step 3: Resolve identities
 

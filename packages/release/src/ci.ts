@@ -8,7 +8,7 @@ export type TagDecision = { mode: 'build-only' } | { mode: 'release'; tag: strin
 const SEMVER_TAG = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
 /**
- * What a run is: a dispatch on a branch builds only; a run on a tag must be `v<version>` exactly (D1's version: the fixed group of `packages/cli` and `packages/server-d1`) or it refuses,
+ * What a run is: a dispatch on a branch builds only; a run on a tag must be `v<version>` exactly (D1's version: the fixed group of `packages/cli`, `packages/server-d1` and `packages/sdk`) or it refuses,
  * naming both, before the gate runs. The workflow's release job runs only after this has returned `release`.
  */
 export function decideTag(run: { refType?: string; refName?: string }, version: string): TagDecision {
@@ -20,14 +20,19 @@ export function decideTag(run: { refType?: string; refName?: string }, version: 
     )
   if (tag !== `v${version}`)
     throw new ReleaseRefusal(
-      `the tag ${tag} does not match the release version ${version} (packages/cli/package.json and packages/server-d1/package.json): the tag must be v${version}`,
+      `the tag ${tag} does not match the release version ${version} (packages/cli, packages/server-d1 and packages/sdk package.json): the tag must be v${version}`,
     )
   return { mode: 'release', tag }
 }
 
-/** The three files a release carries, as paths in `dist`: both tarballs and `SHA256SUMS` for this version. Anything missing or extra in `dist` refuses, naming it. */
+/** The four files a release carries, as paths in `dist`: the three tarballs and `SHA256SUMS` for this version. Anything missing or extra in `dist` refuses, naming it. */
 export function releaseAssets(dist: string, version: string): string[] {
-  const want = [`vibase-cli-${version}.tgz`, `vibase-server-d1-${version}.tgz`, 'SHA256SUMS']
+  const want = [
+    `vibase-cli-${version}.tgz`,
+    `vibase-server-d1-${version}.tgz`,
+    `vibase-sdk-${version}.tgz`,
+    'SHA256SUMS',
+  ]
   const found = existsSync(dist) ? readdirSync(dist) : []
   const problems = [
     ...want.filter((f) => !found.includes(f)).map((f) => `${f} is missing`),

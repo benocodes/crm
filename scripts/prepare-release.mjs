@@ -2,9 +2,10 @@
 // Maintainer helper: tag the release, wait for release.yml, download and verify the tarballs.
 // `pnpm prepare-release [--dry-run]`. Publishing to npm stays a person's step (packages/release/README.md).
 import { execFileSync, spawnSync } from 'node:child_process'
-import { readFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs'
+import { mkdirSync, existsSync, readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { publishLines, releaseVersion } from './prepare-release-lib.mjs'
 
 const dryRun = process.argv.includes('--dry-run')
 const outRoot = process.env.VIBASE_RELEASES_DIR ?? join(homedir(), 'code', 'vibase-releases')
@@ -21,9 +22,12 @@ const fail = (msg) => {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const version = JSON.parse(readFileSync('packages/cli/package.json', 'utf8')).version
-const serverVersion = JSON.parse(readFileSync('packages/server-d1/package.json', 'utf8')).version
-if (version !== serverVersion) fail(`@vibase/cli ${version} and @vibase/server-d1 ${serverVersion} differ`)
+let version
+try {
+  version = releaseVersion('.')
+} catch (e) {
+  fail(e.message)
+}
 const tag = `v${version}`
 
 // Preconditions: the Version Packages PR is merged, and HEAD is exactly origin/main.
@@ -78,6 +82,5 @@ run('gh', ['release', 'download', tag, '-R', REPO, '--dir', dest])
 run('shasum', ['-a', '256', '-c', 'SHA256SUMS'], { cwd: dest })
 
 console.log(`\nVerified. Publish from ${dest}:`)
-console.log(`  npm publish vibase-server-d1-${version}.tgz --access public`)
-console.log(`  npm publish vibase-cli-${version}.tgz --access public`)
+for (const line of publishLines(version)) console.log(`  ${line}`)
 console.log('then publish the draft GitHub Release.')

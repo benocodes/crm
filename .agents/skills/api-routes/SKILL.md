@@ -571,7 +571,7 @@ a route or an MCP tool that bypasses the registry.
   `pnpm -C packages/sdk generate` and commit the result, or `packages/sdk/src/generate/drift.test.ts` fails in the
   default suite (it names the command). The workspace-map fixture the SDK's type tests compile
   (`packages/sdk/src/generate/fixtures/workspace/`, [[DX604]]) is generated from the same documents and has its own
-  drift check in `workspace.test.ts`: regenerate it too, from the repo root, with the command in `packages/sdk/README.md`
+  drift check in `workspace.test.ts`: regenerate it too, from the repo root, with the command in `packages/sdk/GENERATING.md`
   (`... generate --schema packages/sdk/src/generate/fixtures/workspace.schema.json --out packages/sdk/src/generate/fixtures/workspace`).
   The documents type enum filter parameters and enum response fields as `string` (only request bodies carry the enum),
   so an SDK type negative on an enum belongs on a write. In `@vibase/sdk` only `src/generate/` may import `@vibase/api`

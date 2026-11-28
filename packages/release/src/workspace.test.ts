@@ -1,9 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { clientPackageJson, serverPackageJson } from './stage.js'
+import { clientPackageJson, sdkPackageJson, serverPackageJson } from './stage.js'
 
-// OPS262 D1, D2: every workspace package is @vibase/<directory>; every one stays private (only the two generated release
+// OPS262 D1, D2: every workspace package is @vibase/<directory>; every one stays private (only the three generated release
 // package.json files are ever published); the published names equal the workspace names, and the published package.json files
 // depend on no @vibase/* package.
 const PACKAGES = new URL('../../', import.meta.url).pathname
@@ -45,13 +45,14 @@ describe('OPS262 workspace package names', () => {
   it('every workspace package is private: true, so none can be published under the @vibase scope', () => {
     expect(workspace.filter((w) => w.pkg.private !== true).map((w) => w.dir)).toEqual([])
   })
-  it('the published package names equal the workspace names of cli and server-d1', () => {
+  it('the published package names equal the workspace names of cli, server-d1 and sdk', () => {
     const byDir = Object.fromEntries(workspace.map((w) => [w.dir, w.pkg.name]))
     expect(clientPackageJson('1.2.3').name).toBe(byDir.cli)
     expect(serverPackageJson('1.2.3', '4.5.6').name).toBe(byDir['server-d1'])
+    expect(sdkPackageJson('1.2.3').name).toBe(byDir.sdk)
   })
-  it('neither published package.json depends on any @vibase/* package', () => {
-    for (const p of [clientPackageJson('1.2.3'), serverPackageJson('1.2.3', '4.5.6')]) {
+  it('none of the three published package.json files depends on any @vibase/* package', () => {
+    for (const p of [clientPackageJson('1.2.3'), serverPackageJson('1.2.3', '4.5.6'), sdkPackageJson('1.2.3')]) {
       const deps = Object.keys({
         ...(p.dependencies as object),
         ...(p.devDependencies as object),

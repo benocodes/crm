@@ -1,4 +1,4 @@
-// The build output ([[OPS210]] D2): two npm tarballs and one SHA256SUMS in `dist`, from the two staged package directories. Nothing is published.
+// The build output ([[OPS210]] D2): three npm tarballs and one SHA256SUMS in `dist`, from the three staged package directories. Nothing is published.
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -6,25 +6,33 @@ import { join } from 'node:path'
 
 const sha = (file: string) => createHash('sha256').update(readFileSync(file)).digest('hex')
 
-/** `npm pack` each directory into `dist` (npm's own names for the scoped packages), drop every other tarball, and write `SHA256SUMS` over the two in `sha256sum` format. */
-export function packRelease(o: { clientDir: string; serverDir: string; dist: string; version: string }): {
+/** `npm pack` each directory into `dist` (npm's own names for the scoped packages), drop every other tarball, and write `SHA256SUMS` over the three in `sha256sum` format. */
+export function packRelease(o: {
+  clientDir: string
+  serverDir: string
+  sdkDir: string
+  dist: string
+  version: string
+}): {
   client: string
   server: string
+  sdk: string
   sums: string
 } {
   mkdirSync(o.dist, { recursive: true })
   for (const f of readdirSync(o.dist)) if (f.endsWith('.tgz') || f === 'SHA256SUMS') rmSync(join(o.dist, f))
-  for (const dir of [o.clientDir, o.serverDir])
+  for (const dir of [o.clientDir, o.serverDir, o.sdkDir])
     execFileSync('npm', ['pack', '--pack-destination', o.dist, '--ignore-scripts', '--silent'], {
       cwd: dir,
       stdio: ['ignore', 'ignore', 'inherit'],
     })
   const client = join(o.dist, `vibase-cli-${o.version}.tgz`)
   const server = join(o.dist, `vibase-server-d1-${o.version}.tgz`)
-  for (const t of [client, server]) if (!existsSync(t)) throw new Error(`npm pack did not produce ${t}`)
+  const sdk = join(o.dist, `vibase-sdk-${o.version}.tgz`)
+  for (const t of [client, server, sdk]) if (!existsSync(t)) throw new Error(`npm pack did not produce ${t}`)
   const sums = join(o.dist, 'SHA256SUMS')
-  writeFileSync(sums, [client, server].map((t) => `${sha(t)}  ${t.slice(o.dist.length + 1)}`).join('\n') + '\n')
-  return { client, server, sums }
+  writeFileSync(sums, [client, server, sdk].map((t) => `${sha(t)}  ${t.slice(o.dist.length + 1)}`).join('\n') + '\n')
+  return { client, server, sdk, sums }
 }
 
 /** Every disagreement between `SHA256SUMS` and the tarballs beside it: `<file> (mismatch|missing|extra)`; empty means the sums are right and complete. */
