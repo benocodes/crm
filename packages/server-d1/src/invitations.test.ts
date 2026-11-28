@@ -144,6 +144,34 @@ async function agentAccount() {
   return { session: () => kit.sessionJwt(cookie) }
 }
 
+/** An agent of the organisation in the CRM (AGT701 D13): `agents create`'s shape, no credential. */
+async function seedCrmAgent(kind: 'plain' | 'form' | 'delegated' | 'disabled' | 'has_account' = 'plain') {
+  const id = uuidv7(NOW)
+  await seedAgent(w.d1, { id, organizationId: orgId, createdBy: bootUser, scopes: ['contacts:read'] })
+  if (kind === 'form')
+    await w.d1
+      .prepare(
+        `insert into forms (id, created_at, updated_at, organization_id, created_by, name, public_id, enabled, email_field, name_field) values (?, ?, ?, ?, ?, 'Site', 'frm_aaaaaaaaaaaaaaaaaaaaaaaaaa', 1, 'email', 'name')`,
+      )
+      .bind(id, NOW.toISOString(), NOW.toISOString(), orgId, id)
+      .run()
+  if (kind === 'delegated')
+    await w.d1
+      .prepare(
+        "update agents set auth_provider = 'better-auth', auth_client_id = 'dcr-client', delegated_by = ? where id = ?",
+      )
+      .bind(bootUser, id)
+      .run()
+  if (kind === 'disabled')
+    await w.d1.prepare('update agents set disabled_at = ? where id = ?').bind(NOW.toISOString(), id).run()
+  if (kind === 'has_account')
+    await w.d1
+      .prepare("update agents set auth_provider = 'better-auth', auth_subject = 'subject-1' where id = ?")
+      .bind(id)
+      .run()
+  return id
+}
+
 const PATH = '/meta/v1/invitations'
 const create = (wk: ReturnType<typeof worker>, tok: string, body: unknown = { email: 'ann@x.test', role: 'member' }) =>
   call(wk, 'POST', PATH, tok, body)
@@ -154,6 +182,7 @@ async function seed(
   email: string,
   state: 'pending' | 'expired' | 'revoked' | 'accepted',
   role: 'owner' | 'member' | 'agent' = 'member',
+  agentId?: string,
 ) {
   const c = openControlDb(w.control)
   const t = Date.now()
@@ -167,6 +196,7 @@ async function seed(
       organizationId: orgId,
       email,
       role,
+      ...(agentId === undefined ? {} : { agentId }),
       tokenHash: hash,
       expiresAt: state === 'expired' ? iso(t - 2 * DAY) : iso(t + 7 * DAY),
       createdBy: bootUser,
@@ -189,7 +219,8 @@ describe('create (P2, P3, P4)', () => {
     const before = Date.now()
     const res = await create(wk, await owner.session(), { email: 'Ann@X.test', role: 'member' })
     expect(res.status, JSON.stringify(res.json)).toBe(201)
-    expect(Object.keys(res.json).sort()).toEqual(['delivery', 'email', 'expires_at', 'id', 'role', 'url'])
+    expect(Object.keys(res.json).sort()).toEqual(['agent_id', 'delivery', 'email', 'expires_at', 'id', 'role', 'url'])
+    expect(res.json.agent_id).toBeNull()
     expect(res.json).toMatchObject({ email: 'ann@x.test', role: 'member' })
     const url = new URL(res.json.url)
     expect(url.origin + url.pathname).toBe(`${AUTH_BASE}/app/invite`)
@@ -219,7 +250,9 @@ describe('create (P2, P3, P4)', () => {
 
   it('writes one invitation.created audit row naming the creator, with detail free of the token and its hash', async () => {
     const owner = await human('owner')
-    const res = await create(worker(), await owner.session(), { email: 'audit@x.test', role: 'agent' })
+    const agentId = await seedCrmAgent()
+    const res = await create(worker(), await owner.session(), { email: 'audit@x.test', agent_id: agentId })
+    expect(res.status, JSON.stringify(res.json)).toBe(201)
     const audit = await rows(w.control, 'select * from control_audit where target_id = ?', res.json.id)
     expect(audit).toHaveLength(1)
     expect(audit[0]).toMatchObject({ actor_id: owner.id, action: 'invitation.created', target_type: 'invitation' })
@@ -228,6 +261,7 @@ describe('create (P2, P3, P4)', () => {
       role: 'agent',
       expires_at: res.json.expires_at,
       delivery: 'link',
+      agent_id: agentId,
     })
     const token = tokenOf(res.json.url)
     expect(audit[0]!.detail).not.toContain(token)
@@ -281,6 +315,185 @@ describe('create (P2, P3, P4)', () => {
     expect(await rows(w.control, 'select id from invitations')).toEqual([])
     expect((await create(worker(), await owner.session())).status).toBe(201)
   })
+})
+
+describe('an agent invitation names an existing agent (AGT701 D13)', () => {
+  const makeBody = (agentId: string, extra: Record<string, unknown> = {}) => ({
+    email: 'agent@x.test',
+    agent_id: agentId,
+    ...extra,
+  })
+  const counts = async () => ({
+    invitations: (await rows(w.control, 'select id from invitations')).length,
+    audit: (await rows(w.control, 'select id from control_audit')).length,
+  })
+
+  it('agent_id alone creates an agent invitation: role agent stored and answered, agent_id answered and stored', async () => {
+    const owner = await human('owner')
+    const agentId = await seedCrmAgent()
+    const res = await create(worker(), await owner.session(), makeBody(agentId))
+    expect(res.status, JSON.stringify(res.json)).toBe(201)
+    expect(res.json).toMatchObject({ email: 'agent@x.test', role: 'agent', agent_id: agentId })
+    expect(await rows(w.control, 'select role, agent_id from invitations where id = ?', res.json.id)).toEqual([
+      { role: 'agent', agent_id: agentId },
+    ])
+  })
+
+  it('role agent beside agent_id is accepted', async () => {
+    const owner = await human('owner')
+    const agentId = await seedCrmAgent()
+    const res = await create(worker(), await owner.session(), makeBody(agentId, { role: 'agent' }))
+    expect(res.status, JSON.stringify(res.json)).toBe(201)
+    expect(res.json.role).toBe('agent')
+  })
+
+  for (const role of ['owner', 'member']) {
+    it(`role ${role} beside agent_id is 400 validation_error and writes nothing`, async () => {
+      const owner = await human('owner')
+      const agentId = await seedCrmAgent()
+      const before = await counts()
+      const res = await create(worker(), await owner.session(), makeBody(agentId, { role }))
+      expect(res.status).toBe(400)
+      expect(res.json.error.code).toBe('validation_error')
+      expect(await counts()).toEqual(before)
+    })
+  }
+
+  it('role agent without agent_id is 400 agent_id_required with the spec message, and writes nothing', async () => {
+    const owner = await human('owner')
+    const before = await counts()
+    const res = await create(worker(), await owner.session(), { email: 'agent@x.test', role: 'agent' })
+    expect(res.status).toBe(400)
+    expect(res.json.error.code).toBe('agent_id_required')
+    expect(res.json.error.message).toBe(
+      'create the agent with `vibase agents create`, then invite it with its `agent_id`',
+    )
+    expect(await counts()).toEqual(before)
+  })
+
+  it('without agent_id, role stays required; a malformed agent_id is 400', async () => {
+    const owner = await human('owner')
+    const tok = await owner.session()
+    expect((await create(worker(), tok, { email: 'agent@x.test' })).json.error.code).toBe('validation_error')
+    expect((await create(worker(), tok, makeBody('not-a-uuid'))).status).toBe(400)
+  })
+
+  // The agent states, in the spec's order (404, 409 form_principal, delegated_agent, agent_disabled, agent_has_account); each refusal writes nothing.
+  const states: Array<[string, () => Promise<string>, number, string]> = [
+    ['an unknown agent', async () => uuidv7(NOW), 404, 'not_found'],
+    ['a form agent', () => seedCrmAgent('form'), 409, 'form_principal'],
+    ['a delegated agent', () => seedCrmAgent('delegated'), 409, 'delegated_agent'],
+    ['a disabled agent', () => seedCrmAgent('disabled'), 409, 'agent_disabled'],
+    ['an agent that already has an account', () => seedCrmAgent('has_account'), 409, 'agent_has_account'],
+  ]
+  for (const [label, seedState, status, code] of states) {
+    it(`${label}: ${status} ${code}, no invitation and no audit row`, async () => {
+      const owner = await human('owner')
+      const agentId = await seedState()
+      const before = await counts()
+      const res = await create(worker(), await owner.session(), makeBody(agentId))
+      expect(res.status, JSON.stringify(res.json)).toBe(status)
+      expect(res.json.error.code).toBe(code)
+      expect(await counts()).toEqual(before)
+    })
+  }
+
+  it('the refusals are decided in order: a form agent that is also disabled and linked is form_principal; a delegated one that is disabled is delegated_agent; a disabled linked one is agent_disabled', async () => {
+    const owner = await human('owner')
+    const tok = await owner.session()
+    const both = async (id: string) => {
+      await w.d1.prepare('update agents set disabled_at = ? where id = ?').bind(NOW.toISOString(), id).run()
+    }
+    const form = await seedCrmAgent('form')
+    await both(form)
+    expect((await create(worker(), tok, makeBody(form))).json.error.code).toBe('form_principal')
+    const delegated = await seedCrmAgent('delegated')
+    await both(delegated)
+    expect((await create(worker(), tok, makeBody(delegated))).json.error.code).toBe('delegated_agent')
+    const linked = await seedCrmAgent('has_account')
+    await both(linked)
+    expect((await create(worker(), tok, makeBody(linked))).json.error.code).toBe('agent_disabled')
+  })
+
+  it('owner and member invitations answer and list agent_id as null; list and revoke carry the agent_id of an agent invitation', async () => {
+    const owner = await human('owner')
+    const tok = await owner.session()
+    const agentId = await seedCrmAgent()
+    const m = await create(worker(), tok, { email: 'm@x.test', role: 'member' })
+    expect(m.json.agent_id).toBeNull()
+    const a = await create(worker(), tok, makeBody(agentId))
+    const listed = await call(worker(), 'GET', PATH, tok)
+    expect(Object.fromEntries(listed.json.data.map((r: any) => [r.id, r.agent_id]))).toEqual({
+      [m.json.id]: null,
+      [a.json.id]: agentId,
+    })
+    const revoked = await call(worker(), 'POST', `${PATH}/${a.json.id}/revoke`, tok)
+    expect(revoked.json).toMatchObject({ id: a.json.id, status: 'revoked', agent_id: agentId })
+  })
+
+  it('the operation description names agent_id and the new codes', async () => {
+    const op = createVibaseRegistry().get('invitations.create')!
+    for (const word of [
+      'agent_id',
+      'agent_id_required',
+      'agent_disabled',
+      'agent_has_account',
+      'form_principal',
+      'delegated_agent',
+    ])
+      expect(op.description).toContain(word)
+  })
+})
+
+describe('reissue for an agent (AGT701 D15)', () => {
+  it('a second invitation for the same agent revokes the first (with its audit row) and inserts the new one, also with another email', async () => {
+    const owner = await human('owner')
+    const tok = await owner.session()
+    const agentId = await seedCrmAgent()
+    const first = await create(worker(), tok, { email: 'one@x.test', agent_id: agentId })
+    const second = await create(worker(), tok, { email: 'two@x.test', agent_id: agentId })
+    expect(second.status, JSON.stringify(second.json)).toBe(201)
+    const [old] = await rows(w.control, 'select revoked_at from invitations where id = ?', first.json.id)
+    expect(old!.revoked_at).not.toBeNull()
+    expect(
+      (await rows(w.control, 'select action from control_audit where target_id = ? order by id', first.json.id)).map(
+        (r) => r.action,
+      ),
+    ).toEqual(['invitation.created', 'invitation.revoked'])
+    const live = await rows(w.control, 'select id from invitations where agent_id = ? and revoked_at is null', agentId)
+    expect(live).toEqual([{ id: second.json.id }])
+  })
+
+  it('the same email for the same agent is replaced, not refused', async () => {
+    const owner = await human('owner')
+    const tok = await owner.session()
+    const agentId = await seedCrmAgent()
+    const first = await create(worker(), tok, { email: 'same@x.test', agent_id: agentId })
+    const second = await create(worker(), tok, { email: 'same@x.test', agent_id: agentId })
+    expect(second.status).toBe(201)
+    expect(
+      (await rows(w.control, 'select revoked_at from invitations where id = ?', first.json.id))[0]!.revoked_at,
+    ).not.toBeNull()
+  })
+
+  for (const holder of ['member', 'another agent'] as const) {
+    it(`a live invitation for the email held by ${holder}: 409 invitation_exists, the agent's own live invitation is not revoked, nothing written`, async () => {
+      const owner = await human('owner')
+      const tok = await owner.session()
+      const agentId = await seedCrmAgent()
+      const mine = await create(worker(), tok, { email: 'mine@x.test', agent_id: agentId })
+      if (holder === 'member') await create(worker(), tok, { email: 'held@x.test', role: 'member' })
+      else await create(worker(), tok, { email: 'held@x.test', agent_id: await seedCrmAgent() })
+      const before = (await rows(w.control, 'select id from control_audit')).length
+      const res = await create(worker(), tok, { email: 'held@x.test', agent_id: agentId })
+      expect(res.status).toBe(409)
+      expect(res.json.error.code).toBe('invitation_exists')
+      expect(
+        (await rows(w.control, 'select revoked_at from invitations where id = ?', mine.json.id))[0]!.revoked_at,
+      ).toBeNull()
+      expect(await rows(w.control, 'select id from control_audit')).toHaveLength(before)
+    })
+  }
 })
 
 describe('revoke and list (P6)', () => {
@@ -337,6 +550,7 @@ describe('revoke and list (P6)', () => {
     for (const r of res.json.data)
       expect(Object.keys(r).sort()).toEqual([
         'accepted_at',
+        'agent_id',
         'created_at',
         'created_by',
         'delivery',
