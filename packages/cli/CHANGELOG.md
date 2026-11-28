@@ -1,5 +1,16 @@
 # @vibase/cli
 
+## 0.4.0
+
+### Minor Changes
+
+- 8396747: An agent invitation names an existing agent: `vibase invitations create --agent-id <id> --email <agent-email>` (the role is implied; `--role agent` without `--agent-id` is refused with `agent_id_required`). The agent must exist and may not be a form agent, a delegated agent, a disabled agent or one that already has an account. Creating another invitation for the same agent revokes its live ones, and the invitation records carry `agent_id`. After `vibase agents create`, the CLI prints both routes to a credential (`api-keys create --agent-id`, `invitations create --agent-id`) on stderr, and the owner-login warning names them too. The control database's genesis gains `invitations.agent_id`, so an instance must be reinstalled from this build.
+- 8bbd20e: `vibase gen types --out <dir>` writes the typed SDK map of the instance you are signed in to: `operations.ts` and `types.ts` with its custom objects and `__c` fields, for `createClient({ operations })`. It needs `openapi-typescript` 7 (with `typescript` 5) in the project it runs in.
+
+### Patch Changes
+
+- a6c1380: An agent account that claims its invitation now sees "Your agent account is ready" with how to sign in (`vibase login`, MCP or the SDK) instead of "No access to this workspace". The CLI's owner-login warning names both routes for an agent identity: an invitation for an agent that can use a browser, and `agents create` with `api-keys create` for a headless one.
+
 ## 0.3.0
 
 ### Minor Changes
