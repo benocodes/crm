@@ -103,9 +103,9 @@ export function workflowProblems(src: string): string[] {
       .split('\n')
       .map((p) => p.trim())
       .filter(Boolean)
-    for (const want of ['vibase-cli-', 'vibase-server-d1-', 'SHA256SUMS'])
+    for (const want of ['vibase-cli-', 'vibase-server-d1-', 'vibase-sdk-*.tgz', 'SHA256SUMS'])
       if (!paths.some((p) => p.includes(want))) out.push(`the artifact does not carry ${want}`)
-    if (paths.length !== 3) out.push(`the artifact carries ${paths.length} paths, expected exactly 3`)
+    if (paths.length !== 4) out.push(`the artifact carries ${paths.length} paths, expected exactly 4`)
     if (upload.with?.['retention-days'] !== 7) out.push('retention-days must be 7')
   }
   // The draft release.
@@ -115,7 +115,10 @@ export function workflowProblems(src: string): string[] {
     if (!/gh release create/.test(rel[0]!)) out.push('the release must be created with gh release create')
     if (!/--draft(\s|$)/.test(rel[0]!)) out.push('the release is not created as a draft')
     if (/gh release (edit|upload|delete)/.test(rel[0]!)) out.push('the workflow must never edit or replace a release')
-    if (!/CHANGELOG\.md/.test(rel[0]!)) out.push('the draft body must point to the two CHANGELOG.md files')
+    if (!/CHANGELOG\.md/.test(rel[0]!)) out.push('the draft body must point to the three CHANGELOG.md files')
+    if (!/packages\/sdk\/CHANGELOG\.md/.test(rel[0]!))
+      out.push('the draft body must point to packages/sdk/CHANGELOG.md')
+    if (!/@vibase\/sdk|the SDK/.test(rel[0]!)) out.push('the draft body must name the SDK')
   }
   return out
 }
@@ -240,6 +243,16 @@ describe('release.yml (D19, D24, P3)', () => {
     'release:build --allow-dirty',
     (t) => t.replace(/pnpm release:build/, 'pnpm release:build --allow-dirty'),
     /allow-dirty/,
+  )
+  mutate(
+    'the SDK tarball dropped from the artifact',
+    (t) => t.replace(/^ +packages\/release\/dist\/vibase-sdk-\*\.tgz\n/m, ''),
+    /vibase-sdk-/,
+  )
+  mutate(
+    'the draft notes without the SDK changelog',
+    (t) => t.replace(/packages\/sdk\/CHANGELOG\.md/g, 'x'),
+    /packages\/sdk\/CHANGELOG/,
   )
   mutate('retention changed', (t) => t.replace(/retention-days: 7/, 'retention-days: 90'), /retention-days/)
   mutate(

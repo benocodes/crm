@@ -29,10 +29,9 @@ describe('the tag check (P1)', () => {
     })
     expect(() => decideTag({ refType: 'tag', refName: 'v0.1.0-rc.1' }, '0.1.0')).toThrow(/0\.1\.0/)
   })
-  it('the refusal names the source of the version: the two workspace package.json files', () => {
-    expect(() => decideTag({ refType: 'tag', refName: 'v0.2.0' }, '0.1.0')).toThrow(
-      /packages\/cli.*packages\/server-d1|packages\/server-d1.*packages\/cli/,
-    )
+  it('the refusal names the source of the version: the three workspace package.json files', () => {
+    for (const p of ['packages/cli', 'packages/server-d1', 'packages/sdk'])
+      expect(() => decideTag({ refType: 'tag', refName: 'v0.2.0' }, '0.1.0')).toThrow(new RegExp(p))
     expect(() => decideTag({ refType: 'tag', refName: 'v0.2.0' }, '0.1.0')).not.toThrow(/packages\/release/)
   })
   it('a dispatch run (a branch ref, or none) selects build-only and never the release path', () => {
@@ -51,20 +50,25 @@ const dist = (files: string[]) => {
   for (const f of files) writeFileSync(join(d, f), f)
   return d
 }
-const GOOD = ['vibase-cli-0.1.0.tgz', 'vibase-server-d1-0.1.0.tgz', 'SHA256SUMS']
+const GOOD = ['vibase-cli-0.1.0.tgz', 'vibase-server-d1-0.1.0.tgz', 'vibase-sdk-0.1.0.tgz', 'SHA256SUMS']
 
 describe('the release asset list (P2)', () => {
-  it('returns exactly the two tarballs and SHA256SUMS of the version, as paths in dist', () => {
+  it('returns exactly the three tarballs and SHA256SUMS of the version, as paths in dist', () => {
     const d = dist(GOOD)
     expect(releaseAssets(d, '0.1.0')).toEqual(GOOD.map((f) => join(d, f)))
   })
   it('a missing tarball refuses, naming it', () => {
-    expect(() => releaseAssets(dist(['vibase-cli-0.1.0.tgz', 'SHA256SUMS']), '0.1.0')).toThrow(
+    expect(() => releaseAssets(dist(['vibase-cli-0.1.0.tgz', 'vibase-sdk-0.1.0.tgz', 'SHA256SUMS']), '0.1.0')).toThrow(
       /vibase-server-d1-0\.1\.0\.tgz.*missing|missing.*vibase-server-d1-0\.1\.0\.tgz/,
     )
   })
+  it('a missing SDK tarball refuses, naming it', () => {
+    expect(() =>
+      releaseAssets(dist(['vibase-cli-0.1.0.tgz', 'vibase-server-d1-0.1.0.tgz', 'SHA256SUMS']), '0.1.0'),
+    ).toThrow(/vibase-sdk-0\.1\.0\.tgz is missing/)
+  })
   it('a missing SHA256SUMS refuses', () => {
-    expect(() => releaseAssets(dist(GOOD.slice(0, 2)), '0.1.0')).toThrow(/SHA256SUMS/)
+    expect(() => releaseAssets(dist(GOOD.slice(0, 3)), '0.1.0')).toThrow(/SHA256SUMS/)
   })
   it('an extra file refuses, naming it', () => {
     expect(() => releaseAssets(dist([...GOOD, 'notes.txt']), '0.1.0')).toThrow(/notes\.txt/)
@@ -75,7 +79,7 @@ describe('the release asset list (P2)', () => {
     expect(() => releaseAssets(d, '0.1.0')).toThrow(/sub/)
   })
   it('a tarball of another version refuses (missing the right one, extra the wrong one)', () => {
-    const d = dist(['vibase-cli-0.1.0.tgz', 'vibase-server-d1-0.0.9.tgz', 'SHA256SUMS'])
+    const d = dist(['vibase-cli-0.1.0.tgz', 'vibase-server-d1-0.0.9.tgz', 'vibase-sdk-0.1.0.tgz', 'SHA256SUMS'])
     expect(() => releaseAssets(d, '0.1.0')).toThrow(/vibase-server-d1-0\.0\.9\.tgz/)
   })
 })

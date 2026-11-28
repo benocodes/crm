@@ -167,3 +167,16 @@ export function stageServer(i: StageInput): ReleaseManifest {
   writeFileSync(join(out, 'release.json'), `${JSON.stringify(manifest, null, 2)}\n`)
   return manifest
 }
+
+// STUB (red commit): replaced in the green commit.
+export const SDK_EXPORTS: Record<string, unknown> = {}
+export function sdkPackageJson(version: string): Record<string, unknown> {
+  return { version }
+}
+export function stageSdk(_i: {
+  outDir: string
+  version: string
+  license: string
+  sdkReadme: string
+  sdkDistDir: string
+}): void {}

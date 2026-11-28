@@ -201,3 +201,9 @@ export function assertExportsResolve(consumerRoot: string): { entry: string; res
   }
   return out
 }
+
+// STUB (red commit): replaced in the green commit.
+export function sdkProblems(_dir: string, _version: string): string[] {
+  return []
+}
+export const assertSdkLayout = (_dir: string, _version: string): void => {}
