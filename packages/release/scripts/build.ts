@@ -1,5 +1,5 @@
 // `pnpm release:build [--allow-dirty]` ([[OPS210]] D2-D6, [[OPS240]]): builds `packages/release/dist/vibase-cli-<version>.tgz` (`@vibase/cli`), `vibase-server-d1-<version>.tgz`
-// (`@vibase/server-d1`) and one `SHA256SUMS`. Nothing is published, nothing leaves the machine.
+// (`@vibase/server-d1`), `vibase-sdk-<version>.tgz` (`@vibase/sdk`, [[OPS693]]) and one `SHA256SUMS`. Nothing is published, nothing leaves the machine.
 // The Worker is built by `wrangler deploy --dry-run --outdir` against a config derived from `packages/server-d1/wrangler.jsonc`'s top level (no `env`
 // blocks, so no instance id) and run with a minimal environment: no Cloudflare credential, no `.env` is read.
 import { execFileSync } from 'node:child_process'
@@ -15,11 +15,12 @@ import { buildUi } from '../../server-d1/scripts/build-ui.js'
 import { buildInstance } from '../../server-d1/scripts/instance/build.js'
 import { envDatabaseIds, assertNoForbidden } from '../src/forbidden.js'
 import { releaseCommit } from '../src/git.js'
-import { assertClientLayout, assertCommit, assertServerLayout } from '../src/layout.js'
-import { assertRelease } from '../src/manifest.js'
+import { assertClientLayout, assertCommit, assertSdkLayout, assertServerLayout } from '../src/layout.js'
+import { assertRelease, listFiles } from '../src/manifest.js'
 import { readReleaseVersion } from '../src/version.js'
 import { packRelease } from '../src/pack.js'
-import { deriveBaseConfig, readWranglerVersion, stageClient, stageServer } from '../src/stage.js'
+import { buildSdk } from '../src/sdk-build.js'
+import { deriveBaseConfig, readWranglerVersion, stageClient, stageSdk, stageServer } from '../src/stage.js'
 
 const PKG = fileURLToPath(new URL('..', import.meta.url))
 const REPO = join(PKG, '..', '..')
@@ -36,7 +37,7 @@ export const wranglerEnv = (): NodeJS.ProcessEnv => ({
 
 export async function buildRelease(
   opts: { allowDirty?: boolean } = {},
-): Promise<{ client: string; server: string; sums: string; version: string; commit: string }> {
+): Promise<{ client: string; server: string; sdk: string; sums: string; version: string; commit: string }> {
   const version = readReleaseVersion(REPO)
   const commit = releaseCommit({ cwd: REPO, allowDirty: opts.allowDirty })
   const wranglerVersion = readWranglerVersion(join(SERVER_D1, 'package.json'))
@@ -92,27 +93,40 @@ export async function buildRelease(
       migrations: MIGRATIONS,
       controlMigrations: CONTROL_MIGRATIONS,
     }
+    const sdkBuild = join(work, 'sdk-build')
+    await buildSdk({ outDir: sdkBuild })
     const clientDir = join(work, 'package-cli')
     const serverDir = join(work, 'package-server-d1')
     mkdirSync(clientDir)
     mkdirSync(serverDir)
+    const sdkDir = join(work, 'package-sdk')
+    mkdirSync(sdkDir)
     stageClient({ ...common, outDir: clientDir })
     const manifest = stageServer({ ...common, outDir: serverDir })
+    stageSdk({
+      outDir: sdkDir,
+      version,
+      license: common.license,
+      sdkReadme: readFileSync(join(REPO, 'packages', 'sdk', 'README.md'), 'utf8'),
+      sdkDistDir: join(sdkBuild, 'dist'),
+    })
     const databaseIds = envDatabaseIds(sourceConfig)
-    for (const dir of [clientDir, serverDir]) assertNoForbidden(dir, { databaseIds })
+    for (const dir of [clientDir, serverDir, sdkDir]) assertNoForbidden(dir, { databaseIds })
     assertClientLayout(clientDir, version)
     assertServerLayout(serverDir, version)
+    assertSdkLayout(sdkDir, version)
+    console.log(`sdk: ${listFiles(sdkDir).length} files staged, scanned for forbidden content, layout asserted`)
     assertCommit(manifest.commit)
     assertRelease(serverDir)
-    return { ...packRelease({ clientDir, serverDir, dist: DIST, version }), version, commit }
+    return { ...packRelease({ clientDir, serverDir, sdkDir, dist: DIST, version }), version, commit }
   } finally {
     rmSync(work, { recursive: true, force: true })
   }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const { client, server, sums, version, commit } = await buildRelease({
+  const { client, server, sdk, sums, version, commit } = await buildRelease({
     allowDirty: process.argv.includes('--allow-dirty'),
   })
-  console.log(`built ${client}\nbuilt ${server}\nwrote ${sums}\nversion ${version}, commit ${commit}`)
+  console.log(`built ${client}\nbuilt ${server}\nbuilt ${sdk}\nwrote ${sums}\nversion ${version}, commit ${commit}`)
 }

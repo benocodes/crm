@@ -6,7 +6,7 @@ import { join, sep } from 'node:path'
 import { parse as parseJsonc } from 'jsonc-parser'
 import { ReleaseRefusal } from './errors.js'
 import { listFiles, type ReleaseManifest } from './manifest.js'
-import { SERVER_EXPORTS } from './stage.js'
+import { SERVER_EXPORTS, sdkPackageJson } from './stage.js'
 
 /** Strings only the instance program carries: the bootstrap program's own marker, wrangler's platform proxy, the base config the program reads. The client must hold none ([[OPS210]] D8 (5)). */
 export const CLIENT_MARKERS: readonly string[] = ['ops.init_deployment', 'getPlatformProxy', 'wrangler.base.jsonc']
@@ -202,8 +202,59 @@ export function assertExportsResolve(consumerRoot: string): { entry: string; res
   return out
 }
 
-// STUB (red commit): replaced in the green commit.
-export function sdkProblems(_dir: string, _version: string): string[] {
-  return []
+const SDK_ROOT_FILES = ['LICENSE', 'README.md', 'package.json']
+const SDK_DEP_FIELDS = [
+  'dependencies',
+  'optionalDependencies',
+  'peerDependencies',
+  'bundledDependencies',
+  'bundleDependencies',
+]
+/** A `from '…'`, a dynamic `import('…')` or a bare `import '…'` that names a Node builtin or a workspace package: the SDK is fetch-only and brings nothing along ([[OPS693]] D3). */
+const SDK_FORBIDDEN_SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*)(['"])(node:[^'"]*|@vibase\/[^'"]*)\1/g
+
+/** What is wrong with a `@vibase/sdk` directory ([[OPS693]] D2, D3); empty means it is exactly the SDK. */
+export function sdkProblems(dir: string, version: string): string[] {
+  const found = listFiles(dir)
+  const isDist = (f: string) => f.startsWith('dist/') && (f.endsWith('.js') || f.endsWith('.d.ts'))
+  const out = fileDiff(found, (f) => SDK_ROOT_FILES.includes(f) || isDist(f), [
+    ...SDK_ROOT_FILES,
+    'dist/index.js',
+    'dist/index.d.ts',
+  ])
+  const stem = (f: string) => f.replace(/\.d\.ts$|\.js$/, '')
+  const dist = found.filter(isDist)
+  for (const f of dist) {
+    const partner = f.endsWith('.d.ts') ? `${stem(f)}.js` : `${stem(f)}.d.ts`
+    if (!found.includes(partner)) out.push(`${f} is an orphan: ${partner} is missing`)
+    if (/^dist\/generate\//.test(f)) out.push(`${f} is the generator (generate/), which is not shipped`)
+    if (/(^|\/)testing\./.test(f)) out.push(`${f} is the test helper (testing), which is not shipped`)
+    const text = readFileSync(join(dir, f), 'utf8')
+    for (const m of text.matchAll(SDK_FORBIDDEN_SPECIFIER))
+      out.push(
+        `${f} imports ${m[2]}: the SDK may import neither ${m[2]!.startsWith('node:') ? 'node:' : '@vibase/'} specifiers`,
+      )
+  }
+  if (found.includes('README.md') && readFileSync(join(dir, 'README.md'), 'utf8').includes('pnpm -C packages/'))
+    out.push('README.md tells the reader to run pnpm -C packages/: a customer has no repository')
+  const pkg = readJson(join(dir, 'package.json'))
+  if (pkg) {
+    const want = sdkPackageJson(version)
+    for (const k of new Set([...Object.keys(want), ...Object.keys(pkg)])) {
+      if (SDK_DEP_FIELDS.includes(k)) {
+        const v = pkg[k]
+        const empty = Array.isArray(v)
+          ? v.length === 0
+          : typeof v === 'object' && v !== null && Object.keys(v).length === 0
+        if (v !== undefined && !empty)
+          out.push(`package.json ${k} must be absent or empty: the SDK brings nothing along`)
+      } else if (JSON.stringify(pkg[k]) !== JSON.stringify(want[k]))
+        out.push(
+          `package.json ${k} is ${JSON.stringify(pkg[k])}, expected ${want[k] === undefined ? 'it absent' : JSON.stringify(want[k])}`,
+        )
+    }
+  }
+  return out
 }
-export const assertSdkLayout = (_dir: string, _version: string): void => {}
+export const assertSdkLayout = (dir: string, version: string): void =>
+  refuse('the SDK package (@vibase/sdk) is not as D2 and D3 list it', sdkProblems(dir, version))

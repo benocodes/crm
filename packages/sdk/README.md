@@ -1,7 +1,16 @@
 # @vibase/sdk
 
 The typed TypeScript client of a Vibase deployment, for building custom front ends, dashboards and scripts on its REST API. One
-fetch-only runtime for Node 22+, Workers and browsers: it imports nothing from `node:*` or `@vibase/*`.
+fetch-only runtime for Node 22+, Workers and browsers, with no dependencies.
+
+## Install
+
+```bash
+npm install @vibase/sdk
+```
+
+The package is ESM only and ships its own type declarations. It needs `fetch`, which Node 22, Workers and every current browser
+provide.
 
 ```ts
 import { createClient, isVibaseError } from '@vibase/sdk'
@@ -229,43 +238,11 @@ Every failure rejects with a `VibaseError { status, code, message }`; `isVibaseE
 
 An abort rethrows the `AbortError` untouched.
 
-## Regeneration
-
-`src/generated/operations.ts` (the table) and `src/generated/types.ts` (the types) are generated from the `api` and `meta`
-OpenAPI documents, built in-process from the production router. **Any change to an operation or its schema regenerates them:**
-
-```bash
-pnpm -C packages/sdk generate
-```
-
-The drift test (`src/generate/drift.test.ts`) fails until the committed files match. The workspace-map fixture the type tests compile
-(`src/generate/fixtures/workspace/`) has its own drift check in `src/generate/workspace.test.ts`; regenerate it from the repo root:
-
-```bash
-pnpm -C packages/sdk generate --schema packages/sdk/src/generate/fixtures/workspace.schema.json --out packages/sdk/src/generate/fixtures/workspace
-```
- The generator is the Node-only entry
-`@vibase/sdk/generate`; the runtime never imports it. `openapi-typescript` (a 7.x devDependency) needs `typescript` 5.x, so
-this package pins `typescript` 5.9.3 beside the workspace's 7.x.
-
 ## Workspace types
 
 The built-in client types the built-ins only. A workspace's custom objects (`projects__c`) and `__c` fields on contacts,
-companies, deals and tasks are declared in its schema file; the generator turns that workspace into a **full map**
-(every operation, built-ins included) that `createClient` takes through `operations`. Two sources, one output directory:
-
-```bash
-# from the deployment: its two public OpenAPI documents (https; http only for localhost, 127.0.0.1, [::1]); no credential is sent
-pnpm -C packages/sdk generate --url https://crm.acme.example --out apps/pipeline/src/vibase
-# from the schema file, built in-process: works offline, before a redeploy
-pnpm -C packages/sdk generate --schema ./vibase.schema.json --out apps/pipeline/src/vibase
-```
-
-A relative `--schema` or `--out` resolves against the directory you ran the command from. `--out` is required with a source and
-may not be this package's own `src/generated/`. The two files (`operations.ts`, `types.ts`) are deterministic: the header
-names the command, the source (for `--schema` the file name and its SHA-256, the digest `/health.schema` reports) and the
-documents' `info.version`, and there is no timestamp. Commit them and regenerate when the schema file or the release changes;
-nothing checks at run time that the map matches the deployment.
+companies, deals and tasks are declared in its schema file; a generated map of every operation (built-ins included) gives them
+types, and `createClient` takes it through `operations`:
 
 ```ts
 import { createClient } from '@vibase/sdk'
@@ -278,7 +255,7 @@ await vibase.contacts.update({ id, tier__c: 'gold' }) // 'platinum' is a type er
 ```
 
 A custom object's namespace is its key with the stem camelCased and the `__c` suffix kept (`session_recordings__c` is
-`vibase.sessionRecordings__c`); the arguments and the results keep the snake_case names of the API. The generator refuses two
-operation ids that camelCase to the same member (`item_2__c` and `item2__c`), naming both.
+`vibase.sessionRecordings__c`); the arguments and the results keep the snake_case names of the API.
 
-`Client<WorkspaceOperations>` (from `./vibase/types.js`) is the type to pass around.
+Generating that map needs the Vibase source repository for now: the generator is not part of this package.
+Without it the client still works against any deployment; the custom objects are simply untyped by the built-in table.

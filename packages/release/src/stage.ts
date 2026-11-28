@@ -3,7 +3,7 @@ import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } fro
 import { join } from 'node:path'
 import { parse } from 'jsonc-parser'
 import { ReleaseRefusal } from './errors.js'
-import { buildReleaseManifest, type ReleaseManifest } from './manifest.js'
+import { buildReleaseManifest, listFiles, type ReleaseManifest } from './manifest.js'
 
 export interface StageInput {
   outDir: string
@@ -168,15 +168,42 @@ export function stageServer(i: StageInput): ReleaseManifest {
   return manifest
 }
 
-// STUB (red commit): replaced in the green commit.
-export const SDK_EXPORTS: Record<string, unknown> = {}
-export function sdkPackageJson(version: string): Record<string, unknown> {
-  return { version }
+/** The published paths of `@vibase/sdk` ([[OPS693]] D2): the one entry and the manifest, nothing else. */
+export const SDK_EXPORTS: Record<string, unknown> = {
+  '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+  './package.json': './package.json',
 }
-export function stageSdk(_i: {
+
+/** The published `package.json` of `@vibase/sdk` ([[OPS693]] D2): ESM only, no side effects, no bin and no dependencies of any kind. */
+export function sdkPackageJson(version: string): Record<string, unknown> {
+  return {
+    name: '@vibase/sdk',
+    version,
+    description:
+      'The Vibase TypeScript client: typed methods for every operation of the REST API of a Vibase deployment.',
+    license: 'MIT',
+    type: 'module',
+    sideEffects: false,
+    engines: ENGINES,
+    publishConfig: PUBLISH_CONFIG,
+    exports: SDK_EXPORTS,
+  }
+}
+
+export interface SdkStageInput {
   outDir: string
   version: string
   license: string
   sdkReadme: string
+  /** The built `dist/` directory (`buildSdk`'s `<outDir>/dist`), copied to `dist/`. */
   sdkDistDir: string
-}): void {}
+}
+
+/** `@vibase/sdk`: `LICENSE`, `README.md`, the generated `package.json` and the built `dist/` ([[OPS693]] D2). */
+export function stageSdk(i: SdkStageInput): void {
+  const out = i.outDir
+  for (const f of listFiles(i.sdkDistDir)) copyInto(join(out, 'dist', f), join(i.sdkDistDir, f))
+  writeFileSync(join(out, 'LICENSE'), i.license)
+  writeFileSync(join(out, 'README.md'), i.sdkReadme)
+  writeFileSync(join(out, 'package.json'), `${JSON.stringify(sdkPackageJson(i.version), null, 2)}\n`)
+}
