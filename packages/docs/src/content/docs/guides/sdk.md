@@ -120,14 +120,16 @@ An aborted request rethrows the `AbortError`.
 
 ## Types for custom objects and fields
 
-The default client types the built-in resources. To type your own [custom objects and `__c` fields](/guides/schema/), run the SDK's generator against your schema file. It writes two files, a full operation table and its types:
+The default client types the built-in resources. To type your own [custom objects and `__c` fields](/guides/schema/), generate the types from your instance with the CLI. It reads the instance's two public OpenAPI documents (no login is needed) and writes two files, a full operation table and its types:
 
 ```bash
-# from the schema file, offline, before a redeploy
-pnpm -C packages/sdk generate --schema ./vibase.schema.json --out src/vibase
+npm i -D @vibase/sdk openapi-typescript@7
+vibase gen types --out src/vibase --server https://crm.mycompany.com
 ```
 
-Commit the output and regenerate when the schema file changes. Pass the table to the client:
+`openapi-typescript` is your project's own dependency and the command finds it from the directory you run it in. Version 7 needs `typescript` 5 where it resolves, so a project on TypeScript 7 also adds `typescript@5`. Without them the command stops with `missing_dependency` before it fetches anything. The command takes `--server` or your current profile, and replaces both files each time it runs.
+
+Commit the output and regenerate after a schema change or a release. Pass the table to the client:
 
 ```ts
 import { workspaceOperations } from './vibase/operations.js'
