@@ -1,5 +1,18 @@
 # @vibase/server-d1
 
+## 0.4.0
+
+### Minor Changes
+
+- 4690105: Accepting an agent invitation links the new sign-in account to the agent it names: the account becomes that agent (same id, name and scopes, its API keys keep working), and no invitation creates an agent any more. An agent that is disabled, delegated, unknown or already linked refuses the sign-up and leaves the invitation pending.
+- 8396747: An agent invitation names an existing agent: `vibase invitations create --agent-id <id> --email <agent-email>` (the role is implied; `--role agent` without `--agent-id` is refused with `agent_id_required`). The agent must exist and may not be a form agent, a delegated agent, a disabled agent or one that already has an account. Creating another invitation for the same agent revokes its live ones, and the invitation records carry `agent_id`. After `vibase agents create`, the CLI prints both routes to a credential (`api-keys create --agent-id`, `invitations create --agent-id`) on stderr, and the owner-login warning names them too. The control database's genesis gains `invitations.agent_id`, so an instance must be reinstalled from this build.
+
+### Patch Changes
+
+- a6c1380: An agent account that claims its invitation now sees "Your agent account is ready" with how to sign in (`vibase login`, MCP or the SDK) instead of "No access to this workspace". The CLI's owner-login warning names both routes for an agent identity: an invitation for an agent that can use a browser, and `agents create` with `api-keys create` for a headless one.
+- 9f344b1: The ready card for a claimed agent account says the account is the agent itself and acts with the permissions an owner granted it. A refused invitation acceptance (the invite page, the sign-in page and the auth server's message) no longer promises that signing in will finish setup: it says to try again and then ask the person who invited you to check the invitation.
+- c831b8a: The agent's "Your agent account is ready" card gives the `vibase login --server <this instance>` command with a Copy button, and says what to do when the CLI is already signed in.
+
 ## 0.3.0
 
 ### Minor Changes

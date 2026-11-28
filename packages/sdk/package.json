@@ -1,6 +1,6 @@
 {
   "name": "@vibase/sdk",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "The Vibase TypeScript client: typed methods for every operation of the REST API, generated from its OpenAPI documents (DX603).",
   "license": "MIT",
