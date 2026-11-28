@@ -3,7 +3,7 @@
 // outside the repo with `npm install` (the only network read: the public npm registry, for the server's wrangler; `--prefer-offline`, never the repo's node_modules), runs the
 // installed `vibase` and `vibase-server`, runs `npm exec --package <server tarball>`, resolves every `exports` entry, applies the installed migrations (CRM and control plane, each to its own local D1) with the installed
 // wrangler, and runs the installed Worker and assets in workerd (Miniflare 4, the repo's test harness). Nothing is published; no Cloudflare call or credential is involved.
-import { execFileSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import {
   existsSync,
   mkdirSync,
@@ -33,7 +33,7 @@ import { checkConfig } from '../src/check-config.js'
 import { serverHelpProblems } from '../src/help-assertions.js'
 import { assertRelease, type ReleaseManifest } from '../src/manifest.js'
 import { readMigrationState, type D1Like } from '@vibase/storage-d1'
-import { CHECK_USAGE, CheckUsageError, resolveCheckArgs, verifyBesideSums } from '../src/check-lib.js'
+import { CHECK_USAGE, CheckUsageError, cleanEnv, resolveCheckArgs, sh, verifyBesideSums } from '../src/check-lib.js'
 import { checkSdkTarball } from '../src/sdk-check.js'
 import { readReleaseVersion } from '../src/version.js'
 import { APP_RUN_WORKER_FIRST } from '../../server-d1/src/app/paths.js'
@@ -44,15 +44,6 @@ import { wranglerEnv } from './build.js'
 
 const PKG = fileURLToPath(new URL('..', import.meta.url))
 const REPO = join(PKG, '..', '..')
-
-/** The child environment of the npm install: the user's PATH and HOME, nothing the repo's pnpm run exported (npm_*, pnpm_*). */
-const cleanEnv = (): NodeJS.ProcessEnv =>
-  Object.fromEntries(
-    Object.entries(process.env).filter(([k]) => !/^(npm_|pnpm_|NPM_|PNPM_|INIT_CWD|CLOUDFLARE_|CLERK_)/.test(k)),
-  )
-
-const sh = (cmd: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = cleanEnv()) =>
-  execFileSync(cmd, args, { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
 
 export interface CheckResult {
   clientInstallPath: string

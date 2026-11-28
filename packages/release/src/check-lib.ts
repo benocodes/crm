@@ -1,4 +1,5 @@
 // `release:check`'s arguments and its SHA256SUMS step ([[OPS709]] D7): pure enough to unit-test without running the whole check.
+import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { ReleaseRefusal } from './errors.js'
@@ -37,3 +38,12 @@ export function verifyBesideSums(t: CheckTarballs): string | null {
   if (bad.length > 0) throw new ReleaseRefusal(`SHA256SUMS does not match the tarballs: ${bad.join(', ')}`)
   return 'SHA256SUMS ok: three tarballs (cli, server, sdk)'
 }
+
+/** The child environment of an npm install or an installed binary: the user's PATH and HOME, nothing the repo's pnpm run exported (npm_*, pnpm_*). */
+export const cleanEnv = (): NodeJS.ProcessEnv =>
+  Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !/^(npm_|pnpm_|NPM_|PNPM_|INIT_CWD|CLOUDFLARE_|CLERK_)/.test(k)),
+  )
+
+export const sh = (cmd: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = cleanEnv()) =>
+  execFileSync(cmd, args, { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })

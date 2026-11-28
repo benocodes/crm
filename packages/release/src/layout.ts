@@ -1,4 +1,4 @@
-// The exact shape of the two published packages ([[OPS210]] D3, D8 items (2), (4), (5), (9)), as functions over a package directory. `release:build` and
+// The exact shape of the three published packages ([[OPS210]], [[OPS693]] D3, D8 items (2), (4), (5), (9)), as functions over a package directory. `release:build` and
 // `release:check` call them on the staged, the extracted and the installed package; every guard returns what is wrong, and the assert form throws it named.
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'

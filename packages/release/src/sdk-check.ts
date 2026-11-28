@@ -1,23 +1,15 @@
 // The SDK steps of `release:check` ([[OPS709]] D7): the `@vibase/sdk` tarball is extracted, scanned and laid out, installed alone into its own empty directory outside the repo,
 // its two `exports` entries resolved, imported and called through a stub `fetch`, and a consumer typechecked against it under two resolution modes with the SDK's own TypeScript.
-import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { sh } from './check-lib.js'
 import { ReleaseRefusal } from './errors.js'
 import { assertNoForbidden } from './forbidden.js'
 import { assertSdkLayout } from './layout.js'
 
 const SDK_PKG = fileURLToPath(new URL('../../sdk/', import.meta.url))
-
-/** The child environment of the npm install: the user's PATH and HOME, nothing the repo's pnpm run exported. */
-const cleanEnv = (): NodeJS.ProcessEnv =>
-  Object.fromEntries(
-    Object.entries(process.env).filter(([k]) => !/^(npm_|pnpm_|NPM_|PNPM_|INIT_CWD|CLOUDFLARE_|CLERK_)/.test(k)),
-  )
-const sh = (cmd: string, args: string[], cwd: string) =>
-  execFileSync(cmd, args, { cwd, env: cleanEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
 
 /** Everything in `node_modules` beyond `@vibase/sdk` (dot entries, npm's own, are ignored); empty means the SDK was installed alone. */
 export function installedAloneProblems(modulesDir: string): string[] {
