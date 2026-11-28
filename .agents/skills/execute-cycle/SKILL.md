@@ -78,6 +78,10 @@ branch then carries no code, so there is no gate to run ([[DX422]] D2).
   a command), grep all of `packages/docs` for the old claim by its idea, not only the pages the charter names
   ([[CORE669]]: the charter named the agents bullet and the Clerk page; review found four more sentences saying
   the owner grants a connector's scopes).
+  A docs command that parses is not yet proven: for every defaulted field the line leaves out, read the operation's
+  input schema and either pass the field or say what the default does when the prose claims an outcome ([[AGT703]]:
+  the guide said nothing is sent, but `invitations.create` defaults `delivery` to email when email is configured;
+  one review round, `knowledge/specs/054-AGT703-agent-account-wording/RETRO.md`).
 - **Cross-check a column-level grant against every writer of the table**, not just the resource's own
   operations: merges, cascades and programs from other areas ([[CORE25]]'s link-table grant missed
   merge's re-point).

@@ -23,7 +23,7 @@ export const sections = [
   {
     label: 'Connect your agents',
     items: [
-      { label: 'Invite agents and manage permissions', slug: 'guides/agents' },
+      { label: 'Create agents and manage permissions', slug: 'guides/agents' },
       { label: 'Command line', slug: 'guides/cli' },
       { label: 'MCP and REST', slug: 'guides/mcp-and-rest' },
     ],

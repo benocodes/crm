@@ -848,3 +848,6 @@ Writing and pushing the charter is where this skill ends. Implementation follows
     rows. [[DX636]]'s charter asked for a README completeness test (its method check passed on common words, and the
     review removed the file under the ruling) and gave the README the wrong `401` causes (CORE639 answers `403` for a removed
     person and a narrowed app): one review round for both (`knowledge/specs/046-DX636-sdk-token-refresh/RETRO.md`).
+    An obligation that a guide's commands "are accepted by the shipped CLI" proves they parse; when the prose claims what
+    a command does, the obligation also names the operation's defaulted fields the line omits ([[AGT703]]: `delivery`
+    defaulted to email while the guide said nothing is sent; one review round).
