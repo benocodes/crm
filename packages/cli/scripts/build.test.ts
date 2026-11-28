@@ -43,3 +43,42 @@ describe('D1 one product version (OPS237: the fixed group of the two workspace p
     await expect(buildCli({ outfile: join(d, 'v.js'), packageJson: pkg })).rejects.toThrow(/no version/)
   })
 })
+
+// DX694 D8: the bundle stays small and import-clean; the translator is the developer's, loaded at run time.
+describe('DX694 D8 the bundle', () => {
+  const MAX_BYTES = 100 * 1024
+  /** The ways a bundle can reach a package at load time: a static import, a side-effect import, a require call or a re-export. */
+  const staticReferences = (text: string, name: string) => {
+    const n = name.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')
+    return [
+      ...text.matchAll(new RegExp(`(?:from|import)\\s*\\(?\\s*["'](${n})(?:/[^"']*)?["']`, 'g')),
+      ...text.matchAll(new RegExp(`\\brequire\\(\\s*["'](${n})(?:/[^"']*)?["']`, 'g')),
+    ].map((m) => m[0])
+  }
+  it('is under 100 KB', async () => {
+    const out = join(tmp(), 'vibase.js')
+    await buildCli({ outfile: out })
+    expect(readFileSync(out).length).toBeLessThan(MAX_BYTES)
+  })
+  it('holds no static import or require of openapi-typescript, typescript or @vibase/api', async () => {
+    const out = join(tmp(), 'vibase.js')
+    await buildCli({ outfile: out })
+    const text = readFileSync(out, 'utf8')
+    for (const name of ['openapi-typescript', 'typescript', '@vibase/api'])
+      expect(staticReferences(text, name), name).toEqual([])
+  })
+  it('the scan catches each form (absence mutation fixture)', () => {
+    for (const bad of [
+      `import openapiTS from "openapi-typescript";`,
+      `import "typescript";`,
+      `const ts = require("typescript");`,
+      `export { x } from '@vibase/api';`,
+      `import("openapi-typescript/dist/index.mjs")`,
+    ])
+      expect(
+        ['openapi-typescript', 'typescript', '@vibase/api'].some((n) => staticReferences(bad, n).length > 0),
+        bad,
+      ).toBe(true)
+    expect(staticReferences(`import fs from "node:fs"; createRequire(x).resolve("a")`, 'typescript')).toEqual([])
+  })
+})
