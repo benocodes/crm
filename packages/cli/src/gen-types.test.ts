@@ -304,18 +304,24 @@ describe('D5 write safety', () => {
   })
 
   it('writes nothing when the second document fails to translate: previous files intact, no temp sibling', async () => {
-    const { r, project, out } = setup()
+    // the previous files come from an older release, so a rewrite of either one would show
+    const old = structuredClone(docs)
+    old.api.info.version = '0.0.0-old'
+    const { r, project, out } = setup({}, old)
     expect((await r.run(['gen', 'types', '--out', 'src/vibase', '--server', SERVER], { cwd: project })).code).toBe(0)
+    expect(readFileSync(join(out, 'operations.ts'), 'utf8')).toContain('0.0.0-old')
     const before = snapshot(out)
     const failing = projectWithStub(2)
     mkdirSync(join(failing, 'src'), { recursive: true })
     // the same out directory, a project whose translator refuses the second document
-    const res = await r.run(['gen', 'types', '--out', out, '--server', SERVER], { cwd: failing })
+    const now = rig({ fetch: instanceOf(docs).fetch })
+    const res = await now.run(['gen', 'types', '--out', out, '--server', SERVER], { cwd: failing })
     expect(res.code).toBe(1)
     expect(err(res.stderr).code).toBe('generation_failed')
     expect(err(res.stderr).message).toContain('document 2 refused')
     expect(snapshot(out)).toEqual(before)
     expect(readdirSync(out).sort()).toEqual(['operations.ts', 'types.ts'])
     r.dispose()
+    now.dispose()
   })
 })
