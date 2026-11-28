@@ -114,9 +114,16 @@ async function invite(
   const t = o.createdAt ?? Date.now()
   const id = uuidv7()
   const token = `token-${id}`
-  // [[AGT701]] D14: an agent invitation names an existing agent (the genesis CHECK); settling still provisions its own until AGT702.
+  // [[AGT701]] D14: an agent invitation names an existing agent (the genesis CHECK), one the owner created with its name and scopes ([[AGT702]]).
   const agentId = role === 'agent' ? uuidv7() : undefined
-  if (agentId) await seedAgent(w.d1, { id: agentId, organizationId: orgId, createdBy: systemId })
+  if (agentId)
+    await seedAgent(w.d1, {
+      id: agentId,
+      organizationId: orgId,
+      createdBy: systemId,
+      name: 'owner-named',
+      scopes: ['contacts:read', 'notes:read'],
+    })
   expect(
     await createInvitation(openControlDb(w.control), {
       id,
@@ -135,7 +142,7 @@ async function invite(
     await revokeInvitation(openControlDb(w.control), { id, auditId: uuidv7(), actorId: systemId, now: iso(Date.now()) })
   if (o.state === 'accepted')
     await w.control.prepare('update invitations set accepted_at = ? where id = ?').bind(iso(Date.now()), id).run()
-  return { id, token }
+  return { id, token, agentId }
 }
 
 // The fake Google: the token endpoint answers with an ID token carrying the profile (unsigned: Better Auth reads the claims of the token it just received over TLS from the token endpoint); anything else is refused.
@@ -391,6 +398,40 @@ describe('Google sign-up through an invitation (D8, P3-P5)', () => {
       'owner',
     ])
     expect(outbound).toEqual(['POST https://oauth2.googleapis.com/token'])
+  })
+
+  it('[AGT702] an agent invitation through Google links the existing agent: same id, name and scopes, one agent.updated by the system principal, no new agent, the invitation accepted by the agent, a session acting as it', async () => {
+    const inv = await invite('agent@x.test', 'agent')
+    const agentsBefore = await count(w.d1, 'agents')
+    const principalsBefore = await count(w.d1, 'principals')
+    const eventsBefore = await count(w.d1, 'events')
+    const { cb, location } = await google({
+      profile: { email: 'agent@x.test', email_verified: true },
+      token: inv.token,
+    })
+    expect(cb.status).toBe(302)
+    expect(errorOf(location)).toBeNull()
+    const account = (await ctl('select user_id from auth_accounts'))[0]!
+    expect(await crm('select id, name, scopes, auth_provider, auth_subject from agents')).toEqual([
+      {
+        id: inv.agentId,
+        name: 'owner-named',
+        scopes: JSON.stringify(['contacts:read', 'notes:read']),
+        auth_provider: 'better-auth',
+        auth_subject: account.user_id,
+      },
+    ])
+    expect([await count(w.d1, 'agents'), await count(w.d1, 'principals')]).toEqual([agentsBefore, principalsBefore])
+    expect(await count(w.d1, 'users')).toBe(0)
+    expect(await count(w.d1, 'events')).toBe(eventsBefore + 1)
+    const ev = await crm("select * from events where type in ('agent.created', 'agent.updated')")
+    expect(ev.map((e) => [e.type, e.resource_id])).toEqual([['agent.updated', inv.agentId]])
+    expect((await ctl('select accepted_at from invitations where id = ?', inv.id))[0]!.accepted_at).not.toBeNull()
+    expect((await ctl("select actor_id from control_audit where action = 'invitation.accepted'"))[0]!.actor_id).toBe(
+      inv.agentId,
+    )
+    const got = await me(cookieOf(cb))
+    expect([got.status, got.json.principal.kind, got.json.principal.id]).toEqual([200, 'agent', inv.agentId])
   })
 
   it('P5: a password sign-up still writes email_verified false', async () => {

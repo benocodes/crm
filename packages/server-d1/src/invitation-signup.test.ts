@@ -6,12 +6,15 @@ import { seedAgent } from '@vibase/storage-d1/test/seed'
 import {
   MIGRATIONS,
   createInvitation,
+  d1Binding,
+  insertApiKey,
   openControlDb,
   revokeInvitation,
   type D1Like,
   type D1PreparedLike,
 } from '@vibase/storage-d1'
-import { createVibaseRegistry, scopesForRole } from '@vibase/api'
+import { createVibaseRegistry, generateApiKey, linkAgentAccountOperation, scopesForRole } from '@vibase/api'
+import { UnitDriftError, execute } from '@vibase/storage'
 import { composeD1Worker, type D1WorkerEnv } from './compose.js'
 import { AUTH_BASE, AUTH_SECRET, authKit, type AuthKit } from './test/auth-kit.js'
 import { bootstrapD1, openWorkerPair, type WorkerPair } from './test/kit.js'
@@ -21,6 +24,8 @@ import { bootstrapD1, openWorkerPair, type WorkerPair } from './test/kit.js'
 const CODE = 'invitation_required'
 const PASSWORD = 'a long enough password 123'
 const DAY = 86_400_000
+const OWNER_NAMED = 'owner-named'
+const OWNER_SCOPES = ['contacts:read', 'notes:read']
 let w: WorkerPair
 let orgId: string
 let systemId: string
@@ -161,14 +166,21 @@ const me = async (cookie: string) => {
 async function invite(
   email: string,
   role: 'owner' | 'member' | 'agent',
-  o: { createdAt?: number; expiresAt?: number; state?: 'revoked' | 'accepted' } = {},
+  o: { createdAt?: number; expiresAt?: number; state?: 'revoked' | 'accepted'; unknownAgent?: boolean } = {},
 ) {
   const t = o.createdAt ?? Date.now()
   const id = uuidv7()
   const token = `token-${id}`
-  // [[AGT701]] D14: an agent invitation names an existing agent (the genesis CHECK); settling still provisions its own until AGT702.
+  // [[AGT701]] D14: an agent invitation names an existing agent (the genesis CHECK), one the owner created with its name and scopes ([[AGT702]]).
   const agentId = role === 'agent' ? uuidv7() : undefined
-  if (agentId) await seedAgent(w.d1, { id: agentId, organizationId: orgId, createdBy: systemId })
+  if (agentId && !o.unknownAgent)
+    await seedAgent(w.d1, {
+      id: agentId,
+      organizationId: orgId,
+      createdBy: systemId,
+      name: OWNER_NAMED,
+      scopes: OWNER_SCOPES,
+    })
   expect(
     await createInvitation(openControlDb(w.control), {
       id,
@@ -187,7 +199,7 @@ async function invite(
     await revokeInvitation(openControlDb(w.control), { id, auditId: uuidv7(), actorId: systemId, now: iso(Date.now()) })
   if (o.state === 'accepted')
     await w.control.prepare('update invitations set accepted_at = ? where id = ?').bind(iso(Date.now()), id).run()
-  return { id, token }
+  return { id, token, agentId }
 }
 
 beforeEach(async () => {
@@ -291,7 +303,7 @@ describe('the gate (P1, P2)', () => {
 })
 
 describe('acceptance per role (P3)', () => {
-  it.each(['owner', 'member', 'agent'] as const)(
+  it.each(['owner', 'member'] as const)(
     '%s: the vault rows, the one event, the token resolving to that principal',
     async (role) => {
       const email = `${role}@x.test`
@@ -305,83 +317,294 @@ describe('acceptance per role (P3)', () => {
       const events = (await crm('select * from events order by id')).filter(
         (e) => e.type === 'membership.created' || e.type === 'agent.created',
       )
-      expect(events.map((e) => e.type)).toEqual([role === 'agent' ? 'agent.created' : 'membership.created'])
+      expect(events.map((e) => e.type)).toEqual(['membership.created'])
       expect(JSON.stringify(events)).not.toContain(token)
       expect(await crm('select count(*) n from events')).not.toEqual(crmBefore)
 
-      if (role === 'agent') {
-        const agent = (await crm('select * from agents where auth_subject = ?', subject))[0]!
-        expect(agent).toEqual({
-          id: agent.id,
-          created_at: agent.created_at,
-          updated_at: agent.created_at,
-          organization_id: orgId,
-          name: 'Ann Tester',
-          scopes: '[]',
-          disabled_at: null,
-          created_by: systemId,
-          auth_provider: 'better-auth',
-          auth_subject: subject,
-          auth_client_id: null,
-          delegated_by: null,
-          consented_scopes: null, // [[CORE666]] D4: machinery, NULL for an agent account
-        })
-        expect((await crm('select kind from principals where id = ?', agent.id))[0]).toEqual({ kind: 'agent' })
-        expect(await count(w.d1, 'memberships')).toBe(0)
-        expect(await count(w.d1, 'users')).toBe(0)
-        expect(events[0]!.resource_id).toBe(agent.id)
-        const got = await me(cookie)
-        expect([got.status, got.json.principal.kind, got.json.principal.id]).toEqual([200, 'agent', agent.id])
-        expect(got.json.active_organization.scopes).toEqual([])
-      } else {
-        const user = (await crm('select * from users where auth_subject = ?', subject))[0]!
-        expect(user).toEqual({
-          id: user.id,
+      const user = (await crm('select * from users where auth_subject = ?', subject))[0]!
+      expect(user).toEqual({
+        id: user.id,
+        created_at: user.created_at,
+        updated_at: user.created_at,
+        email,
+        name: 'Ann Tester',
+        auth_provider: 'better-auth',
+        auth_subject: subject,
+        email_verified: 0,
+      })
+      expect((await crm('select kind from principals where id = ?', user.id))[0]).toEqual({ kind: 'user' })
+      const m = await crm('select * from memberships')
+      expect(m).toEqual([
+        {
+          id: m[0]!.id,
           created_at: user.created_at,
           updated_at: user.created_at,
-          email,
-          name: 'Ann Tester',
-          auth_provider: 'better-auth',
-          auth_subject: subject,
-          email_verified: 0,
-        })
-        expect((await crm('select kind from principals where id = ?', user.id))[0]).toEqual({ kind: 'user' })
-        const m = await crm('select * from memberships')
-        expect(m).toEqual([
-          {
-            id: m[0]!.id,
-            created_at: user.created_at,
-            updated_at: user.created_at,
-            organization_id: orgId,
-            user_id: user.id,
-            role,
-            created_by: systemId,
-            deleted_at: null,
-          },
-        ])
-        expect(events[0]!.resource_id).toBe(m[0]!.id)
-        expect(await count(w.d1, 'agents')).toBe(0)
-        const got = await me(cookie)
-        expect(got.status, JSON.stringify(got.json)).toBe(200)
-        expect([got.json.principal.kind, got.json.principal.id, got.json.active_organization.role]).toEqual([
-          'user',
-          user.id,
+          organization_id: orgId,
+          user_id: user.id,
           role,
-        ])
-        expect(got.json.active_organization.scopes).toEqual(
-          scopesForRole(role, createVibaseRegistry().declaredScopes()).toStrings(),
-        )
-      }
+          created_by: systemId,
+          deleted_at: null,
+        },
+      ])
+      expect(events[0]!.resource_id).toBe(m[0]!.id)
+      expect(await count(w.d1, 'agents')).toBe(0)
+      const got = await me(cookie)
+      expect(got.status, JSON.stringify(got.json)).toBe(200)
+      expect([got.json.principal.kind, got.json.principal.id, got.json.active_organization.role]).toEqual([
+        'user',
+        user.id,
+        role,
+      ])
+      expect(got.json.active_organization.scopes).toEqual(
+        scopesForRole(role, createVibaseRegistry().declaredScopes()).toStrings(),
+      )
+    },
+  )
+})
+
+describe('an agent invitation links the existing agent (AGT702 D16, D20, D1, D2)', () => {
+  const stand = async () => ({
+    agents: await count(w.d1, 'agents'),
+    principals: await count(w.d1, 'principals'),
+    agentPrincipals: Number((await crm("select count(*) n from principals where kind = 'agent'"))[0]!.n),
+  })
+  const agentEvents = async () =>
+    (await crm("select * from events where type in ('agent.created', 'agent.updated') order by id")) as Array<
+      Record<string, any>
+    >
+  const audit = () => ctl("select * from control_audit where action = 'invitation.accepted'")
+  const sessions = () => count(w.control, 'auth_sessions')
+  const SQL_GUARD_BREAKERS: Array<[string, string]> = [
+    ['disabled after the invitation was created', "update agents set disabled_at = '2026-01-01T00:00:00.000Z'"],
+    [
+      'already linked to another subject',
+      "update agents set auth_provider = 'better-auth', auth_subject = 'someone-else'",
+    ],
+    ['delegated (auth_client_id set)', "update agents set auth_provider = 'better-auth', auth_client_id = 'client_x'"],
+    ['unknown (the row is absent)', 'delete from agents'],
+  ]
+
+  it('password sign-up: the account becomes the agent the owner created (same id, name, scopes), one agent.updated by the system principal, the invitation accepted by the agent', async () => {
+    const inv = await invite('agent@x.test', 'agent')
+    const before = await stand()
+    const beforeAgent = (await crm('select * from agents where id = ?', inv.agentId))[0]!
+    const eventsBefore = await count(w.d1, 'events')
+    const res = await signUp('agent@x.test', inv.token)
+    expect(res.status, await res.clone().text()).toBe(200)
+    const subject = ((await res.json()) as any).user.id as string
+
+    expect(await stand()).toEqual(before)
+    expect(await crm('select * from agents')).toEqual([
+      { ...beforeAgent, auth_provider: 'better-auth', auth_subject: subject, updated_at: expect.any(String) },
+    ])
+    const linked = (await crm('select * from agents'))[0]!
+    expect(linked.updated_at).not.toBe(beforeAgent.updated_at)
+    expect([linked.id, linked.name, linked.scopes]).toEqual([inv.agentId, OWNER_NAMED, JSON.stringify(OWNER_SCOPES)])
+    const events = await agentEvents()
+    expect(events.map((e) => e.type)).toEqual(['agent.updated'])
+    expect([events[0]!.actor_id, events[0]!.resource_id]).toEqual([systemId, inv.agentId])
+    expect(JSON.parse(events[0]!.before).auth_subject).toBeNull()
+    expect(JSON.parse(events[0]!.after).auth_subject).toBe(subject)
+    expect(await count(w.d1, 'events')).toBe(eventsBefore + 1)
+    expect((await ctl('select accepted_at from invitations where id = ?', inv.id))[0]!.accepted_at).not.toBeNull()
+    const rowsAudit = await audit()
+    expect(rowsAudit).toHaveLength(1)
+    expect([rowsAudit[0]!.actor_id, rowsAudit[0]!.target_id]).toEqual([inv.agentId, inv.id])
+    expect(await count(w.d1, 'users')).toBe(0)
+    expect(await count(w.d1, 'memberships')).toBe(0)
+  })
+
+  it('D2: the agent keeps its API key; the key and the claimed account resolve to the same principal', async () => {
+    const inv = await invite('agent@x.test', 'agent')
+    const { key, hash, prefix } = await generateApiKey((n) => crypto.getRandomValues(new Uint8Array(n)))
+    expect(
+      await insertApiKey(openControlDb(w.control), {
+        id: uuidv7(),
+        auditId: uuidv7(),
+        actorId: systemId,
+        organizationId: orgId,
+        agentId: inv.agentId!,
+        keyHash: hash,
+        prefix,
+        expiresAt: null,
+        now: new Date().toISOString(),
+      }),
+    ).toBe('created')
+    const keyMe = async () => {
+      const r = await send('/meta/v1/me', { bearer: key })
+      return { status: r.status, json: (await r.json()) as any }
+    }
+    expect((await keyMe()).json.principal.id).toBe(inv.agentId)
+    const res = await signUp('agent@x.test', inv.token)
+    expect(res.status).toBe(200)
+    const viaKey = await keyMe()
+    const viaAccount = await me(cookieOf(res))
+    expect([viaKey.status, viaKey.json.principal.id, viaKey.json.principal.kind]).toEqual([200, inv.agentId, 'agent'])
+    expect([viaAccount.status, viaAccount.json.principal.id, viaAccount.json.principal.kind]).toEqual([
+      200,
+      inv.agentId,
+      'agent',
+    ])
+  })
+
+  it('the claimed account acts as the agent: me.get names the pre-existing id, kind agent and the owner-set scopes, and a granted resource is readable', async () => {
+    const inv = await invite('bot@x.test', 'agent')
+    const res = await signUp('bot@x.test', inv.token)
+    expect(res.status).toBe(200)
+    const got = await me(cookieOf(res))
+    expect([got.status, got.json.principal.kind, got.json.principal.id]).toEqual([200, 'agent', inv.agentId])
+    expect(got.json.active_organization.scopes).toEqual(expect.arrayContaining(OWNER_SCOPES))
+    expect(got.json.active_organization.scopes).not.toContain('contacts:write')
+    const jwt = ((await (await send('/auth/token', { cookie: cookieOf(res) })).json()) as { token: string }).token
+    expect((await send('/api/v1/contacts', { bearer: jwt })).status).toBe(200)
+    expect((await send('/api/v1/tasks', { bearer: jwt })).status).toBe(403)
+  })
+
+  it.each(SQL_GUARD_BREAKERS)(
+    'agent %s: sign-up refused, no CRM row or event, the invitation pending, no accepted audit row, no session',
+    async (_name, breaker) => {
+      const inv = await invite('agent@x.test', 'agent')
+      await w.d1.prepare(breaker).run()
+      const crmBefore = await dump(w.d1)
+      const before = await stand()
+      const res = await signUp('agent@x.test', inv.token)
+      expect(res.status).toBeGreaterThanOrEqual(400)
+      expect(res.headers.get('set-cookie')).toBeNull()
+      expect(await sessions()).toBe(0)
+      expect(await dump(w.d1)).toEqual(crmBefore)
+      expect(await stand()).toEqual(before)
+      expect(await agentEvents()).toEqual([])
+      expect((await ctl('select accepted_at from invitations where id = ?', inv.id))[0]!.accepted_at).toBeNull()
+      expect(await audit()).toEqual([])
     },
   )
 
-  it('an agent account holds no scopes: its session token is admitted as an agent but every resource scope is refused', async () => {
-    const { token } = await invite('bot@x.test', 'agent')
-    const res = await signUp('bot@x.test', token)
-    expect(res.status).toBe(200)
-    const jwt = ((await (await send('/auth/token', { cookie: cookieOf(res) })).json()) as { token: string }).token
-    const contacts = await send('/api/v1/contacts', { bearer: jwt })
-    expect(contacts.status).toBe(403)
+  describe('the link program, drift per guard clause (raw)', () => {
+    const run = async (agentId: string, subject = 'subject-1') => {
+      const storage = d1Binding(w.d1, { organizationId: orgId, authProvider: 'better-auth', authOrgId: 'better-auth' })
+      return execute(
+        storage,
+        { kind: 'internal', organizationId: null },
+        linkAgentAccountOperation({
+          agentId,
+          subject,
+          organizationId: orgId,
+          eventId: uuidv7(),
+          systemId: uuidv7(),
+          now: new Date(),
+        }),
+      )
+    }
+    const seed = async () => {
+      const id = uuidv7()
+      await seedAgent(w.d1, { id, organizationId: orgId, createdBy: systemId, scopes: OWNER_SCOPES })
+      return id
+    }
+    it('an unguarded agent links: one update and one event', async () => {
+      const id = await seed()
+      expect((await run(id)).value).toEqual({ principalId: id })
+      expect(await agentEvents()).toHaveLength(1)
+    })
+    it.each([
+      ['disabled_at is null', "update agents set disabled_at = '2026-01-01T00:00:00.000Z'"],
+      ['auth_provider is null', "update agents set auth_provider = 'better-auth'"],
+      ['auth_client_id is null', "update agents set auth_client_id = 'client_x'"],
+    ])('alone, a lost `%s` clause turns the update into a no-op: UnitDriftError, no event, no change', async (_c, sqlText) => {
+      const id = await seed()
+      await w.d1.prepare(`${sqlText} where id = ?`).bind(id).run()
+      const before = await dump(w.d1)
+      await expect(run(id)).rejects.toBeInstanceOf(UnitDriftError)
+      expect(await dump(w.d1)).toEqual(before)
+    })
+    it('an absent agent row drifts and writes nothing', async () => {
+      const before = await dump(w.d1)
+      await expect(run(uuidv7())).rejects.toBeInstanceOf(UnitDriftError)
+      expect(await dump(w.d1)).toEqual(before)
+    })
+  })
+
+  it('P4(a) control batch failed after the link: the next sign-in completes the accept (actor the agent), CRM unchanged; a second writes nothing', async () => {
+    const inv = await invite('agent@x.test', 'agent')
+    failControl.on = true
+    expect((await signUp('agent@x.test', inv.token)).status).toBeGreaterThanOrEqual(400)
+    expect((await crm('select auth_subject from agents'))[0]!.auth_subject).not.toBeNull()
+    expect(await audit()).toEqual([])
+    failControl.on = false
+    const crmBefore = await dump(w.d1)
+    expect((await signIn('agent@x.test')).status).toBe(200)
+    expect(await dump(w.d1)).toEqual(crmBefore)
+    expect((await ctl('select accepted_at from invitations where id = ?', inv.id))[0]!.accepted_at).not.toBeNull()
+    const rowsAudit = await audit()
+    expect(rowsAudit).toHaveLength(1)
+    expect(rowsAudit[0]!.actor_id).toBe(inv.agentId)
+    expect((await signIn('agent@x.test')).status).toBe(200)
+    expect(await audit()).toHaveLength(1)
+    expect(await agentEvents()).toHaveLength(1)
+  })
+
+  it('P4(a) a pending invitation whose agent_id is another agent is not accepted by the standing agent\'s repair', async () => {
+    const inv = await invite('agent@x.test', 'agent')
+    failControl.on = true
+    expect((await signUp('agent@x.test', inv.token)).status).toBeGreaterThanOrEqual(400)
+    failControl.on = false
+    const other = uuidv7()
+    await seedAgent(w.d1, { id: other, organizationId: orgId, createdBy: systemId })
+    await w.control.prepare('update invitations set agent_id = ? where id = ?').bind(other, inv.id).run()
+    expect((await signIn('agent@x.test')).status).toBe(200)
+    expect((await ctl('select accepted_at from invitations where id = ?', inv.id))[0]!.accepted_at).toBeNull()
+    expect(await audit()).toEqual([])
+  })
+
+  it('P4(b) after a refused settle the owner re-enables the agent and the same account\'s next sign-in links it', async () => {
+    const inv = await invite('agent@x.test', 'agent')
+    await w.d1.prepare("update agents set disabled_at = '2026-01-01T00:00:00.000Z'").run()
+    expect((await signUp('agent@x.test', inv.token)).status).toBeGreaterThanOrEqual(400)
+    expect(await agentEvents()).toEqual([])
+    await w.d1.prepare('update agents set disabled_at = null').run()
+    const res = await signIn('agent@x.test')
+    expect(res.status, await res.clone().text()).toBe(200)
+    const row = (await crm('select * from agents'))[0]!
+    expect([row.id, row.auth_provider]).toEqual([inv.agentId, 'better-auth'])
+    expect(row.auth_subject).not.toBeNull()
+    expect((await agentEvents()).map((e) => e.type)).toEqual(['agent.updated'])
+    expect(await audit()).toHaveLength(1)
+  })
+
+  it('P4(c) the invitation revoked between the link and the control batch: the guarded accept writes nothing and the agent stays linked', async () => {
+    const inv = await invite('agent@x.test', 'agent')
+    failControl.on = true
+    expect((await signUp('agent@x.test', inv.token)).status).toBeGreaterThanOrEqual(400)
+    failControl.on = false
+    await revokeInvitation(openControlDb(w.control), {
+      id: inv.id,
+      auditId: uuidv7(),
+      actorId: systemId,
+      now: new Date().toISOString(),
+    })
+    expect((await signIn('agent@x.test')).status).toBe(200)
+    expect((await crm('select auth_subject from agents'))[0]!.auth_subject).not.toBeNull()
+    expect(await audit()).toEqual([])
+  })
+
+  it('P3 race: two settles of the same orphan subject converge on one link, one agent.updated, one accept', async () => {
+    const created = Date.now() - 5000
+    const inv = await invite('agent@x.test', 'agent', { createdAt: created })
+    const { userId } = await authKit(w.control).signUp('agent@x.test')
+    const results = await Promise.all([signIn('agent@x.test'), signIn('agent@x.test')])
+    expect(results.map((r) => r.status)).toEqual([200, 200])
+    expect(await crm('select id, auth_subject from agents')).toEqual([{ id: inv.agentId, auth_subject: userId }])
+    expect((await agentEvents()).map((e) => e.type)).toEqual(['agent.updated'])
+    expect(await audit()).toHaveLength(1)
+  })
+
+  it('D20: no agent-invitation path inserts an agent or a principal (counts hold across the repair too)', async () => {
+    const inv = await invite('agent@x.test', 'agent')
+    const before = await stand()
+    failControl.on = true
+    await signUp('agent@x.test', inv.token)
+    failControl.on = false
+    await signIn('agent@x.test')
+    expect(await stand()).toEqual(before)
   })
 })
 

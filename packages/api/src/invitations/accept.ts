@@ -189,6 +189,25 @@ export async function acceptInvitedAccount(
   return again
 }
 
+/** [[AGT702]] D16 (red-commit stub: replaced by the real program in the green commit). */
+export function linkAgentAccountOperation(a: {
+  agentId: string
+  subject: string
+  organizationId: string
+  eventId: string
+  systemId: string
+  now: Date
+}): PreparedOperation<AcceptedAccount> {
+  return defineOperation<AcceptedAccount>({
+    name: 'agents.link_account',
+    mutates: true,
+    reads: () => ({}),
+    build: () => {
+      throw new Error(`not implemented: ${a.agentId}`)
+    },
+  })
+}
+
 function lookupSubjectOperation(subject: string): PreparedOperation<AcceptedAccount | null> {
   return defineOperation<AcceptedAccount | null>({
     name: 'invitations.accept_recheck',
