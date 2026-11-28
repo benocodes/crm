@@ -15,7 +15,7 @@ import {
   projectWithoutTool,
   workspaceDocuments,
 } from './test/gen-rig.js'
-import { json, KEY, rig, SERVER } from './test/harness.js'
+import { KEY, rig, SERVER } from './test/harness.js'
 
 // DX712: `vibase gen types` (DX694 D1 to D3, D5).
 let docs: Docs
