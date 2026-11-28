@@ -218,8 +218,9 @@ don't guess: stop and report `blocked` with the question.
 **In a sprint the coder does not run the gate.** Before you report, run the tests on the files you changed
 and added (`pnpm -C packages/<pkg> test <file>`) and a typecheck of the packages you touched: every package with
 a path in `git diff --name-only main...`, test-only and `scripts/` files included (CORE347 changed a test in
-`packages/webhook-receiver-example/scripts/`, typechecked only `api`, and lost a gate round to a TS2339), and `pnpm lint`
-after your last commit (UI510 committed a `release:check` leg after its lint run and lost a gate round to a format diff;
+`packages/webhook-receiver-example/scripts/`, typechecked only `api`, and lost a gate round to a TS2339), and `pnpm format`
+then `pnpm lint` after your last edit, a lint fix included (UI510 committed a `release:check` leg after its lint run and
+lost a gate round to a format diff; AGT702's hand lint-fix commit left a line over Biome's width and lost one too;
 about a second; Biome's a11y rules fire only there: UI381 lost a gate round to `useSemanticElements` refusing
 `div role="region"`, which wants `<section aria-label>`; a scrollable region keeps `tabIndex={0}` under a scoped
 `biome-ignore` of `noNoninteractiveTabindex` with the reason. Biome turns its React rules on per package once `react`
