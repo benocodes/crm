@@ -23,7 +23,10 @@ const READY: AppState = {
 const SHOW: AppState = { ...READY, connectAgent: { status: 'show' } } as AppState
 const NO_API = { connections: vi.fn(), identityAddress: vi.fn(), authorizeGmail: vi.fn() } as never
 const handlers = () => ({ onSignIn: vi.fn(), onSignOut: vi.fn(), onRetry: vi.fn(), onCheckAgain: vi.fn() })
-const show = (state: AppState, over: { provider?: string | null; path?: string; mcpUrl?: string | null; origin?: string } = {}) => {
+const show = (
+  state: AppState,
+  over: { provider?: string | null; path?: string; mcpUrl?: string | null; origin?: string } = {},
+) => {
   const h = handlers()
   render(
     <MemoryRouter initialEntries={[over.path ?? '/app/home']}>
@@ -211,9 +214,13 @@ describe('the states without a shell (D4)', () => {
   it('the agent card speaks to both readers, in order, and is accessible (AGT707 D1)', async () => {
     show({ kind: 'no-access', agent: true })
     const text = document.body.textContent ?? ''
-    const at = [/New here\?/, /vibase login --server https:\/\/w\.test/, /--profile/, /Already signed in through the CLI/, /MCP or the SDK/].map(
-      (re) => text.search(re),
-    )
+    const at = [
+      /New here\?/,
+      /vibase login --server https:\/\/w\.test/,
+      /--profile/,
+      /Already signed in through the CLI/,
+      /MCP or the SDK/,
+    ].map((re) => text.search(re))
     expect(at.every((i) => i >= 0)).toBe(true)
     expect([...at].sort((a, b) => a - b)).toEqual(at)
     expect(screen.getByText(/approve the sign-in/i)).toBeTruthy()
