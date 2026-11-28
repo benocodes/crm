@@ -27,7 +27,7 @@ this package pins `typescript` 5.9.3 beside the workspace's 7.x.
 The built-in client types the built-ins only. A workspace's custom objects (`projects__c`) and `__c` fields on contacts,
 companies, deals and tasks are declared in its schema file; the generator turns that workspace into a **full map**
 (every operation, built-ins included) that `createClient` takes through `operations`. For a deployed instance use
-`vibase gen types` (the CLI reads the instance's documents; this script no longer fetches them). The repo script builds the
+`vibase gen types --out <dir>` (the CLI reads the instance's documents and runs the same core, `@vibase/sdk/emit`, with the `openapi-typescript` 7 of the project it runs in; this script no longer fetches them). The repo script builds the
 map from the schema file, in-process: it works offline, before a redeploy:
 
 ```bash

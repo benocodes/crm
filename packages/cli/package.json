@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@types/node": "^22",
+    "@vibase/sdk": "workspace:*",
     "@vibase/server-d1": "workspace:*",
     "esbuild": "0.28.2",
     "tsx": "4.23.15",

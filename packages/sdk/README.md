@@ -87,7 +87,7 @@ duplicates: the server's own 400 comes back.
 The answer is typed by what was asked: ungrouped it is `{ count }` plus the functions given and `currency` for a money field;
 grouped it is `{ count, groups }` with `groups[].key` by field kind (always `| null`, the null group) and the same function keys
 in each group. An optional `group_by` gives the union of both. Typing for a workspace's custom objects and `__c` fields needs
-generated workspace types, which need the Vibase repository's generator until a published one exists.
+the generated workspace types (`vibase gen types`, see [Workspace types](#workspace-types)).
 
 ```ts
 const total = await vibase.deals.aggregate({ status: 'open', sum: 'amount_minor' })
@@ -257,5 +257,14 @@ await vibase.contacts.update({ id, tier__c: 'gold' }) // 'platinum' is a type er
 A custom object's namespace is its key with the stem camelCased and the `__c` suffix kept (`session_recordings__c` is
 `vibase.sessionRecordings__c`); the arguments and the results keep the snake_case names of the API.
 
-Generating that map needs the Vibase source repository for now: the generator is not part of this package.
-Without it the client still works against any deployment; the custom objects are simply untyped by the built-in table.
+Generate the map with the Vibase CLI, which reads your instance's own documents (no login is needed for them):
+
+```bash
+npm i -D @vibase/sdk openapi-typescript@7
+npx @vibase/cli gen types --out src/vibase --server https://crm.acme.example
+```
+
+It writes `src/vibase/operations.ts` and `src/vibase/types.ts`. `openapi-typescript` 7 is the project's own dependency and needs
+`typescript` 5 where it resolves (a project on TypeScript 7 adds `typescript@5` for it). Commit the two files and run the command
+again when the schema file or the release changes; nothing checks at run time that the map matches the deployment. Without the
+map the client still works against any deployment; the custom objects are simply untyped by the built-in table.

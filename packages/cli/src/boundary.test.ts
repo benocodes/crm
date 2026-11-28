@@ -12,13 +12,34 @@ export const referencesInstanceEntry = (text: string) => /instance\.js|loadInsta
 export const FORBIDDEN =
   /(^|\/)scripts\/instance|(^|\/)instance\.js$|(^|\/)wrangler($|\/)|^@vibase\/release|release\/src|server-d1/
 
+/** DX694 D4: node builtins, the CLI's own files, and exactly one workspace specifier, the dependency-free generator core esbuild inlines. */
+export const ALLOWED_PACKAGE = '@vibase/sdk/emit'
+export const allowedSpecifier = (s: string) => s.startsWith('node:') || s.startsWith('./') || s === ALLOWED_PACKAGE
+
 describe('what ships', () => {
-  it('imports only node builtins and its own files', () => {
+  it('imports only node builtins, its own files and @vibase/sdk/emit', () => {
     expect(sources.length).toBeGreaterThan(5)
     for (const f of sources) {
       for (const s of specifiersOf(readFileSync(dir + f, 'utf8')))
-        expect(s.startsWith('node:') || s.startsWith('./'), `${f} imports ${s}`).toBe(true)
+        expect(allowedSpecifier(s), `${f} imports ${s}`).toBe(true)
     }
+  })
+  it('uses the one allowed workspace specifier (the command imports the core)', () => {
+    const importers = sources.filter((f) => specifiersOf(readFileSync(dir + f, 'utf8')).includes(ALLOWED_PACKAGE))
+    expect(importers).toEqual(['gen-types.ts'])
+  })
+  it('refuses every other @vibase/sdk specifier and the packages the bundle must not hold (absence mutation fixture)', () => {
+    for (const bad of [
+      '@vibase/sdk',
+      '@vibase/sdk/generate',
+      '@vibase/sdk/emit/extra',
+      '@vibase/sdk/emit.js',
+      '@vibase/api',
+      'openapi-typescript',
+      'typescript',
+    ])
+      expect(allowedSpecifier(bad), bad).toBe(false)
+    for (const ok of ['node:fs', './cli.js', '@vibase/sdk/emit']) expect(allowedSpecifier(ok), ok).toBe(true)
   })
   it('declares no runtime dependencies', () => {
     const pkg = JSON.parse(readFileSync(dir + '../package.json', 'utf8'))

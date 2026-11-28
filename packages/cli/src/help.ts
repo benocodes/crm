@@ -5,6 +5,7 @@ export const HAND_COMMANDS = `Commands that are always here:
   vibase login --api-key --server <url> [--profile <name>]   store an API key (read from stdin, never argv)
   vibase logout [--profile <name>]                           forget a profile (revokes a device login's grant)
   vibase config get|set <key> [value]                        read or change the configuration
+  vibase gen types --out <dir>                               write the typed SDK map of this instance (needs openapi-typescript 7; gen types --help)
   vibase events tail [--follow] [--cursor-file <path>] ...   print the event feed as NDJSON from a position; with --follow keep polling (events tail --help)`
 
 export const GLOBAL_FLAGS = `Flags every command takes:

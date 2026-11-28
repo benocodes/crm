@@ -58,6 +58,7 @@ export function rig(opts: {
       stdinTTY?: boolean
       sleep?: (ms: number) => Promise<void>
       signal?: AbortSignal
+      cwd?: string
     } = {},
   ): Promise<Result> => {
     let stdinRead = 0
@@ -87,6 +88,7 @@ export function rig(opts: {
       homedir: dir,
       version: '0.0.0-test',
       signal: over.signal,
+      ...(over.cwd ? { cwd: over.cwd } : {}),
     }
     const code = await run(argv, deps)
     const bytes = Buffer.concat(out.map((c) => (typeof c === 'string' ? Buffer.from(c) : Buffer.from(c))))

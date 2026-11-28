@@ -16,6 +16,8 @@ export interface Deps {
   /** Waits `ms` (device-login polling, lock waits). Tests pass a fake that moves their clock. */
   sleep(ms: number): Promise<void>
   homedir: string
+  /** The working directory `gen types` resolves `--out` and `openapi-typescript` from (tests pass a fixture project); the process's own when absent ([[DX712]] D-a). */
+  cwd?: string
   version: string
   /** Ends a `--follow` loop cleanly (tests; the real process stops on SIGTERM, which is safe because files are replaced by rename). */
   signal?: AbortSignal
