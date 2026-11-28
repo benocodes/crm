@@ -1,6 +1,12 @@
 // The invitation gate and acceptance, composed ([[CORE287]], [[CORE259]] D5): the port `@vibase/auth` is handed so it never reaches the CRM or the control database itself. The gate reads the control
 // plane; settling runs the vault's acceptance program (the commit point) and then marks the invitation accepted with its audit row, in that order.
-import { acceptInvitedAccount, hashInvitationToken, readmitMember, subjectStanding } from '@vibase/api'
+import {
+  acceptInvitedAccount,
+  hashInvitationToken,
+  linkAgentAccount,
+  readmitMember,
+  subjectStanding,
+} from '@vibase/api'
 import type { InvitationAdmission } from '@vibase/auth'
 import type { D1Binding } from '@vibase/storage'
 import type { InvitationRecord } from '@vibase/storage-d1'
@@ -75,9 +81,24 @@ export function invitationAdmission(d: InvitationAdmissionDeps): InvitationAdmis
         now: now.toISOString(),
       })
       if (!invitation) return
-      // Amended P5: an agent account never re-runs the CRM program, but if the control batch of its acceptance failed, its admitting invitation is still live: complete P4 only, actor the agent.
+      // Amended P5: an agent account never re-runs the CRM program, but if the control batch of its acceptance failed, its admitting invitation is still live: complete P4 only, actor the agent. [[AGT702]] P4: only the
+      // invitation that names THIS agent; one naming another agent is left alone.
       if (standing) {
+        if (standing.kind === 'agent' && invitation.agentId !== standing.id) return
         await d.store.accept({ id: invitation.id, auditId: d.newId(), actorId: standing.id, now: now.toISOString() })
+        return
+      }
+      // [[AGT702]] D16: an agent invitation links the account to the agent it names, never creating one; the link is the commit point (P3: a refusal throws, so no session, no control write, the invitation stays pending).
+      if (invitation.role === 'agent') {
+        const { principalId } = await linkAgentAccount(
+          storage,
+          { now, newId: d.newId },
+          {
+            agentId: invitation.agentId!,
+            subject,
+          },
+        )
+        await d.store.accept({ id: invitation.id, auditId: d.newId(), actorId: principalId, now: now.toISOString() })
         return
       }
       // [[CORE248]] D5: an emailed invitation's token never left the vault but toward the address, so accepting it proves the mailbox; a link proves nothing (Google's own verified flag still counts).

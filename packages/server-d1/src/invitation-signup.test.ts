@@ -26,6 +26,7 @@ const PASSWORD = 'a long enough password 123'
 const DAY = 86_400_000
 const OWNER_NAMED = 'owner-named'
 const OWNER_SCOPES = ['contacts:read', 'notes:read']
+const DELEGATOR = '01a221d6-0000-7000-8000-000000000001' // a human principal seeded by the delegated-agent cases
 let w: WorkerPair
 let orgId: string
 let systemId: string
@@ -374,13 +375,36 @@ describe('an agent invitation links the existing agent (AGT702 D16, D20, D1, D2)
     >
   const audit = () => ctl("select * from control_audit where action = 'invitation.accepted'")
   const sessions = () => count(w.control, 'auth_sessions')
+  const seedDelegatorRow = async () => {
+    await w.d1
+      .prepare("insert into principals (id, kind, created_at) values (?, 'user', ?)")
+      .bind(DELEGATOR, new Date().toISOString())
+      .run()
+    await w.d1
+      .prepare(
+        'insert into users (id, created_at, updated_at, email, name, auth_provider, auth_subject) values (?, ?, ?, ?, ?, ?, ?)',
+      )
+      .bind(
+        DELEGATOR,
+        new Date().toISOString(),
+        new Date().toISOString(),
+        'del@x.test',
+        'Del',
+        'better-auth',
+        'del-sub',
+      )
+      .run()
+  }
   const SQL_GUARD_BREAKERS: Array<[string, string]> = [
     ['disabled after the invitation was created', "update agents set disabled_at = '2026-01-01T00:00:00.000Z'"],
     [
       'already linked to another subject',
       "update agents set auth_provider = 'better-auth', auth_subject = 'someone-else'",
     ],
-    ['delegated (auth_client_id set)', "update agents set auth_provider = 'better-auth', auth_client_id = 'client_x'"],
+    [
+      'delegated (auth_client_id set)',
+      `update agents set auth_provider = 'better-auth', auth_client_id = 'client_x', delegated_by = '${DELEGATOR}'`,
+    ],
     ['unknown (the row is absent)', 'delete from agents'],
   ]
 
@@ -464,6 +488,7 @@ describe('an agent invitation links the existing agent (AGT702 D16, D20, D1, D2)
     'agent %s: sign-up refused, no CRM row or event, the invitation pending, no accepted audit row, no session',
     async (_name, breaker) => {
       const inv = await invite('agent@x.test', 'agent')
+      await seedDelegatorRow()
       await w.d1.prepare(breaker).run()
       const crmBefore = await dump(w.d1)
       const before = await stand()
@@ -507,15 +532,27 @@ describe('an agent invitation links the existing agent (AGT702 D16, D20, D1, D2)
     })
     it.each([
       ['disabled_at is null', "update agents set disabled_at = '2026-01-01T00:00:00.000Z'"],
-      ['auth_provider is null', "update agents set auth_provider = 'better-auth'"],
-      ['auth_client_id is null', "update agents set auth_client_id = 'client_x'"],
-    ])('alone, a lost `%s` clause turns the update into a no-op: UnitDriftError, no event, no change', async (_c, sqlText) => {
-      const id = await seed()
-      await w.d1.prepare(`${sqlText} where id = ?`).bind(id).run()
-      const before = await dump(w.d1)
-      await expect(run(id)).rejects.toBeInstanceOf(UnitDriftError)
-      expect(await dump(w.d1)).toEqual(before)
-    })
+      // The genesis CHECKs (`agents_provider_iff_linked`, `agents_auth_client_rules`) tie the three link columns together: a row can break the provider clause alone (linked) or the provider and client clauses
+      // together (delegated), never the client clause alone.
+      [
+        'auth_provider is null (linked to a subject)',
+        "update agents set auth_provider = 'better-auth', auth_subject = 's'",
+      ],
+      [
+        'auth_provider and auth_client_id are null (delegated)',
+        `update agents set auth_provider = 'better-auth', auth_client_id = 'client_x', delegated_by = '${DELEGATOR}'`,
+      ],
+    ])(
+      'a row failing the `%s` clause turns the update into a no-op: UnitDriftError, no event, no change',
+      async (_c, sqlText) => {
+        await seedDelegatorRow()
+        const id = await seed()
+        await w.d1.prepare(`${sqlText} where id = ?`).bind(id).run()
+        const before = await dump(w.d1)
+        await expect(run(id)).rejects.toBeInstanceOf(UnitDriftError)
+        expect(await dump(w.d1)).toEqual(before)
+      },
+    )
     it('an absent agent row drifts and writes nothing', async () => {
       const before = await dump(w.d1)
       await expect(run(uuidv7())).rejects.toBeInstanceOf(UnitDriftError)
@@ -542,7 +579,7 @@ describe('an agent invitation links the existing agent (AGT702 D16, D20, D1, D2)
     expect(await agentEvents()).toHaveLength(1)
   })
 
-  it('P4(a) a pending invitation whose agent_id is another agent is not accepted by the standing agent\'s repair', async () => {
+  it("P4(a) a pending invitation whose agent_id is another agent is not accepted by the standing agent's repair", async () => {
     const inv = await invite('agent@x.test', 'agent')
     failControl.on = true
     expect((await signUp('agent@x.test', inv.token)).status).toBeGreaterThanOrEqual(400)
@@ -555,7 +592,7 @@ describe('an agent invitation links the existing agent (AGT702 D16, D20, D1, D2)
     expect(await audit()).toEqual([])
   })
 
-  it('P4(b) after a refused settle the owner re-enables the agent and the same account\'s next sign-in links it', async () => {
+  it("P4(b) after a refused settle the owner re-enables the agent and the same account's next sign-in links it", async () => {
     const inv = await invite('agent@x.test', 'agent')
     await w.d1.prepare("update agents set disabled_at = '2026-01-01T00:00:00.000Z'").run()
     expect((await signUp('agent@x.test', inv.token)).status).toBeGreaterThanOrEqual(400)
