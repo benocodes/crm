@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axe from 'axe-core'
 import { readFileSync } from 'node:fs'
@@ -203,7 +203,7 @@ describe('the states without a shell (D4)', () => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
     show({ kind: 'no-access', agent: true }, { origin: 'https://agents.example.test' })
     expect(screen.getByText('vibase login --server https://agents.example.test')).toBeTruthy()
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Copy login command' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy login command' })) // userEvent replaces navigator.clipboard with its own stub
     expect(writeText).toHaveBeenCalledWith('vibase login --server https://agents.example.test')
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Copied'))
   })

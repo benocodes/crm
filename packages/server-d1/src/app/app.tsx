@@ -2,7 +2,8 @@
 // Every string from the vault is rendered as text, never markup.
 import { useLayoutEffect, useSyncExternalStore } from 'react'
 import { Link, NavLink, Route, Routes, useLocation } from 'react-router'
-import { Alert, AppShell, type AppNavLinkProps, Button, Card, SettingsPage } from '@vibase/ui/components'
+import { Alert, AppShell, type AppNavLinkProps, Button, Card, CommandBlock, SettingsPage } from '@vibase/ui/components'
+import { loginCommand } from './connect-text.js'
 import { AccountsPage, type AccountsApi } from './accounts/accounts.js'
 import { AgentsPage, type AgentsApi } from './agents/agents.js'
 import { HomePage } from './home.js'
@@ -113,9 +114,19 @@ export function App({ state, provider, origin, mcpUrl, api, onCheckAgain, onSign
               {state.signOutError ? <Alert variant="error">{state.signOutError}</Alert> : null}
               <p className="text-sm">
                 This invitation is claimed, and this account is the agent itself: it acts with whatever permissions an
-                owner has granted that agent. This app is for people, so close this page and sign in as the agent with{' '}
-                <code>vibase login</code> in the CLI, or connect through the MCP or the SDK.
+                owner has granted that agent. This app is for people, so there is nothing more to do on this page.
               </p>
+              <p className="text-sm">New here? Copy this to your terminal to sign the CLI in as this agent:</p>
+              <CommandBlock command={loginCommand(origin)} label="login command" />
+              <p className="text-sm">
+                It prints a link to approve the sign-in: open it in this browser, where you are signed in as the agent.
+                If this machine's CLI already holds another account's sign-in, add <code>--profile &lt;name&gt;</code>{' '}
+                so the two stay apart.
+              </p>
+              <p className="text-sm">
+                Already signed in through the CLI as this agent? Keep using it; there is nothing to do here.
+              </p>
+              <p className="text-sm">You can also connect through the MCP or the SDK.</p>
             </Card>
           </Centered>
         )
