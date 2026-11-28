@@ -191,7 +191,11 @@ moves tables, Watch out says "grep every package for the names" rather than list
 migration, cost 245k / 148 calls including one 5k fix round. The budget holds. The fix round came from a rule worded as
 "anywhere" (P2, "not a default grant anywhere") with an enumeration of only two sites; the coder found a third, review a fourth
 (the `/mcp` challenge hint). When a rule says "every" or "anywhere", state the property and the grep that finds the sites
-(here `grantableScopes(`), never a closed list of the sites the planner remembered.
+(here `grantableScopes(`), never a closed list of the sites the planner remembered. A "docs follow" rider is the same case:
+[[OPS709]]'s D9 said "every doc that states a two-package release" and then listed six files; the coder edited those and
+review found five more stale statements (two skills' changeset lines, a docs page, a package description, a header
+comment; 709.13). Write the rider's
+residue grep (`git grep -niE 'two (packages|tarballs)|cli and (the )?server'`) beside any list.
 **CORE357** (`knowledge/specs/015-CORE357-api-key-events-off-feed/RETRO.md`): 4 groups (1 matrix), no migration, one fix
 round. A grep by pattern finds texts that say something wrong, never a text that omits something: when a cycle moves a
 capability to a new home (key changes from the feed to `audit.list`), name the home's own enumeration as an obligation
@@ -588,6 +592,10 @@ charter that asks for mutations says "raw output" in the obligation, not only "n
 tooling only, 6 groups (1 matrix), 7 decisions, no migration or E2E, riders the release package's pinned lists. 175k / 34
 calls in one run (+358 code / +425 test lines, 25 files), gate green first run, approved round 0. The budget holds. The
 split moved the CI asset list forward from cycle 2, per the downstream-checks rule above.
+**OPS709** (`knowledge/specs/055-OPS709-release-check-sdk/RETRO.md`, [[OPS693]] cycle 2): release tooling and docs, 6
+groups (1 matrix), 2 decisions, no migration or E2E, docs rider. 171k / 59 calls in one run plus a ~5k / 5-call fix round
+(+305 code / +256 test lines, 15 files), approved round 1. The budget holds; the fix round was the docs rider's closed list
+(the "every" rule above) and a helper copied instead of shared.
 
 ### Step 3: Resolve identities
 

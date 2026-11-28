@@ -5,7 +5,7 @@ description: Register a first-party client, allow the app's origin, and sign peo
 
 A static web page on its own origin (a deals board, a notes taker, a dashboard) can sign a person in to your instance and call the API as that person, with no server of its own. It runs the OAuth authorization code flow with PKCE in the browser, keeps a bearer token and never holds a secret. This guide is for the developer who builds the page and the owner who registers it. [OAuth clients for your apps](/guides/oauth-clients/) covers the client's fields and the `CORS_ALLOWED_ORIGINS` rules in full.
 
-`@vibase/sdk` does the whole flow in `browserSignIn()`. It is workspace-internal until it is published, so a page outside this repository follows the flow below by hand. The example app, `packages/browser-app-example`, is the reference: a small page that signs in, shows who you are and your contacts, refreshes and signs out.
+`@vibase/sdk` does the whole flow in `browserSignIn()`: install it from npm (`npm install @vibase/sdk`) and import it into the page. A page that cannot use the package follows the flow below by hand. The example app, `packages/browser-app-example`, is the reference: a small page that signs in, shows who you are and your contacts, refreshes and signs out.
 
 ## What the owner does
 

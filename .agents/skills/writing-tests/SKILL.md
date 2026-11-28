@@ -455,6 +455,15 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   stale copy. The absence mutations of `release:check` run on **repacked copies** of the tarballs, never on the
   recorded `dist/` pair, so the recorded run's artifacts and `SHA256SUMS` stay what RESULT.md cites ([[OPS240]],
   `packages/release/scripts/check.ts`).
+- **A typecheck of shipped declarations is proven non-vacuous by doctoring them.** A consumer that compiles also
+  compiles against `any`, so give it `@ts-expect-error` lines (an unknown method, a wrong argument type): a doctored
+  `.d.ts` that makes the client `any` must fail with `TS2578` (unused directive), and a declaration error appended to the
+  shipped `.d.ts` must fail with `skipLibCheck: false`. Log the declaration path the compiler read, so a run shows it was
+  the installed `node_modules/...` copy and not workspace source ([[OPS709]], `packages/release/src/sdk-check.ts`).
+- **A check guarded by an earlier check cannot be mutated through the flow.** When an earlier refusal makes a later
+  check unreachable for every valid input (the SDK layout refuses dependencies, so the install can never bring a second
+  package), prove the later check's helper with its own unit test and absence mutation, and say in RESULT.md that the
+  wiring is unreachable rather than claiming it tested ([[OPS709]] 709.10).
 - **"A secret is never printed" is tested with a fake child that fails and echoes its whole environment.**
   Assert that no value appears in stdout, stderr, any refusal or the generated files. The mutation that
   proves the test is one that writes a secret into the generated config ([[OPS231]],

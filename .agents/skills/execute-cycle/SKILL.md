@@ -214,7 +214,11 @@ without `labelIds` fetched and judged after the fetch, untested until round 2).
 **A field your change leaves unread goes in this cycle.** When the cycle stops reading a field, parameter or
 option, grep its readers before RESULT.md; if none remain, remove it with its fixtures now (keep a twin that
 something else still reads). "Left for a later cleanup" is dead code and a review round: [[CORE639]] kept
-`OAuthClientsRuntime.defaultScopes` after D4 stopped reading it, and review sent it back. Where the gap changes a contract another spec relies on, or a behaviour the spec states,
+`OAuthClientsRuntime.defaultScopes` after D4 stopped reading it, and review sent it back.
+**A helper you extract is moved, not copied.** When new code in a module needs a function the old script also keeps
+using (a child-environment filter, a shell wrapper), move it to the shared module and import it from both; a verbatim
+copy is a review round ([[OPS709]] 709.14: `cleanEnv` copied from `packages/release/scripts/check.ts` into
+`src/sdk-check.ts`). Where the gap changes a contract another spec relies on, or a behaviour the spec states,
 don't guess: stop and report `blocked` with the question.
 
 ## 5. Gate
@@ -333,7 +337,7 @@ baseline evidence. Keep RESULT/HANDOFF current before a planned handoff so the n
   suite written out in RESULT.md itself (the retro reads the folder, not the CYCLE REPORT);
 - for a deletion, a title-by-title map of deleted tests to their surviving counterparts.
 
-A change to what `@vibase/cli` or `@vibase/server-d1` ships (a migration, an export, the Worker, the CLI) adds a
+A change to what `@vibase/cli`, `@vibase/server-d1` or `@vibase/sdk` ships (a migration, an export, the Worker, the CLI, the SDK) adds a
 `.changeset/*.md` (`pnpm changeset`; AGENTS.md, [[OPS210]] D25); [[OPS260]]'s review round 1 was partly a missing one.
 A behaviour change in a shared package the Worker bundles (`@vibase/api`, `@vibase/storage*`, `@vibase/auth`) changes
 what `@vibase/server-d1` ships, so it adds one too (`'@vibase/server-d1': minor` for new behaviour). Add it yourself;
@@ -358,6 +362,8 @@ the pushed sha, run `/retrospect` on the cycle folder, then open the PR (`gh pr 
 put two red tests on `main` until #488.
 
 When applying review findings, change only what the findings ask for, rerun the gate, commit, push,
+add the fix commit and a `## Review round <n> fixes` section (one line per finding ref) to `RESULT.md` in the same round
+([[OPS709]]'s fix round left RESULT.md listing three commits, and the retro rebuilt it from the log),
 and **end with the `CYCLE REPORT`** (§7). A review round is a run like any other: a fix pushed without a report
 leaves the orchestrator waiting for one ([[API63]] round 1). The same holds for a gate or E2E fix round. If the fix
 changes something one of your decision rows states (a file, where a function lives), add the superseding row

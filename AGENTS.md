@@ -252,7 +252,7 @@ pnpm -C packages/server-d1 build                   # the auth pages and the app 
 pnpm -C packages/server-d1 dev                     # builds, then wrangler dev --local on :8787 and the Vite dev server (HMR) on :5173 in front of it: open http://localhost:5173/app/home; `dev:worker` is the Worker alone
 pnpm -C packages/server-d1 test src/ui            # the auth pages' suites (`src/ui/**/*.ui.test.tsx`) on real React in the root `page-ui` project (UI446 D3)
 pnpm -C packages/ui test                          # @vibase/ui: the React component suites (`src/components/**/*.ui.test.tsx`, project `ui-components`, UI448, UI447) plus its node-side suites (`engine-neutral`); component suites are `*.ui.test.tsx`, never run by the root shared projects
-pnpm changeset                                     # add a changeset (a `.changeset/*.md`); a PR that changes what `@vibase/cli` or `@vibase/server-d1` ships adds one (OPS210 D25; the PR check is #264)
+pnpm changeset                                     # add a changeset (a `.changeset/*.md`); a PR that changes what `@vibase/cli`, `@vibase/server-d1` or `@vibase/sdk` ships adds one (OPS210 D25; the PR check is #264)
 ```
 
 These are the commands of everyday work. The rest live in the skill that uses them; read it before running one:
