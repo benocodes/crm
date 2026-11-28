@@ -17,7 +17,7 @@ import {
 } from 'node:fs'
 import { Miniflare } from 'miniflare'
 import { tmpdir } from 'node:os'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'jsonc-parser'
 import { ReleaseRefusal } from '../src/errors.js'
