@@ -596,6 +596,11 @@ split moved the CI asset list forward from cycle 2, per the downstream-checks ru
 groups (1 matrix), 2 decisions, no migration or E2E, docs rider. 171k / 59 calls in one run plus a ~5k / 5-call fix round
 (+305 code / +256 test lines, 15 files), approved round 1. The budget holds; the fix round was the docs rider's closed list
 (the "every" rule above) and a helper copied instead of shared.
+**DX694 cycle 1** (`knowledge/specs/056-DX694-gen-types-cli/RETRO.md`, split at plan time along the spec's own D10 cut): a
+refactor with its proofs, 5 groups (0 matrix), 2 decisions + 3 planner rules, no migration or E2E, a two-line docs rider.
+131k / 33 calls in one run (+65 code / +129 test lines, 13 files), gate green first run, approved round 0. The budget holds.
+A spec that names its split in a decision lets the plan cut without a survey, and a refactor whose proof is an existing test
+required unchanged in the diff (here `drift.test.ts`) is the cheapest cycle shape.
 
 ### Step 3: Resolve identities
 

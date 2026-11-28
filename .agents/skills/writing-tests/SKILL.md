@@ -427,6 +427,12 @@ evidence kind; this skill is how the coder proves it, and `execute-cycle` is the
   exception for exactly that line; otherwise change the line ([[CORE662]] review: Better Auth's device endpoints in
   `packages/auth/src/auth.ts` against `auth-page-urls.test.ts`'s P5 scan). The prefix assembly above for the release
   scan predates this rule; do not copy it.
+- **An import scan starts from the entry's real graph and skips text that is not code.** A "this module imports nothing
+  heavy" test reads the entry from `package.json` `exports` and follows relative imports (type-only ones too), so a file
+  added to the module later is covered; a fixed list of file names is not. Over a code generator, strip template literals
+  before matching: the emitted files' own `import … from '@vibase/sdk'` lines live in them and would read as imports. Keep a
+  planted-text self-test of the scanner beside the real check ([[DX694]],
+  `packages/sdk/src/generate/core-imports.test.ts`).
 - **A source scan for a path literal matches the path, not the substring.** UI476's no-`/connect` scan
   (`packages/server-d1/src/ui/no-connect-default.test.ts`) matches `/connect` as a whole segment and skips a
   regex literal and an escaped slash (`/connect an agent/`, `\/connect`), and counts a host-qualified `https://h/connect`;
