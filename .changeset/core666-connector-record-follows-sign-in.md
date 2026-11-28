@@ -1,5 +1,0 @@
----
-'@vibase/server-d1': minor
----
-
-A connector's stored scopes now follow its sign-in. A delegated agent (an MCP client signed in by a person) used to be created holding every agent-grantable scope whatever the person approved; its record is now the scopes of its latest sign-in (the token's list, closed, met with the person's role), on the built-in provider and on Clerk. A sign-in that lists something different rewrites the record with one `agent.updated` attributed to the person; a refresh or a sign-in with the same list changes nothing, so a scope an owner removed with `agents.update` stays removed until the connector signs in with a different list. A delegated agent refused a scope it was not approved for now gets the plain `403 insufficient_scope`, and MCP no longer lists a hinted tool for it. Migration `0031_connector_consented_scopes` adds a nullable `agents.consented_scopes` (never shown in any answer); run `vibase-server upgrade` to apply it. A connector created before the upgrade is corrected by its next request.
